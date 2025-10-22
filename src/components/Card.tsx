@@ -2,7 +2,7 @@ import React from "react";
 import { Animated, TouchableWithoutFeedback, View, Text, StyleSheet } from "react-native";
 import { Card as CardType } from "../game/ruleset";
 
-export default function Card({ card, selected, onPress, highlight = 0 }: { card: CardType; selected: boolean; onPress: () => void; highlight?: number }) {
+export default function Card({ card, selected, onPress, highlight = 0, faceDown = false }: { card: CardType; selected: boolean; onPress: () => void; highlight?: number; faceDown?: boolean }) {
   const anim = React.useRef(new Animated.Value(selected ? 1 : 0)).current;
   const glow = React.useRef(new Animated.Value(highlight)).current;
 
@@ -59,19 +59,25 @@ export default function Card({ card, selected, onPress, highlight = 0 }: { card:
     <Animated.View style={[local.card, { transform: [{ translateY }, { scale }], shadowRadius: elevation } as any, { borderColor: borderGlow }]}>
       <TouchableWithoutFeedback onPress={onPress} accessibilityLabel={`card-${label}-${card.suit}`}>
         <View style={local.inner}>
-          {/* corner rank/suit markers */}
-          <View style={local.cornerTopLeft} pointerEvents="none">
-            <Text style={local.cornerText}>{label}</Text>
-            <Text style={local.cornerTextSmall}>{suitSymbol}</Text>
-          </View>
+          {faceDown ? (
+            <View style={local.backFace} />
+          ) : (
+            <>
+              {/* corner rank/suit markers */}
+              <View style={local.cornerTopLeft} pointerEvents="none">
+                <Text style={local.cornerText}>{label}</Text>
+                <Text style={local.cornerTextSmall}>{suitSymbol}</Text>
+              </View>
 
-          <Text style={local.value}>{label}</Text>
-          <Text style={local.suit}>{suitSymbol}</Text>
+              <Text style={local.value}>{label}</Text>
+              <Text style={local.suit}>{suitSymbol}</Text>
 
-          <View style={local.cornerBottomRight} pointerEvents="none">
-            <Text style={local.cornerText}>{label}</Text>
-            <Text style={local.cornerTextSmall}>{suitSymbol}</Text>
-          </View>
+              <View style={local.cornerBottomRight} pointerEvents="none">
+                <Text style={local.cornerText}>{label}</Text>
+                <Text style={local.cornerTextSmall}>{suitSymbol}</Text>
+              </View>
+            </>
+          )}
         </View>
       </TouchableWithoutFeedback>
     </Animated.View>
@@ -125,6 +131,7 @@ const local = StyleSheet.create({
     alignItems: "flex-end",
     transform: [{ rotate: "180deg" }],
   },
+  backFace: { width: "80%", height: "60%", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 6 },
   cornerText: {
     color: "#f0f0f0",
     fontWeight: "700",

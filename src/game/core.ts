@@ -7,9 +7,12 @@ export type GameState = {
   players: Player[];
   currentPlayerIndex: number;
   pile: Card[]; // last played cards on the pile
+  pileHistory?: Card[][];
   passCount: number; // consecutive passes
   finishedOrder: string[]; // player ids in order they finished
   started: boolean;
+  lastPlayPlayerIndex?: number | null;
+  mustPlay?: boolean;
 };
 
 export function createGame(playerNames: string[]): GameState {
@@ -27,6 +30,10 @@ export function createGame(playerNames: string[]): GameState {
     passCount: 0,
     finishedOrder: [],
     started: true,
+    lastPlayPlayerIndex: null,
+    // the player who holds the 3 of clubs must start and cannot pass
+    mustPlay: threeOfClubsIndex >= 0 ? true : false,
+    pileHistory: [],
   };
 }
 
@@ -51,29 +58,39 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
 
   // remove cards from player's hand
   player.hand = player.hand.filter((h) => !cards.some((c) => c.suit === h.suit && c.value === h.value));
+  // record who played last
+  state.lastPlayPlayerIndex = pIndex;
 
   // Special rules first
-  // If any played card is a 2, it clears the pile immediately
+  // If any played card is a 2, it clears the pile immediately and the player who played it leads next
   if (containsTwo(cards)) {
     state.pile = [];
+    state.pileHistory = [];
     state.passCount = 0;
+    state.currentPlayerIndex = pIndex;
+    state.mustPlay = true;
   } else if (isFourOfAKind(cards)) {
-    // four of a kind clears the pile
+    // four of a kind clears the pile and the player who played it leads next
     state.pile = [];
+    state.pileHistory = [];
     state.passCount = 0;
+    state.currentPlayerIndex = pIndex;
+    state.mustPlay = true;
   } else {
     // normal play replaces the pile
     state.pile = cards;
+    // record this play in history
+    state.pileHistory = state.pileHistory || [];
+    state.pileHistory.push(cards.slice());
     state.passCount = 0;
+    // advance from the player who just played
+    state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+    state.mustPlay = false;
   }
-
   // if player emptied hand, add to finished
   if (player.hand.length === 0) {
     state.finishedOrder.push(player.id);
   }
-
-  // advance turn to next active player
-  state.currentPlayerIndex = nextActivePlayerIndex(state, state.currentPlayerIndex);
 
   return { ...state };
 }
@@ -116,8 +133,8 @@ export function isValidPlay(cards: Card[], pile: Card[]) {
   if (!allSameValue(pile)) return false;
 
   // must have higher value than pile's value
-  const top = pile[0].value;
-  const plTop = cards[0].value;
+  const top = rankIndex(pile[0].value);
+  const plTop = rankIndex(cards[0].value);
   return plTop > top;
 }
 
@@ -151,13 +168,24 @@ export function passTurn(state: GameState, playerId: string): GameState {
   if (pIndex === -1) return state;
   if (state.currentPlayerIndex !== pIndex) return state;
 
+  // If the current player is required to play (leader), they cannot pass
+  if (state.mustPlay) return state;
+
   state.passCount += 1;
   state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
 
-  // if all other players passed, clear the pile
+  // if all other players passed, clear the pile and winner leads next
   if (state.passCount >= state.players.length - 1) {
     state.pile = [];
     state.passCount = 0;
+    const winner = state.lastPlayPlayerIndex ?? null;
+    if (winner !== null && winner >= 0 && !state.finishedOrder.includes(state.players[winner].id)) {
+      state.currentPlayerIndex = winner;
+      state.mustPlay = true;
+    } else {
+      state.currentPlayerIndex = nextActivePlayerIndex(state, state.currentPlayerIndex);
+      state.mustPlay = false;
+    }
   }
 
   return { ...state };

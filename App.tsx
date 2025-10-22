@@ -74,7 +74,7 @@ export default function App() {
 
         {/* Top-right mute button */}
         {menuVisible && (
-          <View style={{ position: "absolute", top: 42, left: 42, zIndex: 30 }}>
+          <View style={{ position: "absolute", top: 42, right: 24, zIndex: 30 }}>
             <MuteButton muted={muted} onToggle={() => toggleMute()} />
           </View>
         )}
@@ -123,7 +123,7 @@ export default function App() {
           <CreateGame adapter={networkAdapter} onBack={() => setScreen("menu")} onStart={(names) => { setLobbyPlayers(names); setScreen("game"); }} />
         )}
         {menuVisible && screen === "game" && (
-          <GameScreen initialPlayers={lobbyPlayers ?? undefined} />
+          <GameScreen initialPlayers={lobbyPlayers ?? undefined} onBack={() => setScreen("menu")} />
         )}
       </ImageBackground>
     </View>

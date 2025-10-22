@@ -9,25 +9,35 @@ exports.containsTwo = containsTwo;
 exports.isFourOfAKind = isFourOfAKind;
 exports.findValidSingleCard = findValidSingleCard;
 exports.passTurn = passTurn;
-// core.ts
-// Core game state and logic for Presidents & Assholes
+// core.ts (compiled proxy) - synced to match src/game/core.ts logic
 const ruleset_1 = require("./ruleset");
+// Rank order: 3,4,5,6,7,8,9,10,11(J),12(Q),13(K),14(A),2,15(Joker)
+const RANK_ORDER = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 2, 15];
+function rankIndex(value) {
+    const idx = RANK_ORDER.indexOf(value);
+    return idx >= 0 ? idx : -1;
+}
 function createGame(playerNames) {
     const players = playerNames.map((n, i) => ({ id: String(i + 1), name: n, hand: [], role: "Neutral" }));
     const deck = (0, ruleset_1.shuffleDeck)((0, ruleset_1.createDeck)());
     (0, ruleset_1.dealCards)(deck, players);
+    // find 3 of clubs starter
+    const threeIndex = players.findIndex((p) => p.hand.some((c) => c.suit === 'clubs' && c.value === 3));
+    const start = threeIndex >= 0 ? threeIndex : 0;
     return {
         id: "game-" + Date.now(),
         players,
-        currentPlayerIndex: 0,
+        currentPlayerIndex: start,
         pile: [],
         passCount: 0,
         finishedOrder: [],
         started: true,
+        lastPlayPlayerIndex: null,
+        mustPlay: threeIndex >= 0 ? true : false,
+        pileHistory: [],
     };
 }
 function playCards(state, playerId, cards) {
-    // Very small validation: ensure it's that player's turn and they have the cards
     const pIndex = state.players.findIndex((p) => p.id === playerId);
     if (pIndex === -1)
         return state;
@@ -40,62 +50,68 @@ function playCards(state, playerId, cards) {
         if (found === -1)
             return state;
     }
-    // Validate play type: must play same number of cards as pile (unless pile is empty)
+    // all played cards must have the same value
+    if (!allSameValue(cards))
+        return state;
+    // validate play type
     if (!isValidPlay(cards, state.pile))
         return state;
     // remove cards from player's hand
     player.hand = player.hand.filter((h) => !cards.some((c) => c.suit === h.suit && c.value === h.value));
-    // Special rules first
-    // If any played card is a 2, it clears the pile immediately
+    // record who played last
+    state.lastPlayPlayerIndex = pIndex;
+    // Special rules
     if (containsTwo(cards)) {
         state.pile = [];
+        state.pileHistory = [];
         state.passCount = 0;
+        state.currentPlayerIndex = pIndex;
+        state.mustPlay = true;
     }
     else if (isFourOfAKind(cards)) {
-        // four of a kind clears the pile
         state.pile = [];
+        state.pileHistory = [];
         state.passCount = 0;
+        state.currentPlayerIndex = pIndex;
+        state.mustPlay = true;
     }
     else {
-        // normal play replaces the pile
         state.pile = cards;
+        state.pileHistory = state.pileHistory || [];
+        state.pileHistory.push(cards.slice());
         state.passCount = 0;
+        state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+        state.mustPlay = false;
     }
-    // if player emptied hand, add to finished
     if (player.hand.length === 0) {
         state.finishedOrder.push(player.id);
     }
-    // advance turn
-    state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
-    return { ...state };
+    return Object.assign({}, state);
 }
-// Helpers for play validation
 function getPlayCount(cards) {
-    return cards.length;
+    return cards ? cards.length : 0;
 }
 function getHighestValue(cards) {
     if (!cards || cards.length === 0)
         return -1;
-    return Math.max(...cards.map((c) => c.value));
+    // use rankIndex comparison
+    return Math.max(...cards.map((c) => rankIndex(c.value)));
 }
 function isValidPlay(cards, pile) {
-    // empty play not allowed
     if (!cards || cards.length === 0)
         return false;
     const playCount = getPlayCount(cards);
     const pileCount = getPlayCount(pile);
-    // if pile is empty, any play is allowed
     if (pileCount === 0)
         return true;
-    // must match the count
     if (playCount !== pileCount)
         return false;
-    // must have higher top value
-    const top = getHighestValue(pile);
-    const plTop = getHighestValue(cards);
+    if (!allSameValue(pile))
+        return false;
+    const top = rankIndex(pile[0].value);
+    const plTop = rankIndex(cards[0].value);
     return plTop > top;
 }
-// special helpers
 function containsTwo(cards) {
     return cards.some((c) => c.value === 2);
 }
@@ -105,20 +121,18 @@ function isFourOfAKind(cards) {
     const v = cards[0].value;
     return cards.every((c) => c.value === v);
 }
-// find a simple valid single-card play from hand (used by hotseat auto-play)
 function findValidSingleCard(hand, pile) {
     if (!hand || hand.length === 0)
         return null;
     const pileTop = getHighestValue(pile);
-    // if pile empty, play the lowest value
-    if (pile.length === 0) {
-        return hand.reduce((min, c) => (c.value < min.value ? c : min), hand[0]);
+    if (!pile || pile.length === 0) {
+        // lowest by rankIndex
+        return hand.reduce((min, c) => (rankIndex(c.value) < rankIndex(min.value) ? c : min), hand[0]);
     }
-    // otherwise find lowest card greater than pileTop
-    const candidates = hand.filter((c) => c.value > pileTop);
+    const candidates = hand.filter((c) => rankIndex(c.value) > pileTop);
     if (candidates.length === 0)
         return null;
-    return candidates.reduce((min, c) => (c.value < min.value ? c : min), candidates[0]);
+    return candidates.reduce((min, c) => (rankIndex(c.value) < rankIndex(min.value) ? c : min), candidates[0]);
 }
 function passTurn(state, playerId) {
     const pIndex = state.players.findIndex((p) => p.id === playerId);
@@ -126,12 +140,41 @@ function passTurn(state, playerId) {
         return state;
     if (state.currentPlayerIndex !== pIndex)
         return state;
-    state.passCount += 1;
+    // If the current player is required to play (leader), they cannot pass
+    if (state.mustPlay)
+        return state;
+    state.passCount = (state.passCount || 0) + 1;
     state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
-    // if all other players passed, clear the pile
     if (state.passCount >= state.players.length - 1) {
         state.pile = [];
         state.passCount = 0;
+        const winner = state.lastPlayPlayerIndex != null ? state.lastPlayPlayerIndex : null;
+        if (winner !== null && winner >= 0 && !state.finishedOrder.includes(state.players[winner].id)) {
+            state.currentPlayerIndex = winner;
+            state.mustPlay = true;
+        }
+        else {
+            state.currentPlayerIndex = nextActivePlayerIndex(state, state.currentPlayerIndex);
+            state.mustPlay = false;
+        }
     }
-    return { ...state };
+    return Object.assign({}, state);
+}
+function allSameValue(cards) {
+    if (!cards || cards.length === 0)
+        return false;
+    const v = cards[0].value;
+    return cards.every((c) => c.value === v);
+}
+function nextActivePlayerIndex(state, fromIndex) {
+    const n = state.players.length;
+    if (n === 0)
+        return 0;
+    for (let i = 1; i <= n; i++) {
+        const idx = (fromIndex + i) % n;
+        const p = state.players[idx];
+        if (!state.finishedOrder.includes(p.id))
+            return idx;
+    }
+    return fromIndex;
 }
