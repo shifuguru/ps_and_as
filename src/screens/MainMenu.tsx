@@ -47,8 +47,8 @@ export default function MainMenu() {
       resizeMode="cover"
     >
       <View style={styles.menuContainer}>
-        <Text style={styles.title}>Presidents & Arseholes</Text>
-        <Text style={styles.subtitle}>by Rabbithole Games</Text>
+        <Text style={styles.title}>P's & A's</Text>
+        <Text style={styles.subtitle}>by rabbithole Games</Text>
 
         <View style={styles.buttonGroup}>
           <Button label="Create Game" onPress={() => {}} />

@@ -40,7 +40,6 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
     <View style={styles.container}>
       <Animated.View
         style={{
-          transform: [{ scale }],
           opacity,
           backgroundColor: "black",
           width: "100%",
@@ -49,22 +48,24 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
           justifyContent: "center",
         }}
       >
-        <Svg width={110} height={110} viewBox="0 0 100 100" fill="none">
-          {/* simple white monogram / emblem */}
-          <Path
-            d="M20 20h40a20 20 0 1 1 0 60H20V20z"
-            stroke="white"
-            strokeWidth={6}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </Svg>
-        <View style={{ width: 120, height: 120, backgroundColor: "white", borderRadius: 60 }} />
+        <Animated.View style={{ transform: [{ scale }] }}>
+          <Svg width={110} height={110} viewBox="0 0 100 100" fill="none">
+            {/* simple white monogram / emblem */}
+            <Path
+              d="M20 20h40a20 20 0 1 1 0 60H20V20z"
+              stroke="white"
+              strokeWidth={6}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
+          <View style={{ width: 120, height: 120, backgroundColor: "white", borderRadius: 60 }} />
+        </Animated.View>
       </Animated.View>
 
       <Animated.View style={{ marginTop: 18, alignItems: "center", opacity: textOpacity, transform: [{ translateY: textTranslate }] }}>
-        <Text style={styles.title}>Presidents & Arseholes</Text>
-        <Text style={styles.subtitle}>by Rabbithole Games</Text>
+        <Text style={styles.title}>P's & A's</Text>
+        <Text style={styles.subtitle}>by rabbithole games</Text>
       </Animated.View>
     </View>
   );

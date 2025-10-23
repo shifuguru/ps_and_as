@@ -3,10 +3,13 @@ import { View, ImageBackground, Animated, StyleSheet, Text, TouchableOpacity } f
 import SplashScreen from "./src/screens/SplashScreen";
 import MainMenu from "./src/screens/MainMenu";
 import CreateGame from "./src/screens/CreateGame";
+import FindGame from "./src/screens/FindGame";
 import GameScreen from "./src/screens/GameScreen";
+import Achievements from "./src/screens/Achievements";
 import { useMenuAudio } from "./src/hooks/useMenuAudio";
 import MuteButton from "./src/components/ui/MuteButton";
 import { styles } from "./src/styles/theme";
+import { SocketAdapter } from "./src/game/socketAdapter";
 
 export default function App() {
   // splashVisible: whether the splash overlay is still mounted
@@ -14,23 +17,28 @@ export default function App() {
   const [splashVisible, setSplashVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const { playEffect, toggleMute, isMuted, muted } = useMenuAudio();
-  const [screen, setScreen] = useState<"menu" | "create" | "game">("menu");
+  const [screen, setScreen] = useState<"menu" | "create" | "find" | "game" | "achievements">("menu");
   const [lobbyPlayers, setLobbyPlayers] = useState<string[] | null>(null);
+  const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
+  const [roomAdapter, setRoomAdapter] = useState<SocketAdapter | null>(null);
+  const [joinedRoomId, setJoinedRoomId] = useState<string | null>(null);
   // try to construct a network adapter at runtime and memoize it
   const networkAdapter = useMemo(() => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { SocketAdapter } = require("./src/game/socketAdapter");
-      return new SocketAdapter("http://localhost:3000", "main", "Host");
+      console.log("[App] Creating network adapter for discovery only...");
+      // Discovery adapter should NOT auto-join any room
+      return new SocketAdapter("http://192.168.88.138:3000", "", "", false);
     } catch (e) {
+      console.error("[App] Failed to create network adapter:", e);
       return null;
     }
   }, []);
 
-  const splashScale = useRef(new Animated.Value(1)).current;
+  const splashOpacity = useRef(new Animated.Value(1)).current;
+  const menuOpacity = useRef(new Animated.Value(0)).current;
 
   const hideSplashAndShowMenu = () => {
-    Animated.timing(splashScale, {
+    Animated.timing(splashOpacity, {
       toValue: 0.0,
       duration: 800,
       useNativeDriver: false,
@@ -38,10 +46,16 @@ export default function App() {
       // after animation completes remove splash and show menu
       setSplashVisible(false);
       setMenuVisible(true);
+      // Fade in the menu
+      Animated.timing(menuOpacity, {
+        toValue: 1.0,
+        duration: 600,
+        useNativeDriver: false,
+      }).start();
     });
   };
 
-  const buttons = ["Create Game", "Random Game", "Online", "Local", "Achievements"];
+  const buttons = ["Create Game", "Find Game", "Random Game", "Local", "Achievements"];
 
   return (
     <View style={{ flex: 1 }}>
@@ -58,12 +72,7 @@ export default function App() {
               {
                 justifyContent: "center",
                 alignItems: "center",
-                transform: [
-                  {
-                    scale: splashScale.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
-                  },
-                ],
-                opacity: splashScale.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+                opacity: splashOpacity,
               },
             ]}
             pointerEvents="auto"
@@ -81,7 +90,7 @@ export default function App() {
 
         {/* Main menu or screens */}
         {menuVisible && screen === "menu" && (
-          <View style={styles.menuContainer}>
+          <Animated.View style={[styles.menuContainer, { opacity: menuOpacity }]}>
             <Text style={styles.title}>P's & A's</Text>
             <Text style={styles.subtitle}>by rabbithole Games</Text>
 
@@ -93,9 +102,10 @@ export default function App() {
                   onPress={() => {
                     playEffect("click");
                     if (label === "Create Game") setScreen("create");
+                    else if (label === "Find Game") setScreen("find");
                     else if (label === "Random Game") {
                       // start a quick random 4-player game
-                      const rnd = ["Alice", "Bob", "Charlie", "Dana"];
+                      const rnd = ["You", "CPU 1", "CPU 2", "CPU 3"];
                       setLobbyPlayers(rnd);
                       setScreen("game");
                     } else if (label === "Local") {
@@ -103,12 +113,8 @@ export default function App() {
                       const local = ["You", "Local Player"];
                       setLobbyPlayers(local);
                       setScreen("game");
-                    } else if (label === "Online") {
-                      // open the Create Game screen in online mode (adapter passed in)
-                      setScreen("create");
                     } else if (label === "Achievements") {
-                      // placeholder for achievements
-                      // TODO: navigate to Achievements screen
+                      setScreen("achievements");
                     }
                   }}
                 >
@@ -116,14 +122,69 @@ export default function App() {
                 </TouchableOpacity>
               ))}
             </View>
-          </View>
+          </Animated.View>
+        )}
+
+        {menuVisible && screen === "achievements" && (
+          <Achievements onBack={() => setScreen("menu")} />
         )}
 
         {menuVisible && screen === "create" && (
-          <CreateGame adapter={networkAdapter} onBack={() => setScreen("menu")} onStart={(names) => { setLobbyPlayers(names); setScreen("game"); }} />
+          <CreateGame 
+            adapter={roomAdapter || networkAdapter} 
+            isJoining={!!roomAdapter}
+            joinRoomId={joinedRoomId || undefined}
+            onBack={() => {
+              setScreen("menu");
+              setRoomAdapter(null);
+              setJoinedRoomId(null);
+            }}
+            onNavigateToAchievements={() => setScreen("achievements")}
+            onStart={(names, localName) => {
+              console.log("[App] CreateGame onStart called with names:", names, "localName:", localName);
+              setLobbyPlayers(names); 
+              setLocalPlayerName(localName);
+              setScreen("game");
+              setRoomAdapter(null);
+              setJoinedRoomId(null);
+            }} 
+          />
+        )}
+        {menuVisible && screen === "find" && (
+          networkAdapter ? (
+            <FindGame 
+              adapter={networkAdapter} 
+              onBack={() => setScreen("menu")}
+              onNavigateToAchievements={() => setScreen("achievements")}
+              onJoinRoom={(roomId, playerName) => {
+                // Create a new adapter for this specific room with auto-join enabled
+                const newAdapter = new SocketAdapter("http://192.168.88.138:3000", roomId, playerName, true);
+                setRoomAdapter(newAdapter);
+                setJoinedRoomId(roomId);
+                setScreen("create");
+              }} 
+            />
+          ) : (
+            <View style={styles.menuContainer}>
+              <Text style={styles.title}>Network Unavailable</Text>
+              <Text style={[styles.subtitle, { textAlign: "center", marginTop: 20 }]}>
+                Unable to connect to server.{"\n"}Please check your connection.
+              </Text>
+              <TouchableOpacity 
+                style={[styles.menuButton, { marginTop: 20 }]} 
+                onPress={() => setScreen("menu")}
+              >
+                <Text style={styles.menuButtonText}>Back</Text>
+              </TouchableOpacity>
+            </View>
+          )
         )}
         {menuVisible && screen === "game" && (
-          <GameScreen initialPlayers={lobbyPlayers ?? undefined} onBack={() => setScreen("menu")} />
+          <GameScreen 
+            initialPlayers={lobbyPlayers ?? undefined} 
+            localPlayerName={localPlayerName ?? undefined}
+            onBack={() => setScreen("menu")} 
+          />
         )}
       </ImageBackground>
     </View>

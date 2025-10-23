@@ -27,6 +27,8 @@ export class MockAdapter implements NetworkAdapter {
   private rooms: Record<string, Player[]> = {};
   // map roomId -> hostId
   private hosts: Record<string, string> = {};
+  // map roomId -> creation timestamp
+  private roomCreationTimes: Record<string, number> = {};
 
   async connect() {
     // nothing
@@ -38,9 +40,33 @@ export class MockAdapter implements NetworkAdapter {
     const id = `host-${Date.now()}`;
     this.rooms[roomId] = [{ id, name, ready: false } as any];
     this.hosts[roomId] = id;
+    this.roomCreationTimes[roomId] = Date.now();
     // emit connected to creator
     setTimeout(() => this.handlers.forEach((h) => h({ type: "state", state: { type: "connected", id, name } })), 10);
     this.emitLobby(roomId);
+  }
+
+  discoverRooms() {
+    // Return all available rooms
+    const availableRooms = Object.keys(this.rooms)
+      .filter(roomId => this.rooms[roomId].length < 8)
+      .map(roomId => {
+        const host = this.rooms[roomId].find(p => p.id === this.hosts[roomId]);
+        return {
+          roomId,
+          hostName: host?.name || "Unknown Host",
+          playerCount: this.rooms[roomId].length,
+          maxPlayers: 8,
+          createdAt: this.roomCreationTimes[roomId] || Date.now()
+        };
+      });
+    
+    setTimeout(() => {
+      this.handlers.forEach((h) => h({ 
+        type: "state", 
+        state: { type: "availableRooms", rooms: availableRooms } 
+      }));
+    }, 10);
   }
 
   joinRoom(roomId: string, name: string) {

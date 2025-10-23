@@ -2,7 +2,7 @@ import React from "react";
 import { Animated, TouchableWithoutFeedback, View, Text, StyleSheet } from "react-native";
 import { Card as CardType } from "../game/ruleset";
 
-export default function Card({ card, selected, onPress, highlight = 0, faceDown = false }: { card: CardType; selected: boolean; onPress: () => void; highlight?: number; faceDown?: boolean }) {
+export default function Card({ card, selected, onPress, highlight = 0, faceDown = false, disabled = false }: { card: CardType; selected: boolean; onPress: () => void; highlight?: number; faceDown?: boolean; disabled?: boolean }) {
   const anim = React.useRef(new Animated.Value(selected ? 1 : 0)).current;
   const glow = React.useRef(new Animated.Value(highlight)).current;
 
@@ -56,7 +56,7 @@ export default function Card({ card, selected, onPress, highlight = 0, faceDown 
   })();
 
   return (
-    <Animated.View style={[local.card, { transform: [{ translateY }, { scale }], shadowRadius: elevation } as any, { borderColor: borderGlow }]}>
+    <Animated.View style={[local.card, { transform: [{ translateY }, { scale }], shadowRadius: elevation } as any, { borderColor: borderGlow }, disabled && { opacity: 0.35 }]}>
       <TouchableWithoutFeedback onPress={onPress} accessibilityLabel={`card-${label}-${card.suit}`}>
         <View style={local.inner}>
           {faceDown ? (
