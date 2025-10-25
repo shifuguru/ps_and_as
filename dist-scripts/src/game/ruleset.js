@@ -15,6 +15,9 @@ function createDeck() {
             deck.push({ suit, value });
         }
     }
+    // add two jokers as highest rank
+    deck.push({ suit: "joker", value: 15 });
+    deck.push({ suit: "joker", value: 15 });
     return deck;
 }
 // Shuffle the deck using Fisher-Yates algorithm
@@ -27,9 +30,14 @@ function shuffleDeck(deck) {
 }
 // Deal cards to players
 function dealCards(deck, players) {
-    const handSize = Math.floor(deck.length / players.length);
-    for (let i = 0; i < players.length; i++) {
-        players[i].hand = deck.slice(i * handSize, (i + 1) * handSize);
+    // clear hands
+    for (const p of players)
+        p.hand = [];
+    // deal round-robin
+    let idx = 0;
+    for (const card of deck) {
+        players[idx % players.length].hand.push(card);
+        idx++;
     }
 }
 // Assign roles to players based on their rankings

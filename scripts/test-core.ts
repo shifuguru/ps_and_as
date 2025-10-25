@@ -5,10 +5,11 @@ import { getPlayCount, getHighestValue, isValidPlay, containsTwo, isFourOfAKind 
 
 // Basic deck tests
 const deck = createDeck();
-assert.strictEqual(deck.length, 52, "Deck should have 52 cards");
+// Deck includes two jokers by design -> 54 cards total
+assert.strictEqual(deck.length, 54, "Deck should have 54 cards (includes 2 jokers)");
 
 const shuffled = shuffleDeck(createDeck());
-assert.strictEqual(shuffled.length, 52, "Shuffled deck should have 52 cards");
+assert.strictEqual(shuffled.length, 54, "Shuffled deck should have 54 cards (includes 2 jokers)");
 
 // isValidPlay tests
 const single: Card[] = [{ suit: "hearts", value: 10 }];

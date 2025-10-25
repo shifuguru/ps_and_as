@@ -15,7 +15,7 @@ export default function CreateGame({
   joinRoomId
 }: { 
   onBack: () => void; 
-  onStart: (names: string[], localPlayerName: string) => void; 
+  onStart: (names: string[], localPlayerName: string, localPlayerId?: string) => void; 
   adapter?: NetworkAdapter;
   isJoining?: boolean;
   onNavigateToAchievements?: () => void;
@@ -68,16 +68,17 @@ export default function CreateGame({
 
   useEffect(() => {
     let mounted = true;
-    console.log("[CreateGame] Component mounted with adapter:", adapter ? "provided" : "none");
+    const log = (...args: any[]) => console.log('[CreateGame]', 'playerId=' + (playerId ?? '??'), 'localId=' + (localId ?? '??'), ...args);
+    log("Component mounted with adapter:", adapter ? "provided" : "none");
 
     // subscribe to network messages
     net.on("message", (ev) => {
       if (!mounted) return;
-      console.log("[CreateGame] Received event:", ev.type, ev);
+  log("Received event:", ev.type, ev);
       
       // support state messages from adapters
       if (ev.type === "state" && ev.state && ev.state.type === "lobby") {
-        console.log("[CreateGame] Lobby update:", ev.state);
+  log("Lobby update:", ev.state);
         setNames(ev.state.players.map((p: any) => p.name));
         setHostId(ev.state.host ?? null);
         setConnectionStatus("connected");
@@ -87,16 +88,34 @@ export default function CreateGame({
           setLocalReady(!!(me && me.ready));
         }
       }
-      if (ev.type === "state" && ev.state && ev.state.type === "startGame") {
-        console.log("[CreateGame] Game starting with players:", ev.state.players);
-        console.log("[CreateGame] Calling onStart callback with localPlayerName:", playerName);
-        onStart(ev.state.players, playerName);
+  if (ev.type === "state" && ev.state && ev.state.type === "startGame") {
+  log("Game starting with players:", ev.state.players);
+  log("Calling onStart callback with localPlayerName:", playerName, "playerId:", playerId);
+    onStart(ev.state.players, playerName, playerId ?? undefined);
       }
       if (ev.type === "state" && ev.state && ev.state.type === "connected") {
-        console.log("[CreateGame] Connected with id:", ev.state.id);
-        // connected gives us our assigned id
-        setLocalId(ev.state.id);
-        setConnectionStatus("connected");
+  log("Connected with id:", ev.state.id, "name:", ev.state.name);
+        // connected gives us our assigned id. Only treat this as *our* id when the
+        // name matches our selected playerName (prevents mock join events overwriting localId)
+        if (ev.state.name === playerName) {
+          setLocalId(ev.state.id);
+          setConnectionStatus("connected");
+        } else {
+          // If this is a MockAdapter-created CPU, auto-mark them ready so local games
+          // don't get stuck waiting for host. We detect MockAdapter by checking the
+          // net object's constructor name (safe for dev/mock scenarios).
+          try {
+            if ((net as any)?.constructor?.name === "MockAdapter" && typeof ev.state.name === "string" && ev.state.name.startsWith("CPU ")) {
+              console.log(`[CreateGame] Auto-readying CPU player ${ev.state.name} (${ev.state.id})`);
+              // actualRoomId should have been set when the room was created in demo mode
+              if (actualRoomId) {
+                (net as any).toggleReady(actualRoomId, ev.state.id, true);
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
       }
       if (ev.type === "state" && ev.state && ev.state.type === "kicked") {
         console.warn("[CreateGame] Kicked from room:", ev.state.message);
@@ -109,7 +128,7 @@ export default function CreateGame({
     });
 
     return () => {
-      console.log("[CreateGame] Component unmounting, disconnecting...");
+          log("Component unmounting, disconnecting...");
       mounted = false;
       try {
         if (adapter) adapter.disconnect();
@@ -129,39 +148,50 @@ export default function CreateGame({
     let mounted = true;
 
     (async () => {
-      try {
-        if (adapter) {
-          console.log("[CreateGame] Connecting real adapter... isJoining:", isJoining, "playerName:", playerName);
-          setConnectionStatus("connecting");
-          await adapter.connect();
-          
-          // Only create room if we're NOT joining an existing one
-          if (!isJoining) {
-            // Now we know playerName is loaded
-            if ((adapter as any).createRoom) {
-              const hostName = playerName;
-              console.log("[CreateGame] Creating new room '", roomName, "' with host:", hostName);
-              (adapter as any).createRoom(roomName, hostName);
-              // Note: socketAdapter sends roomId as the host name, so track that
-              setActualRoomId(hostName);
-              setRoomCreated(true);
-            }
-          } else {
-            console.log("[CreateGame] Joining existing room via auto-join");
-            if (joinRoomId) {
-              setActualRoomId(joinRoomId);
-            }
-            setRoomCreated(true);
-          }
-        } else {
+          try {
+            if (adapter) {
+              console.log("[CreateGame] Connecting real adapter... isJoining:", isJoining, "playerName:", playerName, "playerId:", playerId);
+              setConnectionStatus("connecting");
+              await adapter.connect();
+              
+              // Only create room if we're NOT joining an existing one
+              if (!isJoining) {
+                // Now we know playerName is loaded
+                if ((adapter as any).createRoom) {
+                  const hostName = playerName;
+                  // generate a unique room id to avoid collisions when multiple devices use the same room name
+                  const rid = `${roomName.trim().replace(/\s+/g, '_')}-${Date.now()}`;
+                  console.log("[CreateGame] Creating new room '", roomName, "' with host:", hostName, "roomId:", rid);
+                  (adapter as any).createRoom(rid, hostName);
+                  setActualRoomId(rid);
+                  setRoomCreated(true);
+                }
+              } else {
+                console.log("[CreateGame] Joining existing room via auto-join", "joinRoomId=", joinRoomId);
+                if (joinRoomId) {
+                  setActualRoomId(joinRoomId);
+                }
+                setRoomCreated(true);
+              }
+            } else {
           console.log("[CreateGame] Using MockAdapter for demo");
-          setConnectionStatus("connecting");
-          // for demo (no adapter) populate with 2 simulated players
-          const m = net as MockAdapter;
-          m.createRoom(roomName, playerName || "You (Host)");
-          m.joinRoom(roomName, "Player 2");
-          setRoomCreated(true);
-          setConnectionStatus("connected");
+            setConnectionStatus("connecting");
+            // for demo (no adapter) populate with simulated players (default 3 players)
+            const m = net as MockAdapter;
+            // create a unique mock room id so multiple devices running the app don't collide
+            const rid = `${roomName.trim().replace(/\s+/g, '_')}-${Date.now()}`;
+            const hostName = playerName || "You (Host)";
+            m.createRoom(rid, hostName);
+            // record the room id so later CPU joins use the same id
+            setActualRoomId(rid);
+            // Add two default opponents (CPU 1 and CPU 2) to make default player count 3
+            m.joinRoom(rid, "CPU 1");
+            m.joinRoom(rid, "CPU 2");
+            // Immediately update local UI names so the host is included and Start enables
+            setNames([hostName, "CPU 1", "CPU 2"]);
+            setLocalReady(true);
+            setRoomCreated(true);
+            setConnectionStatus("connected");
         }
       } catch (e) {
         console.error("[CreateGame] adapter connect/createRoom failed", e);
@@ -296,11 +326,24 @@ export default function CreateGame({
                 const cpuName = `CPU ${cpuCount + 1}`;
                 setNames((s) => [...s, cpuName]);
                 console.log("[CreateGame] Added CPU player:", cpuName);
+                // If using MockAdapter (local/demo), also register the CPU with the mock room
+                try {
+                  if ((net as any)?.constructor?.name === "MockAdapter") {
+                    const m = net as MockAdapter;
+                    const rid = actualRoomId || roomName;
+                    // ensure we have a room id
+                    setActualRoomId(rid);
+                    m.joinRoom(rid, cpuName);
+                    // MockAdapter will emit a connected event for the CPU; our handler will auto-ready them
+                  }
+                } catch (e) {
+                  console.warn('[CreateGame] Failed to add CPU to MockAdapter room', e);
+                }
               }
             }}
             disabled={names.length >= 8}
           >
-            <Text style={[styles.menuButtonText, { opacity: names.length >= 8 ? 0.5 : 1 }]}>+ Add CPU</Text>
+            <Text style={[styles.menuButtonText, { opacity: names.length >= 8 ? 0.5 : 1 }]}>+</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.menuButton, { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "rgba(212, 175, 55, 0.1)" }]}
@@ -313,7 +356,7 @@ export default function CreateGame({
             }}
             disabled={names.filter(n => n.startsWith("CPU ")).length === 0}
           >
-            <Text style={[styles.menuButtonText, { opacity: names.filter(n => n.startsWith("CPU ")).length === 0 ? 0.5 : 1 }]}>− Remove CPU</Text>
+            <Text style={[styles.menuButtonText, { opacity: names.filter(n => n.startsWith("CPU ")).length === 0 ? 0.5 : 1 }]}>−</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -333,9 +376,18 @@ export default function CreateGame({
 
       <View style={{ width: "80%", marginTop: 18 }}>
         <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => {
+          // compute disabled state for styling
+            onPress={() => {
             console.log("[CreateGame] Start Game button pressed");
+            const usingMock = (adapter == null) || ((net as any)?.constructor?.name === "MockAdapter");
+            if (usingMock) {
+              // Offline/local flow: start immediately
+              console.log("[CreateGame] Starting offline/local game");
+              onStart(names, playerName, playerId ?? undefined);
+              return;
+            }
+
+            // Online flow: behave as before (only host can call start on server)
             console.log("[CreateGame] Adapter check:", {
               hasAdapter: !!adapter,
               hasStartGame: !!(net as any).startGame,
@@ -344,23 +396,27 @@ export default function CreateGame({
               hostId,
               namesLength: names.length
             });
-            // if adapter supports startGame call it on a room (host only)
             if ((net as any).startGame) {
-              // only host may start
               if (hostId && localId === hostId) {
                 console.log("[CreateGame] Calling adapter.startGame with roomId:", actualRoomId);
                 (net as any).startGame(actualRoomId);
               } else {
                 console.log("[CreateGame] Not host, cannot start");
               }
-            } else {
-              console.log("[CreateGame] No startGame method, calling onStart directly with playerName:", playerName);
-              onStart(names, playerName);
+              } else {
+                console.log("[CreateGame] No startGame method, calling onStart directly with playerName:", playerName, "playerId:", playerId);
+              onStart(names, playerName, playerId ?? undefined);
             }
           }}
-          disabled={names.length < 2 || ((adapter || (hostId !== null)) && localId !== hostId) }
+          disabled={names.length < 2 || (!(adapter == null) && localId !== hostId)}
+          style={[styles.menuButton, (names.length < 2 || (!(adapter == null) && localId !== hostId)) ? { opacity: 0.45 } : null]}
         >
-          <Text style={styles.menuButtonText}>{names.length >= 2 ? (localId && hostId && localId === hostId ? "Start Game" : "Waiting for host...") : "Waiting for players..."}</Text>
+          <Text style={[styles.menuButtonText, (names.length < 2 || (!(adapter == null) && localId !== hostId)) ? { opacity: 0.7 } : null]}>{
+            // Label logic: offline (mock) shows START GAME; online shows host/waiting labels
+            ( (adapter == null) || ((net as any)?.constructor?.name === "MockAdapter") )
+              ? "START GAME"
+              : (names.length >= 2 ? (localId && hostId && localId === hostId ? "Start Game" : "Waiting for host...") : "Waiting for players...")
+          }</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.menuButton, { marginTop: 8 }]} onPress={() => onBack()}>
           <Text style={styles.menuButtonText}>Back</Text>

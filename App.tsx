@@ -10,6 +10,7 @@ import { useMenuAudio } from "./src/hooks/useMenuAudio";
 import MuteButton from "./src/components/ui/MuteButton";
 import { styles } from "./src/styles/theme";
 import { SocketAdapter } from "./src/game/socketAdapter";
+import { MockAdapter } from "./src/game/network";
 
 export default function App() {
   // splashVisible: whether the splash overlay is still mounted
@@ -20,10 +21,16 @@ export default function App() {
   const [screen, setScreen] = useState<"menu" | "create" | "find" | "game" | "achievements">("menu");
   const [lobbyPlayers, setLobbyPlayers] = useState<string[] | null>(null);
   const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
+  const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
   const [roomAdapter, setRoomAdapter] = useState<SocketAdapter | null>(null);
+  // localAdapter is used for offline/mock games so we can reuse the same
+  // MockAdapter instance between screens and avoid multiple adapters/logs.
+  const [localAdapter, setLocalAdapter] = useState<any | null>(null);
   const [joinedRoomId, setJoinedRoomId] = useState<string | null>(null);
-  // try to construct a network adapter at runtime and memoize it
-  const networkAdapter = useMemo(() => {
+  // Discovery adapter is created lazily only when viewing the Find Game screen so
+  // we don't attempt network connections while the user is in offline/local flows.
+  const discoveryAdapter = useMemo(() => {
+    if (screen !== "find") return null;
     try {
       console.log("[App] Creating network adapter for discovery only...");
       // Discovery adapter should NOT auto-join any room
@@ -32,7 +39,7 @@ export default function App() {
       console.error("[App] Failed to create network adapter:", e);
       return null;
     }
-  }, []);
+  }, [screen]);
 
   const splashOpacity = useRef(new Animated.Value(1)).current;
   const menuOpacity = useRef(new Animated.Value(0)).current;
@@ -109,10 +116,8 @@ export default function App() {
                       setLobbyPlayers(rnd);
                       setScreen("game");
                     } else if (label === "Local") {
-                      // start a small local hotseat game
-                      const local = ["You", "Local Player"];
-                      setLobbyPlayers(local);
-                      setScreen("game");
+                      // open Create Game screen in local (hotseat) mode so user can customize players
+                      setScreen("create");
                     } else if (label === "Achievements") {
                       setScreen("achievements");
                     }
@@ -131,7 +136,7 @@ export default function App() {
 
         {menuVisible && screen === "create" && (
           <CreateGame 
-            adapter={roomAdapter || networkAdapter} 
+            adapter={roomAdapter || undefined} 
             isJoining={!!roomAdapter}
             joinRoomId={joinedRoomId || undefined}
             onBack={() => {
@@ -140,10 +145,21 @@ export default function App() {
               setJoinedRoomId(null);
             }}
             onNavigateToAchievements={() => setScreen("achievements")}
-            onStart={(names, localName) => {
-              console.log("[App] CreateGame onStart called with names:", names, "localName:", localName);
+            onStart={(names, localName, localId) => {
+              console.log("[App] CreateGame onStart called with names:", names, "localName:", localName, "localId:", localId);
               setLobbyPlayers(names); 
               setLocalPlayerName(localName);
+              // store device-local player id (if provided)
+              if (localId) setLocalPlayerId(localId);
+              // Create a shared MockAdapter for local/offline games so the GameScreen
+              // doesn't create its own adapter instance (which made logs interleaved)
+              try {
+                const m = new MockAdapter();
+                setLocalAdapter(m);
+              } catch (e) {
+                console.warn('[App] Failed to create MockAdapter:', e);
+                setLocalAdapter(null);
+              }
               setScreen("game");
               setRoomAdapter(null);
               setJoinedRoomId(null);
@@ -151,9 +167,9 @@ export default function App() {
           />
         )}
         {menuVisible && screen === "find" && (
-          networkAdapter ? (
+          discoveryAdapter ? (
             <FindGame 
-              adapter={networkAdapter} 
+              adapter={discoveryAdapter} 
               onBack={() => setScreen("menu")}
               onNavigateToAchievements={() => setScreen("achievements")}
               onJoinRoom={(roomId, playerName) => {
@@ -183,6 +199,10 @@ export default function App() {
           <GameScreen 
             initialPlayers={lobbyPlayers ?? undefined} 
             localPlayerName={localPlayerName ?? undefined}
+            // pass device id (if we have it) so logs can include the device id
+            localPlayerId={localPlayerId ?? undefined}
+            // pass a shared mock adapter for local games to avoid multiple adapters/log interleaving
+            adapter={localAdapter ?? undefined}
             onBack={() => setScreen("menu")} 
           />
         )}

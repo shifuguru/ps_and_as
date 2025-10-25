@@ -1,12 +1,32 @@
 // Simple Socket.IO server for lobbies and game state
+const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const cors = require('cors');
 
-const PORT = process.env.PORT || 3000;
-const server = http.createServer();
-const io = new Server(server, {
-  cors: { origin: '*' }
+const app = express();
+app.use(cors({ origin: true, credentials: true }));
+
+// Simple health endpoint
+app.get('/', (req, res) => res.send('Server is running...\n'));
+
+const server = http.createServer(app);
+
+// io instance with permissive CORS for clients on LAN/dev
+const io = new Server(server, { cors: { origin: '*', credentials: true } });
+
+// Debugging: log engine and socket connection errors to help diagnose websocket/xhr issues
+io.engine.on && io.engine.on('connection_error', (err) => {
+  console.error('[io.engine] connection_error:', err && err.message ? err.message : err);
 });
+
+io.on && io.on('connect_error', (err) => {
+  console.error('[io] connect_error:', err && err.message ? err.message : err);
+});
+
+// PORT and HOST
+const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 // Simple room-based lobby
 // rooms: roomId -> { 
@@ -109,7 +129,10 @@ function broadcastAvailableRooms() {
 }
 
 io.on('connection', (socket) => {
-  console.log('conn', socket.id);
+  // log transport and origin for debugging client handshake issues
+  const origin = socket.handshake && socket.handshake.headers ? socket.handshake.headers.origin : 'unknown';
+  const transport = socket.conn && socket.conn.transport ? socket.conn.transport.name : 'unknown';
+  console.log('conn', socket.id, 'transport:', transport, 'from', origin);
 
   // Send available rooms when client requests discovery
   socket.on('discoverRooms', () => {

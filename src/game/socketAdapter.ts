@@ -1,20 +1,52 @@
-// socketAdapter.ts
 import { NetworkAdapter, NetworkEvent } from "./network";
 import { io as socketIo } from "socket.io-client";
+import { Platform } from "react-native";
+
+function defaultServerUrl(fallback?: string) {
+  // If you pass a URL in the ctor, we’ll use it; otherwise pick sensible defaults
+  if (fallback) return fallback;
+
+  // Android emulator alias to host; iOS sim can use localhost
+  if (__DEV__) {
+    if (Platform.OS === "android") return "http://10.0.2.2:3000";
+    if (Platform.OS === "ios") return "http://localhost:3000";
+  }
+
+  // Fallback for Expo on a physical device: set this env when you change Wi-Fi
+  // e.g. EXPO_PUBLIC_SERVER_URL=http://192.168.1.50:3000
+  if (process.env.EXPO_PUBLIC_SERVER_URL) return process.env.EXPO_PUBLIC_SERVER_URL;
+
+  // Last resort (e.g. production/staging URL)
+  return "https://YOUR-PROD-URL.example.com";
+}
 
 export class SocketAdapter implements NetworkAdapter {
   private socket: any = null;
   private handlers: ((ev: NetworkEvent) => void)[] = [];
   private shouldAutoJoin: boolean;
 
-  constructor(private url: string, private roomId: string, private name: string, autoJoin: boolean = true) {
+  constructor(private url: string | undefined, private roomId: string, private name: string, autoJoin: boolean = true) {
     this.shouldAutoJoin = autoJoin;
   }
 
+
   async connect() {
     try {
-      console.log("[SocketAdapter] Connecting to:", this.url);
-      this.socket = socketIo(this.url);
+      const target = defaultServerUrl(this.url);
+      console.log("[SocketAdapter] Connecting to:", target);
+
+      // Allow polling fallback on unstable networks / RN environments.
+      // Forcing only `websocket` can cause immediate failure if the websocket
+      // transport can't be established. Let the client attempt polling first
+      // then upgrade to websocket when possible.
+      this.socket = socketIo(target, {
+        path: "/socket.io",
+        transports: ["polling", "websocket"],
+        withCredentials: true,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+      });
       
       this.socket.on("connect", () => {
         console.log("[SocketAdapter] Connected! Socket ID:", this.socket.id);
@@ -113,8 +145,9 @@ export class SocketAdapter implements NetworkAdapter {
 
   createRoom(roomId: string, name: string) {
     if (!this.socket) return;
+    // roomId should be a unique identifier for the room and name is the host/player name
     console.log("[SocketAdapter] Creating room:", roomId, "with host:", name);
-    this.socket.emit("createRoom", { roomId: name, name, isPublic: true, roomName: roomId });
+    this.socket.emit("createRoom", { roomId: roomId, name: name, isPublic: true, roomName: roomId });
   }
 
   discoverRooms() {
