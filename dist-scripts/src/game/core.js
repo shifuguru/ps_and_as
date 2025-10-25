@@ -430,6 +430,10 @@ function isValidPlay(cards, pile, tenRule, pileHistory, fourOfAKindChallenge, cu
         return false;
     const playCount = getPlayCount(cards);
     const pileCount = getPlayCount(pile);
+    // Defensive: prevent joker-on-joker plays. A single joker cannot beat an
+    // active pile that already contains a joker.
+    if (isSingleJoker(cards) && pileCount > 0 && pile.some(c => isJoker(c)))
+        return false;
     // Check if it's a run
     const isPlayRun = isRun(cards);
     // detect runs that may be formed across recent single-card plays
