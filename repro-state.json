@@ -1,0 +1,659 @@
+{
+  "id": "game-1761451013251",
+  "players": [
+    {
+      "id": "1",
+      "name": "CPU1",
+      "hand": [
+        {
+          "suit": "diamonds",
+          "value": 6
+        },
+        {
+          "suit": "spades",
+          "value": 10
+        },
+        {
+          "suit": "hearts",
+          "value": 7
+        },
+        {
+          "suit": "spades",
+          "value": 5
+        }
+      ],
+      "role": "Neutral"
+    },
+    {
+      "id": "2",
+      "name": "CPU2",
+      "hand": [
+        {
+          "suit": "spades",
+          "value": 8
+        },
+        {
+          "suit": "diamonds",
+          "value": 7
+        },
+        {
+          "suit": "spades",
+          "value": 13
+        },
+        {
+          "suit": "clubs",
+          "value": 5
+        },
+        {
+          "suit": "spades",
+          "value": 7
+        },
+        {
+          "suit": "clubs",
+          "value": 6
+        },
+        {
+          "suit": "spades",
+          "value": 6
+        },
+        {
+          "suit": "hearts",
+          "value": 3
+        },
+        {
+          "suit": "clubs",
+          "value": 2
+        },
+        {
+          "suit": "clubs",
+          "value": 10
+        },
+        {
+          "suit": "clubs",
+          "value": 12
+        }
+      ],
+      "role": "Neutral"
+    },
+    {
+      "id": "3",
+      "name": "CPU3",
+      "hand": [
+        {
+          "suit": "diamonds",
+          "value": 8
+        },
+        {
+          "suit": "hearts",
+          "value": 9
+        },
+        {
+          "suit": "diamonds",
+          "value": 9
+        }
+      ],
+      "role": "Neutral"
+    },
+    {
+      "id": "4",
+      "name": "CPU4",
+      "hand": [
+        {
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "suit": "clubs",
+          "value": 9
+        },
+        {
+          "suit": "hearts",
+          "value": 13
+        },
+        {
+          "suit": "hearts",
+          "value": 12
+        },
+        {
+          "suit": "hearts",
+          "value": 5
+        }
+      ],
+      "role": "Neutral"
+    }
+  ],
+  "currentPlayerIndex": 3,
+  "pile": [
+    {
+      "suit": "hearts",
+      "value": 10
+    }
+  ],
+  "passCount": 2,
+  "finishedOrder": [],
+  "started": true,
+  "lastPlayPlayerIndex": 1,
+  "mustPlay": true,
+  "pileHistory": [
+    [
+      {
+        "suit": "spades",
+        "value": 3
+      }
+    ],
+    [
+      {
+        "suit": "diamonds",
+        "value": 5
+      }
+    ],
+    [
+      {
+        "suit": "clubs",
+        "value": 7
+      }
+    ],
+    [
+      {
+        "suit": "clubs",
+        "value": 8
+      }
+    ],
+    [
+      {
+        "suit": "hearts",
+        "value": 10
+      }
+    ]
+  ],
+  "pileOwners": [
+    "1",
+    "2",
+    "3",
+    "1",
+    "2"
+  ],
+  "trickHistory": [
+    {
+      "trickNumber": 1,
+      "actions": [
+        {
+          "type": "play",
+          "playerId": "4",
+          "playerName": "CPU4",
+          "cards": [
+            {
+              "suit": "diamonds",
+              "value": 3
+            },
+            {
+              "suit": "clubs",
+              "value": 3
+            }
+          ],
+          "timestamp": 1761451013252
+        },
+        {
+          "type": "play",
+          "playerId": "1",
+          "playerName": "CPU1",
+          "cards": [
+            {
+              "suit": "hearts",
+              "value": 11
+            },
+            {
+              "suit": "clubs",
+              "value": 11
+            }
+          ],
+          "timestamp": 1761451013253
+        },
+        {
+          "type": "pass",
+          "playerId": "2",
+          "playerName": "CPU2",
+          "timestamp": 1761451013254
+        },
+        {
+          "type": "play",
+          "playerId": "3",
+          "playerName": "CPU3",
+          "cards": [
+            {
+              "suit": "spades",
+              "value": 12
+            },
+            {
+              "suit": "diamonds",
+              "value": 12
+            }
+          ],
+          "timestamp": 1761451013254
+        },
+        {
+          "type": "play",
+          "playerId": "4",
+          "playerName": "CPU4",
+          "cards": [
+            {
+              "suit": "joker",
+              "value": 15
+            }
+          ],
+          "timestamp": 1761451013254
+        },
+        {
+          "type": "pass",
+          "playerId": "1",
+          "playerName": "CPU1",
+          "timestamp": 1761451013254
+        },
+        {
+          "type": "pass",
+          "playerId": "2",
+          "playerName": "CPU2",
+          "timestamp": 1761451013255
+        },
+        {
+          "type": "pass",
+          "playerId": "3",
+          "playerName": "CPU3",
+          "timestamp": 1761451013256
+        }
+      ],
+      "winnerId": "4",
+      "winnerName": "CPU4"
+    },
+    {
+      "trickNumber": 2,
+      "actions": [
+        {
+          "type": "play",
+          "playerId": "4",
+          "playerName": "CPU4",
+          "cards": [
+            {
+              "suit": "diamonds",
+              "value": 4
+            },
+            {
+              "suit": "spades",
+              "value": 4
+            }
+          ],
+          "timestamp": 1761451013256
+        },
+        {
+          "type": "play",
+          "playerId": "1",
+          "playerName": "CPU1",
+          "cards": [
+            {
+              "suit": "diamonds",
+              "value": 13
+            },
+            {
+              "suit": "clubs",
+              "value": 13
+            }
+          ],
+          "timestamp": 1761451013256
+        },
+        {
+          "type": "pass",
+          "playerId": "2",
+          "playerName": "CPU2",
+          "timestamp": 1761451013256
+        },
+        {
+          "type": "play",
+          "playerId": "3",
+          "playerName": "CPU3",
+          "cards": [
+            {
+              "suit": "spades",
+              "value": 2
+            },
+            {
+              "suit": "diamonds",
+              "value": 2
+            }
+          ],
+          "timestamp": 1761451013257
+        },
+        {
+          "type": "play",
+          "playerId": "3",
+          "playerName": "CPU3",
+          "cards": [
+            {
+              "suit": "clubs",
+              "value": 4
+            },
+            {
+              "suit": "hearts",
+              "value": 4
+            }
+          ],
+          "timestamp": 1761451013257
+        },
+        {
+          "type": "play",
+          "playerId": "4",
+          "playerName": "CPU4",
+          "cards": [
+            {
+              "suit": "diamonds",
+              "value": 11
+            },
+            {
+              "suit": "spades",
+              "value": 11
+            }
+          ],
+          "timestamp": 1761451013257
+        },
+        {
+          "type": "play",
+          "playerId": "1",
+          "playerName": "CPU1",
+          "cards": [
+            {
+              "suit": "clubs",
+              "value": 14
+            },
+            {
+              "suit": "hearts",
+              "value": 14
+            }
+          ],
+          "timestamp": 1761451013257
+        },
+        {
+          "type": "pass",
+          "playerId": "2",
+          "playerName": "CPU2",
+          "timestamp": 1761451013257
+        },
+        {
+          "type": "play",
+          "playerId": "3",
+          "playerName": "CPU3",
+          "cards": [
+            {
+              "suit": "joker",
+              "value": 15
+            }
+          ],
+          "timestamp": 1761451013257
+        },
+        {
+          "type": "pass",
+          "playerId": "4",
+          "playerName": "CPU4",
+          "timestamp": 1761451013257
+        },
+        {
+          "type": "pass",
+          "playerId": "1",
+          "playerName": "CPU1",
+          "timestamp": 1761451013258
+        }
+      ],
+      "winnerId": "3",
+      "winnerName": "CPU3"
+    }
+  ],
+  "currentTrick": {
+    "trickNumber": 3,
+    "actions": [
+      {
+        "type": "play",
+        "playerId": "3",
+        "playerName": "CPU3",
+        "cards": [
+          {
+            "suit": "hearts",
+            "value": 6
+          }
+        ],
+        "timestamp": 1761451013259
+      },
+      {
+        "type": "play",
+        "playerId": "4",
+        "playerName": "CPU4",
+        "cards": [
+          {
+            "suit": "hearts",
+            "value": 8
+          }
+        ],
+        "timestamp": 1761451013259
+      },
+      {
+        "type": "play",
+        "playerId": "1",
+        "playerName": "CPU1",
+        "cards": [
+          {
+            "suit": "spades",
+            "value": 9
+          }
+        ],
+        "timestamp": 1761451013259
+      },
+      {
+        "type": "play",
+        "playerId": "2",
+        "playerName": "CPU2",
+        "cards": [
+          {
+            "suit": "diamonds",
+            "value": 10
+          }
+        ],
+        "timestamp": 1761451013259,
+        "tenRuleDirection": "higher"
+      },
+      {
+        "type": "play",
+        "playerId": "3",
+        "playerName": "CPU3",
+        "cards": [
+          {
+            "suit": "spades",
+            "value": 14
+          }
+        ],
+        "timestamp": 1761451013259
+      },
+      {
+        "type": "pass",
+        "playerId": "4",
+        "playerName": "CPU4",
+        "timestamp": 1761451013259
+      },
+      {
+        "type": "play",
+        "playerId": "1",
+        "playerName": "CPU1",
+        "cards": [
+          {
+            "suit": "hearts",
+            "value": 2
+          }
+        ],
+        "timestamp": 1761451013260
+      },
+      {
+        "type": "play",
+        "playerId": "1",
+        "playerName": "CPU1",
+        "cards": [
+          {
+            "suit": "spades",
+            "value": 3
+          }
+        ],
+        "timestamp": 1761451013260
+      },
+      {
+        "type": "play",
+        "playerId": "2",
+        "playerName": "CPU2",
+        "cards": [
+          {
+            "suit": "diamonds",
+            "value": 5
+          }
+        ],
+        "timestamp": 1761451013260
+      },
+      {
+        "type": "play",
+        "playerId": "3",
+        "playerName": "CPU3",
+        "cards": [
+          {
+            "suit": "clubs",
+            "value": 7
+          }
+        ],
+        "timestamp": 1761451013260
+      },
+      {
+        "type": "pass",
+        "playerId": "4",
+        "playerName": "CPU4",
+        "timestamp": 1761451013260
+      },
+      {
+        "type": "play",
+        "playerId": "1",
+        "playerName": "CPU1",
+        "cards": [
+          {
+            "suit": "clubs",
+            "value": 8
+          }
+        ],
+        "timestamp": 1761451013260
+      },
+      {
+        "type": "play",
+        "playerId": "2",
+        "playerName": "CPU2",
+        "cards": [
+          {
+            "suit": "hearts",
+            "value": 10
+          }
+        ],
+        "timestamp": 1761451013260,
+        "tenRuleDirection": "higher"
+      },
+      {
+        "type": "pass",
+        "playerId": "3",
+        "playerName": "CPU3",
+        "timestamp": 1761451013260
+      }
+    ]
+  },
+  "tenRule": {
+    "active": true,
+    "direction": "higher"
+  },
+  "lastClear": {
+    "type": "two",
+    "value": 2,
+    "playerIndex": 0
+  },
+  "tableStacks": [
+    [
+      {
+        "suit": "diamonds",
+        "value": 3
+      },
+      {
+        "suit": "clubs",
+        "value": 3
+      }
+    ],
+    [
+      {
+        "suit": "hearts",
+        "value": 11
+      },
+      {
+        "suit": "clubs",
+        "value": 11
+      }
+    ],
+    [
+      {
+        "suit": "spades",
+        "value": 12
+      },
+      {
+        "suit": "diamonds",
+        "value": 12
+      }
+    ],
+    [
+      {
+        "suit": "joker",
+        "value": 15
+      }
+    ],
+    [
+      {
+        "suit": "clubs",
+        "value": 4
+      },
+      {
+        "suit": "hearts",
+        "value": 4
+      }
+    ],
+    [
+      {
+        "suit": "diamonds",
+        "value": 11
+      },
+      {
+        "suit": "spades",
+        "value": 11
+      }
+    ],
+    [
+      {
+        "suit": "clubs",
+        "value": 14
+      },
+      {
+        "suit": "hearts",
+        "value": 14
+      }
+    ],
+    [
+      {
+        "suit": "joker",
+        "value": 15
+      }
+    ]
+  ],
+  "tableStackOwners": [
+    "4",
+    "1",
+    "3",
+    "4",
+    "3",
+    "4",
+    "1",
+    "3"
+  ],
+  "tenRulePending": false
+}

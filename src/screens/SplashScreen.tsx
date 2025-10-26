@@ -65,7 +65,7 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
 
       <Animated.View style={{ marginTop: 18, alignItems: "center", opacity: textOpacity, transform: [{ translateY: textTranslate }] }}>
         <Text style={styles.title}>P's & A's</Text>
-        <Text style={styles.subtitle}>by rabbithole games</Text>
+        <Text style={styles.subtitle}>by rabbithole games.</Text>
       </Animated.View>
     </View>
   );

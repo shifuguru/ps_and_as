@@ -1,0 +1,1664 @@
+{
+  "ok": false,
+  "reason": "repeating-state",
+  "steps": 20,
+  "seenAt": 8,
+  "now": 20,
+  "trace": [
+    {
+      "step": 1,
+      "key": "{\"cur\":1,\"last\":null,\"pileTop\":null,\"passCount\":0,\"mustPlay\":true,\"pileHistoryLen\":0}",
+      "snapshot": {
+        "currentPlayerIndex": 1,
+        "lastPlayPlayerIndex": null,
+        "pile": [],
+        "pileHistoryLen": 0,
+        "pileHistory": [],
+        "passCount": 0,
+        "mustPlay": true,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 14
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 14
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 13
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 13
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "2",
+        "attempted": [
+          3,
+          3
+        ]
+      },
+      "result": "played"
+    },
+    {
+      "step": 2,
+      "key": "{\"cur\":2,\"last\":1,\"pileTop\":3,\"passCount\":0,\"mustPlay\":false,\"pileHistoryLen\":1}",
+      "snapshot": {
+        "currentPlayerIndex": 2,
+        "lastPlayPlayerIndex": 1,
+        "pile": [
+          {
+            "suit": "diamonds",
+            "value": 3
+          },
+          {
+            "suit": "clubs",
+            "value": 3
+          }
+        ],
+        "pileHistoryLen": 1,
+        "pileHistory": [
+          [
+            {
+              "suit": "diamonds",
+              "value": 3
+            },
+            {
+              "suit": "clubs",
+              "value": 3
+            }
+          ]
+        ],
+        "passCount": 0,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 14
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 13
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 13
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "3",
+        "attempted": [
+          6,
+          6
+        ]
+      },
+      "result": "played"
+    },
+    {
+      "step": 3,
+      "key": "{\"cur\":3,\"last\":2,\"pileTop\":6,\"passCount\":0,\"mustPlay\":false,\"pileHistoryLen\":2}",
+      "snapshot": {
+        "currentPlayerIndex": 3,
+        "lastPlayPlayerIndex": 2,
+        "pile": [
+          {
+            "suit": "spades",
+            "value": 6
+          },
+          {
+            "suit": "hearts",
+            "value": 6
+          }
+        ],
+        "pileHistoryLen": 2,
+        "pileHistory": [
+          [
+            {
+              "suit": "diamonds",
+              "value": 3
+            },
+            {
+              "suit": "clubs",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 6
+            },
+            {
+              "suit": "hearts",
+              "value": 6
+            }
+          ]
+        ],
+        "passCount": 0,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 14
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 11
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 13
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "4",
+        "attempted": [
+          11,
+          11
+        ]
+      },
+      "result": "played"
+    },
+    {
+      "step": 4,
+      "key": "{\"cur\":0,\"last\":3,\"pileTop\":11,\"passCount\":0,\"mustPlay\":false,\"pileHistoryLen\":3}",
+      "snapshot": {
+        "currentPlayerIndex": 0,
+        "lastPlayPlayerIndex": 3,
+        "pile": [
+          {
+            "suit": "hearts",
+            "value": 11
+          },
+          {
+            "suit": "clubs",
+            "value": 11
+          }
+        ],
+        "pileHistoryLen": 3,
+        "pileHistory": [
+          [
+            {
+              "suit": "diamonds",
+              "value": 3
+            },
+            {
+              "suit": "clubs",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 6
+            },
+            {
+              "suit": "hearts",
+              "value": 6
+            }
+          ],
+          [
+            {
+              "suit": "hearts",
+              "value": 11
+            },
+            {
+              "suit": "clubs",
+              "value": 11
+            }
+          ]
+        ],
+        "passCount": 0,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 14
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 11
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 11
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "1",
+        "attempted": [
+          12,
+          12
+        ]
+      },
+      "result": "played"
+    },
+    {
+      "step": 5,
+      "key": "{\"cur\":1,\"last\":0,\"pileTop\":12,\"passCount\":0,\"mustPlay\":false,\"pileHistoryLen\":4}",
+      "snapshot": {
+        "currentPlayerIndex": 1,
+        "lastPlayPlayerIndex": 0,
+        "pile": [
+          {
+            "suit": "clubs",
+            "value": 12
+          },
+          {
+            "suit": "diamonds",
+            "value": 12
+          }
+        ],
+        "pileHistoryLen": 4,
+        "pileHistory": [
+          [
+            {
+              "suit": "diamonds",
+              "value": 3
+            },
+            {
+              "suit": "clubs",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 6
+            },
+            {
+              "suit": "hearts",
+              "value": 6
+            }
+          ],
+          [
+            {
+              "suit": "hearts",
+              "value": 11
+            },
+            {
+              "suit": "clubs",
+              "value": 11
+            }
+          ],
+          [
+            {
+              "suit": "clubs",
+              "value": 12
+            },
+            {
+              "suit": "diamonds",
+              "value": 12
+            }
+          ]
+        ],
+        "passCount": 0,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 12
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 11
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 11
+          }
+        ]
+      },
+      "action": {
+        "type": "pass",
+        "player": "2"
+      },
+      "result": "passed"
+    },
+    {
+      "step": 6,
+      "key": "{\"cur\":2,\"last\":0,\"pileTop\":12,\"passCount\":1,\"mustPlay\":false,\"pileHistoryLen\":4}",
+      "snapshot": {
+        "currentPlayerIndex": 2,
+        "lastPlayPlayerIndex": 0,
+        "pile": [
+          {
+            "suit": "clubs",
+            "value": 12
+          },
+          {
+            "suit": "diamonds",
+            "value": 12
+          }
+        ],
+        "pileHistoryLen": 4,
+        "pileHistory": [
+          [
+            {
+              "suit": "diamonds",
+              "value": 3
+            },
+            {
+              "suit": "clubs",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 6
+            },
+            {
+              "suit": "hearts",
+              "value": 6
+            }
+          ],
+          [
+            {
+              "suit": "hearts",
+              "value": 11
+            },
+            {
+              "suit": "clubs",
+              "value": 11
+            }
+          ],
+          [
+            {
+              "suit": "clubs",
+              "value": 12
+            },
+            {
+              "suit": "diamonds",
+              "value": 12
+            }
+          ]
+        ],
+        "passCount": 1,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 12
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 11
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 11
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "3",
+        "attempted": [
+          14,
+          14
+        ]
+      },
+      "result": "played"
+    },
+    {
+      "step": 7,
+      "key": "{\"cur\":3,\"last\":2,\"pileTop\":14,\"passCount\":0,\"mustPlay\":false,\"pileHistoryLen\":5}",
+      "snapshot": {
+        "currentPlayerIndex": 3,
+        "lastPlayPlayerIndex": 2,
+        "pile": [
+          {
+            "suit": "spades",
+            "value": 14
+          },
+          {
+            "suit": "hearts",
+            "value": 14
+          }
+        ],
+        "pileHistoryLen": 5,
+        "pileHistory": [
+          [
+            {
+              "suit": "diamonds",
+              "value": 3
+            },
+            {
+              "suit": "clubs",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 6
+            },
+            {
+              "suit": "hearts",
+              "value": 6
+            }
+          ],
+          [
+            {
+              "suit": "hearts",
+              "value": 11
+            },
+            {
+              "suit": "clubs",
+              "value": 11
+            }
+          ],
+          [
+            {
+              "suit": "clubs",
+              "value": 12
+            },
+            {
+              "suit": "diamonds",
+              "value": 12
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 14
+            },
+            {
+              "suit": "hearts",
+              "value": 14
+            }
+          ]
+        ],
+        "passCount": 0,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 12
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 9
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 11
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "4",
+        "attempted": [
+          2,
+          2
+        ]
+      },
+      "result": "played"
+    },
+    {
+      "step": 8,
+      "key": "{\"cur\":3,\"last\":3,\"pileTop\":null,\"passCount\":0,\"mustPlay\":true,\"pileHistoryLen\":0}",
+      "snapshot": {
+        "currentPlayerIndex": 3,
+        "lastPlayPlayerIndex": 3,
+        "pile": [],
+        "pileHistoryLen": 0,
+        "pileHistory": [],
+        "passCount": 0,
+        "mustPlay": true,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 12
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 9
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 9
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "4",
+        "attempted": [
+          3
+        ]
+      },
+      "result": "played"
+    },
+    {
+      "step": 9,
+      "key": "{\"cur\":0,\"last\":3,\"pileTop\":3,\"passCount\":0,\"mustPlay\":false,\"pileHistoryLen\":1}",
+      "snapshot": {
+        "currentPlayerIndex": 0,
+        "lastPlayPlayerIndex": 3,
+        "pile": [
+          {
+            "suit": "spades",
+            "value": 3
+          }
+        ],
+        "pileHistoryLen": 1,
+        "pileHistory": [
+          [
+            {
+              "suit": "spades",
+              "value": 3
+            }
+          ]
+        ],
+        "passCount": 0,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 12
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 9
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 8
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "1",
+        "attempted": [
+          4
+        ]
+      },
+      "result": "played"
+    },
+    {
+      "step": 10,
+      "key": "{\"cur\":1,\"last\":0,\"pileTop\":4,\"passCount\":0,\"mustPlay\":false,\"pileHistoryLen\":2}",
+      "snapshot": {
+        "currentPlayerIndex": 1,
+        "lastPlayPlayerIndex": 0,
+        "pile": [
+          {
+            "suit": "spades",
+            "value": 4
+          }
+        ],
+        "pileHistoryLen": 2,
+        "pileHistory": [
+          [
+            {
+              "suit": "spades",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 4
+            }
+          ]
+        ],
+        "passCount": 0,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 11
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 9
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 8
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "2",
+        "attempted": [
+          6
+        ]
+      },
+      "result": "rejected-play"
+    },
+    {
+      "step": 11,
+      "key": "{\"cur\":2,\"last\":0,\"pileTop\":4,\"passCount\":1,\"mustPlay\":false,\"pileHistoryLen\":2}",
+      "snapshot": {
+        "currentPlayerIndex": 2,
+        "lastPlayPlayerIndex": 0,
+        "pile": [
+          {
+            "suit": "spades",
+            "value": 4
+          }
+        ],
+        "pileHistoryLen": 2,
+        "pileHistory": [
+          [
+            {
+              "suit": "spades",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 4
+            }
+          ]
+        ],
+        "passCount": 1,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 11
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 9
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 8
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "3",
+        "attempted": [
+          5
+        ]
+      },
+      "result": "played"
+    },
+    {
+      "step": 12,
+      "key": "{\"cur\":3,\"last\":2,\"pileTop\":5,\"passCount\":0,\"mustPlay\":false,\"pileHistoryLen\":3}",
+      "snapshot": {
+        "currentPlayerIndex": 3,
+        "lastPlayPlayerIndex": 2,
+        "pile": [
+          {
+            "suit": "diamonds",
+            "value": 5
+          }
+        ],
+        "pileHistoryLen": 3,
+        "pileHistory": [
+          [
+            {
+              "suit": "spades",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 4
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 5
+            }
+          ]
+        ],
+        "passCount": 0,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 11
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 8
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 8
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "4",
+        "attempted": [
+          6
+        ]
+      },
+      "result": "played"
+    },
+    {
+      "step": 13,
+      "key": "{\"cur\":0,\"last\":3,\"pileTop\":6,\"passCount\":0,\"mustPlay\":false,\"pileHistoryLen\":4}",
+      "snapshot": {
+        "currentPlayerIndex": 0,
+        "lastPlayPlayerIndex": 3,
+        "pile": [
+          {
+            "suit": "clubs",
+            "value": 6
+          }
+        ],
+        "pileHistoryLen": 4,
+        "pileHistory": [
+          [
+            {
+              "suit": "spades",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 4
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 5
+            }
+          ],
+          [
+            {
+              "suit": "clubs",
+              "value": 6
+            }
+          ]
+        ],
+        "passCount": 0,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 11
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 8
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 7
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "1",
+        "attempted": [
+          11,
+          12,
+          13,
+          14
+        ]
+      },
+      "result": "played"
+    },
+    {
+      "step": 14,
+      "key": "{\"cur\":1,\"last\":0,\"pileTop\":11,\"passCount\":0,\"mustPlay\":false,\"pileHistoryLen\":5}",
+      "snapshot": {
+        "currentPlayerIndex": 1,
+        "lastPlayPlayerIndex": 0,
+        "pile": [
+          {
+            "suit": "diamonds",
+            "value": 11
+          },
+          {
+            "suit": "hearts",
+            "value": 12
+          },
+          {
+            "suit": "diamonds",
+            "value": 13
+          },
+          {
+            "suit": "diamonds",
+            "value": 14
+          }
+        ],
+        "pileHistoryLen": 5,
+        "pileHistory": [
+          [
+            {
+              "suit": "spades",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 4
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 5
+            }
+          ],
+          [
+            {
+              "suit": "clubs",
+              "value": 6
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 11
+            },
+            {
+              "suit": "hearts",
+              "value": 12
+            },
+            {
+              "suit": "diamonds",
+              "value": 13
+            },
+            {
+              "suit": "diamonds",
+              "value": 14
+            }
+          ]
+        ],
+        "passCount": 0,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 7
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 8
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 7
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "2",
+        "attempted": [
+          2
+        ]
+      },
+      "result": "rejected-play"
+    },
+    {
+      "step": 15,
+      "key": "{\"cur\":2,\"last\":0,\"pileTop\":11,\"passCount\":1,\"mustPlay\":false,\"pileHistoryLen\":5}",
+      "snapshot": {
+        "currentPlayerIndex": 2,
+        "lastPlayPlayerIndex": 0,
+        "pile": [
+          {
+            "suit": "diamonds",
+            "value": 11
+          },
+          {
+            "suit": "hearts",
+            "value": 12
+          },
+          {
+            "suit": "diamonds",
+            "value": 13
+          },
+          {
+            "suit": "diamonds",
+            "value": 14
+          }
+        ],
+        "pileHistoryLen": 5,
+        "pileHistory": [
+          [
+            {
+              "suit": "spades",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 4
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 5
+            }
+          ],
+          [
+            {
+              "suit": "clubs",
+              "value": 6
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 11
+            },
+            {
+              "suit": "hearts",
+              "value": 12
+            },
+            {
+              "suit": "diamonds",
+              "value": 13
+            },
+            {
+              "suit": "diamonds",
+              "value": 14
+            }
+          ]
+        ],
+        "passCount": 1,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 7
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 8
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 7
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "3",
+        "attempted": [
+          13
+        ]
+      },
+      "result": "played"
+    },
+    {
+      "step": 16,
+      "key": "{\"cur\":3,\"last\":2,\"pileTop\":13,\"passCount\":0,\"mustPlay\":false,\"pileHistoryLen\":6}",
+      "snapshot": {
+        "currentPlayerIndex": 3,
+        "lastPlayPlayerIndex": 2,
+        "pile": [
+          {
+            "suit": "hearts",
+            "value": 13
+          }
+        ],
+        "pileHistoryLen": 6,
+        "pileHistory": [
+          [
+            {
+              "suit": "spades",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 4
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 5
+            }
+          ],
+          [
+            {
+              "suit": "clubs",
+              "value": 6
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 11
+            },
+            {
+              "suit": "hearts",
+              "value": 12
+            },
+            {
+              "suit": "diamonds",
+              "value": 13
+            },
+            {
+              "suit": "diamonds",
+              "value": 14
+            }
+          ],
+          [
+            {
+              "suit": "hearts",
+              "value": 13
+            }
+          ]
+        ],
+        "passCount": 0,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 7
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 7
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 7
+          }
+        ]
+      },
+      "action": {
+        "type": "play",
+        "player": "4",
+        "attempted": [
+          15
+        ]
+      },
+      "result": "played"
+    },
+    {
+      "step": 17,
+      "key": "{\"cur\":0,\"last\":3,\"pileTop\":15,\"passCount\":0,\"mustPlay\":false,\"pileHistoryLen\":7}",
+      "snapshot": {
+        "currentPlayerIndex": 0,
+        "lastPlayPlayerIndex": 3,
+        "pile": [
+          {
+            "suit": "joker",
+            "value": 15
+          }
+        ],
+        "pileHistoryLen": 7,
+        "pileHistory": [
+          [
+            {
+              "suit": "spades",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 4
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 5
+            }
+          ],
+          [
+            {
+              "suit": "clubs",
+              "value": 6
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 11
+            },
+            {
+              "suit": "hearts",
+              "value": 12
+            },
+            {
+              "suit": "diamonds",
+              "value": 13
+            },
+            {
+              "suit": "diamonds",
+              "value": 14
+            }
+          ],
+          [
+            {
+              "suit": "hearts",
+              "value": 13
+            }
+          ],
+          [
+            {
+              "suit": "joker",
+              "value": 15
+            }
+          ]
+        ],
+        "passCount": 0,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 7
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 7
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 5
+          }
+        ]
+      },
+      "action": {
+        "type": "pass",
+        "player": "1"
+      },
+      "result": "passed"
+    },
+    {
+      "step": 18,
+      "key": "{\"cur\":1,\"last\":3,\"pileTop\":15,\"passCount\":2,\"mustPlay\":false,\"pileHistoryLen\":7}",
+      "snapshot": {
+        "currentPlayerIndex": 1,
+        "lastPlayPlayerIndex": 3,
+        "pile": [
+          {
+            "suit": "joker",
+            "value": 15
+          }
+        ],
+        "pileHistoryLen": 7,
+        "pileHistory": [
+          [
+            {
+              "suit": "spades",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 4
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 5
+            }
+          ],
+          [
+            {
+              "suit": "clubs",
+              "value": 6
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 11
+            },
+            {
+              "suit": "hearts",
+              "value": 12
+            },
+            {
+              "suit": "diamonds",
+              "value": 13
+            },
+            {
+              "suit": "diamonds",
+              "value": 14
+            }
+          ],
+          [
+            {
+              "suit": "hearts",
+              "value": 13
+            }
+          ],
+          [
+            {
+              "suit": "joker",
+              "value": 15
+            }
+          ]
+        ],
+        "passCount": 2,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 7
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 7
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 5
+          }
+        ]
+      },
+      "action": {
+        "type": "pass",
+        "player": "2"
+      },
+      "result": "passed"
+    },
+    {
+      "step": 19,
+      "key": "{\"cur\":2,\"last\":3,\"pileTop\":15,\"passCount\":2,\"mustPlay\":false,\"pileHistoryLen\":7}",
+      "snapshot": {
+        "currentPlayerIndex": 2,
+        "lastPlayPlayerIndex": 3,
+        "pile": [
+          {
+            "suit": "joker",
+            "value": 15
+          }
+        ],
+        "pileHistoryLen": 7,
+        "pileHistory": [
+          [
+            {
+              "suit": "spades",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "suit": "spades",
+              "value": 4
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 5
+            }
+          ],
+          [
+            {
+              "suit": "clubs",
+              "value": 6
+            }
+          ],
+          [
+            {
+              "suit": "diamonds",
+              "value": 11
+            },
+            {
+              "suit": "hearts",
+              "value": 12
+            },
+            {
+              "suit": "diamonds",
+              "value": 13
+            },
+            {
+              "suit": "diamonds",
+              "value": 14
+            }
+          ],
+          [
+            {
+              "suit": "hearts",
+              "value": 13
+            }
+          ],
+          [
+            {
+              "suit": "joker",
+              "value": 15
+            }
+          ]
+        ],
+        "passCount": 2,
+        "mustPlay": false,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 7
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 7
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 5
+          }
+        ]
+      },
+      "action": {
+        "type": "pass",
+        "player": "3"
+      },
+      "result": "passed"
+    },
+    {
+      "step": 20,
+      "key": "{\"cur\":3,\"last\":3,\"pileTop\":null,\"passCount\":0,\"mustPlay\":true,\"pileHistoryLen\":0}",
+      "snapshot": {
+        "currentPlayerIndex": 3,
+        "lastPlayPlayerIndex": 3,
+        "pile": [],
+        "pileHistoryLen": 0,
+        "pileHistory": [],
+        "passCount": 0,
+        "mustPlay": true,
+        "tenRule": {
+          "active": false,
+          "direction": null
+        },
+        "finishedOrder": [],
+        "players": [
+          {
+            "id": "1",
+            "name": "CPU1",
+            "handCount": 7
+          },
+          {
+            "id": "2",
+            "name": "CPU2",
+            "handCount": 12
+          },
+          {
+            "id": "3",
+            "name": "CPU3",
+            "handCount": 7
+          },
+          {
+            "id": "4",
+            "name": "CPU4",
+            "handCount": 5
+          }
+        ]
+      }
+    }
+  ]
+}
