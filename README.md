@@ -1,116 +1,163 @@
-# 🎮 Ps and As – Presidents & Arseholes / Scum (React Native + Node)
+# 🎮 Presidents & Assholes (Ps & As)
 
-Fast, pass-and-play card game with optional server rules engine. Built with Expo (client) and Node (server).
-This is a cross-platform card game built with **Expo (React Native)**.  
-Currently under active development — the repository will be opened for public testing once the rules and online connectivity are stable.
+Cross‑platform card game built with Expo (React Native) and TypeScript, featuring hot‑seat play and optional Socket.IO multiplayer. This repo also showcases a pure functional rules engine with deterministic test harnesses.
 
-## Features
-- Pass-and-play with hand management, turns, and **runs** rules.
-- Rules engine with unit tests.
-- Offline first; optional server sync.
+> Built with Expo SDK 54, React Native 0.81.5 (New Architecture), and Socket.IO. Designed with an Art Deco aesthetic and a focus on clean game state transitions.
 
-## Quick start
-## Rules (Ps & As)
-See [`/docs/rules.md`](./docs/rules.md) for full spec including **runs** logic, passing, ranking, and special cards.
+## ✨ Features
 
-## Tech
-React Native (Expo), TypeScript, Zustand, Node 20, Vitest/Jest, ESLint+Prettier, GitHub Actions.
+- Hot‑seat (local pass‑and‑play) mode
+- Optional online multiplayer via Socket.IO server
+- Pure, immutable game engine (TypeScript) with unit tests
+- Full run logic, special rules, and trick lifecycle
+  - Custom rank order: 3,4,5,6,7,8,9,10,J,Q,K,A,2,Joker
+  - Runs with equal multiplicity (e.g., double/triple runs); 10s and Jokers excluded from runs
+  - 2s clear the pile; four‑of‑a‑kind challenge; single Joker beats anything visible
+  - “10‑rule” direction (higher/lower) when 10s are played — paused on active runs
+- In‑app Debug Viewer for game/trick history, turn order, and placements
+- Optional audio (graceful fallback if assets or deps missing)
+- Centralized theming: Art Deco gold accents on noir backgrounds
 
-## Roadmap
-- [ ] Full runs/bombs test coverage
-- [ ] Local Bluetooth / LAN
-- [ ] Simple bot AI
-- [ ] E2E tests (Detox)
+## 🧠 Architecture (at a glance)
 
-## Licence
-MIT (see `LICENSE`). Placeholder assets © their owners.
+- Rules engine: `src/game/core.ts`
+  - Pure functions for state transitions (`createGame`, `playCards`, `passTurn`)
+  - Immutability by convention: no in‑place mutation of inputs
+  - Helpers for runs, adjacency, and special rules enforcement
+- Network adapters: `src/game/network.ts`, `src/game/socketAdapter.ts`
+  - Event‑driven interface with a mock adapter for local testing
+  - Socket.IO adapter is optional (dynamic require)
+- UI: simple screen state in `App.tsx` (menu → create → game)
+- Styling: `src/styles/theme.ts` centralizes colors/fonts
+- Optional deps via dynamic imports: pattern used for audio and sockets
+- Deterministic runtime for Node tests: `dist-scripts/src/game/core.js`
 
----
+## 🗂 Project Structure
+
+```
+.
+├─ App.tsx
+├─ src/
+│  ├─ game/
+│  │  ├─ core.ts            # Rules engine (pure functions)
+│  │  ├─ network.ts         # Adapter interface + mock
+│  │  └─ socketAdapter.ts   # Socket.IO client (optional)
+│  ├─ screens/              # Menu/Create/Game/etc.
+│  ├─ components/           # Card, DebugViewer, etc.
+│  ├─ hooks/                # useMenuAudio (optional dep)
+│  └─ styles/               # theme.ts
+├─ server/
+│  └─ index.js              # Socket.IO lobby server
+├─ scripts/
+│  ├─ test-core.ts          # TS unit tests for engine
+│  ├─ cpu-test.ts           # Simple CPU harness
+│  └─ trace-game.js         # Trace helpers
+└─ dist-scripts/
+   ├─ src/game/core.js      # Deterministic JS runtime for Node tests
+   └─ scripts/test-core.js  # Compiled runner
+```
 
 ## 🚀 Getting Started
 
-### 1. Prerequisites
+### Prerequisites
 
-Before running the project, make sure you have the following installed:
+- Node.js (LTS recommended)
+- npm
+- Expo CLI
 
-- **[Node.js](https://nodejs.org/en)**  
-  (LTS version recommended)
-
-- **npm**  
-  (comes with Node.js)
-
-- **[Expo CLI](https://docs.expo.dev/more/expo-cli/)**  
-  ```bash
-  npm install -g expo-cli
-  ```
-
----
-
-### 2. Download the Project
-
-You can clone this repository using **GitHub Desktop**:
-
-1. Open **GitHub Desktop**  
-2. Click **File → Clone Repository...**  
-3. Paste the repository URL (once available publicly)  
-4. Choose a local folder and click **Clone**
-
-Or via command line:
-
-```bash
-git clone https://github.com/yourusername/presidents-and-arseholes.git
-cd presidents-and-arseholes
-```
-
----
-
-### 3. Install Dependencies
-
-Open **PowerShell** (or your preferred terminal) in the project folder and run:
-
-```bash
-npm install
-```
-
-This installs all required packages listed in `package.json`.
-
----
-
-### 4. Run the Project
-
-To start the development server, run:
-
-```bash
-npx expo start
-```
-
-This will open the **Expo Developer Tools** in your browser.  
-You can then:
-
-- Press **“Run on Android device/emulator”**  
-- Press **“Run on iOS simulator”**  
-- Or scan the QR code with the **Expo Go** app (on your physical phone)
-
----
-
-### 5. Troubleshooting
-
-If Expo fails to start or dependencies are missing, try the following:
-
-```bash
+```powershell
 npm install -g expo-cli
-npm install
-npx expo start -c
 ```
 
-> `-c` clears the Expo cache.
+### Install
 
----
+```powershell
+npm install
+```
 
-### 6. Notes
+### Run (Expo)
 
-- The project is currently **private** and in **testing phase**.  
-- Multiplayer and rule logic are still being refined.  
-- Public testers will be invited once stability is confirmed.
+```powershell
+npm start
+# or
+npm run android
+npm run ios
+npm run web
+```
 
----
+### Run unit tests (rules engine)
+
+- TypeScript tests:
+
+```powershell
+npm run test-core
+```
+
+- Deterministic JS harness:
+
+```powershell
+node dist-scripts/scripts/test-core.js
+```
+
+## 🌐 Multiplayer Server (optional)
+
+The Socket.IO server provides lobby/room management and simple relays.
+
+```powershell
+cd server
+npm install
+node index.js   # starts on http://localhost:3000
+```
+
+Point the client SocketAdapter at the server URL (defaults to localhost in development).
+
+## 🃏 Game Rules (high level)
+
+- Rank order: 3 < 4 < … < 10 < J < Q < K < A < 2 < Joker
+- Plays: same‑value sets or valid runs
+- Runs: ≥3 consecutive ranks with equal multiplicity (e.g., 3‑3,4‑4,5‑5). 10s and Jokers are excluded from runs
+- Special clears:
+  - 2s clear the pile and current player leads next
+  - Four‑of‑a‑kind starts a “higher quads or Joker” challenge
+  - Single Joker beats anything visible and typically ends the trick
+- 10‑rule: when 10s are played as a set, choose “higher” or “lower” for the next plays; paused during active runs
+- Trick lifecycle: players pass or play until all non‑leaders pass; winner leads the next trick
+
+## 🧪 Quality & Tooling
+
+- Pure functions with unit tests for core rules
+- Deterministic Node harness for fast iteration
+- Defensive guards for edge cases (joker‑on‑joker, run adjacency, etc.)
+- Optional assets/deps handled by dynamic `require()` with graceful fallbacks
+
+## 🎨 Design & Audio
+
+- Art Deco theme with gold accents and noir backgrounds
+- Background ambience and sfx via `expo-av` (optional; muted/persisted via AsyncStorage when available)
+
+## ⚠️ Known Issues & Limitations
+
+- Sound effects are stubbed (text placeholders in `assets/sounds/`)
+- No persistent game state across app restarts
+- Server focuses on lobby management; full state sync WIP
+- Some advanced rule toggles are experimental
+
+## 🛣 Roadmap
+
+- More end‑to‑end tests and simulation coverage
+- Enhanced CPU heuristics for autoplay and analysis
+- Polished online flow (reconnects, role reassignment)
+- Visual refinements and richer animations
+
+## 📸 Screenshots / Demo
+
+> Drop screenshots or a short GIF here (menu, in‑game, debug viewer).
+
+## 🤝 Contributing
+
+This repository is actively iterated. Issues/PRs are welcome once the project is public.
+
+## 📄 License
+
+This repository is currently private. Placeholder assets © their respective owners. A formal license will be added upon public release.
+
