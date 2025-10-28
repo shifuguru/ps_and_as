@@ -1,7 +1,29 @@
-# 🎮 Presidents & Arseholes (React Native Game)
+# 🎮 Ps and As – Presidents & Arseholes / Scum (React Native + Node)
 
+Fast, pass-and-play card game with optional server rules engine. Built with Expo (client) and Node (server).
 This is a cross-platform card game built with **Expo (React Native)**.  
 Currently under active development — the repository will be opened for public testing once the rules and online connectivity are stable.
+
+## Features
+- Pass-and-play with hand management, turns, and **runs** rules.
+- Rules engine with unit tests.
+- Offline first; optional server sync.
+
+## Quick start
+## Rules (Ps & As)
+See [`/docs/rules.md`](./docs/rules.md) for full spec including **runs** logic, passing, ranking, and special cards.
+
+## Tech
+React Native (Expo), TypeScript, Zustand, Node 20, Vitest/Jest, ESLint+Prettier, GitHub Actions.
+
+## Roadmap
+- [ ] Full runs/bombs test coverage
+- [ ] Local Bluetooth / LAN
+- [ ] Simple bot AI
+- [ ] E2E tests (Detox)
+
+## Licence
+MIT (see `LICENSE`). Placeholder assets © their owners.
 
 ---
 
