@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RANK_ORDER = void 0;
 exports.createGame = createGame;
+exports.SINGLE_RANK_PER_TURN = true;
 exports.playCards = playCards;
 exports.setTenRuleDirection = setTenRuleDirection;
 exports.getPlayCount = getPlayCount;
@@ -95,9 +96,8 @@ function playCards(state, playerId, cards) {
         if (!allThrees)
             return state;
     }
-    // all played cards must have the same value OR be a valid run
-    const isPlayRun = isRun(cards);
-    if (!allSameValue(cards) && !isPlayRun)
+    // RULE: a single turn may ONLY play one rank repeated N times (1–4)
+    if (!allSameRank(cards))
         return state;
     // Validate play type: must play same number of cards as pile (unless pile is empty)
     // Enforce clear precedence: if this play is a 2 and the current trick already
@@ -137,18 +137,17 @@ function playCards(state, playerId, cards) {
         cards: cards.slice(),
         timestamp: Date.now(),
     });
-    // Joker is the highest card, players are given the chance to pass on it for visuals.
-    // Twos are high, but 4x 2s are higher than 2s alone. Joker beats both.
-    // Four-of-a-kind starts a special challenge: 
-    // the next player must play another set of four of a higher
-    // rank or a Joker to beat it. 
-    // Do NOT finalize tricks immediately, allow players to respond or pass.
-    // For a single Joker here: we want the Joker to remain visible so other
-    // players can pass on it before the trick is finalized by passTurn.
+    // Special rules overview:
+    // - Single Joker sets a clear state but does NOT auto-finalize; others must pass.
+    // - Four-of-a-kind triggers a challenge; higher quads or Joker can beat it.
+    // - 2 clears the visible pile but does NOT auto-finalize; others may pass.
+    // - 10s require direction when not in a run context; 10s during runs do not trigger direction.
     let trickEnded = false;
-    // Check if 10 was played - will need user input for direction
+    // Check if 10 was played - will need user input for direction when NOT in a run context
     const playedTen = containsTen(cards);
-    if (playedTen && !((_d = state.tenRule) === null || _d === void 0 ? void 0 : _d.active)) {
+    const effPileForContext = effectivePile(state.pile, state.pileHistory);
+    const isPileRunForContext = effPileForContext && effPileForContext.length >= 3 && isRunContextSequence(effPileForContext);
+    if (playedTen && !((_d = state.tenRule) === null || _d === void 0 ? void 0 : _d.active) && !isPileRunForContext) {
         // 10 rule is being activated - add cards to pile but pause for player input
         state.pile = cards;
         state.pileHistory = state.pileHistory || [];
@@ -164,17 +163,23 @@ function playCards(state, playerId, cards) {
         state.tenRule = { active: false, direction: null };
     }
     // Special rules first
-    // If any played card is a 2, it clears the pile immediately and the player who played it leads next
+    // If any played card is a 2, it clears the visible pile but does not auto-finalize the trick.
+    // Allow subsequent players to pass visibly before the trick is concluded.
     if (containsTwo(cards)) {
         // set lastClear to two (unless a higher clear is already present, which
         // should have been rejected earlier)
         state.lastClear = { type: "two", value: 2, playerIndex: pIndex };
-        state.pile = [];
-        state.pileHistory = [];
-        state.pileOwners = [];
-        state.passCount = 0;
-        state.currentPlayerIndex = pIndex;
-        state.mustPlay = true;
+        // Clear the physical pile but keep the trick open; reset the per-trick pass records
+        // state.pile = [];
+        // state.pileHistory = [];
+        // state.pileOwners = [];
+        // state.passCount = 0;
+        // Do NOT reset currentTrick: players who already passed remain locked
+        // for the rest of this trick. Remaining (non-passed) players must now
+        // explicitly pass or attempt to beat the 2 (via more 2s or a Joker).
+        // Advance to the next active player after the clearer; they may play or pass
+        state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+        state.mustPlay = false;
     }
     else if (isFourOfAKind(cards)) {
         // Start or respond to a four-of-a-kind challenge.
@@ -221,41 +226,46 @@ function playCards(state, playerId, cards) {
             return { ...state };
         }
     }
+    else if (
+        // Closing to quads across turns: pile has 1-3 of a value, and we play the
+        // remaining copies of the same value to reach exactly 4, which starts the
+        // four-of-a-kind challenge.
+        state.pile.length > 0 &&
+            state.pile.length < 4 &&
+            allSameValue(state.pile) &&
+            allSameValue(cards) &&
+            cards[0].value === state.pile[0].value &&
+            (state.pile.length + cards.length === 4)
+    ) {
+        const combined = [...state.pile, ...cards];
+        state.pileHistory = state.pileHistory || [];
+        state.pileHistory.push(cards.slice());
+        state.pileOwners = state.pileOwners || [];
+        state.pileOwners.push(player.id);
+        state.pile = combined;
+        state.passCount = 0;
+        state.fourOfAKindChallenge = { active: true, value: cards[0].value, starterIndex: pIndex };
+        state.lastClear = { type: "four", value: cards[0].value, playerIndex: pIndex };
+        state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+        state.mustPlay = true;
+        return { ...state };
+    }
     else if (isSingleJoker(cards)) {
-        // Single joker: beats an active four-of-a-kind challenge immediately
-        // (joker > four-of-a-kind). For that case we should finalize the trick
-        // now so the joker player wins the trick. Otherwise, place the joker on
-        // the pile and allow visible passing by other players.
+        // Single Joker: mark clear type and let others pass around; do not finalize immediately.
+        state.lastClear = { type: "joker", value: 15, playerIndex: pIndex };
+        state.pile = cards;
+        state.pileHistory = state.pileHistory || [];
+        state.pileHistory.push(cards.slice());
+        state.pileOwners = state.pileOwners || [];
+        state.pileOwners.push(player.id);
+        state.passCount = 0;
         if (state.fourOfAKindChallenge && state.fourOfAKindChallenge.active) {
-            // Joker resolves the challenge and ends the trick in favor of the joker player
-            state.lastClear = { type: "joker", value: 15, playerIndex: pIndex };
-            state.pile = cards;
-            state.pileHistory = state.pileHistory || [];
-            state.pileHistory.push(cards.slice());
-            state.pileOwners = state.pileOwners || [];
-            state.pileOwners.push(player.id);
-            state.passCount = 0;
-            // Clear the challenge state; will be finalized below by trickEnded handling
             state.fourOfAKindChallenge = undefined;
-            trickEnded = true;
-            // ensure winner selection logic uses the joker player (pIndex)
-            state.currentPlayerIndex = pIndex;
-            state.mustPlay = true;
         }
-        else {
-            // Place the joker on the pile/history so UI can show it and allow visible passing
-            state.lastClear = { type: "joker", value: 15, playerIndex: pIndex };
-            state.pile = cards;
-            state.pileHistory = state.pileHistory || [];
-            state.pileHistory.push(cards.slice());
-            state.pileOwners = state.pileOwners || [];
-            state.pileOwners.push(player.id);
-            state.passCount = 0;
-            // Advance to the next active player so they can respond or pass
-            state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
-            // Do not force mustPlay: allow visible passing
-            state.mustPlay = false;
-        }
+        // Do NOT clear prior pass actions; players who passed stay locked out until trick ends.
+        // advance to next active player; leader remains joker player
+        state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+        state.mustPlay = false;
     }
     else {
         // normal play replaces the pile
@@ -272,6 +282,9 @@ function playCards(state, playerId, cards) {
     }
     // if trick ended with special card, record winner and start new trick
     if (trickEnded) {
+        // Clear the visible pile immediately so the next trick starts clean
+        state.pile = [];
+        state.passCount = 0;
         state.currentTrick.winnerId = player.id;
         state.currentTrick.winnerName = player.name;
         state.trickHistory = state.trickHistory || [];
@@ -293,6 +306,10 @@ function playCards(state, playerId, cards) {
         state.mustPlay = true;
         // Clear lastClear as the trick has concluded
         state.lastClear = undefined;
+        // Reset any 10 rule/challenge markers so UI/game type doesn't stick
+        state.tenRule = { active: false, direction: null };
+        state.tenRulePending = false;
+        state.fourOfAKindChallenge = undefined;
     }
     // if player emptied hand, add to finished
     if (player.hand.length === 0 && !state.finishedOrder.includes(player.id)) {
@@ -305,6 +322,12 @@ function playCards(state, playerId, cards) {
         if (p.hand.length === 0 && !state.finishedOrder.includes(p.id)) {
             state.finishedOrder.push(p.id);
         }
+    }
+    // Auto-skip players who have already passed in this trick, except when the
+    // last clear was a Joker. In the Joker case, we leave the trick open and allow
+    // visible passes to be recorded manually to avoid premature finalization.
+    if (!(state.lastClear && state.lastClear.type === 'joker')) {
+        state = autoSkipPassedPlayers(state);
     }
     return { ...state };
 }
@@ -327,6 +350,12 @@ function setTenRuleDirection(state, direction) {
     // Now advance to the next player who must play according to the direction
     state.currentPlayerIndex = nextActivePlayerIndex(state, state.currentPlayerIndex);
     state.mustPlay = true;
+    // Auto-skip players who have already passed in this trick, except when the
+    // last clear was a Joker. In the Joker case, we leave the trick open and allow
+    // visible passes to be recorded manually to avoid premature finalization.
+    if (!(state.lastClear && state.lastClear.type === 'joker')) {
+        state = autoSkipPassedPlayers(state);
+    }
     return { ...state };
 }
 // Helpers for play validation
@@ -361,15 +390,15 @@ function effectivePile(pile, pileHistory) {
             if (!entry || entry.length !== 1)
                 break;
             const c = entry[0];
-            // Ten and Joker cannot form part of a run
-            if (c.value === 10 || c.value === 15)
+            // Joker cannot form part of a run context; 10 is allowed
+            if (c.value === 15)
                 break;
             collected.push(c);
         }
             // collected is reverse chronological (newest first) -> reverse to chronological
             collected.reverse();
-            if (collected.length >= 3 && isRun(collected)) {
-                try { console.log("[core] effectivePile detected run from pileHistory: " + collected.map(c => c.value).join(',')); } catch (e) { }
+            if (collected.length >= 3 && isRunContextSequence(collected)) {
+                try { console.log("[core] effectivePile detected run (context) from pileHistory: " + collected.map(c => c.value).join(',')); } catch (e) { }
                 return collected;
             }
             return pile;
@@ -397,6 +426,25 @@ function hasPassedInCurrentTrick(state, playerId) {
         return false;
     return state.currentTrick.actions.some(a => a.type === 'pass' && a.playerId === playerId);
 }
+
+// Auto-skip helper: while it's the turn of a player who has already passed
+// in the current trick, automatically pass them and advance. This enforces
+// that a pass forfeits the rest of the trick for that player.
+function autoSkipPassedPlayers(state) {
+    try {
+        let safety = state.players ? state.players.length : 0;
+        while (safety-- > 0 && state.players && state.players.length > 0) {
+            const current = state.players[state.currentPlayerIndex];
+            if (!current)
+                break;
+            if (!hasPassedInCurrentTrick(state, current.id))
+                break;
+            state = passTurn(state, current.id);
+        }
+    }
+    catch (e) { }
+    return state;
+}
 // Build an effective run formed by consecutive single-card plays from the current trick.
 // We only consider the tail of currentTrick.actions where each action is a single-card play
 // and each play was made by the next active player after the previous one.
@@ -416,8 +464,8 @@ function runFromCurrentTrick(currentTrick, players, finishedOrder = []) {
         if (a.type !== 'play' || !a.cards || a.cards.length !== 1)
             break;
         const card = a.cards[0];
-        // Ten and Joker cannot form part of a run
-        if (card.value === 10 || isJoker(card))
+        // Joker cannot form part of a run context; 10 is allowed
+        if (isJoker(card))
             break;
         const pIndex = players.findIndex((p) => p.id === a.playerId);
         if (pIndex === -1)
@@ -441,8 +489,8 @@ function runFromCurrentTrick(currentTrick, players, finishedOrder = []) {
             playerIdxs.unshift(pIndex);
         }
     }
-    if (collected.length >= 3 && isRun(collected)) {
-        try { console.log("[core] runFromCurrentTrick detected run: " + collected.map(c => c.value).join(',') + " players=" + playerIdxs.join(',')); } catch (e) { }
+    if (collected.length >= 3 && isRunContextSequence(collected)) {
+        try { console.log("[core] runFromCurrentTrick detected run (context): " + collected.map(c => c.value).join(',') + " players=" + playerIdxs.join(',')); } catch (e) { }
         return collected;
     }
     return [];
@@ -457,8 +505,9 @@ function isValidPlay(cards, pile, tenRule, pileHistory, fourOfAKindChallenge, cu
     // active pile that already contains a joker.
     if (isSingleJoker(cards) && pileCount > 0 && pile.some(c => isJoker(c)))
         return false;
-    // Check if it's a run
-    const isPlayRun = isRun(cards);
+    // Enforce single-rank-per-turn
+    if (!allSameValue(cards))
+        return false;
     // detect runs that may be formed across recent single-card plays
     // Prefer run made by consecutive players in current trick; fall back to pileHistory heuristic
     let effPile = effectivePile(pile, pileHistory);
@@ -466,14 +515,14 @@ function isValidPlay(cards, pile, tenRule, pileHistory, fourOfAKindChallenge, cu
     if (trickRun && trickRun.length >= 3) {
         effPile = trickRun;
     }
-    const isPileRun = effPile.length >= 3 && isRun(effPile);
+    const isPileRun = effPile.length >= 3 && isRunContextSequence(effPile);
     // Determine run origin: was the active run played as a single multi-card play
     // (i.e. pile itself is a run) or was it formed across consecutive single-card
     // plays (pileHistory or currentTrick). If formed across single-card plays,
     // subsequent players may only play a single adjacency card, not a same-length run.
     const pileIsActualRun = pile && pile.length >= 3 && isRun(pile);
     const runFromTrick = !!(trickRun && trickRun.length >= 3);
-    const runFromHistory = !runFromTrick && !pileIsActualRun && effPile.length >= 3 && isRun(effPile);
+    const runFromHistory = !runFromTrick && !pileIsActualRun && effPile.length >= 3 && isRunContextSequence(effPile);
     // If a four-of-a-kind challenge is active, only allow another four-of-a-kind
     // that is strictly higher, or a single Joker. Everything else must pass.
     if (fourOfAKindChallenge === null || fourOfAKindChallenge === void 0 ? void 0 : fourOfAKindChallenge.active) {
@@ -489,11 +538,17 @@ function isValidPlay(cards, pile, tenRule, pileHistory, fourOfAKindChallenge, cu
         }
         return false;
     }
-    // Single joker can beat anything (including doubles, triples, quads)
-    if (isSingleJoker(cards) && pileCount > 0)
+    // Single Joker handling: cannot beat 10s when direction is 'lower';
+    // can beat when direction is 'higher'. Cannot beat another Joker.
+    if (isSingleJoker(cards) && pileCount > 0) {
+        if (pile.some(c => isJoker(c)))
+            return false;
+        if ((tenRule === null || tenRule === void 0 ? void 0 : tenRule.active) && tenRule.direction === 'lower')
+            return false;
         return true;
-    // all cards in the play must be the same value OR be a valid run
-    if (!allSameValue(cards) && !isPlayRun)
+    }
+    // all cards must be the same value
+    if (!allSameValue(cards))
         return false;
     // if pile is empty, any uniform play or run is allowed
     if (pileCount === 0)
@@ -511,31 +566,34 @@ function isValidPlay(cards, pile, tenRule, pileHistory, fourOfAKindChallenge, cu
             return playRank < pileRank; // Must be strictly lower
         }
     }
-    // Runs must match runs (same length, higher starting value)
     if (isPileRun) {
-        // Runs have extra restrictions: Ten and Joker cannot be used in runs
-        if (cards.some(c => c.value === 10 || c.value === 15))
+        // When a run is active (from history/trick), ONLY a single adjacent card is allowed
+        if (playCount !== 1)
             return false;
-        // If the play is a run, it must match length and have a higher starting value
-        if (isPlayRun) {
-            // If the active run was formed across consecutive single-card plays,
-            // a single player cannot play a same-length run — only single-card
-            // adjacency plays are permitted.
-            if (runFromTrick || runFromHistory) return false;
-            if (playCount !== effPile.length)
-                return false;
-            // Compare starting values of runs using the minimal (start) rank index
-            const pileStart = rankIndex(effPile[0].value);
-            const playStart = rankIndex(cards[0].value);
-            return playStart > pileStart;
-        }
-        // Allow single-card adjacency plays when the pile is a run: the single card
-        // must be exactly one rank above or below the last card of the run.
-        if (playCount === 1) {
-            const lastCard = effPile[effPile.length - 1];
-            const lastRank = rankIndex(lastCard.value);
-            const playRank = rankIndex(cards[0].value);
-            return Math.abs(playRank - lastRank) === 1;
+        if (isJoker(cards[0]))
+            return false;
+        const lastCard = effPile[effPile.length - 1];
+        const lastRank = rankIndex(lastCard.value);
+        const playRank = rankIndex(cards[0].value);
+        return Math.abs(playRank - lastRank) === 1;
+    }
+    // Special case: allow closing to four-of-a-kind across turns.
+    // If the pile is a uniform set of value v with count 1-3, and the play is
+    // the remaining number of cards of the same value to reach exactly 4,
+    // allow it (even though counts don't match).
+    const pileIsUniform = allSameValue(pile);
+    if (pileIsUniform && pileCount > 0 && pileCount < 4 && allSameValue(cards) && cards[0].value === pile[0].value) {
+        if (playCount + pileCount === 4)
+            return true;
+    }
+    // Special case: pile is uniform 2s. Allow escalation: a higher multiplicity
+    // of 2s beats it; a single Joker also beats any number of 2s.
+    const pileIsTwos = pileIsUniform && pile.length > 0 && pile[0].value === 2;
+    if (pileIsTwos) {
+        if (isSingleJoker(cards))
+            return true;
+        if (allSameValue(cards) && cards[0].value === 2) {
+            return playCount > pileCount;
         }
         return false;
     }
@@ -550,6 +608,7 @@ function isValidPlay(cards, pile, tenRule, pileHistory, fourOfAKindChallenge, cu
     const plTop = rankIndex(cards[0].value);
     return plTop > top;
 }
+
 // special helpers
 function containsTwo(cards) {
     return cards.some((c) => c.value === 2);
@@ -599,6 +658,26 @@ function isRun(cards) {
         const prev = rankIndex(sortedUnique[i - 1]);
         const cur = rankIndex(sortedUnique[i]);
         if (cur !== prev + 1)
+            return false;
+    }
+    return true;
+}
+
+// Context-only run detection for sequences formed via consecutive single-card plays.
+// Allows 10s to appear in the sequence, but disallows Jokers and 2s. Each adjacent
+// pair must differ by exactly 1 rank, length >= 3. Direction can change.
+function isRunContextSequence(cards) {
+    if (!cards || cards.length < 3)
+        return false;
+    for (let i = 0; i < cards.length; i++) {
+        const c = cards[i];
+        if (isJoker(c) || c.value === 2)
+            return false;
+    }
+    for (let i = 1; i < cards.length; i++) {
+        const prev = rankIndex(cards[i - 1].value);
+        const cur = rankIndex(cards[i].value);
+        if (Math.abs(cur - prev) !== 1)
             return false;
     }
     return true;
@@ -657,7 +736,7 @@ function findCPUPlay(hand, pile, tenRule, pileHistory, fourOfAKindChallenge, cur
     const trickRun = runFromCurrentTrick(currentTrick, players, finishedOrder || []);
     if (trickRun && trickRun.length >= 3)
         effPile = trickRun;
-    const isPileRun = effPile.length >= 3 && isRun(effPile);
+    const isPileRun = effPile.length >= 3 && isRunContextSequence(effPile);
     // If a four-of-a-kind challenge is active, only try to play a higher
     // four-of-a-kind or a Joker.
     if (fourOfAKindChallenge === null || fourOfAKindChallenge === void 0 ? void 0 : fourOfAKindChallenge.active) {
@@ -681,41 +760,62 @@ function findCPUPlay(hand, pile, tenRule, pileHistory, fourOfAKindChallenge, cur
     // If pile is a run, we need to find runs in our hand
     if (isPileRun) {
         const runLength = effPile.length;
-        const pileStartRank = rankIndex(effPile[0].value);
+        // derive pile run parameters
+        const pileFreq = {};
+        effPile.forEach(c => { pileFreq[c.value] = (pileFreq[c.value] || 0) + 1; });
+        const pileUnique = Object.keys(pileFreq).map(Number).sort((a,b)=>rankIndex(a)-rankIndex(b));
+        const pileM = Math.max(1, Math.floor(effPile.length / Math.max(1, pileUnique.length)));
+        const pileStartRank = rankIndex(pileUnique[0]);
         // Determine run origin: allow same-length run attempts only if the run
         // on the pile was an actual multi-card play (pile itself is a run).
         const pileIsActualRun = pile && pile.length >= 3 && isRun(pile);
         const runFromTrick = !!(trickRun && trickRun.length >= 3);
-        const runFromHistory = !runFromTrick && !pileIsActualRun && effPile.length >= 3 && isRun(effPile);
+    const runFromHistory = !runFromTrick && !pileIsActualRun && effPile.length >= 3 && isRunContextSequence(effPile);
 
         // If the pile is an actual single multi-card run, try to find same-length runs
         // in hand that beat it. If the run was formed across single-card plays
         // (runFromTrick or runFromHistory), skip same-length-run attempts and only
         // allow a single adjacency card response.
         if (!runFromTrick && !runFromHistory) {
-            // Try to find consecutive runs of the required length
-            const sortedHand = [...hand].sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
-            for (let i = 0; i <= sortedHand.length - runLength; i++) {
-                const potentialRun = sortedHand.slice(i, i + runLength);
-                if (isRun(potentialRun)) {
-                    const runStartRank = rankIndex(potentialRun[0].value);
-                    if (runStartRank > pileStartRank) {
-                        validPlays.push(potentialRun);
-                    }
+            // Search hand for runs matching multiplicity and unique length
+            const handByValue = {};
+            for (const c of hand) {
+                if (c.value === 2 || c.value === 15 || c.value === 10) continue;
+                (handByValue[c.value] = handByValue[c.value] || []).push(c);
+            }
+            for (let startIdx = 0; startIdx <= exports.RANK_ORDER.length - pileUnique.length; startIdx++) {
+                const startVal = exports.RANK_ORDER[startIdx];
+                if (startVal === 2 || startVal === 10 || startVal === 15) continue;
+                const uniqVals = [];
+                let ok = true;
+                for (let k = 0; k < pileUnique.length; k++) {
+                    const v = exports.RANK_ORDER[startIdx + k];
+                    if (v === 2 || v === 10 || v === 15) { ok = false; break; }
+                    uniqVals.push(v);
                 }
+                if (!ok) continue;
+                const startRankIdx = rankIndex(uniqVals[0]);
+                if (startRankIdx <= pileStartRank) continue;
+                const take = [];
+                for (const v of uniqVals) {
+                    const arr = handByValue[v] || [];
+                    if (arr.length < pileM) { ok = false; break; }
+                    take.push(...arr.slice(0, pileM));
+                }
+                if (!ok) continue;
+                if (take.length === runLength && isRun(take)) { validPlays.push(take); break; }
             }
         }
 
         // Fallback: single-card adjacency plays are always allowed against a run
         // formed by consecutive single-card plays, and also are the fallback when
-        // we couldn't find a same-length beating run. Ten and Joker are not
-        // allowed as adjacency responses.
+        // we couldn't find a same-length beating run. Joker is not allowed; 10 is allowed.
         if (validPlays.length === 0) {
             const lastRank = rankIndex(effPile[effPile.length - 1].value);
             const adjCard = hand.find(c => {
                 const r = rankIndex(c.value);
-                if (c.value === 10 || c.value === 15)
-                    return false; // disallow ten/joker in runs
+                if (c.value === 15)
+                    return false; // disallow joker in runs
                 return Math.abs(r - lastRank) === 1;
             });
             if (adjCard)
@@ -723,37 +823,67 @@ function findCPUPlay(hand, pile, tenRule, pileHistory, fourOfAKindChallenge, cur
         }
     } else {
         // Normal play: match count and beat value
-        Object.keys(grouped).forEach(valueStr => {
-            const value = Number(valueStr);
-            const cards = grouped[value];
-            // Skip joker group for normal grouped-matching logic. Jokers are handled as a
-            // special single-card fallback (one joker is sufficient to beat any pile).
-            if (value === 15)
-                return;
-            // Check if we have enough cards of this value
-            if (cards.length >= pileCount) {
-                const valueRankIndex = rankIndex(value);
-                // Apply 10 rule constraints if active
-                if ((tenRule === null || tenRule === void 0 ? void 0 : tenRule.active) && tenRule.direction) {
-                    if (tenRule.direction === "higher" && valueRankIndex <= pileRankIndex) {
-                        return; // Skip this value
-                    }
-                    if (tenRule.direction === "lower" && valueRankIndex >= pileRankIndex) {
-                        return; // Skip this value
-                    }
-                }
-                else {
-                    // Normal rule: check if this value beats the pile
-                    if (valueRankIndex <= pileRankIndex) {
-                        return; // Skip this value
-                    }
-                }
-                validPlays.push(cards.slice(0, pileCount));
+        // Special handling: if the pile is uniform 2s, attempt 2s escalation first
+        const pileIsUniform = pile.length > 0 && allSameValue(pile);
+        const pileIsTwos = pileIsUniform && pile[0].value === 2;
+        if (pileIsTwos) {
+            const twos = grouped[2];
+            if (twos && twos.length > pileCount) {
+                const toPlay = Math.min(twos.length, pileCount + 1);
+                validPlays.push(twos.slice(0, toPlay));
             }
-        });
+            else if (jokerCard) {
+                validPlays.push([jokerCard]);
+            }
+        }
+        // Also consider opportunity to close to four-of-a-kind across turns
+        if (!pileIsTwos && pileIsUniform && pileCount > 0 && pileCount < 4) {
+            const v = pile[0].value;
+            const need = 4 - pileCount;
+            const have = (grouped[v] || []).length;
+            if (have >= need) {
+                validPlays.push((grouped[v] || []).slice(0, need));
+            }
+        }
+        // Otherwise or in addition, consider normal same-count higher-value plays
+        if (!pileIsTwos) {
+            Object.keys(grouped).forEach(valueStr => {
+                const value = Number(valueStr);
+                const cards = grouped[value];
+                // Skip joker group for normal grouped-matching logic. Jokers are handled as a
+                // special single-card fallback (one joker is sufficient to beat any pile).
+                if (value === 15)
+                    return;
+                // Check if we have enough cards of this value
+                if (cards.length >= pileCount) {
+                    const valueRankIndex = rankIndex(value);
+                    // Apply 10 rule constraints if active
+                    if ((tenRule === null || tenRule === void 0 ? void 0 : tenRule.active) && tenRule.direction) {
+                        if (tenRule.direction === "higher" && valueRankIndex <= pileRankIndex) {
+                            return; // Skip this value
+                        }
+                        if (tenRule.direction === "lower" && valueRankIndex >= pileRankIndex) {
+                            return; // Skip this value
+                        }
+                    }
+                    else {
+                        // Normal rule: check if this value beats the pile
+                        if (valueRankIndex <= pileRankIndex) {
+                            return; // Skip this value
+                        }
+                    }
+                    validPlays.push(cards.slice(0, pileCount));
+                }
+            });
+        }
     }
     // If no valid plays found and we have a joker, play it
     if (validPlays.length === 0 && jokerCard) {
+        // If a 10-rule is active and set to "lower" don't play Joker as it
+        // cannot beat that configuration.
+        if ((tenRule === null || tenRule === void 0 ? void 0 : tenRule.active) && tenRule.direction === "lower") {
+            return null;
+        }
         return [jokerCard];
     }
     if (validPlays.length === 0)
@@ -775,25 +905,14 @@ function passTurn(state, playerId) {
         return state;
     if (state.currentPlayerIndex !== pIndex)
         return state;
-    // If the current player is required to play (leader), normally they cannot pass.
-    // However, if they truly have no valid play available (e.g., mustPlay but no valid cards to beat the pile),
-    // allow the pass to avoid deadlock. use findCPUPlay as a helper to detect any possible valid play.
+    // Allow strategic passes even when a player has a valid play, with one exception:
+    // the very first move of the entire game (the player holding 3♣ must open).
     if (state.mustPlay) {
-        const player = state.players[pIndex];
-        // If mustPlay is set because of a Joker clear, allow players to pass
-        // even if they technically have a valid play. This lets the Joker remain
-        // visible and others to pass out, finalizing the trick in favor of the Joker.
-        if (!(state.lastClear && state.lastClear.type === 'joker')) {
-            const possible = findCPUPlay(player.hand, state.pile, state.tenRule, state.pileHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder);
-            if (possible === null) {
-                // no valid plays available - allow pass to prevent the game getting stuck
-                console.warn(`[core] mustPlay but no valid play for player ${player.name} (${player.id}) - allowing pass to avoid deadlock`);
-                // continue to execute pass logic below
-            }
-            else {
-                return state; // player has at least one valid play and therefore cannot pass
-            }
+        const isFirstPlay = state.pile.length === 0 && (!state.pileHistory || state.pileHistory.length === 0) && (!state.trickHistory || state.trickHistory.length === 0) && (!!state.currentTrick && state.currentTrick.actions.length === 0);
+        if (isFirstPlay) {
+            return state; // opener cannot pass on the first move
         }
+        // Otherwise, allow passing regardless of available plays.
     }
     const player = state.players[pIndex];
     // Track this pass in current trick
@@ -831,8 +950,17 @@ function passTurn(state, playerId) {
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
     // Determine active players for the trick (not finished)
     const activePlayerIds = state.players.filter(p => !state.finishedOrder.includes(p.id)).map(p => p.id);
-    // Who last played? That player is considered the leader for this trick
-    const leaderIndex = (_b = state.lastPlayPlayerIndex) !== null && _b !== void 0 ? _b : null;
+    // Who last played? That player is considered the leader for this trick.
+    // Prefer state.lastPlayPlayerIndex, but fall back to last 'play' action in currentTrick.
+    let leaderIndex = (_b = state.lastPlayPlayerIndex) !== null && _b !== void 0 ? _b : null;
+    if ((leaderIndex === null || leaderIndex < 0) && state.currentTrick && state.currentTrick.actions.length > 0) {
+        const lastPlay = [...state.currentTrick.actions].reverse().find(a => a.type === 'play');
+        if (lastPlay) {
+            const idx = state.players.findIndex(p => p.id === lastPlay.playerId);
+            if (idx >= 0)
+                leaderIndex = idx;
+        }
+    }
     const leaderId = (leaderIndex !== null && leaderIndex >= 0) ? state.players[leaderIndex].id : null;
     // If all other active players (i.e., everyone except the leader) have passed,
     // the trick ends: clear the pile, winner leads next trick, and record the trick.
@@ -859,28 +987,9 @@ function passTurn(state, playerId) {
                         state.tenRule = { active: false, direction: null };
                         state.tenRulePending = false;
 
-                    // New rule: last player who passed is awarded the next turn. Find
-                    // the most recent pass in currentTrick.actions.
-                    var lastPassPlayerId = null;
-                    if (state.currentTrick && state.currentTrick.actions && state.currentTrick.actions.length > 0) {
-                        for (var i = state.currentTrick.actions.length - 1; i >= 0; i--) {
-                            var a = state.currentTrick.actions[i];
-                            if (a.type === 'pass') {
-                                lastPassPlayerId = a.playerId;
-                                break;
-                            }
-                        }
-                    }
-
-                    var winnerIndexToUse = null;
-                    if (lastPassPlayerId) {
-                        winnerIndexToUse = state.players.findIndex(function (p) { return p.id === lastPassPlayerId; });
-                    }
-                    if (winnerIndexToUse === -1)
-                        winnerIndexToUse = null;
-
-                    if (winnerIndexToUse !== null && winnerIndexToUse >= 0) {
-                        var winnerPlayer = state.players[winnerIndexToUse];
+                    // Winner is the last player who successfully played (leaderIndex)
+                    if (leaderIndex !== null && leaderIndex >= 0) {
+                        var winnerPlayer = state.players[leaderIndex];
                         state.currentTrick.winnerId = winnerPlayer.id;
                         state.currentTrick.winnerName = winnerPlayer.name;
                         state.trickHistory = state.trickHistory || [];
@@ -888,28 +997,6 @@ function passTurn(state, playerId) {
                         state.currentTrick = { trickNumber: state.trickHistory.length + 1, actions: [] };
                         for (var _i = 0, _a = state.players; _i < _a.length; _i++) {
                             var p = _a[_i];
-                            if (p.hand.length === 0 && !state.finishedOrder.includes(p.id)) {
-                                state.finishedOrder.push(p.id);
-                            }
-                        }
-                        if (!state.finishedOrder.includes(winnerPlayer.id)) {
-                            state.currentPlayerIndex = winnerIndexToUse;
-                            state.mustPlay = true;
-                        }
-                        else {
-                            state.currentPlayerIndex = nextActivePlayerIndex(state, winnerIndexToUse);
-                            state.mustPlay = false;
-                        }
-                    }
-                    else if (leaderIndex !== null && leaderIndex >= 0) {
-                        var winnerPlayer = state.players[leaderIndex];
-                        state.currentTrick.winnerId = winnerPlayer.id;
-                        state.currentTrick.winnerName = winnerPlayer.name;
-                        state.trickHistory = state.trickHistory || [];
-                        state.trickHistory.push(state.currentTrick);
-                        state.currentTrick = { trickNumber: state.trickHistory.length + 1, actions: [] };
-                        for (var _b = 0, _c = state.players; _b < _c.length; _b++) {
-                            var p = _c[_b];
                             if (p.hand.length === 0 && !state.finishedOrder.includes(p.id)) {
                                 state.finishedOrder.push(p.id);
                             }
@@ -928,7 +1015,7 @@ function passTurn(state, playerId) {
     return { ...state };
 }
 // helper: check all cards have same value
-function allSameValue(cards) {
+function allSameRank(cards) {
     if (!cards || cards.length === 0)
         return false;
     const v = cards[0].value;

@@ -50,8 +50,8 @@ const runPile = [{suit:'clubs',value:3},{suit:'hearts',value:4},{suit:'spades',v
 // playing a 10 as single card against a run should be invalid
 assert(core.isValidPlay([{suit:'hearts',value:10}], runPile, null, [[{suit:'clubs',value:3},{suit:'hearts',value:4},{suit:'spades',value:5}]], null, null, null, []) === false, '10 should not beat a run');
 
-// Test 7: passing winner rule - last player who passed should be awarded next turn
-// Build a minimal state where player1 played, then player2 passed, then player3 is passing now
+// Test 7: winner is leader (last to play), not last passer
+// Build a minimal state where player1 played (leader), then player2 & player3 pass. Winner should be P1.
 const state = {
   players: [ {id:'1',name:'P1',hand:[]}, {id:'2',name:'P2',hand:[]}, {id:'3',name:'P3',hand:[]} ],
   currentPlayerIndex: 2, // P3's turn
@@ -65,9 +65,8 @@ const state = {
   currentTrick: { trickNumber: 1, actions: [ {type:'play', playerId:'1', playerName:'P1', timestamp:1}, {type:'pass', playerId:'2', playerName:'P2', timestamp:2} ] }
 };
 const res = core.passTurn(state, '3');
-// After P3 passes, both P2 and P3 have passed; last passer is P3 so they should lead next trick
-const expectedIndex = 2;
-assert(res.currentPlayerIndex === expectedIndex, 'last passer should be awarded next turn (currentPlayerIndex)');
+// After P3 passes, both P2 and P3 passed; winner should be P1 (leader)
+assert(res.currentPlayerIndex === 0, 'leader should be awarded next turn (currentPlayerIndex)');
 
 // Test 8: ensure trick does NOT finalize when only one of multiple other players has passed
 // Setup: 4 players, P1 played (leader), P2 passed, it is P3's turn; when P3 passes,
@@ -87,6 +86,24 @@ const state2 = {
 const res2 = core.passTurn(state2, '3');
 // After P3 passes, only P2 and P3 have passed; P4 hasn't, so trick should NOT have been finalized
 assert((res2.trickHistory && res2.trickHistory.length === 0) || !res2.currentTrick || (res2.currentTrick && res2.currentTrick.actions && res2.currentTrick.actions.length > 0), 'trick should not finalize when not all other players have passed');
+
+// Test 9: Playing a 2 clears the pile but keeps trick open and allows visible passing
+// Setup a simple state and simulate playing a 2 via playCards
+const twoState = core.createGame(['A','B','C']);
+// Force a controlled scenario
+twoState.players[0].hand = [ {suit:'clubs', value:2} ];
+twoState.players[1].hand = [ {suit:'hearts', value:3} ];
+twoState.players[2].hand = [ {suit:'spades', value:4} ];
+twoState.currentPlayerIndex = 0;
+// Make sure this is NOT treated as the very first play of the game (bypass 3♣ rule)
+twoState.trickHistory = [ { trickNumber: 1, actions: [] } ];
+twoState.currentTrick = { trickNumber: 2, actions: [ { type:'play', playerId:'0', playerName:'Z', cards:[{suit:'diamonds', value:3}], timestamp: 1 } ] };
+let afterTwo = core.playCards(twoState, '1', [ {suit:'clubs', value:2} ]);
+// Pile should be cleared, trick should NOT be finalized, and next player should be player 2
+assert(afterTwo.pile.length === 0, '2 clears visible pile');
+assert(afterTwo.currentTrick && afterTwo.currentTrick.actions.length === 0, 'new trick started after 2');
+// Next player should be index 1 (player B)
+assert(afterTwo.currentPlayerIndex === 1, 'after 2, next active player should act');
 
 
 console.log('All core unit-tests passed');

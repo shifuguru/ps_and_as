@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from "react-native";
-import { createGame, GameState, playCards, passTurn, findValidSingleCard, rankIndex, findCPUPlay, setTenRuleDirection, isValidPlay, RANK_ORDER, isRun, hasPassedInCurrentTrick, effectivePile, runFromCurrentTrick } from "../game/core";
+import { createGame, GameState, playCards, passTurn, findValidSingleCard, rankIndex, findCPUPlay, setTenRuleDirection, isValidPlay, RANK_ORDER, isRun, hasPassedInCurrentTrick, effectivePile, runFromCurrentTrick, isRunContextSequence } from "../game/core";
 import Card from "../components/Card";
 import { ScrollView, Dimensions } from "react-native";
 import { MockAdapter } from "../game/network";
@@ -114,11 +114,14 @@ export default function GameScreen({
   const [state, setState] = useState<GameState | null>(null);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
   const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
-  const [showGameLog, setShowGameLog] = useState<boolean>(true);
+  const [showGameLog, setShowGameLog] = useState<boolean>(false);
   const [selected, setSelected] = useState<number[]>([]); // indices in hand
   const [focused, setFocused] = useState<number | null>(null);
   const [revealedHands, setRevealedHands] = useState<{ [playerId: string]: boolean }>({});
   const adapter = networkAdapter || new MockAdapter();
+
+  // UX pacing: centralized CPU turn delay for a more relaxed feel
+  const CPU_DELAY_MS = 1100;
 
   // Utility: create a compact snapshot of relevant game state for debug logs
   function snapshotState(s: GameState | null) {
@@ -333,7 +336,7 @@ export default function GameScreen({
         const nextState = passTurn(state, current.id);
         setState(nextState);
       }
-    }, 800); // 800ms delay for visibility
+    }, CPU_DELAY_MS); // Adjustable CPU delay for visibility
 
     return () => clearTimeout(timer);
   }, [state]);
@@ -356,9 +359,10 @@ export default function GameScreen({
   const CARD_H = 120;
   const bottomBarMinHeight = Math.max(160, CARD_H + 120);
 
-  // Build structured game log entries (now full history, scrollable)
+  // Build log entries
   type LogEntry = { text: string; kind: "play" | "pass" | "win" | "info" };
-  const gameLog: LogEntry[] = [];
+  const fullGameLog: LogEntry[] = [];
+  const currentTrickLog: LogEntry[] = [];
 
   // Helper to format cards
   const formatCards = (cards?: any[]) => {
@@ -370,18 +374,18 @@ export default function GameScreen({
     }).join(", ");
   };
 
-  // Add completed tricks (all) — keep full scrollable history
+  // Add completed tricks (all) — keep full scrollable history (Full Game Log)
   if (state.trickHistory && state.trickHistory.length > 0) {
     state.trickHistory.forEach(trick => {
       trick.actions.forEach(action => {
         if (action.type === "play" && action.cards) {
-          gameLog.push({ text: `${action.playerName} played ${formatCards(action.cards)}`, kind: "play" });
+          fullGameLog.push({ text: `${action.playerName} played ${formatCards(action.cards)}`, kind: "play" });
         } else if (action.type === "pass") {
-          gameLog.push({ text: `${action.playerName} passed`, kind: "pass" });
+          fullGameLog.push({ text: `${action.playerName} passed`, kind: "pass" });
         }
       });
       if (trick.winnerName) {
-        gameLog.push({ text: `→ ${trick.winnerName} won the trick`, kind: "win" });
+        fullGameLog.push({ text: `→ ${trick.winnerName} won the trick`, kind: "win" });
       }
     });
   }
@@ -390,23 +394,26 @@ export default function GameScreen({
   if (state.currentTrick && state.currentTrick.actions.length > 0) {
     state.currentTrick.actions.forEach(action => {
       if (action.type === "play" && action.cards) {
-        gameLog.push({ text: `${action.playerName} played ${formatCards(action.cards)}`, kind: "play" });
+        fullGameLog.push({ text: `${action.playerName} played ${formatCards(action.cards)}`, kind: "play" });
+        currentTrickLog.push({ text: `${action.playerName} played ${formatCards(action.cards)}`, kind: "play" });
         if (action.tenRuleDirection) {
-          gameLog.push({ text: `  → Called ${action.tenRuleDirection.toUpperCase()}`, kind: "info" });
+          fullGameLog.push({ text: `  → Called ${action.tenRuleDirection.toUpperCase()}`, kind: "info" });
+          currentTrickLog.push({ text: `  → Called ${action.tenRuleDirection.toUpperCase()}`, kind: "info" });
         }
       } else if (action.type === "pass") {
-        gameLog.push({ text: `${action.playerName} passed`, kind: "pass" });
+        fullGameLog.push({ text: `${action.playerName} passed`, kind: "pass" });
+        currentTrickLog.push({ text: `${action.playerName} passed`, kind: "pass" });
       }
     });
   }
 
   // Add active 10 rule status
   if (state.tenRule?.active && state.tenRule.direction && !state.tenRulePending) {
-    gameLog.push({ text: `[10 Rule: ${state.tenRule.direction.toUpperCase()} active]`, kind: "info" });
+    fullGameLog.push({ text: `[10 Rule: ${state.tenRule.direction.toUpperCase()} active]`, kind: "info" });
+    currentTrickLog.push({ text: `[10 Rule: ${state.tenRule.direction.toUpperCase()} active]`, kind: "info" });
   }
-
-  // Show the full log (scrollable)
-  const recentLog = gameLog;
+  // Derived views
+  const recentFullLog = fullGameLog;
 
   // Compute a short label describing the current play type
   function getPlayTypeLabel(): string | null {
@@ -432,21 +439,24 @@ export default function GameScreen({
     let eff = effectivePile(state.pile, state.pileHistory);
     const trickRun = runFromCurrentTrick(state.currentTrick, state.players, state.finishedOrder || []);
     if (trickRun && trickRun.length >= 3) eff = trickRun;
-    if (eff && eff.length >= 3 && isRun(eff)) {
-      try {
-        console.log("[GameScreen] Detected RUN from UI helpers", { eff: eff.map(c => ({s: c.suit, v: c.value})), fromTrick: !!(trickRun && trickRun.length >= 3) });
-      } catch (e) {}
-      return "RUNS!";
+  if (eff && eff.length >= 3 && isRunContextSequence(eff)) {
+      // Determine multiplicity m for the run and render as a modifier
+      const freq: Record<number, number> = {};
+      eff.forEach(c => { freq[c.value] = (freq[c.value] || 0) + 1; });
+      const uniqLen = Object.keys(freq).length;
+      const m = Math.max(1, Math.floor(eff.length / Math.max(1, uniqLen)));
+      const kind = m === 1 ? 'singles' : m === 2 ? 'doubles' : m === 3 ? 'triples' : m === 4 ? 'quads' : `${m}x`;
+      return `${kind}*runs`;
     }
 
-    // Otherwise show by count
+    // Otherwise show by count (non-run)
     const count = state.pile.length;
-    if (count === 1) return "SINGLES!";
-    if (count === 2) return "DOUBLES!!";
-    if (count === 3) return "TRIPLES!!!";
-    if (count === 4) return "QUADS!!!!";
+    if (count === 1) return "singles";
+    if (count === 2) return "doubles";
+    if (count === 3) return "triples";
+    if (count === 4) return "quads";
 
-    return `${count}-OF-A-KIND!`;
+    return `${count}-of-a-kind`;
   }
 
   const playTypeLabel = getPlayTypeLabel();
@@ -461,6 +471,7 @@ export default function GameScreen({
     return `${shortTs} ${ev} ${pid} ${succ} pile=${pile}`;
   });
 
+  // Note: no appear animation here to avoid flashing on re-renders
 
   return (
     <View style={local.container}>
@@ -471,23 +482,22 @@ export default function GameScreen({
       {showDebugOverlay && (
         <View style={local.debugOverlay}>
           <View style={local.debugHeader}>
-            <Text style={{ color: "#d4af37", fontWeight: "800" }}>Structured Logs</Text>
+            <Text style={{ color: "#d4af37", fontWeight: "800" }}>Full Game Log</Text>
             <TouchableOpacity onPress={() => setShowDebugOverlay(false)} style={{ padding: 6 }}>
               <Text style={{ color: "#fff" }}>Close</Text>
             </TouchableOpacity>
           </View>
           <ScrollView style={local.debugScroll}>
-            {recentStructured.map((line, i) => (
-              <Text key={i} style={{ color: "#eee", fontSize: 11, marginBottom: 4 }}>{line}</Text>
-            ))}
-
-            {/* Live state dump for easier reproduction */}
-            <View style={{ marginTop: 8 }}>
-              <Text style={{ color: '#d4af37', fontWeight: '800', marginBottom: 6 }}>State Debug</Text>
-              <ScrollView style={{ maxHeight: 140, backgroundColor: 'rgba(0,0,0,0.6)', padding: 6 }}>
-                <Text style={{ color: '#ddd', fontSize: 11 }}>{JSON.stringify({ currentTrick: state.currentTrick, pileHistory: state.pileHistory }, null, 2)}</Text>
-              </ScrollView>
-            </View>
+            {recentFullLog && recentFullLog.length > 0 ? (
+              recentFullLog.slice().reverse().map((log, idx) => {
+                const color = log.kind === 'win' ? '#ffd700' : (log.kind === 'pass' ? '#8B4513' : '#f0f0f0');
+                return (
+                  <Text key={idx} style={{ color, fontSize: 12, marginBottom: 4, lineHeight: 18 }}>{log.text}</Text>
+                );
+              })
+            ) : (
+              <Text style={{ color: '#aaa', fontSize: 12 }}>No log entries yet.</Text>
+            )}
           </ScrollView>
         </View>
       )}
@@ -505,15 +515,6 @@ export default function GameScreen({
               <Text style={local.modalText}>Choose direction for next player:</Text>
               <View style={local.modalButtons}>
                 <TouchableOpacity
-                  style={[local.modalButton, { marginRight: 12 }]}
-                  onPress={() => {
-                    const newState = setTenRuleDirection(state, "higher");
-                    setState(newState);
-                  }}
-                >
-                  <Text style={local.modalButtonText}>⬆️ Higher</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
                   style={local.modalButton}
                   onPress={() => {
                     const newState = setTenRuleDirection(state, "lower");
@@ -521,6 +522,15 @@ export default function GameScreen({
                   }}
                 >
                   <Text style={local.modalButtonText}>⬇️ Lower</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[local.modalButton, { marginRight: 12 }]}
+                  onPress={() => {
+                    const newState = setTenRuleDirection(state, "higher");
+                    setState(newState);
+                  }}
+                >
+                  <Text style={local.modalButtonText}>⬆️ Higher</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -531,12 +541,12 @@ export default function GameScreen({
       {/* Scrollable game content */}
       <ScrollView 
         style={local.scrollableContent} 
-        contentContainerStyle={{ paddingBottom: bottomBarMinHeight + 20 }}
+        contentContainerStyle={{ paddingBottom: bottomBarMinHeight + 40 }}
       >
         <View style={local.header}>
         <View style={local.navBar}>
           <TouchableOpacity onPress={() => onBack && onBack()} style={local.navBack}>
-            <Text style={local.navBackText}>{"← Back"}</Text>
+            <Text style={local.navBackText}>{"Back"}</Text>
           </TouchableOpacity>
           <Text style={local.navTitle}>Game</Text>
           <View style={{ width: 40 }} />
@@ -547,45 +557,71 @@ export default function GameScreen({
 
       <View style={local.playersArea}>
         <Text style={local.sectionTitle}>Players</Text>
-        {state.players.map((p, idx) => {
+        {(() => {
+          const maxCells = 8; // 2 columns x 4 rows
+          const playersToShow = state.players.slice(0, maxCells);
+          const overflow = state.players.length - playersToShow.length;
+          return (
+            <View style={local.playersGrid}>
+              {playersToShow.map((p, idx) => {
           const isCurrent = idx === state.currentPlayerIndex;
           const hasPassed = !!(state.currentTrick && state.currentTrick.actions && state.currentTrick.actions.some(a => a.type === 'pass' && a.playerId === p.id));
           const roleEmojiMap: { [k: string]: string } = { "President": "👑", "Vice President": "⭐", "Neutral": "", "Vice Asshole": "💩", "Asshole": "💩" };
           const roleEmoji = roleEmojiMap[p.role] || "";
           const initials = p.name ? p.name.split(" ").map((s) => s[0]).slice(0,2).join("") : "?";
           const revealed = !!revealedHands[p.id];
-          return (
-            <View key={p.id}>
-              <TouchableOpacity onPress={() => setRevealedHands(r => ({ ...r, [p.id]: !r[p.id] }))} activeOpacity={0.8}>
-                <View style={[local.playerRow, isCurrent ? local.playerRowCurrent : null]}>
-                  <View style={local.avatar}>
-                    <Text style={local.avatarText}>{initials}</Text>
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 8 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={[local.playerName, isCurrent ? local.playerNameCurrent : null]}>{roleEmoji ? `${roleEmoji} ${p.name}` : p.name}</Text>
-                      {hasPassed && (
-                        <View style={local.passedBadge}><Text style={local.passedBadgeText}>Passed</Text></View>
-                      )}
+          const finishIdx = state.finishedOrder.indexOf(p.id);
+          const placement = finishIdx >= 0 ? finishIdx + 1 : null;
+          const ordinal = (n: number) => {
+            if (n % 10 === 1 && n % 100 !== 11) return `${n}st`;
+            if (n % 10 === 2 && n % 100 !== 12) return `${n}nd`;
+            if (n % 10 === 3 && n % 100 !== 13) return `${n}rd`;
+            return `${n}th`;
+          };
+              return (
+                <View key={p.id} style={local.playerCell}>
+                  <TouchableOpacity onPress={() => setRevealedHands(r => ({ ...r, [p.id]: !r[p.id] }))} activeOpacity={0.8}>
+                    <View style={[local.playerRow, isCurrent ? local.playerRowCurrent : null]}>
+                      <View style={local.avatar}>
+                        <Text style={local.avatarText}>{initials}</Text>
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <Text style={[local.playerName, isCurrent ? local.playerNameCurrent : null]} numberOfLines={1}>
+                            {roleEmoji ? `${roleEmoji} ${p.name}` : p.name}
+                          </Text>
+                          {hasPassed && (
+                            <View style={local.passedBadge}><Text style={local.passedBadgeText}>Passed</Text></View>
+                          )}
+                          {placement && (
+                            <View style={local.placementBadge}><Text style={local.placementBadgeText}>{ordinal(placement)}</Text></View>
+                          )}
+                        </View>
+                        <Text style={local.playerCount}>{p.hand.length} cards</Text>
+                      </View>
+                      {isCurrent && <View style={local.turnBadge}><Text style={local.turnBadgeText}>Turn</Text></View>}
                     </View>
-                    <Text style={local.playerCount}>{p.hand.length} cards</Text>
-                  </View>
-                  {isCurrent && <View style={local.turnBadge}><Text style={local.turnBadgeText}>Turn</Text></View>}
+                  </TouchableOpacity>
+                  {revealed && (
+                    <ScrollView horizontal contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 6 }}>
+                      {[...p.hand].sort((a,b)=>rankIndex(a.value)-rankIndex(b.value)).map((c, ci) => (
+                        <View key={`revealed-${p.id}-${ci}`} style={{ marginRight: 6 }}>
+                          <Card card={c} selected={false} onPress={() => {}} />
+                        </View>
+                      ))}
+                    </ScrollView>
+                  )}
                 </View>
-              </TouchableOpacity>
-
-              {revealed && (
-                <ScrollView horizontal contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 6 }}>
-                  {[...p.hand].sort((a,b)=>rankIndex(a.value)-rankIndex(b.value)).map((c, ci) => (
-                    <View key={`revealed-${p.id}-${ci}`} style={{ marginRight: 6 }}>
-                      <Card card={c} selected={false} onPress={() => {}} />
-                    </View>
-                  ))}
-                </ScrollView>
-              )}
+              );
+            })}
             </View>
           );
-        })}
+        })()}
+        {state.players.length > 8 && (
+          <Text style={{ color: '#aaa', fontSize: 11, marginTop: 4 }}>
+            +{state.players.length - 8} more
+          </Text>
+        )}
       </View>
 
       <View style={local.pileArea}>
@@ -593,14 +629,14 @@ export default function GameScreen({
           <Text style={local.sectionTitle}>Table (Current Pile):</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity onPress={() => setShowDebugOverlay((s) => !s)} style={[local.smallToggle, { marginRight: 8 }]}>
-              <Text style={local.smallToggleText}>{showDebugOverlay ? 'Logs ▴' : 'Logs ▾'}</Text>
+              <Text style={local.smallToggleText}>{showDebugOverlay ? 'Full Game Log ▴' : 'Full Game Log ▾'}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowGameLog((s) => !s)} style={local.smallToggle}>
-              <Text style={local.smallToggleText}>{showGameLog ? 'Game Log ▴' : 'Game Log ▾'}</Text>
+              <Text style={local.smallToggleText}>{showGameLog ? 'Current Trick Log ▴' : 'Current Trick Log ▾'}</Text>
             </TouchableOpacity>
           </View>
         </View>
-        <View style={local.tableBorder}>
+          <View style={local.tableBorder}>
           <View style={{ minHeight: 90, justifyContent: "center", alignItems: "center" }}>
             {(!state.pileHistory || state.pileHistory.length === 0) ? (
               <Text style={{ color: "#ccc" }}>No cards on the table</Text>
@@ -616,54 +652,20 @@ export default function GameScreen({
                 const tableStackOwners = state.tableStackOwners || [];
                 const earlierStacks = tableStacks.slice(-3); // show up to 3 collapsed stacks
                 return (
-                  <View style={{ width: 260, height: 160, position: "relative" }}>
-                    {/* earlier completed tricks collapsed as face-down stacks */}
-                    {earlierStacks.length > 0 && (
-                      <View style={{ position: "absolute", left: 8, top: 8, flexDirection: 'row' }}>
-                        {earlierStacks.map((stk, si) => (
-                          <View key={`stack-${si}`} style={{ marginRight: 8, position: 'relative' }}>
-                            <Card card={{ suit: "spades", value: 0 }} selected={false} onPress={() => {}} faceDown />
-                            <View style={{ position: "absolute", left: 6, top: 6 }}>
-                              <Card card={{ suit: "spades", value: 0 }} selected={false} onPress={() => {}} faceDown />
-                            </View>
-                            <View style={{ position: "absolute", left: 12, top: 12 }}>
-                              <Card card={{ suit: "spades", value: 0 }} selected={false} onPress={() => {}} faceDown />
-                            </View>
-                            <View style={{ position: 'absolute', left: 6, bottom: -6 }}>
-                              <Text style={{ color: '#ddd', fontSize: 11 }}>{stk.length} cards</Text>
-                            </View>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-
-                    {/* render last plays spaced out; offset each play slightly toward the player who played it */}
+                  <View style={{ width: 300, height: 170, position: "relative" }}>
+                    {/* Only show current trick's last few plays; remove discard visuals */}
                     {lastPlays.map((play, pi) => {
-                      // Compute absolute index in history
-                      const historyIndex = history.length - lastPlays.length + pi;
-                      const ownerId = owners[historyIndex] || null;
-                      const ownerIdx = ownerId ? state.players.findIndex(p => p.id === ownerId) : -1;
-
-                      // base offsets
-                      const baseLeft = 48 + pi * 34;
-                      const baseTop = 16 + (lastPlays.length - pi - 1) * 6;
-
-                      // if we know the owner, nudge the card cluster slightly in the owner's direction
-                      let nudgeX = 0;
-                      let nudgeY = 0;
-                      if (ownerIdx >= 0 && state.players.length > 0) {
-                        const angle = (ownerIdx / state.players.length) * Math.PI * 2; // circular layout
-                        nudgeX = Math.round(Math.cos(angle) * 10);
-                        nudgeY = Math.round(Math.sin(angle) * 6);
-                      }
+                      // base offsets: align everything on the same Y, step X per play
+                      const baseLeft = 20 + pi * 56;
+                      const baseTop = 40;
 
                       return (
-                        <View key={`play-${pi}`} style={{ position: "absolute", left: baseLeft + nudgeX, top: baseTop + nudgeY }}>
+                        <View key={`play-${pi}`} style={{ position: "absolute", left: baseLeft, top: baseTop }}>
                           {play.map((c, ci) => {
                             // Tightly bundle cards of same rank (doubles, triples, quads)
                             // Offset enough to show top-left corner rank/suit
-                            const cardOffset = ci * 12; // Horizontal spacing to show corner
-                            const verticalOffset = -ci * 4; // Slight vertical offset
+                            const cardOffset = ci * 16; // increase spacing for readability
+                            const verticalOffset = 0; // remove height offsets for current pile
                             return (
                               <View key={`${c.suit}-${c.value}-${ci}`} style={{ position: "absolute", left: cardOffset, top: verticalOffset }}>
                                 <Card card={c} selected={false} onPress={() => {}} />
@@ -673,17 +675,19 @@ export default function GameScreen({
                         </View>
                       );
                     })}
+                    {playTypeLabel && (
+                      <View style={{ position: 'absolute', top: 6, left: 0, right: 0, alignItems: 'center' }}>
+                        <View style={[local.playTypeBadge, { marginTop: 0 }] }>
+                          <Text style={local.playTypeText}>{playTypeLabel}</Text>
+                        </View>
+                      </View>
+                    )}
                   </View>
                 );
               })()
             )}
           </View>
         </View>
-        {playTypeLabel && (
-          <View style={local.playTypeBadge}>
-            <Text style={local.playTypeText}>{playTypeLabel}</Text>
-          </View>
-        )}
         </View>
       </ScrollView>
 
@@ -692,10 +696,10 @@ export default function GameScreen({
         {/* Game Log (toggleable) */}
         {showGameLog && (
           <View style={local.gameLogContainer}>
-            <Text style={local.gameLogTitle}>Game Log</Text>
+            <Text style={local.gameLogTitle}>Current Trick Log</Text>
             <ScrollView style={local.gameLogScroll} nestedScrollEnabled>
-              {recentLog && recentLog.length > 0 ? (
-                recentLog.slice().reverse().map((log, idx) => {
+              {currentTrickLog && currentTrickLog.length > 0 ? (
+                currentTrickLog.slice().reverse().map((log, idx) => {
                   const color = log.kind === 'win' ? '#ffd700' : (log.kind === 'pass' ? '#8B4513' : '#f0f0f0');
                   return (
                     <Text key={idx} style={[local.gameLogText, { color }]}>{log.text}</Text>
@@ -821,7 +825,7 @@ export default function GameScreen({
               setState(next);
             }
           }}
-          style={[local.actionButton, !isHumanTurn ? { opacity: 0.4 } : null]}
+          style={[local.actionButton, local.actionButtonPrimary, !isHumanTurn ? { opacity: 0.4 } : null]}
           disabled={!isHumanTurn}
         >
           <Text style={local.actionText}>Play Selected ({selected.length})</Text>
@@ -844,7 +848,7 @@ export default function GameScreen({
           }}
           style={[
             local.actionButton,
-            { marginLeft: 12 },
+            local.actionButtonSecondary,
             !isHumanTurn ? { opacity: 0.4 } : (state.mustPlay ? { opacity: 0.9 } : null)
           ]}
           disabled={!isHumanTurn}
@@ -864,8 +868,15 @@ const local = StyleSheet.create({
   gameId: { color: "#ddd", fontSize: 10 },
   finished: { color: "#ddd", fontSize: 10 },
   navBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6, marginTop: 48 },
-  navBack: { padding: 4 },
-  navBackText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  navBack: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)'
+  },
+  navBackText: { color: "#d4af37", fontWeight: "800", fontSize: 14 },
   navTitle: { color: "#d4af37", fontWeight: "800", fontSize: 16 },
   pileArea: { marginTop: 6, marginBottom: 8 },
   tableBorder: { borderWidth: 2, borderColor: "rgba(212,175,55,0.18)", borderStyle: "dashed", padding: 8, borderRadius: 8, minHeight: 100, justifyContent: "center" },
@@ -873,6 +884,8 @@ const local = StyleSheet.create({
   pileCards: { flexDirection: "row", alignItems: "center" },
   pileCardWrapper: { marginRight: 6 },
   playersArea: { marginVertical: 6 },
+  playersGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  playerCell: { width: '50%', paddingHorizontal: 4, marginBottom: 6 },
   playerRow: { flexDirection: "row", alignItems: "center", padding: 6, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.02)", marginBottom: 3 },
   playerRowCurrent: { backgroundColor: "rgba(212,175,55,0.08)", borderColor: "rgba(212,175,55,0.12)", borderWidth: 1 },
   playerName: { color: "#fff", fontWeight: "600", fontSize: 13 },
@@ -883,8 +896,10 @@ const local = StyleSheet.create({
   turnBadge: { backgroundColor: "#d4af37", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
   turnBadgeText: { color: "#111", fontWeight: "700", fontSize: 11 },
   actions: { flexDirection: "row", marginTop: 12, alignItems: "center" },
-  actionButton: { backgroundColor: "#222", padding: 12, borderRadius: 8 },
-  actionText: { color: "#fff", fontWeight: "700" },
+  actionButton: { backgroundColor: "#222", paddingVertical: 16, paddingHorizontal: 14, borderRadius: 10, flex: 1, alignItems: 'center' },
+  actionButtonPrimary: { marginRight: 8 },
+  actionButtonSecondary: { marginLeft: 8 },
+  actionText: { color: "#fff", fontWeight: "800", fontSize: 16 },
   bottomBar: { 
     position: "absolute",
     bottom: 0,
@@ -893,7 +908,7 @@ const local = StyleSheet.create({
     borderTopWidth: 2, 
     borderTopColor: "rgba(212,175,55,0.4)", 
     paddingTop: 8, 
-    paddingBottom: 18,
+  paddingBottom: 28,
     paddingHorizontal: 8,
     backgroundColor: "rgba(15, 15, 15, 0.98)",
     zIndex: 50,
@@ -1064,5 +1079,18 @@ const local = StyleSheet.create({
     color: '#ddd',
     fontSize: 11,
     fontWeight: '700'
+  },
+  placementBadge: {
+    marginLeft: 8,
+    backgroundColor: 'rgba(212,175,55,0.18)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 2,
+  },
+  placementBadgeText: {
+    color: '#d4af37',
+    fontSize: 11,
+    fontWeight: '800'
   },
 });

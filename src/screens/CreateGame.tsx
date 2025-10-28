@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, FlatList, ScrollView, Alert } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, FlatList, ScrollView, Alert, useWindowDimensions, Modal  } from "react-native";
 import { styles } from "../styles/theme";
 import { NetworkAdapter, MockAdapter } from "../game/network";
 import NetworkDebugPanel from "../components/NetworkDebugPanel";
@@ -29,12 +29,15 @@ export default function CreateGame({
   const [hostId, setHostId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState<string>("Player");
+  const [selectedLobbyIndex, setSelectedLobbyIndex] = useState<number | null>(null);
+  const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const [roomCreated, setRoomCreated] = useState(false);
   const [roomName, setRoomName] = useState<string>("My Game");
   const [actualRoomId, setActualRoomId] = useState<string>("demo");
   const [playerNameReady, setPlayerNameReady] = useState(false);
-
+  const { height } = useWindowDimensions();
+  
   // Initialize player ID from GameCenter
   useEffect(() => {
     let mounted = true;
@@ -74,7 +77,7 @@ export default function CreateGame({
     // subscribe to network messages
     net.on("message", (ev) => {
       if (!mounted) return;
-  log("Received event:", ev.type, ev);
+      log("Received event:", ev.type, ev);
       
       // support state messages from adapters
       if (ev.type === "state" && ev.state && ev.state.type === "lobby") {
@@ -88,7 +91,7 @@ export default function CreateGame({
           setLocalReady(!!(me && me.ready));
         }
       }
-  if (ev.type === "state" && ev.state && ev.state.type === "startGame") {
+      if (ev.type === "state" && ev.state && ev.state.type === "startGame") {
   log("Game starting with players:", ev.state.players);
   log("Calling onStart callback with localPlayerName:", playerName, "playerId:", playerId);
     onStart(ev.state.players, playerName, playerId ?? undefined);
@@ -205,247 +208,276 @@ export default function CreateGame({
   }, [playerNameReady]); // Only run when playerName becomes ready
 
   return (
-    <ScrollView contentContainerStyle={[styles.menuContainer, { paddingBottom: 40 }]}>
-      {/* Debug Panel */}
-      <NetworkDebugPanel 
-        debugInfo={[
-          {
-            title: "Connection Status",
-            data: {
-              status: connectionStatus,
-              playerId: playerId?.substring(0, 20) + "...",
-              localId: localId?.substring(0, 20) + "...",
-              hostId: hostId?.substring(0, 20) + "...",
-              isHost: localId === hostId,
-              adapterType: (net as any).constructor.name,
-              roomCreated
-            }
-          },
-          {
-            title: "Lobby Info",
-            data: {
-              playerCount: names.length,
-              players: names,
-              localReady
-            }
-          }
-        ]}
-      />
+  <View style={[styles.title, { flex: 1, alignItems: "center", paddingTop: 72 }]}>
+    <Text style={styles.title}>Create Game</Text>
+    <Text style={styles.subtitle}>Add players (2-8 players)</Text>
 
-      <Text style={styles.title}>Create Game</Text>
-      <Text style={styles.subtitle}>Add player names (2-8 players)</Text>
-
-      {/* Player Name Display */}
-      <View style={{ width: "80%", marginTop: 12 }}>
-        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, marginBottom: 8 }}>Your Name:</Text>
-        <View style={{ 
+    {/* Room Name Input */}
+    <View style={{ width: "80%", marginTop: 0 }}>
+      <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, marginBottom: 8 }}>Room Name:</Text>
+      <TextInput
+        placeholder="Enter room name"
+        placeholderTextColor="rgba(255,255,255,0.5)"
+        value={roomName}
+        onChangeText={setRoomName}
+        style={{
+          color: "white",
           borderWidth: 1,
           borderColor: "rgba(212, 175, 55, 0.3)",
           borderRadius: 8,
-          paddingVertical: 12, 
+          paddingVertical: 12,
           paddingHorizontal: 16,
-          backgroundColor: "rgba(0,0,0,0.2)",
-          marginBottom: 8,
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center"
-        }}>
-          <Text style={{ color: "white", fontSize: 16 }}>{playerName}</Text>
-          <TouchableOpacity onPress={onNavigateToAchievements || onBack}>
-            <Text style={{ color: "#d4af37", fontSize: 12 }}>Change in Achievements →</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+          backgroundColor: "rgba(0,0,0,0.3)",
+          marginBottom: 12
+        }}
+      />
+    </View>
 
-      {/* Room Name Input */}
-      <View style={{ width: "80%", marginTop: 0 }}>
-        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, marginBottom: 8 }}>Room Name:</Text>
-        <TextInput
-          placeholder="Enter room name"
-          placeholderTextColor="rgba(255,255,255,0.5)"
-          value={roomName}
-          onChangeText={setRoomName}
-          style={{ 
-            color: "white", 
-            borderWidth: 1,
-            borderColor: "rgba(212, 175, 55, 0.3)",
-            borderRadius: 8,
-            paddingVertical: 12, 
-            paddingHorizontal: 16,
-            backgroundColor: "rgba(0,0,0,0.3)",
-            marginBottom: 12
-          }}
-        />
-      </View>
-
-      <View style={{ width: "80%", marginTop: 12 }}>
-        {names.map((item, index) => {
+    {/* Players list (fills available space) */}
+    <View
+      style={{
+        width: "80%",
+        marginTop: 12,
+        flex: 1,
+        borderWidth: 1,
+        borderColor: "rgba(212, 175, 55, 0.15)",
+        borderRadius: 8,
+        backgroundColor: "rgba(0,0,0,0.2)",
+        overflow: "hidden",
+        marginBottom: 180 // leave space for sticky bottom bar
+      }}
+    >
+      <FlatList
+        data={names}
+        keyExtractor={(item, index) => `${item}-${index}`}
+        showsVerticalScrollIndicator
+        style={{ flex: 1 }}
+        numColumns={2}
+        contentContainerStyle={{ paddingVertical: 8, paddingHorizontal: 4 }}
+        columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 4 }}
+        renderItem={({ item, index }) => {
           const isLocalPlayer = index === 0 && localId === hostId; // First player if you're the host
           const isCPU = item.startsWith("CPU ");
           const canRemove = (localId === hostId && !isLocalPlayer) || isCPU; // Host can remove others + anyone can remove CPU
-          
+
           return (
-            <View key={item + index} style={{ flexDirection: "row", width: "100%", justifyContent: "space-between", alignItems: "center", marginVertical: 6 }}>
-              <Text style={{ color: isCPU ? "rgba(255,255,255,0.6)" : "white" }}>
-                {index + 1}. {item}
-                {isCPU && " 🤖"}
-              </Text>
-              {canRemove && (
-                <TouchableOpacity 
-                  onPress={() => {
+            <TouchableOpacity
+              key={`${item}-${index}`}
+              activeOpacity={0.85}
+              onPress={() => { setSelectedLobbyIndex(index); setShowPlayerModal(true); }}
+              onLongPress={() => {
+                const options: any[] = [];
+                options.push({ text: 'Report', onPress: () => Alert.alert('Reported', `${item} has been reported. Thank you.`) });
+                if (canRemove) {
+                  options.unshift({ text: 'Remove', style: 'destructive', onPress: () => {
                     if (isCPU) {
-                      // Remove CPU locally
                       setNames((s) => s.filter((_, i) => i !== index));
                     } else if (adapter && (adapter as any).kickPlayer) {
-                      // Emit kick event to server for real players
-                      console.log("[CreateGame] Kicking player:", item);
+                      console.log('[CreateGame] Kicking player:', item);
                       (adapter as any).kickPlayer(roomName, item);
                     } else {
-                      // For mock adapter, just remove locally
                       setNames((s) => s.filter((_, i) => i !== index));
                     }
-                  }}
-                >
-                  <Text style={{ color: "#d4af37" }}>Remove</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        })}
-      </View>
-
-      {/* Add/Remove CPU Players */}
-      <View style={{ width: "80%", marginTop: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14 }}>CPU Players:</Text>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <TouchableOpacity 
-            style={[styles.menuButton, { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "rgba(212, 175, 55, 0.2)" }]}
-            onPress={() => {
-              const cpuCount = names.filter(n => n.startsWith("CPU ")).length;
-              if (names.length < 8) {
-                const cpuName = `CPU ${cpuCount + 1}`;
-                setNames((s) => [...s, cpuName]);
-                console.log("[CreateGame] Added CPU player:", cpuName);
-                // If using MockAdapter (local/demo), also register the CPU with the mock room
-                try {
-                  if ((net as any)?.constructor?.name === "MockAdapter") {
-                    const m = net as MockAdapter;
-                    const rid = actualRoomId || roomName;
-                    // ensure we have a room id
-                    setActualRoomId(rid);
-                    m.joinRoom(rid, cpuName);
-                    // MockAdapter will emit a connected event for the CPU; our handler will auto-ready them
-                  }
-                } catch (e) {
-                  console.warn('[CreateGame] Failed to add CPU to MockAdapter room', e);
+                  }});
                 }
+                options.push({ text: 'Cancel', style: 'cancel' });
+                Alert.alert(item, 'Lobby options', options);
+              }}
+              style={{
+                width: '48%',
+                marginBottom: 10,
+                borderWidth: 1,
+                borderColor: 'rgba(212,175,55,0.18)',
+                borderRadius: 10,
+                backgroundColor: 'rgba(0,0,0,0.25)',
+                padding: 12
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: '#fff', fontWeight: '800' }}>{(item.split(' ').map(s=>s[0]).join('') || '?').slice(0,2)}</Text>
+                </View>
+                <View style={{ marginLeft: 8, flex: 1 }}>
+                  <Text numberOfLines={1} style={{ color: isCPU ? 'rgba(255,255,255,0.7)' : '#fff', fontWeight: '700' }}>{item}{isCPU ? ' 🤖' : ''}</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>{index === 0 && localId === hostId ? 'Host' : 'Player'}</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+      />
+    </View>
+
+  {/* Sticky bottom controls */}
+    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingBottom: 16, paddingTop: 10, backgroundColor: 'rgba(15,15,15,0.98)', borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.25)', alignItems: 'center' }}>
+      {/* Add/Remove CPU Players */}
+      <View style={{ width: '90%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14 }}>CPU Players:</Text>
+        <View style={{ flexDirection: 'row' }}>
+          <TouchableOpacity
+            style={[styles.menuButton, { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: 'rgba(212,175,55,0.1)', marginRight: 8 }]}
+            onPress={() => {
+              const lastCPUIndex = names
+                .map((n, i) => ({ n, i }))
+                .reverse()
+                .find(({ n }) => n.startsWith('CPU '))?.i;
+              if (lastCPUIndex !== undefined) {
+                setNames((s) => s.filter((_, i) => i !== lastCPUIndex));
+                console.log('[CreateGame] Removed last CPU player');
+              }
+            }}
+            disabled={names.filter((n) => n.startsWith('CPU ')).length === 0}
+          >
+            <Text style={[styles.menuButtonText, { opacity: names.filter((n) => n.startsWith('CPU ')).length === 0 ? 0.5 : 1 }]}>−</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.menuButton, { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: 'rgba(212,175,55,0.2)' }]}
+            onPress={() => {
+              if (names.length >= 8) return;
+              // Generate next available unique CPU name (fill gaps, avoid duplicates)
+              const usedNums = new Set<number>();
+              for (const n of names) {
+                const m = /^CPU\s+(\d+)$/i.exec(n.trim());
+                if (m) usedNums.add(parseInt(m[1], 10));
+              }
+              let i = 1;
+              while (usedNums.has(i)) i++;
+              let cpuName = `CPU ${i}`;
+              // Defensive fallback if some weird collision exists
+              while (names.some(n => n.toLowerCase() === cpuName.toLowerCase())) {
+                i++;
+                cpuName = `CPU ${i}`;
+              }
+              setNames((s) => [...s, cpuName]);
+              console.log('[CreateGame] Added CPU player:', cpuName);
+              try {
+                if ((net as any)?.constructor?.name === 'MockAdapter') {
+                  const m = net as MockAdapter;
+                  const rid = actualRoomId || roomName;
+                  setActualRoomId(rid);
+                  m.joinRoom(rid, cpuName);
+                }
+              } catch (e) {
+                console.warn('[CreateGame] Failed to add CPU to MockAdapter room', e);
               }
             }}
             disabled={names.length >= 8}
           >
             <Text style={[styles.menuButtonText, { opacity: names.length >= 8 ? 0.5 : 1 }]}>+</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.menuButton, { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "rgba(212, 175, 55, 0.1)" }]}
-            onPress={() => {
-              const lastCPUIndex = names.map((n, i) => ({ n, i })).reverse().find(({ n }) => n.startsWith("CPU "))?.i;
-              if (lastCPUIndex !== undefined) {
-                setNames((s) => s.filter((_, i) => i !== lastCPUIndex));
-                console.log("[CreateGame] Removed last CPU player");
-              }
-            }}
-            disabled={names.filter(n => n.startsWith("CPU ")).length === 0}
-          >
-            <Text style={[styles.menuButtonText, { opacity: names.filter(n => n.startsWith("CPU ")).length === 0 ? 0.5 : 1 }]}>−</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
-      <View style={{ flexDirection: "row", width: "80%", marginTop: 12 }}>
+      {/* Manual Human Player Add input */}
+      <View style={{ flexDirection: 'row', width: '90%', marginTop: 10 }}>
         <TextInput
           placeholder="Player name"
           placeholderTextColor="rgba(255,255,255,0.5)"
           value={input}
           onChangeText={setInput}
-          style={{ flex: 1, color: "white", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)", marginRight: 8, paddingVertical: 8 }}
+          style={{ flex: 1, color: 'white', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', marginRight: 8, paddingVertical: 8 }}
         />
-        <TouchableOpacity style={[styles.menuButton, { paddingVertical: 8, paddingHorizontal: 16 }]} onPress={() => { if (input.trim()) { setNames((s) => [...s, input.trim()]); setInput(""); } }}>
+        <TouchableOpacity
+          style={[styles.menuButton, { paddingVertical: 8, paddingHorizontal: 16 }]}
+          onPress={() => {
+            const trimmed = input.trim();
+            if (!trimmed) return;
+            // Prevent duplicate names (case-insensitive)
+            const exists = names.some(n => n.toLowerCase() === trimmed.toLowerCase());
+            if (exists) {
+              Alert.alert('Duplicate name', 'That name is already in the lobby. Please choose a different one.');
+              return;
+            }
+            // If lobby is full, try to remove the last CPU to make room
+            if (names.length >= 8) {
+              const lastCPUIndex = names
+                .map((n, i) => ({ n, i }))
+                .reverse()
+                .find(({ n }) => n.startsWith('CPU '))?.i;
+              if (lastCPUIndex === undefined) {
+                Alert.alert('Lobby full', 'The lobby is full and there are no CPU slots to replace.');
+                return;
+              }
+              setNames((s) => {
+                const copy = s.slice();
+                // Recompute in case names changed
+                const lastIdx = copy
+                  .map((n, i) => ({ n, i }))
+                  .reverse()
+                  .find(({ n }) => n.startsWith('CPU '))?.i;
+                if (lastIdx !== undefined) copy.splice(lastIdx, 1);
+                copy.push(trimmed);
+                return copy;
+              });
+              setInput('');
+              return;
+            }
+            setNames((s) => [...s, trimmed]);
+            setInput('');
+          }}
+        >
           <Text style={styles.menuButtonText}>Add</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={{ width: "80%", marginTop: 18 }}>
+      {/* Start / Back */}
+      <View style={{ width: '90%', marginTop: 12 }}>
         <TouchableOpacity
-          // compute disabled state for styling
-            onPress={() => {
-            console.log("[CreateGame] Start Game button pressed");
-            const usingMock = (adapter == null) || ((net as any)?.constructor?.name === "MockAdapter");
+          onPress={() => {
+            console.log('[CreateGame] Start Game button pressed');
+            const usingMock = adapter == null || (net as any)?.constructor?.name === 'MockAdapter';
             if (usingMock) {
-              // Offline/local flow: start immediately
-              console.log("[CreateGame] Starting offline/local game");
+              console.log('[CreateGame] Starting offline/local game');
               onStart(names, playerName, playerId ?? undefined);
               return;
             }
-
-            // Online flow: behave as before (only host can call start on server)
-            console.log("[CreateGame] Adapter check:", {
-              hasAdapter: !!adapter,
-              hasStartGame: !!(net as any).startGame,
-              isHost: localId === hostId,
-              localId,
-              hostId,
-              namesLength: names.length
-            });
             if ((net as any).startGame) {
               if (hostId && localId === hostId) {
-                console.log("[CreateGame] Calling adapter.startGame with roomId:", actualRoomId);
+                console.log('[CreateGame] Calling adapter.startGame with roomId:', actualRoomId);
                 (net as any).startGame(actualRoomId);
               } else {
-                console.log("[CreateGame] Not host, cannot start");
+                console.log('[CreateGame] Not host, cannot start');
               }
-              } else {
-                console.log("[CreateGame] No startGame method, calling onStart directly with playerName:", playerName, "playerId:", playerId);
+            } else {
               onStart(names, playerName, playerId ?? undefined);
             }
           }}
           disabled={names.length < 2 || (!(adapter == null) && localId !== hostId)}
-          style={[styles.menuButton, (names.length < 2 || (!(adapter == null) && localId !== hostId)) ? { opacity: 0.45 } : null]}
+          style={[styles.menuButton, names.length < 2 || (!(adapter == null) && localId !== hostId) ? { opacity: 0.45 } : null]}
         >
-          <Text style={[styles.menuButtonText, (names.length < 2 || (!(adapter == null) && localId !== hostId)) ? { opacity: 0.7 } : null]}>{
-            // Label logic: offline (mock) shows START GAME; online shows host/waiting labels
-            ( (adapter == null) || ((net as any)?.constructor?.name === "MockAdapter") )
-              ? "START GAME"
-              : (names.length >= 2 ? (localId && hostId && localId === hostId ? "Start Game" : "Waiting for host...") : "Waiting for players...")
-          }</Text>
+          <Text style={[styles.menuButtonText, names.length < 2 || (!(adapter == null) && localId !== hostId) ? { opacity: 0.7 } : null]}>
+            {(adapter == null) || ((net as any)?.constructor?.name === 'MockAdapter')
+              ? 'START GAME'
+              : names.length >= 2
+                ? localId && hostId && localId === hostId
+                  ? 'Start Game'
+                  : 'Waiting for host...'
+                : 'Waiting for players...'}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.menuButton, { marginTop: 8 }]} onPress={() => onBack()}>
           <Text style={styles.menuButtonText}>Back</Text>
         </TouchableOpacity>
-        
-        {/* Debug/Test controls */}
-        <View style={{ marginTop: 12, padding: 8, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.1)" }}>
-          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginBottom: 8 }}>Test Controls:</Text>
-          <TouchableOpacity onPress={() => { if ((net as any).joinRoom) (net as any).joinRoom(actualRoomId, "Remote"); }}>
-            <Text style={{ color: "#d4af37", fontSize: 13 }}>Simulate Remote Join</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={{ marginTop: 8 }}
-            onPress={() => {
-              // toggle ready locally and via adapter if supported
-              const next = !localReady;
-              setLocalReady(next);
-              if ((net as any).toggleReady && localId) {
-                (net as any).toggleReady(actualRoomId, localId, next);
-              } else if (!(adapter)) {
-                // MockAdapter supports toggleReady
-                (net as MockAdapter).toggleReady(actualRoomId, localId as string, next);
-              }
-            }}
-          >
-            <Text style={{ color: localReady ? "#7CFC00" : "#d4af37", fontSize: 13 }}>{localReady ? "Ready ✓" : "Not ready"}</Text>
-          </TouchableOpacity>
+      </View>
+    </View>
+
+    {/* Player details modal */}
+    <Modal visible={showPlayerModal} transparent animationType="fade" onRequestClose={() => setShowPlayerModal(false)}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ backgroundColor: 'rgba(15,15,15,0.98)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', padding: 16, minWidth: 280 }}>
+          <Text style={{ color: '#d4af37', fontWeight: '800', fontSize: 16, marginBottom: 8 }}>Player</Text>
+          <Text style={{ color: '#fff', marginBottom: 16 }}>{typeof selectedLobbyIndex === 'number' ? names[selectedLobbyIndex] : ''}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <TouchableOpacity style={[styles.menuButton, { flex: 1, marginRight: 8 }]} onPress={() => { setShowPlayerModal(false); onNavigateToAchievements && onNavigateToAchievements(); }}>
+              <Text style={styles.menuButtonText}>View Achievements</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.menuButton, { flex: 1, marginLeft: 8 }]} onPress={() => setShowPlayerModal(false)}>
+              <Text style={styles.menuButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
-    </ScrollView>
+    </Modal>
+  </View>
   );
 }
