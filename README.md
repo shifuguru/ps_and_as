@@ -1,4 +1,5 @@
-# Ps and As — Presidents & Arseholes (Expo • React Native • TypeScript)
+# Ps and As — Presidents & Arseholes / Scum
+# (Expo • React Native • TypeScript)
 
 Fast pass-and-play card game, optional online play with a small rules engine.
 
