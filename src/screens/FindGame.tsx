@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { styles } from "../styles/theme";
+import BackButton from "../components/BackButton";
 import Header from "../components/Header";
 import { NetworkAdapter } from "../game/network";
 import NetworkDebugPanel from "../components/NetworkDebugPanel";
@@ -336,9 +337,8 @@ export default function FindGame({
 
       {/* Back Button */}
       <View style={{ width: "80%", marginTop: 24 }}>
-        <TouchableOpacity style={styles.menuButton} onPress={onBack}>
-          <Text style={styles.menuButtonText}>Back</Text>
-        </TouchableOpacity>
+        {/* Use shared BackButton component for consistent look */}
+        <BackButton onPress={onBack} />
       </View>
     </ScrollView>
   );

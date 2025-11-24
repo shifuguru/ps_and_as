@@ -1,20 +1,20 @@
 import React from "react";
 import { SafeAreaView, View, Text, TouchableOpacity, StyleSheet, Platform, StatusBar } from "react-native";
-import { styles as theme } from "../styles/theme";
+import { styles as theme, colors } from "../styles/theme";
 
-export default function Header({ title, onBack, right }: { title?: string; onBack?: () => void; right?: React.ReactNode }) {
+export default function Header({ title, onBack, right, titleStyle }: { title?: string; onBack?: () => void; right?: React.ReactNode; titleStyle?: any }) {
   return (
     <SafeAreaView style={local.container}>
       <View style={local.row}>
         <View style={local.left}>
           {onBack ? (
             <TouchableOpacity onPress={onBack} style={local.backButton}>
-              <Text style={local.backText}>{'< Back'}</Text>
+              <Text style={local.backText}>{'← Back'}</Text>
             </TouchableOpacity>
           ) : null}
         </View>
         <View style={local.center} pointerEvents="none">
-          {title ? <Text style={local.title}>{title}</Text> : null}
+          {title ? <Text style={[local.title, titleStyle]}>{title}</Text> : null}
         </View>
         <View style={local.right}>
           {right}
@@ -37,20 +37,22 @@ const local = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 12,
   },
-  left: { width: 88 },
-  center: { flex: 1, alignItems: "center" },
+  left: { width: 88, alignItems: 'flex-start' },
+  center: { position: 'absolute', left: 0, right: 0, alignItems: "center" },
   right: { width: 88, alignItems: "flex-end" },
   backButton: {
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 6,
+    alignSelf: 'flex-start',
   },
   backText: {
-    color: "#fff",
+    color: colors.accent,
     fontSize: 16,
+    fontWeight: "700",
   },
   title: {
-    color: "#fff",
+    color: colors.secondary,
     fontSize: 18,
     fontWeight: "600",
   },

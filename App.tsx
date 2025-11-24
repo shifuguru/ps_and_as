@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { View, ImageBackground, Animated, StyleSheet, Text, TouchableOpacity } from "react-native";
 import SplashScreen from "./src/screens/SplashScreen";
+import { Platform } from 'react-native';
 import MainMenu from "./src/screens/MainMenu";
 import CreateGame from "./src/screens/CreateGame";
 import FindGame from "./src/screens/FindGame";
@@ -109,9 +110,22 @@ export default function App() {
           {/* If using the bundled felt asset, render a semi-transparent overlay
               with the selected felt color so the texture shows through. We detect
               the felt choice by checking the raw storage value (wallpaperRawUri). */}
-          {wallpaperRawUri === require("./src/services/wallpaper").FELT_GREY_ASSET_MARKER && wallpaperTint ? (
-            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: wallpaperTint ? wallpaperTint + "88" : undefined }]} pointerEvents="none" />
-          ) : null}
+          {(() => {
+            try {
+              const svc = require("./src/services/wallpaper");
+              const isFeltSelected = wallpaperRawUri === null || wallpaperRawUri === svc.FELT_GREY_ASSET_MARKER;
+              if (!isFeltSelected || !wallpaperTint) return null;
+              // Normalize tint string: append alpha if user stored a 6-digit hex
+              const t = (wallpaperTint || "").trim();
+              let bg: string | undefined = undefined;
+              if (/^#[0-9a-fA-F]{6}$/.test(t)) bg = t + "99";
+              else if (/^#[0-9a-fA-F]{8}$/.test(t)) bg = t;
+              else bg = t || undefined;
+              return <View style={[StyleSheet.absoluteFillObject, { backgroundColor: bg }]} pointerEvents="none" />;
+            } catch (e) {
+              return null;
+            }
+          })()}
         {/* Background scrim to improve contrast over wallpapers */}
         <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.36)' }} />
@@ -144,7 +158,7 @@ export default function App() {
         {/* Main menu or screens */}
         {menuVisible && screen === "menu" && (
           <Animated.View style={[styles.menuContainer, { opacity: menuOpacity }]}>
-            <Header title={"P's & A's"} />
+            <Header title={"P's & A's"} titleStyle={{ fontFamily: Platform.OS === 'ios' ? 'Snell Roundhand' : 'cursive', fontSize: 48, fontWeight: '700' }} />
             <Text style={styles.subtitle}>by rabbithole Games</Text>
 
             <View style={styles.buttonGroup}>

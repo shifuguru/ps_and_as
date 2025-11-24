@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator, StyleSheet } from "react-native";
 import { styles } from "../styles/theme";
+import Header from "../components/Header";
 import { 
   authenticatePlayer, 
   isPlayerAuthenticated, 
@@ -120,12 +121,7 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
     <View style={styles.container}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
         {/* Header */}
-        <View style={local.header}>
-          <TouchableOpacity onPress={onBack} style={local.backButton}>
-            <Text style={local.backButtonText}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={local.title}>Achievements</Text>
-        </View>
+        <Header title="Achievements" onBack={onBack} />
 
         {/* Player Profile Section */}
         <View style={local.section}>

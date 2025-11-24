@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, TextInput, FlatList, ScrollView, Alert, useWindowDimensions, Modal, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from "react-native";
 import { styles } from "../styles/theme";
+import BackButton from "../components/BackButton";
 import Header from "../components/Header";
 import { NetworkAdapter, MockAdapter } from "../game/network";
 import NetworkDebugPanel from "../components/NetworkDebugPanel";
@@ -463,9 +464,8 @@ export default function CreateGame({
                 : 'Waiting for players...'}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.menuButton, { marginTop: 8 }]} onPress={() => onBack()}>
-          <Text style={styles.menuButtonText}>Back</Text>
-        </TouchableOpacity>
+        {/* Use shared BackButton component for consistent look */}
+        <BackButton onPress={() => onBack()} />
       </View>
     </View>
 

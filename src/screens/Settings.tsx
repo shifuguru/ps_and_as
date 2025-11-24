@@ -67,6 +67,17 @@ export default function Settings({ onWallpaperChange, onBack }: { onWallpaperCha
 
   const effectivePreview = previewSource || (currentUri ? { uri: currentUri } : DEFAULT_WALLPAPER);
 
+  // Normalize tint into a color string the platform reliably understands.
+  // Prefer 8-digit hex (with alpha). If user provided a 6-digit hex like '#rrggbb'
+  // append '99' for semi-transparency. Otherwise fall back to the raw value.
+  const overlayColor = (() => {
+    if (!currentTint) return null;
+    const s = currentTint.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(s)) return s + "99"; // '#rrggbb' -> '#rrggbb99'
+    if (/^#[0-9a-fA-F]{8}$/.test(s)) return s; // already has alpha
+    return s;
+  })();
+
   const applyFelt = async () => {
     // Use bundled felt asset marker so service can resolve the require
     // Use default (null) to indicate felt texture — service resolves this to the bundled felt image
@@ -94,11 +105,19 @@ export default function Settings({ onWallpaperChange, onBack }: { onWallpaperCha
       <Header title="Settings" onBack={onBack} />
 
       <View style={{ marginTop: 12, alignItems: 'center' }}>
-        <View style={{ width: 300, height: 180, borderRadius: 8, overflow: 'hidden', backgroundColor: '#111' }}>
+        <View style={{ width: 300, height: 180, borderRadius: 8, overflow: 'hidden', backgroundColor: '#111', position: 'relative' }}>
           <Image source={effectivePreview} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
           {/* Overlay felt color when felt is selected (either default or user chose felt) */}
-          {feltSelected && currentTint ? (
-            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: currentTint + '99' }} pointerEvents="none" />
+          {feltSelected && overlayColor ? (
+            <View
+              style={{
+                ...StyleSheet.absoluteFillObject,
+                backgroundColor: overlayColor,
+                // ensure overlay sits above the native image layer on all platforms
+                zIndex: 2,
+              }}
+              pointerEvents="none"
+            />
           ) : null}
         </View>
       </View>
