@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, FlatList, ScrollView, Alert, useWindowDimensions, Modal  } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, FlatList, ScrollView, Alert, useWindowDimensions, Modal, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from "react-native";
 import { styles } from "../styles/theme";
+import Header from "../components/Header";
 import { NetworkAdapter, MockAdapter } from "../game/network";
 import NetworkDebugPanel from "../components/NetworkDebugPanel";
 import { getOrCreatePlayerId } from "../services/gameCenter";
@@ -208,9 +209,16 @@ export default function CreateGame({
   }, [playerNameReady]); // Only run when playerName becomes ready
 
   return (
-  <View style={[styles.title, { flex: 1, alignItems: "center", paddingTop: 72 }]}>
-    <Text style={styles.title}>Create Game</Text>
-    <Text style={styles.subtitle}>Add players (2-8 players)</Text>
+  <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 60}
+  >
+    <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+      <View style={[{ flex: 1, alignItems: "center" }]}> 
+        <Header title="Create Game" onBack={onBack} />
+        <Text style={styles.title}>Create Game</Text>
+        <Text style={styles.subtitle}>Add players (2-8 players)</Text>
 
     {/* Room Name Input */}
     <View style={{ width: "80%", marginTop: 0 }}>
@@ -478,6 +486,8 @@ export default function CreateGame({
         </View>
       </View>
     </Modal>
-  </View>
+      </View>
+    </TouchableWithoutFeedback>
+  </KeyboardAvoidingView>
   );
 }

@@ -14,17 +14,19 @@ export function useMenuAudio() {
   useEffect(() => {
     const load = async () => {
       // Try to load persisted mute state (AsyncStorage may not be available in all envs)
+      let initMuted = false;
       try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const AsyncStorage = require("@react-native-async-storage/async-storage").default;
         const stored = await AsyncStorage.getItem("ps_and_as_muted");
         if (stored !== null) {
-          const val = stored === "1";
-          setMuted(val);
+          initMuted = stored === "1";
         }
       } catch (e) {
         // AsyncStorage not available or read failed; ignore
       }
+      // set local state from resolved value
+      setMuted(initMuted);
 
       let AudioModule: typeof import("expo-av") | null = null;
       try {
@@ -37,11 +39,26 @@ export function useMenuAudio() {
         return;
       }
 
+      // Create the ambient sound. If the user preference says muted, don't start
+      // playing; create with shouldPlay = !initMuted and then ensure the player's
+      // mute flag is reflected on the sound object.
       const { sound } = await AudioModule.Audio.Sound.createAsync(
         require("../../assets/sounds/bg_casino_ambience.mp3"),
-        { shouldPlay: true, isLooping: true, volume: 0.3 }
+        { shouldPlay: !initMuted, isLooping: true, volume: 0.3 }
       );
       bgSound.current = sound;
+      // Apply mute state immediately so UI/state and playback are consistent
+      if (initMuted) {
+        try {
+          await bgSound.current.setIsMutedAsync(true);
+        } catch (e) {
+          try {
+            await bgSound.current.setStatusAsync({ isMuted: true });
+          } catch (_) {
+            // ignore
+          }
+        }
+      }
     };
 
     load();

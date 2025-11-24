@@ -6,6 +6,8 @@ import CreateGame from "./src/screens/CreateGame";
 import FindGame from "./src/screens/FindGame";
 import GameScreen from "./src/screens/GameScreen";
 import Achievements from "./src/screens/Achievements";
+import Settings from "./src/screens/Settings";
+import Header from "./src/components/Header";
 import { useMenuAudio } from "./src/hooks/useMenuAudio";
 import MuteButton from "./src/components/ui/MuteButton";
 import { styles } from "./src/styles/theme";
@@ -18,7 +20,7 @@ export default function App() {
   const [splashVisible, setSplashVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const { playEffect, toggleMute, isMuted, muted } = useMenuAudio();
-  const [screen, setScreen] = useState<"menu" | "create" | "find" | "game" | "achievements">("menu");
+  const [screen, setScreen] = useState<"menu" | "create" | "find" | "game" | "achievements" | "settings">("menu");
   const [lobbyPlayers, setLobbyPlayers] = useState<string[] | null>(null);
   const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
@@ -62,15 +64,59 @@ export default function App() {
     });
   };
 
-  const buttons = ["Create Game", "Find Game", "Random Game", "Local", "Achievements"];
+  const buttons = ["Create Game", "Find Game", "Random Game", "Local", "Achievements", "Settings"];
+  const [wallpaperSource, setWallpaperSource] = useState<any>(require("./assets/ps_and_as_bg.png"));
+  const [wallpaperTint, setWallpaperTint] = useState<string | null>(null);
+  const [wallpaperRawUri, setWallpaperRawUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const svc = require("./src/services/wallpaper");
+        const src = await svc.getWallpaperSource();
+        const tint = await svc.getWallpaperTint();
+        const raw = await svc.getWallpaperUri();
+        setWallpaperSource(src);
+        setWallpaperTint(tint);
+        setWallpaperRawUri(raw);
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
+
+  const reloadWallpaper = async () => {
+    try {
+      const svc = require("./src/services/wallpaper");
+      const src = await svc.getWallpaperSource();
+      const tint = await svc.getWallpaperTint();
+      const raw = await svc.getWallpaperUri();
+      setWallpaperSource(src);
+      setWallpaperTint(tint);
+      setWallpaperRawUri(raw);
+    } catch (e) {
+      // ignore
+    }
+  };
 
   return (
     <View style={{ flex: 1 }}>
-      <ImageBackground
-        source={require("./assets/ps_and_as_bg.png")}
-        resizeMode="cover"
-        style={styles.background}
-      >
+        <ImageBackground
+          source={wallpaperSource}
+          resizeMode="cover"
+          style={styles.background}
+        >
+          {/* If using the bundled felt asset, render a semi-transparent overlay
+              with the selected felt color so the texture shows through. We detect
+              the felt choice by checking the raw storage value (wallpaperRawUri). */}
+          {wallpaperRawUri === require("./src/services/wallpaper").FELT_GREY_ASSET_MARKER && wallpaperTint ? (
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: wallpaperTint ? wallpaperTint + "88" : undefined }]} pointerEvents="none" />
+          ) : null}
+        {/* Background scrim to improve contrast over wallpapers */}
+        <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.36)' }} />
+        </View>
+
         {/* Splash overlay (kept mounted until hide animation finishes) */}
         {splashVisible && (
           <Animated.View
@@ -98,7 +144,7 @@ export default function App() {
         {/* Main menu or screens */}
         {menuVisible && screen === "menu" && (
           <Animated.View style={[styles.menuContainer, { opacity: menuOpacity }]}>
-            <Text style={styles.title}>P's & A's</Text>
+            <Header title={"P's & A's"} />
             <Text style={styles.subtitle}>by rabbithole Games</Text>
 
             <View style={styles.buttonGroup}>
@@ -120,6 +166,8 @@ export default function App() {
                       setScreen("create");
                     } else if (label === "Achievements") {
                       setScreen("achievements");
+                    } else if (label === "Settings") {
+                      setScreen("settings");
                     }
                   }}
                 >
@@ -132,6 +180,10 @@ export default function App() {
 
         {menuVisible && screen === "achievements" && (
           <Achievements onBack={() => setScreen("menu")} />
+        )}
+
+        {menuVisible && screen === "settings" && (
+          <Settings onWallpaperChange={() => reloadWallpaper()} onBack={() => setScreen("menu")} />
         )}
 
         {menuVisible && screen === "create" && (

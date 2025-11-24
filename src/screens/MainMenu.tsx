@@ -42,7 +42,7 @@ export default function MainMenu() {
   return (
     <View style={[theme.container, { justifyContent: "center" }]}>
       <ImageBackground
-      source={require("../../assets/ps_and_as_bg.png")}
+      source={require("../../assets/ps_and_as_bg.png")} // update this to user's saved wallpaper
       style={styles.background}
       resizeMode="cover"
     >

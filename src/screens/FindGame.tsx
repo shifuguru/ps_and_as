@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { styles } from "../styles/theme";
+import Header from "../components/Header";
 import { NetworkAdapter } from "../game/network";
 import NetworkDebugPanel from "../components/NetworkDebugPanel";
 import { getOrCreatePlayerId } from "../services/gameCenter";
@@ -156,6 +157,7 @@ export default function FindGame({
 
   return (
     <ScrollView contentContainerStyle={[styles.menuContainer, { paddingBottom: 40 }]}>
+      <Header title="Find Game" onBack={onBack} />
       {/* Debug Panel */}
       <NetworkDebugPanel 
         debugInfo={[
