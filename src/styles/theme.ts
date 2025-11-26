@@ -1,5 +1,6 @@
 import { StyleSheet } from "react-native";
-
+import { TextStyle, ViewStyle } from "react-native";
+export const HEADER_OFFSET = 120;
 const colors = {
   primary: "#0f0f0f", // deeper noir tone
   secondary: "#f0f0f0", // softer white for better readability
@@ -126,6 +127,7 @@ const styles = StyleSheet.create({
 
   // alias names used by App.tsx
   menuContainer: {
+    marginTop: HEADER_OFFSET,
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
@@ -167,6 +169,38 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     marginVertical: 16,
   },
+  // Header styles (centralized so all screens share consistent layout)
+  headerContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 60,
+    backgroundColor: "transparent",
+    zIndex: 1000,
+  } as ViewStyle,
+  headerRow: {
+    height: 100,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+  } as ViewStyle,
+  headerLeft: { width: 88, alignItems: 'flex-start' } as ViewStyle,
+  headerCenter: { position: 'absolute', left: 0, right: 0, alignItems: 'center' } as ViewStyle,
+  headerRight: { width: 88, alignItems: 'flex-end' } as ViewStyle,
+  headerTitle: {
+    color: colors.secondary,
+    fontSize: 18,
+    fontWeight: '700',
+    fontFamily: fonts.title,
+  } as TextStyle,
+  headerBackButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  } as ViewStyle,
 });
 
 export { colors, fonts, styles };
+

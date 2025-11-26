@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
+import { colors, styles as themeStyles } from "../styles/theme";
 
 interface DebugInfo {
   title: string;
@@ -60,16 +61,16 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 100,
     right: 16,
-    backgroundColor: "rgba(212, 175, 55, 0.3)",
+    backgroundColor: "rgba(20,20,20,0.9)",
     borderWidth: 1,
-    borderColor: "#d4af37",
+    borderColor: "rgba(212,175,55,0.25)",
     borderRadius: 20,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    zIndex: 100,
+    zIndex: 1100,
   },
   collapsedButtonText: {
-    color: "#d4af37",
+    color: colors.accent,
     fontSize: 12,
     fontWeight: "600",
   },

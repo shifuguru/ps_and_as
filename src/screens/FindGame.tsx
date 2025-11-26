@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback } from "react-native";
 import { styles } from "../styles/theme";
 import BackButton from "../components/BackButton";
 import Header from "../components/Header";
@@ -157,189 +157,214 @@ export default function FindGame({
   };
 
   return (
-    <ScrollView contentContainerStyle={[styles.menuContainer, { paddingBottom: 40 }]}>
-      <Header title="Find Game" onBack={onBack} />
-      {/* Debug Panel */}
-      <NetworkDebugPanel 
-        debugInfo={[
-          {
-            title: "Connection Status",
-            data: {
-              status: connectionStatus,
-              playerId: playerId?.substring(0, 20) + "...",
-              adapterType: (adapter as any).constructor.name
-            }
-          },
-          {
-            title: "Discovery Info",
-            data: {
-              roomsFound: availableRooms.length,
-              isSearching,
-              discoveryCount,
-              lastDiscovery: lastDiscoveryTime ? new Date(lastDiscoveryTime).toLocaleTimeString() : "Never"
-            }
-          },
-          {
-            title: "Available Rooms",
-            data: availableRooms.length > 0 
-              ? availableRooms.map(r => ({ id: r.roomId, host: r.hostName, players: r.playerCount }))
-              : "None"
-          },
-          {
-            title: "Error",
-            data: error || "None"
-          }
-        ]}
-      />
-
-      <Text style={styles.title}>Find Game</Text>
-      <Text style={styles.subtitle}>Join nearby players</Text>
-
-      {/* Player Name Display */}
-      <View style={{ width: "80%", marginTop: 20 }}>
-        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, marginBottom: 8 }}>Your Name:</Text>
-        <View style={{ 
-          borderWidth: 1,
-          borderColor: "rgba(212, 175, 55, 0.3)",
-          borderRadius: 8,
-          paddingVertical: 12, 
-          paddingHorizontal: 16,
-          backgroundColor: "rgba(0,0,0,0.2)",
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center"
-        }}>
-          <Text style={{ color: "white", fontSize: 16 }}>{playerName}</Text>
-          <TouchableOpacity onPress={onNavigateToAchievements || onBack}>
-            <Text style={{ color: "#d4af37", fontSize: 12 }}>Change in Achievements →</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Error Message */}
-      {error && (
-        <View style={{ 
-          width: "80%", 
-          marginTop: 12, 
-          padding: 12, 
-          backgroundColor: "rgba(255,0,0,0.1)",
-          borderRadius: 8,
-          borderLeftWidth: 3,
-          borderLeftColor: "#ff4444"
-        }}>
-          <Text style={{ color: "#ff6666", fontSize: 13 }}>{error}</Text>
-        </View>
-      )}
-
-      {/* Search Status */}
-      <View style={{ 
-        width: "80%", 
-        marginTop: 20, 
-        flexDirection: "row", 
-        alignItems: "center",
-        justifyContent: "space-between"
-      }}>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          {isSearching && <ActivityIndicator size="small" color="#d4af37" style={{ marginRight: 8 }} />}
-          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14 }}>
-            {isSearching ? "Searching..." : `Found ${availableRooms.length} game${availableRooms.length !== 1 ? 's' : ''}`}
-          </Text>
-        </View>
-        <TouchableOpacity 
-          onPress={() => {
-            if ((adapter as any).discoverRooms) {
-              setIsSearching(true);
-              (adapter as any).discoverRooms();
-            }
-          }}
-          style={{ padding: 4 }}
-        >
-          <Text style={{ color: "#d4af37", fontSize: 13 }}>🔄 Refresh</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Available Rooms */}
-      <View style={{ width: "80%", marginTop: 16 }}>
-        {availableRooms.length === 0 && !isSearching ? (
-          <View style={{ 
-            padding: 24, 
-            backgroundColor: "rgba(0,0,0,0.3)",
-            borderRadius: 12,
-            alignItems: "center"
-          }}>
-            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 15, textAlign: "center" }}>
-              No games found nearby
-            </Text>
-            <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, textAlign: "center", marginTop: 8 }}>
-              Create a game and invite others!
-            </Text>
-          </View>
-        ) : (
-          availableRooms.map((room) => (
-            <View 
-              key={room.roomId}
-              style={{
-                backgroundColor: "rgba(0,0,0,0.4)",
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: "rgba(212, 175, 55, 0.2)",
-                padding: 16,
-                marginBottom: 12,
-                shadowColor: "#d4af37",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4
-              }}
-            >
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: "#d4af37", fontSize: 16, fontWeight: "600", marginBottom: 4 }}>
-                    {room.roomName || room.hostName + "'s Game"}
-                  </Text>
-                  <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginBottom: 4 }}>
-                    Host: {room.hostName}
-                  </Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
-                    <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>
-                      👥 {room.playerCount}/{room.maxPlayers} players
-                    </Text>
-                    <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginLeft: 12 }}>
-                      {formatTimeAgo(room.createdAt)}
-                    </Text>
+    <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? -180 : 0}
+      >
+      {/* Header */}
+      <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+              <View style={styles.container}>
+                <View style={styles.headerContainer} pointerEvents="box-none">
+                  <View style={styles.headerRow}>
+                    <View style={styles.headerLeft}>
+                      <BackButton onPress={onBack} />
+                    </View>
+                    <View style={styles.headerCenter}>
+                      <Text style={styles.headerTitle}>Create Game</Text>
+                    </View>
+                    <View style={styles.headerRight}>
+                      <TouchableOpacity style={styles.muteBtn} onPress={() => {}}>
+                        <Text style={styles.muteIcon}>🔈</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: room.playerCount >= room.maxPlayers ? "rgba(100,100,100,0.3)" : "rgba(212, 175, 55, 0.2)",
-                    paddingVertical: 8,
-                    paddingHorizontal: 16,
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    borderColor: room.playerCount >= room.maxPlayers ? "rgba(150,150,150,0.3)" : "#d4af37",
-                    marginLeft: 12
-                  }}
-                  onPress={() => handleJoinRoom(room.roomId)}
-                  disabled={room.playerCount >= room.maxPlayers || !playerName.trim()}
-                >
-                  <Text style={{ 
-                    color: room.playerCount >= room.maxPlayers ? "rgba(255,255,255,0.4)" : "#d4af37", 
-                    fontSize: 14,
-                    fontWeight: "600"
-                  }}>
-                    {room.playerCount >= room.maxPlayers ? "Full" : "Join"}
-                  </Text>
-                </TouchableOpacity>
               </View>
-            </View>
-          ))
-        )}
-      </View>
+      </TouchableWithoutFeedback>
+      
+      <ScrollView contentContainerStyle={[styles.menuContainer, { paddingBottom: 40 }]}>
+        <Header title="Find Game" onBack={onBack} />
+        {/* Debug Panel */}
+        <NetworkDebugPanel 
+          debugInfo={[
+            {
+              title: "Connection Status",
+              data: {
+                status: connectionStatus,
+                playerId: playerId?.substring(0, 20) + "...",
+                adapterType: (adapter as any).constructor.name
+              }
+            },
+            {
+              title: "Discovery Info",
+              data: {
+                roomsFound: availableRooms.length,
+                isSearching,
+                discoveryCount,
+                lastDiscovery: lastDiscoveryTime ? new Date(lastDiscoveryTime).toLocaleTimeString() : "Never"
+              }
+            },
+            {
+              title: "Available Rooms",
+              data: availableRooms.length > 0 
+                ? availableRooms.map(r => ({ id: r.roomId, host: r.hostName, players: r.playerCount }))
+                : "None"
+            },
+            {
+              title: "Error",
+              data: error || "None"
+            }
+          ]}
+        />
 
-      {/* Back Button */}
-      <View style={{ width: "80%", marginTop: 24 }}>
-        {/* Use shared BackButton component for consistent look */}
-        <BackButton onPress={onBack} />
-      </View>
-    </ScrollView>
+
+        {/* Player Name Display */}
+        <View style={{ width: "80%", marginTop: 20 }}>
+          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, marginBottom: 8 }}>Your Name:</Text>
+          <View style={{ 
+            borderWidth: 1,
+            borderColor: "rgba(212, 175, 55, 0.3)",
+            borderRadius: 8,
+            paddingVertical: 12, 
+            paddingHorizontal: 16,
+            backgroundColor: "rgba(0,0,0,0.2)",
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}>
+            <Text style={{ color: "white", fontSize: 16 }}>{playerName}</Text>
+            <TouchableOpacity onPress={onNavigateToAchievements || onBack}>
+              <Text style={{ color: "#d4af37", fontSize: 12 }}>Change in Achievements →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Error Message */}
+        {error && (
+          <View style={{ 
+            width: "80%", 
+            marginTop: 12, 
+            padding: 12, 
+            backgroundColor: "rgba(255,0,0,0.1)",
+            borderRadius: 8,
+            borderLeftWidth: 3,
+            borderLeftColor: "#ff4444"
+          }}>
+            <Text style={{ color: "#ff6666", fontSize: 13 }}>{error}</Text>
+          </View>
+        )}
+
+        {/* Search Status */}
+        <View style={{ 
+          width: "80%", 
+          marginTop: 20, 
+          flexDirection: "row", 
+          alignItems: "center",
+          justifyContent: "space-between"
+        }}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            {isSearching && <ActivityIndicator size="small" color="#d4af37" style={{ marginRight: 8 }} />}
+            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14 }}>
+              {isSearching ? "Searching..." : `Found ${availableRooms.length} game${availableRooms.length !== 1 ? 's' : ''}`}
+            </Text>
+          </View>
+          <TouchableOpacity 
+            onPress={() => {
+              if ((adapter as any).discoverRooms) {
+                setIsSearching(true);
+                (adapter as any).discoverRooms();
+              }
+            }}
+            style={{ padding: 4 }}
+          >
+            <Text style={{ color: "#d4af37", fontSize: 13 }}>🔄 Refresh</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Available Rooms */}
+        <View style={{ width: "80%", marginTop: 16 }}>
+          {availableRooms.length === 0 && !isSearching ? (
+            <View style={{ 
+              padding: 24, 
+              backgroundColor: "rgba(0,0,0,0.3)",
+              borderRadius: 12,
+              alignItems: "center"
+            }}>
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 15, textAlign: "center" }}>
+                No games found nearby
+              </Text>
+              <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, textAlign: "center", marginTop: 8 }}>
+                Create a game and invite others!
+              </Text>
+            </View>
+          ) : (
+            availableRooms.map((room) => (
+              <View 
+                key={room.roomId}
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.4)",
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: "rgba(212, 175, 55, 0.2)",
+                  padding: 16,
+                  marginBottom: 12,
+                  shadowColor: "#d4af37",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 4
+                }}
+              >
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: "#d4af37", fontSize: 16, fontWeight: "600", marginBottom: 4 }}>
+                      {room.roomName || room.hostName + "'s Game"}
+                    </Text>
+                    <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginBottom: 4 }}>
+                      Host: {room.hostName}
+                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+                      <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>
+                        👥 {room.playerCount}/{room.maxPlayers} players
+                      </Text>
+                      <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginLeft: 12 }}>
+                        {formatTimeAgo(room.createdAt)}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: room.playerCount >= room.maxPlayers ? "rgba(100,100,100,0.3)" : "rgba(212, 175, 55, 0.2)",
+                      paddingVertical: 8,
+                      paddingHorizontal: 16,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: room.playerCount >= room.maxPlayers ? "rgba(150,150,150,0.3)" : "#d4af37",
+                      marginLeft: 12
+                    }}
+                    onPress={() => handleJoinRoom(room.roomId)}
+                    disabled={room.playerCount >= room.maxPlayers || !playerName.trim()}
+                  >
+                    <Text style={{ 
+                      color: room.playerCount >= room.maxPlayers ? "rgba(255,255,255,0.4)" : "#d4af37", 
+                      fontSize: 14,
+                      fontWeight: "600"
+                    }}>
+                      {room.playerCount >= room.maxPlayers ? "Full" : "Join"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* Back Button */}
+        <View style={{ width: "80%", marginTop: 24 }}>
+          {/* Use shared BackButton component for consistent look */}
+          <BackButton onPress={onBack} />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

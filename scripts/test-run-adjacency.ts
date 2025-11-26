@@ -36,8 +36,8 @@ const play7: Card[] = [card('spades', 7)];
 const pile: Card[] = [card('hearts', 5)];
 
 // isValidPlay should accept 4 and 6 (adjacent) but reject 7 (non-adjacent)
-assert.strictEqual(isValidPlay(play4, pile, undefined, undefined, undefined, currentTrick, game.players, game.finishedOrder), true, 'single 4 should be allowed against run [3,4,5]');
-assert.strictEqual(isValidPlay(play6, pile, undefined, undefined, undefined, currentTrick, game.players, game.finishedOrder), true, 'single 6 should be allowed against run [3,4,5]');
-assert.strictEqual(isValidPlay(play7, pile, undefined, undefined, undefined, currentTrick, game.players, game.finishedOrder), false, 'single 7 should NOT be allowed against run [3,4,5]');
+assert.strictEqual(isValidPlay(play4, pile, undefined, undefined, undefined, undefined, currentTrick, game.players, game.finishedOrder), true, 'single 4 should be allowed against run [3,4,5]');
+assert.strictEqual(isValidPlay(play6, pile, undefined, undefined, undefined, undefined, currentTrick, game.players, game.finishedOrder), true, 'single 6 should be allowed against run [3,4,5]');
+assert.strictEqual(isValidPlay(play7, pile, undefined, undefined, undefined, undefined, currentTrick, game.players, game.finishedOrder), false, 'single 7 should NOT be allowed against run [3,4,5]');
 
 console.log('run adjacency tests passed');

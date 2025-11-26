@@ -14,6 +14,7 @@ import MuteButton from "./src/components/ui/MuteButton";
 import { styles } from "./src/styles/theme";
 import { SocketAdapter } from "./src/game/socketAdapter";
 import { MockAdapter } from "./src/game/network";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 export default function App() {
   // splashVisible: whether the splash overlay is still mounted
@@ -101,6 +102,7 @@ export default function App() {
   };
 
   return (
+    <SafeAreaProvider>
     <View style={{ flex: 1 }}>
         <ImageBackground
           source={wallpaperSource}
@@ -148,13 +150,6 @@ export default function App() {
           </Animated.View>
         )}
 
-        {/* Top-right mute button */}
-        {menuVisible && (
-          <View style={{ position: "absolute", top: 42, right: 24, zIndex: 30 }}>
-            <MuteButton muted={muted} onToggle={() => toggleMute()} />
-          </View>
-        )}
-
         {/* Main menu or screens */}
         {menuVisible && screen === "menu" && (
           <Animated.View style={[styles.menuContainer, { opacity: menuOpacity }]}>
@@ -191,15 +186,12 @@ export default function App() {
             </View>
           </Animated.View>
         )}
-
         {menuVisible && screen === "achievements" && (
           <Achievements onBack={() => setScreen("menu")} />
         )}
-
         {menuVisible && screen === "settings" && (
           <Settings onWallpaperChange={() => reloadWallpaper()} onBack={() => setScreen("menu")} />
         )}
-
         {menuVisible && screen === "create" && (
           <CreateGame 
             adapter={roomAdapter || undefined} 
@@ -274,5 +266,6 @@ export default function App() {
         )}
       </ImageBackground>
     </View>
+    </SafeAreaProvider>
   );
 }

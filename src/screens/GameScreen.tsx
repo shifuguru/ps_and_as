@@ -18,12 +18,17 @@ import {
   runFromCurrentTrickInfo,
   isRunContextSequence,
 } from "../game/core";
+import { createDeck, shuffleDeck, dealCards } from "../game/ruleset";
 import Card from "../components/Card";
 import { ScrollView, Dimensions } from "react-native";
 import { MockAdapter } from "../game/network";
 import DebugViewer from "../components/DebugViewer";
 import { Card as CardType } from "../game/ruleset";
 import Header from "../components/Header";
+import ScreenContainer from "../components/ScreenContainer";
+import EndGamePanel from "../components/EndGamePanel";
+import BottomBar from "../components/BottomBar";
+import { styles } from "../styles/theme";
 
 // Helper: check if a card value can be part of any valid play
 function canCardBePlayedAtAll(
@@ -52,6 +57,7 @@ function canCardBePlayedAtAll(
           pile,
           tenRule,
           pileHistory,
+          trickHistory,
           fourOfAKindChallenge,
           currentTrick,
           players,
@@ -68,7 +74,6 @@ function canCardBePlayedAtAll(
         (!pileHistory || pileHistory.length === 0)
       )
         return false;
-      // Otherwise a joker can be played on an empty pile
       if (pileCount === 0) return true;
     }
   }
@@ -128,15 +133,16 @@ function canCardBePlayedAtAll(
         // Check if this run beats the pile
         if (
           isValidPlay(
-            runCards,
-            pile,
-            tenRule,
-            pileHistory,
-            fourOfAKindChallenge,
-            currentTrick,
-            players,
-            finishedOrder,
-          )
+              runCards,
+              pile,
+              tenRule,
+              pileHistory,
+              trickHistory,
+              fourOfAKindChallenge,
+              currentTrick,
+              players,
+              finishedOrder,
+            )
         )
           return true;
       }
@@ -155,6 +161,7 @@ function canCardBePlayedAtAll(
     pile,
     tenRule,
     pileHistory,
+    trickHistory,
     fourOfAKindChallenge,
     currentTrick,
     players,
@@ -191,7 +198,12 @@ export default function GameScreen({
   // UX pacing: centralized CPU turn delay for a more relaxed feel
   const CPU_DELAY_MS = 1100;
 
-  // Utility: create a compact snapshot of relevant game state for debug logs
+  // End-game state: track round completion and player ready status
+  const [roundOver, setRoundOver] = useState(false);
+  const [playerReadyStates, setPlayerReadyStates] = useState<{
+    [playerId: string]: boolean;
+  }>({});
+
   function snapshotState(s: GameState | null) {
     if (!s) return null;
     return {
@@ -210,6 +222,169 @@ export default function GameScreen({
       })),
     };
   }
+
+  // Detect when round is over: all players have either finished or passed out
+  useEffect(() => {
+    if (!state) return;
+    const allPlayersFinished = state.finishedOrder.length === state.players.length;
+    if (allPlayersFinished && !roundOver) {
+      setRoundOver(true);
+      // Auto-ready all CPU players (any non-human player)
+      const newReady: { [playerId: string]: boolean } = {};
+      state.players.forEach((p) => {
+        const isLocalHuman =
+          (humanPlayer && p.id === humanPlayer.id) ||
+          (localPlayerId && p.id === localPlayerId);
+        newReady[p.id] = !isLocalHuman; // auto-ready non-local players
+      });
+      setPlayerReadyStates(newReady);
+    }
+  }, [state, roundOver, localPlayerId, localPlayerName]);
+
+  // When all players are marked ready, start the next round: redeal, trade, and set starter
+  useEffect(() => {
+    if (!roundOver) return;
+    if (!state) return;
+    const readyIds = Object.keys(playerReadyStates);
+    if (readyIds.length === 0) return;
+    const allReady = state.players.every((p) => !!playerReadyStates[p.id]);
+    if (!allReady) return;
+
+    // all ready -> start next round
+    startNextRound();
+  }, [playerReadyStates, roundOver, state]);
+
+  function startNextRound() {
+    if (!state) return;
+    // 1) Re-deal the cards to existing players
+    const deck = shuffleDeck(createDeck());
+    // mutate a shallow copy of players array to avoid surprising refs
+    const playersCopy = state.players.map((p) => ({ ...p, hand: [] }));
+    dealCards(deck, playersCopy as any);
+
+    // 2) Assign roles according to previous finished order (state.finishedOrder)
+    // Default everyone to Neutral first
+    playersCopy.forEach((p) => (p.role = "Neutral"));
+    const order = state.finishedOrder && state.finishedOrder.length === state.players.length
+      ? state.finishedOrder
+      : state.players.map((p) => p.id);
+
+    // Helper to set role by player id
+    const setRole = (id: string, role: string) => {
+      const pl = playersCopy.find((x) => x.id === id);
+      if (pl) pl.role = role as any;
+    };
+    if (order.length >= 1) setRole(order[0], "President");
+    if (order.length >= 2) setRole(order[1], "Vice President");
+    if (order.length >= 3 && order.length >= 5) {
+      // for 5+ players, determine Vice Asshole and Asshole as last two
+      setRole(order[order.length - 2], "Vice Asshole");
+      setRole(order[order.length - 1], "Asshole");
+    } else if (order.length >= 2) {
+      // fallback: set last as Asshole
+      setRole(order[order.length - 1], "Asshole");
+    }
+
+    // 3) Trading stage: losers give highest card(s) to winners
+    // Determine trade counts
+    const playerCount = playersCopy.length;
+    const presTradeCount = playerCount >= 5 ? 2 : 1;
+    const viceTradeCount = playerCount >= 5 ? 1 : 0;
+
+    // Helper: get player by role
+    const getByRole = (roleName: string) => playersCopy.find((p) => p.role === roleName);
+
+    const president = getByRole("President");
+    const vicePres = getByRole("Vice President");
+    const asshole = getByRole("Asshole");
+    const viceAss = getByRole("Vice Asshole");
+
+    // Utility to pick highest N cards from a hand
+    const pickHighest = (hand: any[], n: number) => {
+      const sorted = [...hand].sort((a, b) => rankIndex(b.value) - rankIndex(a.value));
+      return sorted.slice(0, n);
+    };
+    // Utility to remove specific cards from a hand (by suit+value)
+    const removeCards = (hand: any[], cardsToRemove: any[]) => {
+      for (const rc of cardsToRemove) {
+        const idx = hand.findIndex((h) => h.suit === rc.suit && h.value === rc.value);
+        if (idx >= 0) hand.splice(idx, 1);
+      }
+    };
+
+    // Map to hold cards moved from loser->winner
+    const transferred: { [toId: string]: any[] } = {};
+
+    // Process Asshole <-> President
+    if (asshole && president && presTradeCount > 0) {
+      const given = pickHighest(asshole.hand, presTradeCount);
+      removeCards(asshole.hand, given);
+      transferred[president.id] = (transferred[president.id] || []).concat(given);
+    }
+
+    // Process Vice pairs if present
+    if (viceAss && vicePres && viceTradeCount > 0) {
+      const given = pickHighest(viceAss.hand, viceTradeCount);
+      removeCards(viceAss.hand, given);
+      transferred[vicePres.id] = (transferred[vicePres.id] || []).concat(given);
+    }
+
+    // 4) Winners return cards (winners choose any; CPUs return lowest by default)
+    const doReturn = (winner: any, loserId: string, count: number) => {
+      if (!winner) return;
+      // If winner is local human, choose lowest as default (interactive UI TBD)
+      const toReturn = [...winner.hand]
+        .sort((a, b) => rankIndex(a.value) - rankIndex(b.value))
+        .slice(0, count);
+      removeCards(winner.hand, toReturn);
+      // Add returned cards to loser
+      const loser = playersCopy.find((p) => p.id === loserId);
+      if (loser) loser.hand = loser.hand.concat(toReturn);
+    };
+
+    if (president && asshole && transferred[president.id]) {
+      // president received transferred[president.id] from asshole
+      president.hand = president.hand.concat(transferred[president.id]);
+      // president returns same count to asshole (choose lowest)
+      doReturn(president, asshole.id, transferred[president.id].length);
+    }
+    if (vicePres && viceAss && transferred[vicePres.id]) {
+      vicePres.hand = vicePres.hand.concat(transferred[vicePres.id]);
+      doReturn(vicePres, viceAss.id, transferred[vicePres.id].length);
+    }
+
+    // 5) Finalize state: reset piles/history and set starter as player with 3 of clubs
+    const newState: GameState = {
+      ...state,
+      players: playersCopy,
+      pile: [],
+      pileHistory: [],
+      pileOwners: [],
+      tableStacks: [],
+      tableStackOwners: [],
+      passCount: 0,
+      finishedOrder: [],
+      started: true,
+      lastPlayPlayerIndex: null,
+      mustPlay: false,
+      trickHistory: [],
+      currentTrick: { trickNumber: 1, actions: [] },
+      tenRule: { active: false, direction: null },
+      tenRulePending: false,
+      fourOfAKindChallenge: undefined,
+      lastClear: undefined,
+    } as GameState;
+
+    // find player index with 3 of clubs
+    const starterIdx = newState.players.findIndex((p) => p.hand.some((c) => c.suit === 'clubs' && c.value === 3));
+    newState.currentPlayerIndex = starterIdx >= 0 ? starterIdx : 0;
+    newState.mustPlay = starterIdx >= 0 ? true : false;
+
+    setState(newState);
+    setRoundOver(false);
+    setPlayerReadyStates({});
+  }
+  
 
   function summarizeState(s: any) {
     if (!s) return null;
@@ -657,6 +832,36 @@ export default function GameScreen({
             kind: "info",
           });
         }
+        if (action.fourOfAKind) {
+          fullGameLog.push({
+            text: `  → Four of a Kind! Pile cleared.`,
+            kind: "info",
+          });
+          currentTrickLog.push({
+            text: `  → Four of a Kind! Pile cleared.`,
+            kind: "info",
+          });
+        }
+        if (action.jokerPlayed) {
+          fullGameLog.push({
+            text: `  → JOKER played! Pile cleared.`,
+            kind: "info",
+          });
+          currentTrickLog.push({
+            text: `  → JOKER played! Pile cleared.`,
+            kind: "info",
+          });
+        }
+        if (action.runActive) {
+          fullGameLog.push({
+            text: `  → RUN active!`,
+            kind: "info",
+          });
+          currentTrickLog.push({
+            text: `  → RUN active!`,
+            kind: "info",
+          });
+        }
       } else if (action.type === "pass") {
         fullGameLog.push({ text: `${action.playerName} passed`, kind: "pass" });
         currentTrickLog.push({
@@ -772,10 +977,7 @@ export default function GameScreen({
   // Note: no appear animation here to avoid flashing on re-renders
 
   return (
-    <View style={local.container}>
-      {/* Debug Viewer */}
-      <DebugViewer state={state} />
-
+    <ScreenContainer ignoreHeaderOffset={true} style={{ flex: 1 }}>
       {/* Toggleable structured debug overlay (doesn't block bottom hand) */}
       {showDebugOverlay && (
         <View style={local.debugOverlay}>
@@ -825,7 +1027,7 @@ export default function GameScreen({
         </View>
       )}
 
-      {/* 10 Rule Modal */}
+      {/* 10 Rule Modal - Higher or Lower */}
       {state.tenRulePending && isHumanTurn && (
         <Modal visible={true} transparent={true} animationType="fade">
           <View style={local.modalOverlay}>
@@ -860,17 +1062,11 @@ export default function GameScreen({
       )}
 
       {/* Scrollable game content */}
-      <ScrollView
-        style={local.scrollableContent}
-        contentContainerStyle={{ paddingBottom: bottomBarMinHeight + 40 }}
-      >
-        <View style={local.header}>
-          <Header title="Game" onBack={onBack} />
-          <Text style={local.gameId}>Game ID: {state.id}</Text>
-          <Text style={local.finished}>
-            Finished: {state.finishedOrder.join(",")}
-          </Text>
-        </View>
+      <View style={{ padding: 10 }}>
+        <Text style={local.gameId}>Game ID: {state.id}</Text>
+        <Text style={local.finished}>
+          Finished: {state.finishedOrder.join(",")}
+        </Text>
 
         <View style={local.playersArea}>
           <Text style={local.sectionTitle}>Players</Text>
@@ -1129,13 +1325,14 @@ export default function GameScreen({
             </View>
           </View>
         </View>
-      </ScrollView>
-
+      </View>
       {/* Player hand and actions - sticky at bottom */}
-      <View style={[local.bottomBar, { minHeight: bottomBarMinHeight }]}>
+      <BottomBar minHeight={bottomBarMinHeight} style={local.bottomBar}>
+
+
         {/* Game Log (toggleable) */}
         {showGameLog && (
-          <View style={local.gameLogContainer}>
+          <View>
             <Text style={local.gameLogTitle}>Current Trick Log</Text>
             <ScrollView style={local.gameLogScroll} nestedScrollEnabled>
               {currentTrickLog && currentTrickLog.length > 0 ? (
@@ -1161,6 +1358,15 @@ export default function GameScreen({
                 </Text>
               )}
             </ScrollView>
+          </View>
+        )}
+
+        {/* Turn indicator */}
+        {!isHumanTurn && (
+          <View style={local.turnIndicator}>
+            <Text style={local.turnIndicatorText}>
+              Waiting for {current.name}...
+            </Text>
           </View>
         )}
 
@@ -1210,6 +1416,13 @@ export default function GameScreen({
                   highlight={highlight}
                   disabled={!isPlayable}
                   onPress={() => {
+                    // Prevent selecting cards if the owner of this hand has already passed
+                    const ownerIdForHand = currentIsLocalHuman ? current.id : humanPlayer?.id;
+                    if (ownerIdForHand && hasPassedInCurrentTrick(state, ownerIdForHand)) {
+                      // ignore taps for players who have passed this trick
+                      emitDebug("ui:select:blocked:passed", { playerId: ownerIdForHand });
+                      return;
+                    }
                     setFocused(idx);
                     const tappedValue = card.value;
                     const currentSelected = selected.slice();
@@ -1264,24 +1477,24 @@ export default function GameScreen({
           })}
         </ScrollView>
 
-        {/* Turn indicator */}
-        {!isHumanTurn && (
-          <View style={local.turnIndicator}>
-            <Text style={local.turnIndicatorText}>
-              Waiting for {current.name}...
-            </Text>
-          </View>
-        )}
+        {/* End-game results panel is now embedded in the bottom bar */}
 
         <View style={local.actions}>
           <TouchableOpacity
             onPress={() => {
-              // Determine which local player is taking this action. Prefer the
-              // current player when they're a local-controlled hotseat player;
-              // otherwise fall back to the registered local human.
+              if (roundOver) {
+                // During round over, Play is disabled — no-op
+                return;
+              }
+
+              // During normal play: play selected cards
               const actor = isHumanTurn ? current : humanPlayer;
-              if (!isHumanTurn || !actor) return; // only local-controlled human can manually play on their turn
-              // play selected cards
+              if (!isHumanTurn || !actor) return;
+              // prevent playing if this actor already passed in the current trick
+              if (hasPassedInCurrentTrick(state, actor.id)) {
+                emitDebug("action:play:blocked", { playerId: actor.id, reason: "already passed" });
+                return;
+              }
               const cards = selected.map((i) => hand[i]);
               emitDebug("action:play:human:attempt", {
                 playerId: actor.id,
@@ -1338,21 +1551,30 @@ export default function GameScreen({
             style={[
               local.actionButton,
               local.actionButtonPrimary,
-              !isHumanTurn ? { opacity: 0.4 } : null,
+              (!isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id)) ? { opacity: 0.4 } : null,
             ]}
-            disabled={!isHumanTurn}
+            disabled={!isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id)}
           >
             <Text style={local.actionText}>
-              Play Selected ({selected.length})
+              {`Play Selected (${selected.length})`}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => {
-              // Let the engine validate passes even when mustPlay is set.
-              // The engine will allow the pass when no valid play exists.
+              if (roundOver) {
+                // During round over, Pass is disabled — no-op
+                return;
+              }
+
+              // During normal play: pass
               const actor = isHumanTurn ? current : humanPlayer;
-              if (!isHumanTurn || !actor) return; // only local-controlled human can manually pass on their turn
+              if (!isHumanTurn || !actor) return;
+              // prevent double-pass: if actor already passed, ignore
+              if (hasPassedInCurrentTrick(state, actor.id)) {
+                emitDebug("action:pass:blocked", { playerId: actor.id, reason: "already passed" });
+                return;
+              }
               console.log(`You passed`);
               emitDebug("action:pass:human:attempt", {
                 playerId: actor.id,
@@ -1379,25 +1601,60 @@ export default function GameScreen({
             style={[
               local.actionButton,
               local.actionButtonSecondary,
-              !isHumanTurn
+              (!isHumanTurn || roundOver)
                 ? { opacity: 0.4 }
                 : state.mustPlay
                   ? { opacity: 0.9 }
                   : null,
             ]}
-            disabled={!isHumanTurn}
+            disabled={!isHumanTurn || roundOver}
           >
-            <Text style={local.actionText}>Pass</Text>
+            <Text style={local.actionText}>
+              {'Pass'}
+            </Text>
           </TouchableOpacity>
         </View>
-      </View>
-    </View>
+
+        {/* Secondary actions: Quit / Ready shown when round is over */}
+        {roundOver && (
+          <View style={local.actionsSecondary}>
+            <TouchableOpacity
+              onPress={() => {
+                // Quit game: go back to previous screen
+                if (onBack) onBack();
+              }}
+              style={[local.actionButton, local.actionButtonPrimary]}
+            >
+              <Text style={local.actionText}>Quit Game</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                // Toggle ready for current human player
+                const currentPlayerId = current?.id;
+                if (!currentPlayerId) return;
+                setPlayerReadyStates((prev) => ({
+                  ...prev,
+                  [currentPlayerId]: !prev[currentPlayerId],
+                }));
+                // If after toggling everyone is ready, TODO: trigger next-deal/trade flow
+              }}
+              style={[local.actionButton, local.actionButtonSecondary]}
+            >
+              <Text style={local.actionText}>
+                {playerReadyStates[current?.id || ''] ? 'Unready' : 'Ready!'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </BottomBar>
+    </ScreenContainer>
   );
 }
 
 const local = StyleSheet.create({
   container: { flex: 1 },
-  scrollableContent: { flex: 1, paddingHorizontal: 12, paddingTop: 12 },
+  scrollableContent: { flex: 1, paddingHorizontal: 12, paddingTop: 0 },
   header: { marginBottom: 6 },
   gameId: { color: "#ddd", fontSize: 10 },
   finished: { color: "#ddd", fontSize: 10 },
@@ -1427,6 +1684,7 @@ const local = StyleSheet.create({
     borderRadius: 8,
     minHeight: 100,
     justifyContent: "center",
+    alignItems: 'center',
   },
   sectionTitle: {
     color: "#d4af37",
@@ -1495,7 +1753,7 @@ const local = StyleSheet.create({
     paddingHorizontal: 8,
     backgroundColor: "rgba(15, 15, 15, 0.98)",
     zIndex: 50,
-    elevation: 50,
+    alignItems: 'center',
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.6,
@@ -1535,15 +1793,15 @@ const local = StyleSheet.create({
   },
   modalButton: {
     backgroundColor: "#d4af37",
-    paddingHorizontal: 24,
-    paddingVertical: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: 8,
     minWidth: 100,
     alignItems: "center",
   },
   modalButtonText: {
     color: "#111",
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: "700",
   },
   turnIndicator: {
@@ -1586,6 +1844,12 @@ const local = StyleSheet.create({
     fontSize: 13,
     marginBottom: 4,
     lineHeight: 18,
+  },
+  actionsSecondary: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
   },
   playTypeBadge: {
     marginTop: 36,

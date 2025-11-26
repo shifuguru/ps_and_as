@@ -100,9 +100,8 @@ export default function Settings({ onWallpaperChange, onBack }: { onWallpaperCha
 
   return (
     <View style={[theme.container, { padding: 20 }]}>
-      <Text style={theme.title}>Settings</Text>
-      <Text style={{ color: '#ddd', marginTop: 8 }}>App Wallpaper</Text>
       <Header title="Settings" onBack={onBack} />
+      <Text style={{ color: '#ddd', marginTop: 8 }}>App Wallpaper</Text>
 
       <View style={{ marginTop: 12, alignItems: 'center' }}>
         <View style={{ width: 300, height: 180, borderRadius: 8, overflow: 'hidden', backgroundColor: '#111', position: 'relative' }}>

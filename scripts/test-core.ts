@@ -1,8 +1,8 @@
-const assert = require("assert");
+import * as assert from "assert";
 import { createDeck, shuffleDeck } from "../src/game/ruleset";
-import { Card } from "../src/game/ruleset";
+import type { Card } from "../src/game/ruleset";
+import type { GameState } from "../src/game/core";
 import {
-  GameState,
   createGame,
   playCards,
   passTurn,
@@ -27,13 +27,13 @@ assert.strictEqual(shuffled.length, 54, "Shuffled deck should have 54 cards (inc
 // isValidPlay tests
 const single: Card[] = [{ suit: "hearts", value: 10 }];
 const pileEmpty: Card[] = [];
-assert.strictEqual(isValidPlay(single, pileEmpty), true, "Single on empty pile allowed");
+assert.strictEqual(isValidPlay(single, pileEmpty, undefined, undefined, [{ trickNumber: 0, actions: [] }]), true, "Single on empty pile allowed");
 
 const pile: Card[] = [{ suit: "spades", value: 9 }];
-assert.strictEqual(isValidPlay(single, pile), true, "10 > 9 should be valid");
+assert.strictEqual(isValidPlay(single, pile, undefined, undefined, [{ trickNumber: 0, actions: [] }]), true, "10 > 9 should be valid");
 
 const equalPile: Card[] = [{ suit: "spades", value: 10 }];
-assert.strictEqual(isValidPlay(single, equalPile), false, "equal value not allowed");
+assert.strictEqual(isValidPlay(single, equalPile, undefined, undefined, [{ trickNumber: 0, actions: [] }]), false, "equal value not allowed");
 
 // two clear
 const twoCard: Card[] = [{ suit: "clubs", value: 2 }];
@@ -64,7 +64,7 @@ const history789: Card[][] = [[seven], [eight], [nine]];
 
 // 10 should be valid as an adjacency play during an active run context
 assert.strictEqual(
-  isValidPlay([ten], pileAfterNine, undefined, history789),
+  isValidPlay([ten], pileAfterNine, undefined, history789, [{ trickNumber: 0, actions: [] }]),
   true,
   "10 should be allowed as adjacency during run context"
 );
@@ -80,12 +80,12 @@ assert.strictEqual(
 
 // From 10, both 9 and J should be valid adjacency responses in the run context
 assert.strictEqual(
-  isValidPlay([jack], [ten], undefined, history78910),
+  isValidPlay([jack], [ten], undefined, history78910, [{ trickNumber: 0, actions: [] }]),
   true,
   "Jack should be allowed after 10 in run context"
 );
 assert.strictEqual(
-  isValidPlay([nine], [ten], undefined, history78910),
+  isValidPlay([nine], [ten], undefined, history78910, [{ trickNumber: 0, actions: [] }]),
   true,
   "9 should be allowed after 10 in run context"
 );

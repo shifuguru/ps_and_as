@@ -4,9 +4,9 @@ import { colors, styles as themeStyles } from "../../styles/theme";
 
 export default function MuteButton({ muted, onToggle }: { muted: boolean; onToggle: () => void }) {
   return (
-    <TouchableOpacity onPress={onToggle} style={localStyles.button} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-      <View style={localStyles.iconWrap}>
-        <Text style={localStyles.icon}>{muted ? "⛔" : "♪"}</Text>
+    <TouchableOpacity onPress={onToggle} style={[themeStyles.muteBtn, localStyles.button]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+      <View style={[localStyles.iconWrap]}>
+        <Text style={[themeStyles.muteIcon]}>{muted ? "⛔" : "♪"}</Text>
       </View>
     </TouchableOpacity>
   );

@@ -15,7 +15,7 @@ export default function DebugViewer({ state }: DebugViewerProps) {
         style={styles.collapsedButton} 
         onPress={() => setExpanded(true)}
       >
-        <Text style={styles.collapsedText}>📊 Debug Info</Text>
+        <Text style={styles.collapsedText}>📊 Game Info</Text>
       </TouchableOpacity>
     );
   }
@@ -47,9 +47,9 @@ export default function DebugViewer({ state }: DebugViewerProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Debug Viewer</Text>
+        <Text style={styles.title}>📊 Game Information</Text>
         <TouchableOpacity onPress={() => setExpanded(false)}>
-          <Text style={styles.closeButton}>✕</Text>
+          <Text style={styles.closeButton}>Close</Text>
         </TouchableOpacity>
       </View>
 
@@ -73,7 +73,7 @@ export default function DebugViewer({ state }: DebugViewerProps) {
         {/* Trick History */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🎯 Trick History ({allTricks.length} tricks)</Text>
-          {allTricks.map((trick, trickIndex) => (
+          {allTricks.slice().reverse().map((trick, trickIndex) => (
             <View key={trickIndex} style={styles.trick}>
               <Text style={styles.trickTitle}>
                 Trick #{trick.trickNumber}
@@ -128,21 +128,21 @@ const styles = StyleSheet.create({
   collapsedButton: {
     position: "absolute",
     top: 100,
-    right: 16,
-    backgroundColor: "rgba(212, 175, 55, 0.9)",
+    right: 40,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 8,
     zIndex: 100,
   },
   collapsedText: {
-    color: "#000",
+    color: "#ffffff",
     fontWeight: "700",
     fontSize: 14,
   },
   container: {
     position: "absolute",
-    top: 60,
+    top: 100,
     right: 16,
     width: 320,
     maxHeight: "80%",
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     color: "#fff",
-    fontSize: 20,
+    fontSize: 14,
     fontWeight: "700",
   },
   scrollView: {
