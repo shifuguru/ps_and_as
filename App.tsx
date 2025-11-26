@@ -153,7 +153,7 @@ export default function App() {
         {/* Main menu or screens */}
         {menuVisible && screen === "menu" && (
           <Animated.View style={[styles.menuContainer, { opacity: menuOpacity }]}>
-            <Header title={"P's & A's"} titleStyle={{ fontFamily: Platform.OS === 'ios' ? 'Snell Roundhand' : 'cursive', fontSize: 48, fontWeight: '700' }} />
+            <Text style={[styles.title, { fontFamily: Platform.OS === 'ios' ? 'Snell Roundhand' : "'Georgia', 'Palatino Linotype', 'Book Antiqua', serif", fontSize: 48, fontStyle: 'italic', marginTop: 120 }]}>P's & A's</Text>
             <Text style={styles.subtitle}>by rabbithole Games</Text>
 
             <View style={styles.buttonGroup}>

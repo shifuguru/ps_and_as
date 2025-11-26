@@ -27,7 +27,7 @@ export default function Header({ title, onBack, right, titleStyle }: { title?: s
 const local = StyleSheet.create({
   container: {
     // ensure header content sits below system status/UI elements (Dynamic Island etc.)
-    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 24) + 60 : 60,
+    // paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 24) + 60 : 60,
     backgroundColor: "transparent",
   },
 });

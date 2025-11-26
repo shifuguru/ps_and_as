@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, FlatList, Alert, useWindowDimensions, Modal, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, ScrollView } from "react-native";
-import { styles, colors } from "../styles/theme";
-import Header from "../components/Header";
+import { View, Text, TouchableOpacity, TextInput, FlatList, ScrollView, Alert, useWindowDimensions, Modal, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from "react-native";
+import { colors, styles } from "../styles/theme";
 import BackButton from "../components/BackButton";
 import ScreenContainer from "../components/ScreenContainer";
 import BottomBar from "../components/BottomBar";
 import { NetworkAdapter, MockAdapter } from "../game/network";
 import NetworkDebugPanel from "../components/NetworkDebugPanel";
 import { getOrCreatePlayerId } from "../services/gameCenter";
+import Header from "../components/Header";
 
 export default function CreateGame({
   onBack,
@@ -198,7 +198,7 @@ export default function CreateGame({
 
             <ScrollView
               style={{ flex: 1 }}
-              contentContainerStyle={{ alignItems: "center", paddingBottom: 220 }}
+              contentContainerStyle={{ alignItems: "center", paddingTop: 16, paddingBottom: 40 }}
               keyboardShouldPersistTaps="handled"
             >
               {(() => {
@@ -230,7 +230,8 @@ export default function CreateGame({
                     <View
                       style={{
                         width: "100%",
-                        flex: 1,
+                        minHeight: 240,
+                        maxHeight: 400,
                         borderWidth: 1,
                         borderColor: colors.buttonBorder,
                         borderRadius: 8,
@@ -513,67 +514,7 @@ export default function CreateGame({
                         </TouchableOpacity>
                       </View>
 
-                      <View
-                        style={{
-                          borderTopWidth: 1,
-                          borderTopColor: colors.buttonBorder,
-                          backgroundColor: "rgba(15,15,15,0.98)",
-                          padding: 16,
-                          paddingBottom: 24,
-                          alignItems: "center",
-                        }}
-                      >
-                        <TouchableOpacity
-                          onPress={() => {
-                            const usingMock =
-                              adapter == null ||
-                              (net as any)?.constructor?.name === "MockAdapter";
-                            if (usingMock) {
-                              onStart(names, playerName, playerId ?? undefined);
-                              return;
-                            }
-                            if ((net as any).startGame) {
-                              if (hostId && localId === hostId) {
-                                (net as any).startGame(actualRoomId);
-                              }
-                            } else {
-                              onStart(names, playerName, playerId ?? undefined);
-                            }
-                          }}
-                          disabled={
-                            names.length < 2 || (!(adapter == null) && localId !== hostId)
-                          }
-                          style={[
-                            styles.menuButton,
-                            names.length < 2 || (!(adapter == null) && localId !== hostId)
-                              ? { opacity: 0.45 }
-                              : null,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.menuButtonText,
-                              names.length < 2 ||
-                              (!(adapter == null) && localId !== hostId)
-                                ? { opacity: 0.7 }
-                                : null,
-                            ]}
-                          >
-                            {adapter == null ||
-                            (net as any)?.constructor?.name === "MockAdapter"
-                              ? "START GAME"
-                              : names.length >= 2
-                              ? localId && hostId && localId === hostId
-                                ? "Start Game"
-                                : "Waiting for host..."
-                              : "Waiting for players..."}
-                          </Text>
-                        </TouchableOpacity>
 
-                        <View style={{ marginTop: 8 }}>
-                          <BackButton onPress={() => onBack()} menu />
-                        </View>
-                      </View>
                     </View>
                   </View>
                 );

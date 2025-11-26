@@ -229,13 +229,14 @@ export default function GameScreen({
     const allPlayersFinished = state.finishedOrder.length === state.players.length;
     if (allPlayersFinished && !roundOver) {
       setRoundOver(true);
-      // Auto-ready all CPU players (any non-human player)
+      // Auto-ready all CPU players only (not human players)
       const newReady: { [playerId: string]: boolean } = {};
       state.players.forEach((p) => {
         const isLocalHuman =
           (humanPlayer && p.id === humanPlayer.id) ||
           (localPlayerId && p.id === localPlayerId);
-        newReady[p.id] = !isLocalHuman; // auto-ready non-local players
+        // Only auto-ready CPU players; human players start as not ready
+        newReady[p.id] = !isLocalHuman; // CPU players: true, human players: false
       });
       setPlayerReadyStates(newReady);
     }
@@ -274,14 +275,17 @@ export default function GameScreen({
       const pl = playersCopy.find((x) => x.id === id);
       if (pl) pl.role = role as any;
     };
+    
+    // Role assignment based on player count
     if (order.length >= 1) setRole(order[0], "President");
-    if (order.length >= 2) setRole(order[1], "Vice President");
-    if (order.length >= 3 && order.length >= 5) {
-      // for 5+ players, determine Vice Asshole and Asshole as last two
+    
+    if (order.length >= 5) {
+      // For 5+ players: President, Vice President, Neutral(s), Vice Asshole, Asshole
+      setRole(order[1], "Vice President");
       setRole(order[order.length - 2], "Vice Asshole");
       setRole(order[order.length - 1], "Asshole");
     } else if (order.length >= 2) {
-      // fallback: set last as Asshole
+      // For 2-4 players: President, Neutral(s), Asshole (no Vice roles)
       setRole(order[order.length - 1], "Asshole");
     }
 
@@ -552,6 +556,19 @@ export default function GameScreen({
 
     const current = state.players[state.currentPlayerIndex];
 
+    // If current player has already passed in this trick, auto-advance to next player
+    if (hasPassedInCurrentTrick(state, current.id)) {
+      const nextState = passTurn(state, current.id);
+      emitDebug("action:pass:auto:already-passed", {
+        playerId: current.id,
+        playerName: current.name,
+        reason: "auto-pass (player already passed earlier in trick)",
+        before: snapshotState(state),
+      });
+      setState(nextState);
+      return;
+    }
+
     // Check if current player is a CPU. Only auto-play explicit CPU-named
     // players (e.g. "CPU 1"). Do NOT auto-play remote human players in
     // multiplayer — the server/other clients should drive those turns.
@@ -568,18 +585,6 @@ export default function GameScreen({
     }
 
     if (!isCPU) return;
-    // If this player already passed earlier in the trick, auto-pass them to keep turns moving
-    if (hasPassedInCurrentTrick(state, current.id)) {
-      const nextState = passTurn(state, current.id);
-      emitDebug("action:pass:auto", {
-        playerId: current.id,
-        playerName: current.name,
-        reason: "auto-pass (already passed earlier in trick)",
-        before: snapshotState(state),
-      });
-      setState(nextState);
-      return;
-    }
 
     // Check if game is over for this player
     if (state.finishedOrder.includes(current.id)) return;
@@ -1613,39 +1618,89 @@ export default function GameScreen({
               {'Pass'}
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              if (onBack) onBack();
+            }}
+            style={[local.actionButton, local.actionButtonTertiary]}
+          >
+            <Text style={local.actionText}>
+              {'Quit'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Secondary actions: Quit / Ready shown when round is over */}
+        {/* Round End Modal with Game Summary */}
         {roundOver && (
-          <View style={local.actionsSecondary}>
-            <TouchableOpacity
-              onPress={() => {
-                // Quit game: go back to previous screen
-                if (onBack) onBack();
-              }}
-              style={[local.actionButton, local.actionButtonPrimary]}
-            >
-              <Text style={local.actionText}>Quit Game</Text>
-            </TouchableOpacity>
+          <Modal visible={true} transparent={true} animationType="fade">
+            <View style={local.modalOverlay}>
+              <View style={[local.modalContent, { minWidth: 360, maxWidth: 500 }]}>
+                <Text style={local.modalTitle}>🎉 Round Complete! 🎉</Text>
+                
+                <View style={{ width: '100%', marginVertical: 16 }}>
+                  <Text style={[local.modalText, { marginBottom: 12, fontWeight: '700' }]}>Final Rankings:</Text>
+                  {state.finishedOrder.map((playerId, index) => {
+                    const player = state.players.find(p => p.id === playerId);
+                    if (!player) return null;
+                    
+                    // Determine role based on position and player count
+                    let roleName = 'Neutral';
+                    if (index === 0) {
+                      roleName = '👑 President';
+                    } else if (state.finishedOrder.length >= 5) {
+                      // 5+ players: use Vice roles
+                      if (index === 1) roleName = '⭐ Vice President';
+                      else if (index === state.finishedOrder.length - 1) roleName = '💩 Asshole';
+                      else if (index === state.finishedOrder.length - 2) roleName = '💩 Vice Asshole';
+                    } else if (index === state.finishedOrder.length - 1) {
+                      // 2-4 players: only President and Asshole
+                      roleName = '💩 Asshole';
+                    }
+                    
+                    return (
+                      <View key={playerId} style={local.rankingRow}>
+                        <Text style={local.rankingPosition}>{index + 1}.</Text>
+                        <Text style={local.rankingName}>{player.name}</Text>
+                        <Text style={local.rankingRole}>{roleName}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
 
-            <TouchableOpacity
-              onPress={() => {
-                // Toggle ready for current human player
-                const currentPlayerId = current?.id;
-                if (!currentPlayerId) return;
-                setPlayerReadyStates((prev) => ({
-                  ...prev,
-                  [currentPlayerId]: !prev[currentPlayerId],
-                }));
-                // If after toggling everyone is ready, TODO: trigger next-deal/trade flow
-              }}
-              style={[local.actionButton, local.actionButtonSecondary]}
-            >
-              <Text style={local.actionText}>
-                {playerReadyStates[current?.id || ''] ? 'Unready' : 'Ready!'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+                <View style={local.modalButtons}>
+                  <TouchableOpacity
+                    style={[local.modalButton, { marginRight: 8, backgroundColor: '#555' }]}
+                    onPress={() => {
+                      if (onBack) onBack();
+                    }}
+                  >
+                    <Text style={[local.modalButtonText, { color: '#fff' }]}>Quit Game</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[local.modalButton, { marginLeft: 8 }]}
+                    onPress={() => {
+                      const currentPlayerId = current?.id;
+                      if (!currentPlayerId) return;
+                      setPlayerReadyStates((prev) => ({
+                        ...prev,
+                        [currentPlayerId]: !prev[currentPlayerId],
+                      }));
+                    }}
+                  >
+                    <Text style={local.modalButtonText}>
+                      {playerReadyStates[current?.id || ''] ? 'Unready' : 'Ready for Next Round'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <Text style={[local.modalText, { fontSize: 12, marginTop: 12, opacity: 0.7 }]}>
+                  {Object.values(playerReadyStates).filter(r => r).length} / {state.players.length} players ready
+                </Text>
+              </View>
+            </View>
+          </Modal>
         )}
       </BottomBar>
     </ScreenContainer>
@@ -1738,8 +1793,9 @@ const local = StyleSheet.create({
     flex: 1,
     alignItems: "center",
   },
-  actionButtonPrimary: { marginRight: 8 },
-  actionButtonSecondary: { marginLeft: 8 },
+  actionButtonPrimary: { marginRight: 4 },
+  actionButtonSecondary: { marginHorizontal: 4 },
+  actionButtonTertiary: { marginLeft: 4, backgroundColor: "rgba(212, 175, 55, 0.15)" },
   actionText: { color: "#fff", fontWeight: "800", fontSize: 16 },
   bottomBar: {
     position: "absolute",
@@ -1939,5 +1995,31 @@ const local = StyleSheet.create({
     color: "#d4af37",
     fontSize: 11,
     fontWeight: "800",
+  },
+  rankingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(212,175,55,0.08)",
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  rankingPosition: {
+    color: "#d4af37",
+    fontSize: 18,
+    fontWeight: "800",
+    width: 30,
+  },
+  rankingName: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+    flex: 1,
+  },
+  rankingRole: {
+    color: "#d4af37",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

@@ -17,7 +17,7 @@ const colors = {
 const fonts = {
   regular: "System",
   bold: "System-Bold",
-  title: "serif", // optional: Art Deco-like serif if available
+  title: "'Georgia', 'Palatino Linotype', 'Book Antiqua', Palatino, serif", // Elegant serif fonts
 };
 
 const styles = StyleSheet.create({
@@ -30,6 +30,8 @@ const styles = StyleSheet.create({
 
   background: {
     flex: 1,
+    width: '100%',
+    height: '100%',
     backgroundColor: colors.background,
   },
 
@@ -127,11 +129,10 @@ const styles = StyleSheet.create({
 
   // alias names used by App.tsx
   menuContainer: {
-    marginTop: HEADER_OFFSET,
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.overlay,
+    backgroundColor: "transparent",
     paddingHorizontal: 24,
   },
 
@@ -174,7 +175,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    top: 60,
+    top: 0,
     backgroundColor: "transparent",
     zIndex: 1000,
   } as ViewStyle,

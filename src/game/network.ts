@@ -113,6 +113,12 @@ export class MockAdapter implements NetworkAdapter {
     if (event === "message") this.handlers.push(cb);
   }
 
+  // For tests and mock flows: allow emitting arbitrary events that mimic server
+  emitEvent(eventName: string, data: any) {
+    // forward as a 'state' envelope so consumers see ev.state.type
+    setTimeout(() => this.handlers.forEach((h) => h({ type: "state", state: { type: eventName, ...data } })), 10);
+  }
+
   private emitLobby(roomId: string) {
     const players = (this.rooms[roomId] || []).map((p) => ({ id: p.id, name: p.name, ready: !!(p as any).ready }));
     const host = this.hosts[roomId];

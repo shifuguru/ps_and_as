@@ -16,8 +16,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.6)",
-    padding: 20,
-    borderRadius: 10,
+    paddingHorizontal: 20,
   },
   title: {
     color: "white",
@@ -45,22 +44,23 @@ export default function MainMenu() {
       source={require("../../assets/ps_and_as_bg.png")} // update this to user's saved wallpaper
       style={styles.background}
       resizeMode="cover"
-    >
-      <View style={styles.menuContainer}>
-        <Text style={styles.title}>P's & A's</Text>
-        <Text style={styles.subtitle}>by rabbithole Games</Text>
+      >
+        <View style={styles.menuContainer}>
+          <Text style={styles.title}>P's & A's</Text>
+          <Text style={styles.subtitle}>by rabbithole Games</Text>
 
-        <View style={styles.buttonGroup}>
-          <Button label="Create Game" onPress={() => {}} />
-          <Button label="Random Game" onPress={() => {}} />
-          <Button label="Online" onPress={() => {}} />
-          <Button label="Local" onPress={() => {}} />
-          <Button label="Achievements" onPress={() => {}} />
+          <View style={styles.buttonGroup}>
+            <Button label="Create Game" onPress={() => {}} />
+            <Button label="Random Game" onPress={() => {}} />
+            <Button label="Online" onPress={() => {}} />
+            <Button label="Local" onPress={() => {}} />
+            <Button label="Achievements" onPress={() => {}} />
+          </View>
         </View>
-      </View>
-    </ImageBackground>
-      <Text style={theme.title}>P's & A's</Text>
-      <Text style={theme.developerLabel}>by rabbithole Games</Text>
+      </ImageBackground>
+
+      {/*<Text style={theme.title}>P's & A's</Text>*/}
+      {/* <Text style={theme.developerLabel}>by rabbithole Games</Text> */}
 
       <View style={theme.buttonGroup}>
         {["Create Game", "Play Random", "Online", "Achievements", "Profile"].map((label, i) => (

@@ -138,7 +138,20 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   // trick). In that case the 10 should NOT activate the ten-rule; we must
   // detect the run via runFromCurrentTrick as well.
   const baseEffPile = effectivePile(state.pile, state.pileHistory);
-  const trickRunInfo = runFromCurrentTrickInfo(state.currentTrick, state.players, state.finishedOrder || []);
+  
+  // Create a simulated trick with the current play added to check for run formation
+  const simulatedTrick = state.currentTrick ? {
+    ...state.currentTrick,
+    actions: [...state.currentTrick.actions, {
+      type: "play" as const,
+      playerId: player.id,
+      playerName: player.name,
+      cards: cards.slice(),
+      timestamp: Date.now(),
+    }]
+  } : undefined;
+  
+  const trickRunInfo = runFromCurrentTrickInfo(simulatedTrick, state.players, state.finishedOrder || []);
   const effPileForContext = (trickRunInfo.repCards && trickRunInfo.repCards.length >= 3) ? trickRunInfo.repCards : baseEffPile;
   const isPileRunForContext = effPileForContext && effPileForContext.length >= 3 && isRunContextSequence(effPileForContext);
 
@@ -234,83 +247,49 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   }
 
   // Special rules first
-  // Special rules first
   // Four-of-a-kind handling and Joker handling remain; 2 is NOT treated as an
   // automatic pile-clearing card here — it behaves as a high-ranked card that
   // can participate in runs and normal comparisons. (Escalation logic for
   // multiple 2s is handled in isValidPlay/findCPUPlay where needed.)
   if (isFourOfAKind(cards)) {
-    // Start or respond to a four-of-a-kind challenge.
-    // If a challenge is already active, a higher four-of-a-kind beats it.
-    if (state.fourOfAKindChallenge && state.fourOfAKindChallenge.active) {
-      const challengeVal = state.fourOfAKindChallenge.value;
-      const playRank = rankIndex(cards[0].value);
-      const challengeRank = rankIndex(challengeVal);
-      if (playRank > challengeRank) {
-  // This higher four-of-a-kind beats the challenge: clear the pile and end trick
-  state.lastClear = { type: "four", value: cards[0].value, playerIndex: pIndex };
-  state.pile = [];
-  state.pileHistory = [];
-  state.pileOwners = [];
-        state.passCount = 0;
-        state.currentPlayerIndex = pIndex;
-        state.mustPlay = true;
-        // deactivate challenge (we will finalize winner below via trickEnded handling)
-        state.fourOfAKindChallenge = undefined;
-        trickEnded = true;
-      } else {
-        // Not high enough to beat the current challenge -> invalid, but should
-        // have been rejected already by isValidPlay. Return state defensively.
-        return state;
-      }
-    } else {
-      // No active challenge: activate one. The next player must respond with a
-      // higher four-of-a-kind or a Joker.
-  state.pile = cards;
-  state.pileHistory = state.pileHistory || [];
-  state.pileHistory.push(cards.slice());
-  state.pileOwners = state.pileOwners || [];
-  state.pileOwners.push(player.id);
-      state.passCount = 0;
-      state.fourOfAKindChallenge = { active: true, value: cards[0].value, starterIndex: pIndex };
-      // record that a four-of-a-kind clear is the last clear in this trick
-      state.lastClear = { type: "four", value: cards[0].value, playerIndex: pIndex };
-      // advance to next player who must play according to the challenge
-      state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
-      state.mustPlay = true;
-      // do not finalize trick here; wait for response or passes
-      return { ...state };
-    }
+    // Four-of-a-kind: set as last clear, add to pile, and continue play
+    state.lastClear = { type: "four", value: cards[0].value, playerIndex: pIndex };
+    state.pile = cards;
+    state.pileHistory = state.pileHistory || [];
+    state.pileHistory.push(cards.slice());
+    state.pileOwners = state.pileOwners || [];
+    state.pileOwners.push(player.id);
+    state.passCount = 0;
+    // Activate challenge for validation purposes (so only higher quads or Joker can beat)
+    state.fourOfAKindChallenge = { active: true, value: cards[0].value, starterIndex: pIndex };
+    // Advance to next player
+    state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+    state.mustPlay = false;
   } else if (
-    // Closing to quads across turns: pile has 1-3 of a value, and we play the
-    // remaining copies of the same value to reach exactly 4, which starts the
-    // four-of-a-kind challenge.
+    // Closing to quads across turns: combine pile + cards to form 4-of-a-kind
     state.pile.length > 0 &&
     state.pile.length < 4 &&
     allSameValue(state.pile) &&
     allSameValue(cards) &&
     cards[0].value === state.pile[0].value &&
-    (state.pile.length + cards.length === 4)
+    (state.pile.length + cards.length === 4) &&
+    !isPileRunForContext
   ) {
-    // combine to visible four-of-a-kind on the pile for UI clarity
+    // Combine to visible four-of-a-kind on the pile
     const combined = [...state.pile, ...cards];
-    // record the play in history and ownership
     state.pileHistory = state.pileHistory || [];
     state.pileHistory.push(cards.slice());
     state.pileOwners = state.pileOwners || [];
     state.pileOwners.push(player.id);
     state.pile = combined;
     state.passCount = 0;
-    // Activate challenge for next player
+    // Activate challenge
     state.fourOfAKindChallenge = { active: true, value: cards[0].value, starterIndex: pIndex };
     state.lastClear = { type: "four", value: cards[0].value, playerIndex: pIndex };
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
-    state.mustPlay = true;
-    return { ...state };
+    state.mustPlay = false;
   } else if (isSingleJoker(cards)) {
-    // Single Joker sets a "highest clear" state but does not immediately
-    // finalize the trick. Other players must actively pass; when all others
-    // pass, the leader (joker player) wins via passTurn logic.
+    // Single Joker: highest card, but still requires others to pass
     state.lastClear = { type: "joker", value: 15, playerIndex: pIndex };
     state.pile = cards;
     state.pileHistory = state.pileHistory || [];
@@ -322,88 +301,33 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     if (state.fourOfAKindChallenge && state.fourOfAKindChallenge.active) {
       state.fourOfAKindChallenge = undefined;
     }
-    // Do NOT clear prior pass actions. Once a player has passed on this trick,
-    // they remain ineligible to play until the trick ends.
-    // Advance to next active player so others may pass
+    // Advance to next active player so others can pass
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
     state.mustPlay = false;
   } else if (containsTwo(cards)) {
-    // Playing a 2 clears the visible pile and immediately ends the trick.
-    // state.lastClear = { type: "two", value: 2, playerIndex: pIndex };
-    // Move existing visible pile plays into the table stack (face-down)
-    if (state.pileHistory && state.pileHistory.length > 0) {
-      state.tableStacks = state.tableStacks || [];
-      state.tableStackOwners = state.tableStackOwners || [];
-      for (let i = 0; i < state.pileHistory.length; i++) {
-        state.tableStacks.push(state.pileHistory[i]);
-        state.tableStackOwners.push((state.pileOwners && state.pileOwners[i]) ? state.pileOwners[i] : null);
-      }
-      state.pileHistory = [];
-      state.pileOwners = [];
-    }
-    // Clear the visible pile
-    state.pile = [];
+    // 2s are high cards but do NOT automatically end the trick
+    state.lastClear = { type: "two", value: 2, playerIndex: pIndex };
+    state.pile = cards;
+    state.pileHistory = state.pileHistory || [];
+    state.pileHistory.push(cards.slice());
+    state.pileOwners = state.pileOwners || [];
+    state.pileOwners.push(player.id);
     state.passCount = 0;
-    // Finalize current trick: winner is the player who played the 2
-    state.currentTrick.winnerId = player.id;
-    state.currentTrick.winnerName = player.name;
-    state.trickHistory = state.trickHistory || [];
-    state.trickHistory.push(state.currentTrick);
-    state.currentTrick = { trickNumber: state.trickHistory.length + 1, actions: [] };
-    // Winner leads the next trick
-    state.currentPlayerIndex = pIndex;
-    state.mustPlay = true;
-    // Reset any per-trick clears/challenges
-    state.lastClear = undefined;
-    state.fourOfAKindChallenge = undefined;
-    state.tenRule = { active: false, direction: null };
-    state.tenRulePending = false;
+    // Advance to next player
+    state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+    state.mustPlay = false;
   } else {
     // normal play replaces the pile
     state.pile = cards;
     // record this play in history
     state.pileHistory = state.pileHistory || [];
-  state.pileHistory.push(cards.slice());
-  state.pileOwners = state.pileOwners || [];
-  state.pileOwners.push(player.id);
+    state.pileHistory.push(cards.slice());
+    state.pileOwners = state.pileOwners || [];
+    state.pileOwners.push(player.id);
     state.passCount = 0;
     // advance from the player who just played
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
     state.mustPlay = false;
-  }
-
-  // if trick ended with special card, record winner and start new trick
-  if (trickEnded) {
-    try { console.log(`[core] trickEnded in playCards by playerIndex=${pIndex} playerId=${player.id} playerName=${player.name} lastPlayPlayerIndex=${state.lastPlayPlayerIndex}`); } catch (e) {}
-    // Clear the visible pile immediately so the next trick starts clean
-    state.pile = [];
-    state.passCount = 0;
-    state.currentTrick.winnerId = player.id;
-    state.currentTrick.winnerName = player.name;
-    state.trickHistory = state.trickHistory || [];
-    // Move any existing visible pile plays into the table stack (face-down)
-    if (state.pileHistory && state.pileHistory.length > 0) {
-      state.tableStacks = state.tableStacks || [];
-      state.tableStackOwners = state.tableStackOwners || [];
-      for (let i = 0; i < state.pileHistory.length; i++) {
-        state.tableStacks.push(state.pileHistory[i]);
-        state.tableStackOwners.push((state.pileOwners && state.pileOwners[i]) ? state.pileOwners[i] : null);
-      }
-      state.pileHistory = [];
-      state.pileOwners = [];
-    }
-    state.trickHistory.push(state.currentTrick);
-    state.currentTrick = { trickNumber: state.trickHistory.length + 1, actions: [] };
-    // Ensure the winner leads the next trick
-    try { console.log(`[core] setting currentPlayerIndex to winner pIndex=${pIndex} (playerId=${player.id})`); } catch(e){}
-    state.currentPlayerIndex = pIndex;
-    state.mustPlay = true;
-    // Clear lastClear as the trick has concluded
-    state.lastClear = undefined;
-    // Reset any 10 rule/challenge markers so UI/game type doesn't stick
-    state.tenRule = { active: false, direction: null };
-    state.tenRulePending = false;
-    state.fourOfAKindChallenge = undefined;
   }
 
   // if player emptied hand, add to finished

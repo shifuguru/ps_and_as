@@ -119,6 +119,38 @@ export class SocketAdapter implements NetworkAdapter {
         console.log("[SocketAdapter] Received game state sync");
         this.handlers.forEach((h) => h({ type: "state", state: { type: "gameStateSync", gameState: data.gameState } }));
       });
+
+      // Round / trade lifecycle events
+      this.socket.on("roundEnded", (data: any) => {
+        console.log("[SocketAdapter] roundEnded", data);
+        this.handlers.forEach((h) => h({ type: "state", state: { type: "roundEnded", finishOrder: data.finishOrder, roles: data.roles, stats: data.stats } }));
+      });
+
+      this.socket.on("roundTradesPrepared", (data: any) => {
+        console.log("[SocketAdapter] roundTradesPrepared", data);
+        // data may be targeted per-player; forward as-is
+        this.handlers.forEach((h) => h({ type: "state", state: { type: "roundTradesPrepared", payload: data } }));
+      });
+
+      this.socket.on("playerHandsUpdate", (data: any) => {
+        console.log("[SocketAdapter] playerHandsUpdate", data);
+        this.handlers.forEach((h) => h({ type: "state", state: { type: "playerHandsUpdate", playerHands: data.playerHands } }));
+      });
+
+      this.socket.on("tradesComplete", (data: any) => {
+        console.log("[SocketAdapter] tradesComplete", data);
+        this.handlers.forEach((h) => h({ type: "state", state: { type: "tradesComplete", playerHands: data.playerHands } }));
+      });
+
+      this.socket.on("playerReadyUpdate", (data: any) => {
+        console.log("[SocketAdapter] playerReadyUpdate", data);
+        this.handlers.forEach((h) => h({ type: "state", state: { type: "playerReadyUpdate", readyForNextRound: data.readyForNextRound } }));
+      });
+
+      this.socket.on("nextRoundStarting", (data: any) => {
+        console.log("[SocketAdapter] nextRoundStarting", data);
+        this.handlers.forEach((h) => h({ type: "state", state: { type: "nextRoundStarting", gameState: data.gameState } }));
+      });
     } catch (e) {
       console.warn("socket.io-client not available, falling back to MockAdapter", e);
     }
@@ -201,5 +233,15 @@ export class SocketAdapter implements NetworkAdapter {
 
   on(_ev: "message", cb: (ev: NetworkEvent) => void) {
     this.handlers.push(cb);
+  }
+
+  // Emit arbitrary server event (used for new trade/ready events)
+  emitEvent(eventName: string, data: any) {
+    if (!this.socket) return;
+    try {
+      this.socket.emit(eventName, data);
+    } catch (e) {
+      console.warn('[SocketAdapter] emitEvent failed', e);
+    }
   }
 }

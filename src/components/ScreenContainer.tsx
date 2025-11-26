@@ -8,9 +8,9 @@ type Props = {
   ignoreHeaderOffset?: boolean;
 };
 
-// Header row height defined in theme.headerRow (60). We add the safe-area top inset
+// Header row height defined in theme.headerRow (100). We add the safe-area top inset
 // so the content sits below the header regardless of device notch/statusbar.
-const HEADER_ROW_HEIGHT = 40;
+const HEADER_ROW_HEIGHT = 100;
 
 export default function ScreenContainer({ children, style, ignoreHeaderOffset }: Props) {
   const insets = useSafeAreaInsets();
