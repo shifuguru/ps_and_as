@@ -154,7 +154,7 @@ export default function App() {
         {menuVisible && screen === "menu" && (
           <Animated.View style={[styles.menuContainer, { opacity: menuOpacity }]}>
             <Text style={[styles.title, { fontFamily: Platform.OS === 'ios' ? 'Snell Roundhand' : "'Georgia', 'Palatino Linotype', 'Book Antiqua', serif", fontSize: 48, fontStyle: 'italic', marginTop: 120 }]}>P's & A's</Text>
-            <Text style={styles.subtitle}>by rabbithole Games</Text>
+            <Text style={styles.subtitle}>Created by Michael Drury.</Text>
 
             <View style={styles.buttonGroup}>
               {buttons.map((label, i) => (

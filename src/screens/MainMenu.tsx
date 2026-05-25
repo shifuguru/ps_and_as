@@ -47,7 +47,7 @@ export default function MainMenu() {
       >
         <View style={styles.menuContainer}>
           <Text style={styles.title}>P's & A's</Text>
-          <Text style={styles.subtitle}>by rabbithole Games</Text>
+          <Text style={styles.subtitle}>created by Michael Drury</Text>
 
           <View style={styles.buttonGroup}>
             <Button label="Create Game" onPress={() => {}} />
@@ -58,9 +58,6 @@ export default function MainMenu() {
           </View>
         </View>
       </ImageBackground>
-
-      {/*<Text style={theme.title}>P's & A's</Text>*/}
-      {/* <Text style={theme.developerLabel}>by rabbithole Games</Text> */}
 
       <View style={theme.buttonGroup}>
         {["Create Game", "Play Random", "Online", "Achievements", "Profile"].map((label, i) => (

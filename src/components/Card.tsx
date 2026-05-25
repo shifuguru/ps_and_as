@@ -2,7 +2,7 @@ import React from "react";
 import { Animated, TouchableWithoutFeedback, View, Text, StyleSheet } from "react-native";
 import { Card as CardType } from "../game/ruleset";
 
-export default function Card({ card, selected, onPress, highlight = 0, faceDown = false, disabled = false }: { card: CardType; selected: boolean; onPress: () => void; highlight?: number; faceDown?: boolean; disabled?: boolean }) {
+export default function Card({ card, selected, onPress, highlight = 0, faceDown = false, disabled = false, style, }: { card: CardType; selected: boolean; onPress: () => void; highlight?: number; faceDown?: boolean; disabled?: boolean; style?: any; }) {
   const anim = React.useRef(new Animated.Value(selected ? 1 : 0)).current;
   const glow = React.useRef(new Animated.Value(highlight)).current;
 
@@ -56,8 +56,8 @@ export default function Card({ card, selected, onPress, highlight = 0, faceDown 
   })();
 
   return (
-    <Animated.View style={[local.card, { transform: [{ translateY }, { scale }], shadowRadius: elevation } as any, { borderColor: borderGlow }, disabled && { opacity: 0.35 }]}>
-      <TouchableWithoutFeedback onPress={onPress} accessibilityLabel={`card-${label}-${card.suit}`}>
+    <Animated.View style={[local.card, style, { transform: [{ translateY }, { scale }], shadowRadius: elevation } as any, { borderColor: borderGlow }, disabled && { opacity: 0.35 }]}>
+      <TouchableWithoutFeedback onPress={disabled ? undefined : onPress} accessibilityLabel={`card-${label}-${card.suit}`}>
         <View style={local.inner}>
           {faceDown ? (
             <View style={local.backFace} />
@@ -86,20 +86,18 @@ export default function Card({ card, selected, onPress, highlight = 0, faceDown 
 
 const local = StyleSheet.create({
   card: {
-    width: 84,
-    height: 120,
-    backgroundColor: "#0f0f0f",
-    borderRadius: 8,
-    marginHorizontal: 6,
+    width: 86,
+    height: 124,
+    backgroundColor: "#101712",
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "rgba(212,175,55,0.15)",
     shadowColor: "black",
-    shadowOpacity: 0.6,
-    shadowRadius: 6,
-    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
     justifyContent: "center",
     alignItems: "center",
-    // ensure cards can overlap in a horizontal stack
     position: "relative",
   },
   inner: {

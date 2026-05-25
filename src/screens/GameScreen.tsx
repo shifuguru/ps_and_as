@@ -17,6 +17,7 @@ import {
   runFromCurrentTrick,
   runFromCurrentTrickInfo,
   isRunContextSequence,
+  nextActivePlayerIndex,
 } from "../game/core";
 import { createDeck, shuffleDeck, dealCards } from "../game/ruleset";
 import Card from "../components/Card";
@@ -28,6 +29,10 @@ import Header from "../components/Header";
 import ScreenContainer from "../components/ScreenContainer";
 import EndGamePanel from "../components/EndGamePanel";
 import BottomBar from "../components/BottomBar";
+import ActionBar from "../components/ActionBar";
+import GameTable from "../components/GameTable";
+import PlayerHand from "../components/PlayerHand";
+import StatusBar from "../components/StatusBar";
 import { styles } from "../styles/theme";
 
 // Helper: check if a card value can be part of any valid play
@@ -106,45 +111,52 @@ function canCardBePlayedAtAll(
   }
 
   // Check if pile is a run
-  const isPileRun = pile.length >= 3 && isRun(pile);
+  // Determine run context using effectivePile + currentTrick run detector
+  let eff = effectivePile(pile, pileHistory);
+  const trickRunInfo = runFromCurrentTrickInfo(currentTrick, players, finishedOrder || []);
+  let runMultiplicity = 1;
+  if (trickRunInfo && trickRunInfo.repCards && trickRunInfo.repCards.length >= 3) {
+    eff = trickRunInfo.repCards;
+    runMultiplicity = trickRunInfo.multiplicity || 1;
+  }
+  const isPileRun = !!(eff && eff.length >= 3 && isRunContextSequence(eff));
 
   if (isPileRun) {
-    // To beat a run, we need a run of the same length with higher starting value
-    // Check if this card could be part of such a run
-    const requiredLength = pile.length;
+    const requiredLength = eff.length;
+    const multiplicity = runMultiplicity || 1;
 
-    // Try to form runs that include this card value
+    // Try to form runs that include this card value with required multiplicity
     for (let startOffset = 0; startOffset < requiredLength; startOffset++) {
       const targetStartRank = rankIndex(cardValue) - startOffset;
       if (targetStartRank < 0) continue;
 
-      // Check if we can form a consecutive run starting from targetStartRank
-      let runCards: CardType[] = [];
+      const runCards: CardType[] = [];
+      let ok = true;
       for (let i = 0; i < requiredLength; i++) {
         const neededRankIdx = targetStartRank + i;
-        if (neededRankIdx >= RANK_ORDER.length) break;
+        if (neededRankIdx >= RANK_ORDER.length) { ok = false; break; }
         const neededValue = RANK_ORDER[neededRankIdx];
-        const cardWithValue = hand.find((c) => c.value === neededValue);
-        if (!cardWithValue) break;
-        runCards.push(cardWithValue);
+        const cardsOfValue = hand.filter((c) => c.value === neededValue);
+        if (cardsOfValue.length < multiplicity) { ok = false; break; }
+        // take multiplicity cards of this rank
+        runCards.push(...cardsOfValue.slice(0, multiplicity));
       }
-
-      if (runCards.length === requiredLength && isRun(runCards)) {
-        // Check if this run beats the pile
+      if (!ok) continue;
+      // Validate run structure and engine acceptance
+      if (isRun(runCards)) {
         if (
           isValidPlay(
-              runCards,
-              pile,
-              tenRule,
-              pileHistory,
-              trickHistory,
-              fourOfAKindChallenge,
-              currentTrick,
-              players,
-              finishedOrder,
-            )
-        )
-          return true;
+            runCards,
+            pile,
+            tenRule,
+            pileHistory,
+            trickHistory,
+            fourOfAKindChallenge,
+            currentTrick,
+            players,
+            finishedOrder,
+          )
+        ) return true;
       }
     }
     return false;
@@ -203,6 +215,9 @@ export default function GameScreen({
   const [playerReadyStates, setPlayerReadyStates] = useState<{
     [playerId: string]: boolean;
   }>({});
+  const [lastTrickWinner, setLastTrickWinner] = useState<string | null>(null);
+  const [showWinnerBanner, setShowWinnerBanner] = useState(false);
+  const lastTrickLenRef = React.useRef<number>(0);
 
   function snapshotState(s: GameState | null) {
     if (!s) return null;
@@ -226,6 +241,17 @@ export default function GameScreen({
   // Detect when round is over: all players have either finished or passed out
   useEffect(() => {
     if (!state) return;
+    const len = state.trickHistory ? state.trickHistory.length : 0;
+    if (len > (lastTrickLenRef.current || 0)) {
+      // new trick finalized
+      const last = state.trickHistory && state.trickHistory[state.trickHistory.length - 1];
+      if (last && last.winnerName) {
+        setLastTrickWinner(last.winnerName);
+        setShowWinnerBanner(true);
+        setTimeout(() => setShowWinnerBanner(false), 3000);
+      }
+      lastTrickLenRef.current = len;
+    }
     const allPlayersFinished = state.finishedOrder.length === state.players.length;
     if (allPlayersFinished && !roundOver) {
       setRoundOver(true);
@@ -727,39 +753,235 @@ export default function GameScreen({
   if (!state) return null;
 
   const width = Dimensions.get("window").width;
+  const isLargeScreen = width >= 900;
   const current = state.players[state.currentPlayerIndex];
 
-  // If the current player is controlled locally (hotseat or local mock), allow
-  // them to act and show their hand. Otherwise, show the local human player's
-  // hand (if any) for reference but disable actions.
-  const currentIsLocalHuman = state ? localControlledIds.includes(current.id) : false;
+  const currentIsLocalHuman = localControlledIds.includes(current.id);
   const isHumanTurn = currentIsLocalHuman;
 
   let hand = [] as CardType[];
-  if (state) {
-    if (currentIsLocalHuman) {
-      hand = [...current.hand].sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
-    } else {
-      // Fallback: show the registered local player's hand (by id/name) when available
-      let humanPlayer = null as any;
-      if (localPlayerId) humanPlayer = state.players.find((p) => p.id === localPlayerId);
-      if (!humanPlayer && localPlayerName) humanPlayer = state.players.find((p) => p.name === localPlayerName);
-      if (!humanPlayer) humanPlayer = state.players.find((p) => p.name === "You" || p.name === "You (Host)");
-      if (humanPlayer) hand = [...humanPlayer.hand].sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
+  if (currentIsLocalHuman) {
+    hand = [...current.hand].sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
+  } else {
+    const fallbackPlayer =
+      (localPlayerId && state.players.find((p) => p.id === localPlayerId)) ||
+      (localPlayerName && state.players.find((p) => p.name === localPlayerName)) ||
+      state.players.find((p) => p.name === "You" || p.name === "You (Host)");
+    if (fallbackPlayer) {
+      hand = [...fallbackPlayer.hand].sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
     }
   }
 
-  // We'll display the hand as a straight row (no grouped stacks). For selection
-  // behavior we still allow selecting all cards of the same rank when tapping a card.
+  const selectedCards = selected.map((index) => hand[index]).filter(Boolean);
+  const selectedCanPlay =
+    selectedCards.length > 0 &&
+    isValidPlay(
+      selectedCards,
+      state.pile,
+      state.tenRule,
+      state.pileHistory,
+      state.trickHistory,
+      state.fourOfAKindChallenge,
+      state.currentTrick,
+      state.players,
+      state.finishedOrder,
+    );
 
-  // compute dynamic heights so stacked duplicates aren't clipped
-  const CARD_H = 120;
-  const bottomBarMinHeight = Math.max(160, CARD_H + 120);
+  const playableIndices = hand.map((card) =>
+    canCardBePlayedAtAll(
+      card.value,
+      hand,
+      state.pile,
+      state.tenRule,
+      state.pileHistory,
+      state.trickHistory,
+      state.currentTrick,
+      state.fourOfAKindChallenge,
+      state.players,
+      state.finishedOrder,
+    ),
+  );
+
+  const handleCardPress = (idx: number) => {
+    const card = hand[idx];
+    const ownerIdForHand = currentIsLocalHuman ? current.id : humanPlayer?.id;
+    if (ownerIdForHand && hasPassedInCurrentTrick(state, ownerIdForHand)) {
+      emitDebug("ui:select:blocked:passed", { playerId: ownerIdForHand });
+      return;
+    }
+    setFocused(idx);
+    const tappedValue = card.value;
+    const currentSelected = selected.slice();
+    const pileCount = state.pile.length;
+    const sameAll = hand
+      .map((h, i) => (h.value === tappedValue ? i : -1))
+      .filter((x) => x !== -1) as number[];
+
+    if (pileCount === 0) {
+      if (currentSelected.length === 0) {
+        setSelected(sameAll);
+      } else {
+        const selectedRank = hand[currentSelected[0]]?.value;
+        if (selectedRank === tappedValue) {
+          setSelected((s) =>
+            s.includes(idx) ? s.filter((x) => x !== idx) : [...s, idx],
+          );
+        } else {
+          setSelected(sameAll);
+        }
+      }
+      return;
+    }
+
+    const take = Math.min(pileCount, sameAll.length);
+    const selectedRank =
+      currentSelected.length > 0 ? hand[currentSelected[0]]?.value : null;
+    if (selectedRank === tappedValue) {
+      if (currentSelected.includes(idx)) {
+        setSelected((s) => s.filter((x) => x !== idx));
+      } else {
+        setSelected((s) => [...s, idx]);
+      }
+    } else {
+      setSelected(sameAll.slice(0, take));
+    }
+  };
+
+  const handlePlayPress = () => {
+    if (roundOver || !isHumanTurn) return;
+    const actor = current;
+    if (!actor) return;
+    if (hasPassedInCurrentTrick(state, actor.id)) {
+      emitDebug("action:play:blocked", { playerId: actor.id, reason: "already passed" });
+      return;
+    }
+    const cards = selected.map((i) => hand[i]);
+    emitDebug("action:play:human:attempt", {
+      playerId: actor.id,
+      playerName: actor.name,
+      cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
+      before: snapshotState(state),
+    });
+    const cardStr = cards
+      .map((c) => {
+        const suit = {
+          hearts: "♥",
+          diamonds: "♦",
+          clubs: "♣",
+          spades: "♠",
+          joker: "★",
+        }[c.suit];
+        const val =
+          c.value === 11
+            ? "J"
+            : c.value === 12
+              ? "Q"
+              : c.value === 13
+                ? "K"
+                : c.value === 14
+                  ? "A"
+                  : c.value === 15
+                    ? "JOKER"
+                    : String(c.value);
+        return `${val}${suit}`;
+      })
+      .join(", ");
+    console.log(`You playing: ${cardStr}`);
+    const next = playCards(state, actor.id, cards);
+    if (next === state) {
+      emitDebug("action:play:human:failed", {
+        playerId: actor.id,
+        playerName: actor.name,
+        cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
+        reason: "invalid play",
+        before: snapshotState(state),
+      });
+    } else {
+      emitDebug("action:play:human:success", {
+        playerId: actor.id,
+        playerName: actor.name,
+        cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
+        after: snapshotState(next),
+      });
+      setSelected([]);
+      setState(next);
+    }
+  };
+
+  const handlePassPress = () => {
+    if (roundOver || !isHumanTurn) return;
+    const actor = current;
+    if (!actor) return;
+    if (hasPassedInCurrentTrick(state, actor.id)) {
+      emitDebug("action:pass:blocked", { playerId: actor.id, reason: "already passed" });
+      return;
+    }
+    console.log(`You passed`);
+    emitDebug("action:pass:human:attempt", {
+      playerId: actor.id,
+      playerName: actor.name,
+      before: snapshotState(state),
+    });
+    const next = passTurn(state, actor.id);
+    if (next === state) {
+      emitDebug("action:pass:human:failed", {
+        playerId: actor.id,
+        playerName: actor.name,
+        reason: "cannot pass (mustPlay or invalid)",
+        before: snapshotState(state),
+      });
+    } else {
+      emitDebug("action:pass:human:success", {
+        playerId: actor.id,
+        playerName: actor.name,
+        after: snapshotState(next),
+      });
+      setState(next);
+    }
+  };
+
+  const bottomBarMinHeight = 220;
+  const currentPlayerCount = state.players.length;
+  const pileCount = state.pile.length;
+  const passCount = state.passCount;
+  const visiblePileCards: CardType[] = [];
+  // build a de-duplicated chronological view using pileHistory + pileOwners,
+  // then append any currentTrick.actions that aren't already represented.
+  const seenSignatures = new Set<string>();
+  if (state.pileHistory && state.pileHistory.length > 0) {
+    for (let i = 0; i < state.pileHistory.length; i++) {
+      const entry = state.pileHistory[i];
+      const owner = (state.pileOwners && state.pileOwners[i]) || "";
+      if (!Array.isArray(entry) || entry.length === 0) continue;
+      // signature for this entry: owner + card list
+      const sig = `${owner}|${(entry as CardType[]).map(c => `${c.suit}:${c.value}`).join("|")}`;
+      if (seenSignatures.has(sig)) continue;
+      seenSignatures.add(sig);
+      visiblePileCards.push(...(entry as CardType[]));
+    }
+  }
+
+  if (state.currentTrick && state.currentTrick.actions && state.currentTrick.actions.length > 0) {
+    state.currentTrick.actions.forEach((a: any) => {
+      if (a.type !== 'play' || !a.cards || a.cards.length === 0) return;
+      const owner = a.playerId || a.playerName || "";
+      const sig = `${owner}|${a.cards.map((c: any) => `${c.suit}:${c.value}`).join("|")}`;
+      if (seenSignatures.has(sig)) return;
+      seenSignatures.add(sig);
+      visiblePileCards.push(...(a.cards as CardType[]));
+    });
+  }
+
+  // fallback: if nothing collected, use effectivePile for safety
+  if (visiblePileCards.length === 0) {
+    visiblePileCards.push(...effectivePile(state.pile, state.pileHistory));
+  }
 
   // Build log entries
   type LogEntry = { text: string; kind: "play" | "pass" | "win" | "info" };
   const fullGameLog: LogEntry[] = [];
   const currentTrickLog: LogEntry[] = [];
+  const lastPlayInfo = currentTrickLog.length > 0 ? currentTrickLog[currentTrickLog.length - 1]?.text : null;
 
   // Helper to format cards
   const formatCards = (cards?: any[]) => {
@@ -941,15 +1163,15 @@ export default function GameScreen({
       })();
       const kind =
         m === 1
-          ? "singles"
+          ? "Singles"
           : m === 2
-            ? "doubles"
+            ? "Doubles"
             : m === 3
-              ? "triples"
+              ? "Triples"
               : m === 4
-                ? "quads"
+                ? "Quads"
                 : `${m}x`;
-      return `${kind}*runs`;
+      return `${kind} - RUNS!`;
     }
 
     // Otherwise show by count (non-run)
@@ -1068,272 +1290,35 @@ export default function GameScreen({
 
       {/* Scrollable game content */}
       <View style={{ padding: 10 }}>
-        <Text style={local.gameId}>Game ID: {state.id}</Text>
-        <Text style={local.finished}>
-          Finished: {state.finishedOrder.join(",")}
-        </Text>
+        <StatusBar
+          currentPlayerName={current.name}
+          currentHandCount={hand.length}
+          playerCount={state.players.length}
+          pileCount={pileCount}
+          passCount={passCount}
+          mustPlay={!!state.mustPlay}
+          isHumanTurn={isHumanTurn}
+          isLargeScreen={isLargeScreen}
+        />
 
-        <View style={local.playersArea}>
-          <Text style={local.sectionTitle}>Players</Text>
-          {(() => {
-            const maxCells = 8; // 2 columns x 4 rows
-            const playersToShow = state.players.slice(0, maxCells);
-            const overflow = state.players.length - playersToShow.length;
-            return (
-              <View style={local.playersGrid}>
-                {playersToShow.map((p, idx) => {
-                  const isCurrent = idx === state.currentPlayerIndex;
-                  const hasPassed = !!(
-                    state.currentTrick &&
-                    state.currentTrick.actions &&
-                    state.currentTrick.actions.some(
-                      (a) => a.type === "pass" && a.playerId === p.id,
-                    )
-                  );
-                  const roleEmojiMap: { [k: string]: string } = {
-                    President: "👑",
-                    "Vice President": "⭐",
-                    Neutral: "",
-                    "Vice Asshole": "💩",
-                    Asshole: "💩",
-                  };
-                  const roleEmoji = roleEmojiMap[p.role] || "";
-                  const initials = p.name
-                    ? p.name
-                        .split(" ")
-                        .map((s) => s[0])
-                        .slice(0, 2)
-                        .join("")
-                    : "?";
-                  const revealed = !!revealedHands[p.id];
-                  const finishIdx = state.finishedOrder.indexOf(p.id);
-                  const placement = finishIdx >= 0 ? finishIdx + 1 : null;
-                  const ordinal = (n: number) => {
-                    if (n % 10 === 1 && n % 100 !== 11) return `${n}st`;
-                    if (n % 10 === 2 && n % 100 !== 12) return `${n}nd`;
-                    if (n % 10 === 3 && n % 100 !== 13) return `${n}rd`;
-                    return `${n}th`;
-                  };
-                  return (
-                    <View key={p.id} style={local.playerCell}>
-                      <TouchableOpacity
-                        onPress={() =>
-                          setRevealedHands((r) => ({ ...r, [p.id]: !r[p.id] }))
-                        }
-                        activeOpacity={0.8}
-                      >
-                        <View
-                          style={[
-                            local.playerRow,
-                            isCurrent ? local.playerRowCurrent : null,
-                          ]}
-                        >
-                          <View style={local.avatar}>
-                            <Text style={local.avatarText}>{initials}</Text>
-                          </View>
-                          <View style={{ flex: 1, marginLeft: 8 }}>
-                            <View
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              <Text
-                                style={[
-                                  local.playerName,
-                                  isCurrent ? local.playerNameCurrent : null,
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {roleEmoji ? `${roleEmoji} ${p.name}` : p.name}
-                              </Text>
-                              {hasPassed && (
-                                <View style={local.passedBadge}>
-                                  <Text style={local.passedBadgeText}>
-                                    Passed
-                                  </Text>
-                                </View>
-                              )}
-                              {placement && (
-                                <View style={local.placementBadge}>
-                                  <Text style={local.placementBadgeText}>
-                                    {ordinal(placement)}
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                            <Text style={local.playerCount}>
-                              {p.hand.length} cards
-                            </Text>
-                          </View>
-                          {isCurrent && (
-                            <View style={local.turnBadge}>
-                              <Text style={local.turnBadgeText}>Turn</Text>
-                            </View>
-                          )}
-                        </View>
-                      </TouchableOpacity>
-                      {revealed && (
-                        <ScrollView
-                          horizontal
-                          contentContainerStyle={{
-                            paddingHorizontal: 10,
-                            paddingVertical: 6,
-                          }}
-                        >
-                          {[...p.hand]
-                            .sort(
-                              (a, b) => rankIndex(a.value) - rankIndex(b.value),
-                            )
-                            .map((c, ci) => (
-                              <View
-                                key={`revealed-${p.id}-${ci}`}
-                                style={{ marginRight: 6 }}
-                              >
-                                <Card
-                                  card={c}
-                                  selected={false}
-                                  onPress={() => {}}
-                                />
-                              </View>
-                            ))}
-                        </ScrollView>
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-            );
-          })()}
-          {state.players.length > 8 && (
-            <Text style={{ color: "#aaa", fontSize: 11, marginTop: 4 }}>
-              +{state.players.length - 8} more
-            </Text>
-          )}
-        </View>
+        <GameTable
+          pileCards={visiblePileCards}
+          playTypeLabel={playTypeLabel}
+          lastPlayInfo={lastPlayInfo || 'Current turn: ' + current.name}
+        />
 
-        <View style={local.pileArea}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <Text style={local.sectionTitle}>Table (Current Pile):</Text>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <TouchableOpacity
-                onPress={() => setShowDebugOverlay((s) => !s)}
-                style={[local.smallToggle, { marginRight: 8 }]}
-              >
-                <Text style={local.smallToggleText}>
-                  {showDebugOverlay ? "Full Game Log ▴" : "Full Game Log ▾"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setShowGameLog((s) => !s)}
-                style={local.smallToggle}
-              >
-                <Text style={local.smallToggleText}>
-                  {showGameLog ? "Current Trick Log ▴" : "Current Trick Log ▾"}
-                </Text>
-              </TouchableOpacity>
+        {/* Winner banner */}
+        {showWinnerBanner && lastTrickWinner && (
+          <View style={{ position: 'absolute', top: 18, left: 18, right: 18, alignItems: 'center', zIndex: 200 }}>
+            <View style={{ backgroundColor: 'rgba(212,175,55,0.96)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 }}>
+              <Text style={{ color: '#111', fontWeight: '800' }}>{lastTrickWinner} won the trick</Text>
             </View>
           </View>
-          <View style={local.tableBorder}>
-            <View
-              style={{
-                minHeight: 90,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              {!state.pileHistory || state.pileHistory.length === 0 ? (
-                <Text style={{ color: "#ccc" }}>No cards on the table</Text>
-              ) : (
-                (() => {
-                  // The engine now moves completed tricks into `tableStacks`.
-                  // `pileHistory` should represent the current trick (visible plays).
-                  const history = state.pileHistory || [];
-                  const owners = state.pileOwners || [];
-                  const lastPlays = history.slice(-3); // last up to 3 plays (current trick)
-                  // Older, completed tricks are stored as collapsed stacks in tableStacks
-                  const tableStacks = state.tableStacks || [];
-                  const tableStackOwners = state.tableStackOwners || [];
-                  const earlierStacks = tableStacks.slice(-3); // show up to 3 collapsed stacks
-                  return (
-                    <View
-                      style={{ width: 300, height: 170, position: "relative" }}
-                    >
-                      {/* Only show current trick's last few plays; remove discard visuals */}
-                      {lastPlays.map((play, pi) => {
-                        // base offsets: align everything on the same Y, step X per play
-                        const baseLeft = 20 + pi * 56;
-                        const baseTop = 40;
-
-                        return (
-                          <View
-                            key={`play-${pi}`}
-                            style={{
-                              position: "absolute",
-                              left: baseLeft,
-                              top: baseTop,
-                            }}
-                          >
-                            {play.map((c, ci) => {
-                              // Tightly bundle cards of same rank (doubles, triples, quads)
-                              // Offset enough to show top-left corner rank/suit
-                              const cardOffset = ci * 16; // increase spacing for readability
-                              const verticalOffset = 0; // remove height offsets for current pile
-                              return (
-                                <View
-                                  key={`${c.suit}-${c.value}-${ci}`}
-                                  style={{
-                                    position: "absolute",
-                                    left: cardOffset,
-                                    top: verticalOffset,
-                                  }}
-                                >
-                                  <Card
-                                    card={c}
-                                    selected={false}
-                                    onPress={() => {}}
-                                  />
-                                </View>
-                              );
-                            })}
-                          </View>
-                        );
-                      })}
-                      {playTypeLabel && (
-                        <View
-                          style={{
-                            position: "absolute",
-                            top: 6,
-                            left: 0,
-                            right: 0,
-                            alignItems: "center",
-                          }}
-                        >
-                          <View style={[local.playTypeBadge, { marginTop: 0 }]}>
-                            <Text style={local.playTypeText}>
-                              {playTypeLabel}
-                            </Text>
-                          </View>
-                        </View>
-                      )}
-                    </View>
-                  );
-                })()
-              )}
-            </View>
-          </View>
-        </View>
+        )}
       </View>
+
       {/* Player hand and actions - sticky at bottom */}
       <BottomBar minHeight={bottomBarMinHeight} style={local.bottomBar}>
-
 
         {/* Game Log (toggleable) */}
         {showGameLog && (
@@ -1378,256 +1363,50 @@ export default function GameScreen({
         {/* Logs toggle placed above the Game Log view */}
         {/* moved log toggles to the table header */}
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingVertical: 12,
-            paddingHorizontal: 8,
-            alignItems: "flex-end",
+        <PlayerHand
+          cards={hand}
+          selectedIndices={selected}
+          playableIndices={playableIndices}
+          disabled={!isHumanTurn}
+          onCardPress={handleCardPress}
+        />
+
+        <ActionBar
+          selectedCount={selected.length}
+          onPlay={handlePlayPress}
+          onPass={handlePassPress}
+          onQuit={() => {
+            if (onBack) onBack();
           }}
-        >
-          {hand.map((card, idx) => {
-            const CARD_W = 84;
-            const spacing = 12;
-            // highlight strongest at index 0, fade to the right
-            const highlight =
-              1 - Math.min(1, idx / Math.max(1, hand.length - 1));
+          playDisabled={!isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id)}
+          passDisabled={!isHumanTurn || roundOver}
+        />
 
-            // Check if this card can be part of a valid play - only dim during human's turn
-            const isPlayable =
-              !isHumanTurn ||
-              canCardBePlayedAtAll(
-                card.value,
-                hand,
-                state.pile,
-                state.tenRule,
-                state.pileHistory,
-                state.trickHistory,
-                state.currentTrick,
-                state.fourOfAKindChallenge,
-                state.players,
-                state.finishedOrder,
-              );
-
-            return (
-              <View
-                key={`${card.suit}-${card.value}-${idx}`}
-                style={{ marginRight: idx === hand.length - 1 ? 8 : -56 }}
-              >
-                <Card
-                  card={card}
-                  selected={selected.includes(idx)}
-                  highlight={highlight}
-                  disabled={!isPlayable}
-                  onPress={() => {
-                    // Prevent selecting cards if the owner of this hand has already passed
-                    const ownerIdForHand = currentIsLocalHuman ? current.id : humanPlayer?.id;
-                    if (ownerIdForHand && hasPassedInCurrentTrick(state, ownerIdForHand)) {
-                      // ignore taps for players who have passed this trick
-                      emitDebug("ui:select:blocked:passed", { playerId: ownerIdForHand });
-                      return;
-                    }
-                    setFocused(idx);
-                    const tappedValue = card.value;
-                    const currentSelected = selected.slice();
-                    const pileCount = state.pile.length;
-                    const sameAll = hand
-                      .map((h, i) => (h.value === tappedValue ? i : -1))
-                      .filter((x) => x !== -1) as number[];
-
-                    if (pileCount === 0) {
-                      // if nothing on table, select all of same rank (original behavior)
-                      if (currentSelected.length === 0) {
-                        setSelected(sameAll);
-                      } else {
-                        const selectedRank = hand[currentSelected[0]]?.value;
-                        if (selectedRank === tappedValue) {
-                          setSelected((s) =>
-                            s.includes(idx)
-                              ? s.filter((x) => x !== idx)
-                              : [...s, idx],
-                          );
-                        } else {
-                          setSelected(sameAll);
-                        }
-                      }
-                    } else {
-                      // when the pile has N cards, by default select exactly N of the same rank
-                      // but allow the user to toggle additional same-rank cards (e.g., close to a quad)
-                      const take = Math.min(pileCount, sameAll.length);
-
-                      // if user already has selection of this rank, toggle this index
-                      const selectedRank =
-                        currentSelected.length > 0
-                          ? hand[currentSelected[0]]?.value
-                          : null;
-                      if (selectedRank === tappedValue) {
-                        // toggle this tapped index in selection
-                        if (currentSelected.includes(idx)) {
-                          setSelected((s) => s.filter((x) => x !== idx));
-                        } else {
-                          setSelected((s) => [...s, idx]);
-                        }
-                      } else {
-                        // initial selection for this rank: pick the first `take` indices
-                        const selection = sameAll.slice(0, take);
-                        setSelected(selection);
-                      }
-                    }
-                  }}
-                />
-              </View>
-            );
-          })}
-        </ScrollView>
-
-        {/* End-game results panel is now embedded in the bottom bar */}
-
-        <View style={local.actions}>
+        {/* Debug controls to help unblock stuck CPU turns */}
+        <View style={{ flexDirection: 'row', marginTop: 8, gap: 8 }}>
           <TouchableOpacity
             onPress={() => {
-              if (roundOver) {
-                // During round over, Play is disabled — no-op
-                return;
-              }
-
-              // During normal play: play selected cards
-              const actor = isHumanTurn ? current : humanPlayer;
-              if (!isHumanTurn || !actor) return;
-              // prevent playing if this actor already passed in the current trick
-              if (hasPassedInCurrentTrick(state, actor.id)) {
-                emitDebug("action:play:blocked", { playerId: actor.id, reason: "already passed" });
-                return;
-              }
-              const cards = selected.map((i) => hand[i]);
-              emitDebug("action:play:human:attempt", {
-                playerId: actor.id,
-                playerName: actor.name,
-                cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
-                before: snapshotState(state),
-              });
-              const cardStr = cards
-                .map((c) => {
-                  const suit = {
-                    hearts: "♥",
-                    diamonds: "♦",
-                    clubs: "♣",
-                    spades: "♠",
-                    joker: "★",
-                  }[c.suit];
-                  const val =
-                    c.value === 11
-                      ? "J"
-                      : c.value === 12
-                        ? "Q"
-                        : c.value === 13
-                          ? "K"
-                          : c.value === 14
-                            ? "A"
-                            : c.value === 15
-                              ? "JOKER"
-                              : String(c.value);
-                  return `${val}${suit}`;
-                })
-                .join(", ");
-              console.log(`You playing: ${cardStr}`);
-              const next = playCards(state, actor.id, cards);
-              // playCards returns the same `state` object when validation fails
-              if (next === state) {
-                emitDebug("action:play:human:failed", {
-                  playerId: actor.id,
-                  playerName: actor.name,
-                  cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
-                  reason: "invalid play",
-                  before: snapshotState(state),
-                });
-              } else {
-                emitDebug("action:play:human:success", {
-                  playerId: actor.id,
-                  playerName: actor.name,
-                  cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
-                  after: snapshotState(next),
-                });
-                setSelected([]);
-                setState(next);
-              }
+              try { const next = passTurn(state, current.id); setState(next); console.log('[DBG] forced pass applied'); } catch (e) { console.warn(e); }
             }}
-            style={[
-              local.actionButton,
-              local.actionButtonPrimary,
-              (!isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id)) ? { opacity: 0.4 } : null,
-            ]}
-            disabled={!isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id)}
+            style={{ padding: 8, backgroundColor: '#333', borderRadius: 8 }}
           >
-            <Text style={local.actionText}>
-              {`Play Selected (${selected.length})`}
-            </Text>
+            <Text style={{ color: '#d4af37', fontWeight: '700' }}>Force Pass</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => {
-              if (roundOver) {
-                // During round over, Pass is disabled — no-op
-                return;
-              }
-
-              // During normal play: pass
-              const actor = isHumanTurn ? current : humanPlayer;
-              if (!isHumanTurn || !actor) return;
-              // prevent double-pass: if actor already passed, ignore
-              if (hasPassedInCurrentTrick(state, actor.id)) {
-                emitDebug("action:pass:blocked", { playerId: actor.id, reason: "already passed" });
-                return;
-              }
-              console.log(`You passed`);
-              emitDebug("action:pass:human:attempt", {
-                playerId: actor.id,
-                playerName: actor.name,
-                before: snapshotState(state),
-              });
-              const next = passTurn(state, actor.id);
-              if (next === state) {
-                emitDebug("action:pass:human:failed", {
-                  playerId: actor.id,
-                  playerName: actor.name,
-                  reason: "cannot pass (mustPlay or invalid)",
-                  before: snapshotState(state),
-                });
-              } else {
-                emitDebug("action:pass:human:success", {
-                  playerId: actor.id,
-                  playerName: actor.name,
-                  after: snapshotState(next),
-                });
-                setState(next);
-              }
+              try { const nextIdx = nextActivePlayerIndex(state, state.currentPlayerIndex); setState({ ...state, currentPlayerIndex: nextIdx }); console.log('[DBG] forced advance to', nextIdx); } catch (e) { console.warn(e); }
             }}
-            style={[
-              local.actionButton,
-              local.actionButtonSecondary,
-              (!isHumanTurn || roundOver)
-                ? { opacity: 0.4 }
-                : state.mustPlay
-                  ? { opacity: 0.9 }
-                  : null,
-            ]}
-            disabled={!isHumanTurn || roundOver}
+            style={{ padding: 8, backgroundColor: '#333', borderRadius: 8 }}
           >
-            <Text style={local.actionText}>
-              {'Pass'}
-            </Text>
+            <Text style={{ color: '#d4af37', fontWeight: '700' }}>Advance</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => {
-              if (onBack) onBack();
-            }}
-            style={[local.actionButton, local.actionButtonTertiary]}
+            onPress={() => console.log('[DBG] state dump', JSON.parse(JSON.stringify(state)))}
+            style={{ padding: 8, backgroundColor: '#333', borderRadius: 8 }}
           >
-            <Text style={local.actionText}>
-              {'Quit'}
-            </Text>
+            <Text style={{ color: '#d4af37', fontWeight: '700' }}>Log State</Text>
           </TouchableOpacity>
         </View>
 
