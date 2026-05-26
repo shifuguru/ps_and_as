@@ -6,7 +6,7 @@ import FindGame from "./src/screens/FindGame";
 import GameScreen from "./src/screens/GameScreen";
 import Achievements from "./src/screens/Achievements";
 import Settings from "./src/screens/Settings";
-import MoreMenu from "./src/screens/MoreMenu";
+
 import { useMenuAudio } from "./src/hooks/useMenuAudio";
 import MenuIcon from "./src/components/MenuIcon";
 import AnimatedBackground from "./src/components/AnimatedBackground";
@@ -21,7 +21,7 @@ export default function App() {
   const [splashVisible, setSplashVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const { playEffect, toggleMute, isMuted, muted } = useMenuAudio();
-  const [screen, setScreen] = useState<"menu" | "create" | "find" | "game" | "achievements" | "settings" | "more">("menu");
+  const [screen, setScreen] = useState<"menu" | "create" | "find" | "game" | "achievements" | "settings">("menu");
   const [lobbyPlayers, setLobbyPlayers] = useState<string[] | null>(null);
   const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
@@ -65,32 +65,7 @@ export default function App() {
     });
   };
 
-  const primaryButtons: { label: string; icon: "plus" | "shuffle" | "person" | "ellipsis"; action: () => void }[] = [
-    {
-      label: "Create Game",
-      icon: "plus",
-      action: () => setScreen("create"),
-    },
-    {
-      label: "Random Game",
-      icon: "shuffle",
-      action: () => {
-        const rnd = ["You", "CPU 1", "CPU 2", "CPU 3"];
-        setLobbyPlayers(rnd);
-        setScreen("game");
-      },
-    },
-    {
-      label: "Local",
-      icon: "person",
-      action: () => setScreen("create"),
-    },
-    {
-      label: "More",
-      icon: "ellipsis",
-      action: () => setScreen("more"),
-    },
-  ];
+
   const [wallpaperSource, setWallpaperSource] = useState<any>(require("./assets/ps_and_as_bg.png"));
   const [wallpaperTint, setWallpaperTint] = useState<string | null>(null);
   const [wallpaperRawUri, setWallpaperRawUri] = useState<string | null>(null);
@@ -148,44 +123,83 @@ export default function App() {
           </Animated.View>
         )}
 
-        {/* Main menu — consolidated with icons */}
+        {/* Main menu — three-tier hierarchy */}
         {menuVisible && screen === "menu" && (
           <Animated.View style={[styles.menuContainer, { opacity: menuOpacity }]}>
             <Text style={[styles.title, { fontFamily: Platform.OS === 'ios' ? 'Snell Roundhand' : "'Georgia', 'Palatino Linotype', 'Book Antiqua', serif", fontSize: 48, fontStyle: 'italic', marginTop: 120 }]}>P's & A's</Text>
             <Text style={styles.subtitle}>Created by Michael Drury.</Text>
 
             <View style={styles.buttonGroup}>
-              {primaryButtons.map((btn, i) => (
+              {/* Tier 1 — Primary action */}
+              <TouchableOpacity
+                style={menuTiers.primary}
+                onPress={() => { playEffect("click"); setScreen("create"); }}
+              >
+                <View style={menuTiers.row}>
+                  <MenuIcon name="plus" size={22} color="#111" />
+                  <Text style={menuTiers.primaryText}>Create Game</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Tier 2 — Secondary actions */}
+              <View style={menuTiers.secondaryRow}>
                 <TouchableOpacity
-                  key={i}
-                  style={[styles.menuButton, localMenuStyles.menuRow]}
+                  style={menuTiers.secondary}
+                  onPress={() => { playEffect("click"); setScreen("find"); }}
+                >
+                  <View style={menuTiers.row}>
+                    <MenuIcon name="globe" size={18} color="#d4af37" />
+                    <Text style={menuTiers.secondaryText}>Find Game</Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={menuTiers.secondary}
                   onPress={() => {
                     playEffect("click");
-                    btn.action();
+                    const rnd = ["You", "CPU 1", "CPU 2", "CPU 3"];
+                    setLobbyPlayers(rnd);
+                    setScreen("game");
                   }}
                 >
-                  <View style={localMenuStyles.iconWrap}>
-                    <MenuIcon name={btn.icon} size={20} color="#d4af37" />
+                  <View style={menuTiers.row}>
+                    <MenuIcon name="shuffle" size={18} color="#d4af37" />
+                    <Text style={menuTiers.secondaryText}>Random Game</Text>
                   </View>
-                  <Text style={styles.menuButtonText}>{btn.label}</Text>
                 </TouchableOpacity>
-              ))}
+              </View>
+
+              {/* Tier 3 — Utility actions */}
+              <View style={menuTiers.utilityRow}>
+                <TouchableOpacity
+                  style={menuTiers.utility}
+                  onPress={() => { playEffect("click"); setScreen("create"); }}
+                >
+                  <MenuIcon name="person" size={20} color="#d4af37" />
+                  <Text style={menuTiers.utilityText}>Pass & Play</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={menuTiers.utility}
+                  onPress={() => { playEffect("click"); setScreen("achievements"); }}
+                >
+                  <MenuIcon name="trophy" size={20} color="#d4af37" />
+                  <Text style={menuTiers.utilityText}>Achievements</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={menuTiers.utility}
+                  onPress={() => { playEffect("click"); setScreen("settings"); }}
+                >
+                  <MenuIcon name="gear" size={20} color="#d4af37" />
+                  <Text style={menuTiers.utilityText}>Settings</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </Animated.View>
         )}
         {menuVisible && screen === "achievements" && (
-          <Achievements onBack={() => setScreen("more")} />
+          <Achievements onBack={() => setScreen("menu")} />
         )}
         {menuVisible && screen === "settings" && (
-          <Settings onWallpaperChange={() => reloadWallpaper()} onBack={() => setScreen("more")} />
-        )}
-        {menuVisible && screen === "more" && (
-          <MoreMenu
-            onBack={() => setScreen("menu")}
-            onFindGame={() => setScreen("find")}
-            onAchievements={() => setScreen("achievements")}
-            onSettings={() => setScreen("settings")}
-          />
+          <Settings onWallpaperChange={() => reloadWallpaper()} onBack={() => setScreen("menu")} />
         )}
         {menuVisible && screen === "create" && (
           <CreateGame 
@@ -223,7 +237,7 @@ export default function App() {
           discoveryAdapter ? (
             <FindGame 
               adapter={discoveryAdapter} 
-              onBack={() => setScreen("more")}
+              onBack={() => setScreen("menu")}
               onNavigateToAchievements={() => setScreen("achievements")}
               onJoinRoom={(roomId, playerName) => {
                 // Create a new adapter for this specific room with auto-join enabled
@@ -264,15 +278,76 @@ export default function App() {
   );
 }
 
-const localMenuStyles = StyleSheet.create({
-  menuRow: {
+const menuTiers = StyleSheet.create({
+  row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },
-  iconWrap: {
-    marginRight: 12,
-    width: 24,
+  // Tier 1 — Primary
+  primary: {
+    backgroundColor: "#d4af37",
+    borderRadius: 14,
+    paddingVertical: 18,
     alignItems: "center",
+    marginBottom: 14,
+    shadowColor: "#d4af37",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+  },
+  primaryText: {
+    color: "#111",
+    fontSize: 19,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.8,
+    marginLeft: 10,
+  },
+  // Tier 2 — Secondary
+  secondaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+    gap: 10,
+  },
+  secondary: {
+    flex: 1,
+    backgroundColor: "rgba(20, 20, 20, 0.85)",
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.15)",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  secondaryText: {
+    color: "#f0f0f0",
+    fontSize: 14,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    marginLeft: 8,
+  },
+  // Tier 3 — Utility
+  utilityRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
+    paddingTop: 16,
+    gap: 24,
+  },
+  utility: {
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  utilityText: {
+    color: "rgba(240, 240, 240, 0.5)",
+    fontSize: 11,
+    fontWeight: "500",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginTop: 6,
   },
 });
