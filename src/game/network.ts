@@ -15,6 +15,8 @@ export interface NetworkAdapter {
   on(event: "message", cb: (ev: NetworkEvent) => void): void;
 }
 
+export type LobbyMember = { id: string; name: string; ready?: boolean };
+
 export interface Player {
   id: string;
   name: string;

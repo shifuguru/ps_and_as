@@ -64,7 +64,7 @@ export default function MainMenu({ buttons, onButtonPress, style }: Props) {
 
   return (
     <ScreenContainer ignoreHeaderOffset style={[{ flex: 1 }, style]}>
-      <FeltBackground />
+      {Platform.OS !== "web" ? <FeltBackground /> : null}
 
       <ScrollView
         style={styles.scroll}

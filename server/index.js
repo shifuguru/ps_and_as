@@ -5,15 +5,21 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({ origin: true, credentials: false }));
 
 // Simple health endpoint
 app.get('/', (req, res) => res.send('Server is running...\n'));
 
 const server = http.createServer(app);
 
-// io instance with permissive CORS for clients on LAN/dev
-const io = new Server(server, { cors: { origin: '*', credentials: true } });
+// io instance — reflect client origin (required when credentials are enabled; '*' is invalid)
+const io = new Server(server, {
+  cors: {
+    origin: true,
+    credentials: false,
+    methods: ["GET", "POST"],
+  },
+});
 
 // Debugging: log engine and socket connection errors to help diagnose websocket/xhr issues
 io.engine.on && io.engine.on('connection_error', (err) => {
@@ -25,7 +31,7 @@ io.on && io.on('connect_error', (err) => {
 });
 
 // PORT and HOST
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 // Simple room-based lobby

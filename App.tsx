@@ -11,8 +11,13 @@ import { useMenuAudio } from "./src/hooks/useMenuAudio";
 import AnimatedBackground from "./src/components/AnimatedBackground";
 import { SocketAdapter } from "./src/game/socketAdapter";
 import { MockAdapter } from "./src/game/network";
+import type { LobbyMember } from "./src/game/network";
+import { isSocketAdapter } from "./src/game/socketAdapter";
 import { getOrCreatePlayerId } from "./src/services/gameCenter";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import FeltBackground from "./src/components/FeltBackground";
+import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
+import { tryCollapseSafariChrome } from "./src/utils/safariChrome";
 
 export default function App() {
   // splashVisible: whether the splash overlay is still mounted
@@ -21,7 +26,7 @@ export default function App() {
   const [menuVisible, setMenuVisible] = useState(false);
   const { playEffect, toggleMute, isMuted, muted } = useMenuAudio();
   const [screen, setScreen] = useState<"menu" | "create" | "find" | "game" | "achievements" | "settings">("menu");
-  const [lobbyPlayers, setLobbyPlayers] = useState<string[] | null>(null);
+  const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[] | null>(null);
   const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
   const [roomAdapter, setRoomAdapter] = useState<SocketAdapter | null>(null);
@@ -29,14 +34,27 @@ export default function App() {
   // MockAdapter instance between screens and avoid multiple adapters/logs.
   const [localAdapter, setLocalAdapter] = useState<any | null>(null);
   const [joinedRoomId, setJoinedRoomId] = useState<string | null>(null);
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [isOnlineGame, setIsOnlineGame] = useState(false);
+
+  const disconnectRoom = () => {
+    try {
+      roomAdapter?.disconnect();
+    } catch {
+      /* ignore */
+    }
+    setRoomAdapter(null);
+    setJoinedRoomId(null);
+    setActiveRoomId(null);
+  };
+
   // Discovery adapter is created lazily only when viewing the Find Game screen so
   // we don't attempt network connections while the user is in offline/local flows.
   const discoveryAdapter = useMemo(() => {
     if (screen !== "find") return null;
     try {
       console.log("[App] Creating network adapter for discovery only...");
-      // Discovery adapter should NOT auto-join any room
-      return new SocketAdapter("http://192.168.88.138:3000", "", "", false);
+      return new SocketAdapter(undefined, "", "", false);
     } catch (e) {
       console.error("[App] Failed to create network adapter:", e);
       return null;
@@ -55,6 +73,7 @@ export default function App() {
       // after animation completes remove splash and show menu
       setSplashVisible(false);
       setMenuVisible(true);
+      tryCollapseSafariChrome();
       // Fade in the menu
       Animated.timing(menuOpacity, {
         toValue: 1.0,
@@ -69,7 +88,13 @@ export default function App() {
     const hostName = playerInfo.displayName || "Player";
     setLocalPlayerName(hostName);
     setLocalPlayerId(playerInfo.id);
-    setLobbyPlayers([hostName, "CPU 1", "CPU 2", "CPU 3"]);
+    setLobbyMembers([
+      { id: "1", name: hostName },
+      { id: "2", name: "CPU 1" },
+      { id: "3", name: "CPU 2" },
+      { id: "4", name: "CPU 3" },
+    ]);
+    setIsOnlineGame(false);
     try {
       const m = new MockAdapter();
       setLocalAdapter(m);
@@ -90,7 +115,12 @@ export default function App() {
     {
       label: "Create Game",
       icon: "plus",
-      action: () => setScreen("create"),
+      action: () => {
+        disconnectRoom();
+        setIsOnlineGame(false);
+        setRoomAdapter(new SocketAdapter(undefined, "", "", false));
+        setScreen("create");
+      },
     },
     {
       label: "Random Game",
@@ -102,7 +132,11 @@ export default function App() {
     {
       label: "Local",
       icon: "person",
-      action: () => setScreen("create"),
+      action: () => {
+        disconnectRoom();
+        setIsOnlineGame(false);
+        setScreen("create");
+      },
     },
     {
       label: "Find Game",
@@ -197,9 +231,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
     <View style={[{ flex: 1 }, Platform.OS === "web" && appStyles.webRoot]}>
+        {/* Full-bleed felt on web — paints under notch & Safari URL bar */}
+        {Platform.OS === "web" && <FeltBackground fullBleed />}
+
         {/* Menu / lobby background — game & menu use their own felt layer */}
         {screen !== "game" &&
           screen !== "create" &&
+          screen !== "find" &&
           screen !== "menu" && <AnimatedBackground />}
 
         {/* Splash overlay (kept mounted until hide animation finishes) */}
@@ -207,6 +245,7 @@ export default function App() {
           <Animated.View
             style={[
               StyleSheet.absoluteFillObject,
+              WEB_SPLASH_OVERLAY,
               {
                 justifyContent: "center",
                 alignItems: "center",
@@ -240,32 +279,35 @@ export default function App() {
         {menuVisible && screen === "create" && (
           <CreateGame 
             adapter={roomAdapter || undefined} 
-            isJoining={!!roomAdapter}
+            isJoining={!!roomAdapter && !!joinedRoomId}
             joinRoomId={joinedRoomId || undefined}
+            onRoomReady={(roomId) => setActiveRoomId(roomId)}
             onBack={() => {
+              disconnectRoom();
+              setIsOnlineGame(false);
               setScreen("menu");
-              setRoomAdapter(null);
-              setJoinedRoomId(null);
             }}
             onNavigateToAchievements={() => setScreen("achievements")}
-            onStart={(names, localName, localId) => {
-              console.log("[App] CreateGame onStart called with names:", names, "localName:", localName, "localId:", localId);
-              setLobbyPlayers(names); 
+            onStart={(members, localName, localSocketId) => {
+              console.log("[App] CreateGame onStart:", members, localName, localSocketId);
+              setLobbyMembers(members);
               setLocalPlayerName(localName);
-              // store device-local player id (if provided)
-              if (localId) setLocalPlayerId(localId);
-              // Create a shared MockAdapter for local/offline games so the GameScreen
-              // doesn't create its own adapter instance (which made logs interleaved)
-              try {
-                const m = new MockAdapter();
-                setLocalAdapter(m);
-              } catch (e) {
-                console.warn('[App] Failed to create MockAdapter:', e);
+              if (localSocketId) setLocalPlayerId(localSocketId);
+              const online = isSocketAdapter(roomAdapter);
+              setIsOnlineGame(online);
+              if (online) {
                 setLocalAdapter(null);
+              } else {
+                disconnectRoom();
+                try {
+                  const m = new MockAdapter();
+                  setLocalAdapter(m);
+                } catch (e) {
+                  console.warn("[App] Failed to create MockAdapter:", e);
+                  setLocalAdapter(null);
+                }
               }
               setScreen("game");
-              setRoomAdapter(null);
-              setJoinedRoomId(null);
             }} 
           />
         )}
@@ -276,10 +318,12 @@ export default function App() {
               onBack={() => setScreen("menu")}
               onNavigateToAchievements={() => setScreen("achievements")}
               onJoinRoom={(roomId, playerName) => {
-                // Create a new adapter for this specific room with auto-join enabled
-                const newAdapter = new SocketAdapter("http://192.168.88.138:3000", roomId, playerName, true);
-                setRoomAdapter(newAdapter);
+                setRoomAdapter(
+                  new SocketAdapter(undefined, roomId, playerName, true),
+                );
                 setJoinedRoomId(roomId);
+                setActiveRoomId(roomId);
+                setIsOnlineGame(true);
                 setScreen("create");
               }} 
             />
@@ -300,13 +344,25 @@ export default function App() {
         )}
         {menuVisible && screen === "game" && (
           <GameScreen 
-            initialPlayers={lobbyPlayers ?? undefined}
+            initialLobbyPlayers={lobbyMembers ?? undefined}
             localPlayerName={localPlayerName ?? undefined}
-            // pass device id (if we have it) so logs can include the device id
             localPlayerId={localPlayerId ?? undefined}
-            // pass a shared mock adapter for local games to avoid multiple adapters/log interleaving
-            adapter={localAdapter ?? undefined}
-            onBack={() => setScreen("menu")}
+            adapter={
+              isOnlineGame && roomAdapter
+                ? roomAdapter
+                : localAdapter ?? undefined
+            }
+            roomId={activeRoomId ?? joinedRoomId ?? undefined}
+            onBack={() => {
+              if (isOnlineGame && activeRoomId && roomAdapter) {
+                roomAdapter.leaveRoom(activeRoomId);
+              }
+              disconnectRoom();
+              setIsOnlineGame(false);
+              setLobbyMembers(null);
+              setLocalAdapter(null);
+              setScreen("menu");
+            }}
           />
         )}
     </View>

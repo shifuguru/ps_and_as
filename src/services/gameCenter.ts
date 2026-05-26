@@ -1,17 +1,10 @@
-// GameCenter integration for player identification
-// Uses react-native-cross-platform-game-services for iOS GameCenter and Google Play Games
-
-let GameServices: any = null;
-let isAvailable = false;
-
-// Try to load GameServices dynamically
-try {
-  GameServices = require("react-native-cross-platform-game-services").default;
-  isAvailable = true;
-  console.log("[GameCenter] GameServices module loaded successfully");
-} catch (e) {
-  console.warn("[GameCenter] Not available (react-native-cross-platform-game-services not installed)");
-}
+// Game Center integration (iOS) via expo-game-center, with local fallback elsewhere.
+import { Platform } from "react-native";
+import ExpoGameCenter, { GameCenterService } from "expo-game-center";
+import {
+  GAME_CENTER_ACHIEVEMENTS,
+  GAME_CENTER_LEADERBOARDS,
+} from "../config/gameCenterIds";
 
 export interface PlayerInfo {
   id: string;
@@ -20,195 +13,198 @@ export interface PlayerInfo {
   source: "gamecenter" | "fallback";
 }
 
-/**
- * Authenticate with GameCenter and get player info
- */
-export async function authenticatePlayer(): Promise<PlayerInfo> {
-  if (!isAvailable || !GameServices) {
-    console.log("[GameCenter] Using fallback authentication");
-    return getFallbackPlayerInfo();
+let gcService: GameCenterService | null = null;
+
+function getGameCenterService(): GameCenterService {
+  if (!gcService) {
+    gcService = new GameCenterService({
+      achievements: GAME_CENTER_ACHIEVEMENTS,
+      leaderboards: GAME_CENTER_LEADERBOARDS,
+      enableLogging: __DEV__,
+    });
   }
-
-  try {
-    console.log("[GameCenter] Attempting authentication...");
-    
-    // Sign in to GameCenter/Play Games
-    const signInResult = await GameServices.signIn();
-    console.log("[GameCenter] Sign in result:", signInResult);
-    
-    if (!signInResult || !signInResult.success) {
-      console.log("[GameCenter] Sign in not successful, using fallback");
-      return getFallbackPlayerInfo();
-    }
-
-    // Get current player info
-    const player = await GameServices.getCurrentPlayer();
-    console.log("[GameCenter] Current player:", player);
-
-    if (player && player.playerId) {
-      return {
-        id: player.playerId,
-        displayName: player.displayName || player.alias || "Player",
-        isAuthenticated: true,
-        source: "gamecenter"
-      };
-    }
-
-    console.log("[GameCenter] No player info available, using fallback");
-    return getFallbackPlayerInfo();
-  } catch (error) {
-    console.warn("[GameCenter] Authentication failed:", error);
-    return getFallbackPlayerInfo();
-  }
+  return gcService;
 }
 
-/**
- * Check if player is authenticated without prompting
- */
-export async function isPlayerAuthenticated(): Promise<boolean> {
-  if (!isAvailable || !GameServices) {
-    return false;
-  }
-
-  try {
-    const player = await GameServices.getCurrentPlayer();
-    return !!(player && player.playerId);
-  } catch (error) {
-    console.warn("[GameCenter] Failed to check authentication:", error);
-    return false;
-  }
+export function isGameCenterPlatformSupported(): boolean {
+  return GameCenterService.isPlatformSupported();
 }
 
-/**
- * Get fallback player info when GameCenter is not available
- */
-function getFallbackPlayerInfo(): PlayerInfo {
-  const deviceId = generateDeviceId();
-  console.log("[GameCenter] Using fallback ID:", deviceId);
-  
+async function ensureDeviceId(): Promise<string> {
+  const cached = await getCachedPlayerId();
+  if (cached) return cached;
+  const id = `device-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+  await cachePlayerId(id);
+  return id;
+}
+
+async function playerInfoFromLocalPlayer(
+  player: { playerID: string; displayName: string; alias: string },
+  cachedName: string | null,
+): Promise<PlayerInfo> {
+  await cachePlayerId(player.playerID);
+  const displayName =
+    cachedName || player.displayName || player.alias || "Player";
+  if (!cachedName && displayName) {
+    await cachePlayerName(displayName);
+  }
   return {
-    id: deviceId,
-    displayName: "Player",
-    isAuthenticated: false,
-    source: "fallback"
+    id: player.playerID,
+    displayName,
+    isAuthenticated: true,
+    source: "gamecenter",
   };
 }
 
 /**
- * Generate a semi-persistent device ID
- * Uses AsyncStorage to maintain same ID across app sessions
+ * Authenticate with Game Center (shows system UI if needed).
  */
-function generateDeviceId(): string {
-  // For now, generate a random ID
-  // In production, this should be stored in AsyncStorage
-  const id = `device-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  return id;
+export async function authenticatePlayer(): Promise<PlayerInfo> {
+  if (!isGameCenterPlatformSupported()) {
+    return getOrCreatePlayerId();
+  }
+
+  try {
+    const available = await ExpoGameCenter.isGameCenterAvailable();
+    if (!available) {
+      return getOrCreatePlayerId();
+    }
+
+    const authenticated = await ExpoGameCenter.authenticateLocalPlayer();
+    if (!authenticated) {
+      return getOrCreatePlayerId();
+    }
+
+    const player = await ExpoGameCenter.getLocalPlayer();
+    if (player?.playerID) {
+      const cachedName = await getCachedPlayerName();
+      return playerInfoFromLocalPlayer(player, cachedName);
+    }
+  } catch (error) {
+    console.warn("[GameCenter] Authentication failed:", error);
+  }
+
+  return getOrCreatePlayerId();
 }
 
 /**
- * Get cached player ID from AsyncStorage
+ * Check if player is authenticated without prompting.
  */
-export async function getCachedPlayerId(): Promise<string | null> {
+export async function isPlayerAuthenticated(): Promise<boolean> {
+  if (!isGameCenterPlatformSupported()) return false;
+
   try {
-    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
-    const cachedId = await AsyncStorage.getItem("@player_id");
-    console.log("[GameCenter] Cached player ID:", cachedId);
-    return cachedId;
-  } catch (e) {
-    console.warn("[GameCenter] Failed to get cached ID:", e);
-    return null;
+    const player = await ExpoGameCenter.getLocalPlayer();
+    return !!(player && player.playerID);
+  } catch {
+    return false;
   }
 }
 
 /**
- * Save player ID to AsyncStorage
- */
-export async function cachePlayerId(id: string): Promise<void> {
-  try {
-    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
-    await AsyncStorage.setItem("@player_id", id);
-    console.log("[GameCenter] Cached player ID:", id);
-  } catch (e) {
-    console.warn("[GameCenter] Failed to cache ID:", e);
-  }
-}
-
-/**
- * Get cached player name from AsyncStorage
- */
-export async function getCachedPlayerName(): Promise<string | null> {
-  try {
-    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
-    const cachedName = await AsyncStorage.getItem("@player_name");
-    console.log("[GameCenter] Cached player name:", cachedName);
-    return cachedName;
-  } catch (e) {
-    console.warn("[GameCenter] Failed to get cached name:", e);
-    return null;
-  }
-}
-
-/**
- * Save player name to AsyncStorage
- */
-export async function cachePlayerName(name: string): Promise<void> {
-  try {
-    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
-    await AsyncStorage.setItem("@player_name", name);
-    console.log("[GameCenter] Cached player name:", name);
-  } catch (e) {
-    console.warn("[GameCenter] Failed to cache name:", e);
-  }
-}
-
-/**
- * Get or create a persistent player ID
- * Priority: Cached Name (user preference) > GameCenter ID + Name > Generated ID
+ * Get or create a persistent player ID without prompting for Game Center sign-in.
  */
 export async function getOrCreatePlayerId(): Promise<PlayerInfo> {
-  // Check for cached name first (user's explicit preference)
   const cachedName = await getCachedPlayerName();
-  
-  // Try GameCenter for ID (but respect cached name if set)
-  const playerInfo = await authenticatePlayer();
-  
-  if (playerInfo.source === "gamecenter") {
-    await cachePlayerId(playerInfo.id);
-    // Only cache GameCenter name if user hasn't manually set one
-    if (!cachedName) {
-      await cachePlayerName(playerInfo.displayName);
+
+  if (isGameCenterPlatformSupported()) {
+    try {
+      const available = await ExpoGameCenter.isGameCenterAvailable();
+      if (available) {
+        const player = await ExpoGameCenter.getLocalPlayer();
+        if (player?.playerID) {
+          return playerInfoFromLocalPlayer(player, cachedName);
+        }
+      }
+    } catch {
+      // fall through to local profile
     }
-    return {
-      id: playerInfo.id,
-      displayName: cachedName || playerInfo.displayName, // User's manual name takes priority
-      isAuthenticated: true,
-      source: "gamecenter"
-    };
   }
 
-  // Try cached ID and name
   const cachedId = await getCachedPlayerId();
-  
   if (cachedId) {
     return {
       id: cachedId,
       displayName: cachedName || "Player",
       isAuthenticated: false,
-      source: "fallback"
+      source: "fallback",
     };
   }
 
-  // Generate new ID and cache it
-  const newId = generateDeviceId();
-  await cachePlayerId(newId);
-  
+  const newId = await ensureDeviceId();
   return {
     id: newId,
     displayName: cachedName || "Player",
     isAuthenticated: false,
-    source: "fallback"
+    source: "fallback",
   };
 }
+
+export async function getCachedPlayerId(): Promise<string | null> {
+  try {
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    return await AsyncStorage.getItem("@player_id");
+  } catch {
+    return null;
+  }
+}
+
+export async function cachePlayerId(id: string): Promise<void> {
+  try {
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    await AsyncStorage.setItem("@player_id", id);
+  } catch {
+    // ignore
+  }
+}
+
+export async function getCachedPlayerName(): Promise<string | null> {
+  try {
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    return await AsyncStorage.getItem("@player_name");
+  } catch {
+    return null;
+  }
+}
+
+export async function cachePlayerName(name: string): Promise<void> {
+  try {
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    await AsyncStorage.setItem("@player_name", name);
+  } catch {
+    // ignore
+  }
+}
+
+/** Present native Game Center achievements UI (iOS). */
+export async function showGameCenterAchievements(): Promise<void> {
+  if (!isGameCenterPlatformSupported()) return;
+  const service = getGameCenterService();
+  await service.initialize();
+  if (!service.isReady()) {
+    const ok = await service.authenticate();
+    if (!ok) return;
+  }
+  await service.showAchievements();
+}
+
+/** Present native Game Center leaderboards UI (iOS). */
+export async function showGameCenterLeaderboards(): Promise<void> {
+  if (!isGameCenterPlatformSupported()) return;
+  const service = getGameCenterService();
+  await service.initialize();
+  if (!service.isReady()) {
+    const ok = await service.authenticate();
+    if (!ok) return;
+  }
+  await service.showGameCenter();
+}
+
+export { getGameCenterService };
 
 export const gameCenterService = {
   authenticatePlayer,
@@ -217,5 +213,8 @@ export const gameCenterService = {
   getCachedPlayerId,
   cachePlayerId,
   getCachedPlayerName,
-  cachePlayerName
+  cachePlayerName,
+  showGameCenterAchievements,
+  showGameCenterLeaderboards,
+  isGameCenterPlatformSupported,
 };

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Image,
   ImageBackground,
@@ -10,29 +10,38 @@ import {
   DEFAULT_FELT_COLOR,
   FELT_WALLPAPER,
 } from "../services/wallpaper";
+import { WEB_FULL_BLEED_FIXED, ensureWebFeltBackdrop } from "../styles/webFullBleed";
 
 type Props = {
   tint?: string;
+  /** On web, extend under the notch and browser chrome (default true). */
+  fullBleed?: boolean;
 };
 
-const webFill =
-  Platform.OS === "web"
-    ? ({
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: "100%",
-        height: "100%",
-      } as object)
-    : null;
+export default function FeltBackground({
+  tint = DEFAULT_FELT_COLOR,
+  fullBleed = true,
+}: Props) {
+  useEffect(() => {
+    if (Platform.OS === "web" && fullBleed) {
+      ensureWebFeltBackdrop(tint);
+    }
+  }, [tint, fullBleed]);
 
-export default function FeltBackground({ tint = DEFAULT_FELT_COLOR }: Props) {
   if (Platform.OS === "web") {
+    const bleed = fullBleed ? WEB_FULL_BLEED_FIXED : null;
     return (
       <View
-        style={[StyleSheet.absoluteFill, webFill, { backgroundColor: tint }]}
+        style={[
+          bleed ?? {
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          },
+          { backgroundColor: tint },
+        ]}
         pointerEvents="none"
       >
         <Image
@@ -73,9 +82,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     left: 0,
+    right: 0,
+    bottom: 0,
     width: "100%",
     height: "100%",
-    // RN Web passes this through to the DOM img element
     objectFit: "cover",
   } as object,
 });

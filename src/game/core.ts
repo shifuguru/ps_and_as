@@ -33,7 +33,7 @@ export type GameState = {
   pileOwners?: string[]; // parallel array to pileHistory recording which player played each entry
   tableStacks?: Card[][]; // completed trick plays stacked/face-down
   tableStackOwners?: (string | null)[];
-  passCount: number; // consecutive passes
+  passCount: number; // distinct passes recorded in the current trick
   finishedOrder: string[]; // player ids in order they finished
   started: boolean;
   lastPlayPlayerIndex?: number | null;
@@ -59,12 +59,26 @@ export type GameState = {
   };
 };
 
-export function createGame(playerNames: string[]): GameState {
-  const players: Player[] = playerNames.map((n, i) => ({ id: String(i + 1), name: n, hand: [], role: "Neutral" }));
+/** Keep passCount aligned with distinct pass actions in the current trick. */
+function syncPassCountFromTrick(state: GameState): void {
+  if (!state.currentTrick?.actions?.length) {
+    state.passCount = 0;
+    return;
+  }
+  const passedIds = new Set(
+    state.currentTrick.actions
+      .filter((a) => a.type === "pass")
+      .map((a) => a.playerId),
+  );
+  state.passCount = passedIds.size;
+}
+
+function buildInitialGameState(players: Player[]): GameState {
   const deck = shuffleDeck(createDeck());
   dealCards(deck, players);
-  // Determine who has the 3 of clubs — that player starts. If none, default to 0.
-  const threeOfClubsIndex = players.findIndex((p) => p.hand.some((c) => c.suit === "clubs" && c.value === 3));
+  const threeOfClubsIndex = players.findIndex((p) =>
+    p.hand.some((c) => c.suit === "clubs" && c.value === 3),
+  );
   const startIndex = threeOfClubsIndex >= 0 ? threeOfClubsIndex : 0;
   return {
     id: "game-" + Date.now(),
@@ -75,7 +89,6 @@ export function createGame(playerNames: string[]): GameState {
     finishedOrder: [],
     started: true,
     lastPlayPlayerIndex: null,
-    // the player who holds the 3 of clubs must start and cannot pass
     mustPlay: threeOfClubsIndex >= 0 ? true : false,
     pileHistory: [],
     pileOwners: [],
@@ -85,6 +98,29 @@ export function createGame(playerNames: string[]): GameState {
     currentTrick: { trickNumber: 1, actions: [] },
     tenRule: { active: false, direction: null },
   };
+}
+
+export function createGame(playerNames: string[]): GameState {
+  const players: Player[] = playerNames.map((n, i) => ({
+    id: String(i + 1),
+    name: n,
+    hand: [],
+    role: "Neutral",
+  }));
+  return buildInitialGameState(players);
+}
+
+/** Create a game using lobby socket ids (online multiplayer). */
+export function createGameFromLobby(
+  lobbyPlayers: { id: string; name: string }[],
+): GameState {
+  const players: Player[] = lobbyPlayers.map((p) => ({
+    id: p.id,
+    name: p.name,
+    hand: [],
+    role: "Neutral",
+  }));
+  return buildInitialGameState(players);
 }
 
 export function playCards(state: GameState, playerId: string, cards: Card[]): GameState {
@@ -108,8 +144,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
       playerName: player.name,
       timestamp: Date.now(),
     });
-    const passedIds = new Set(state.currentTrick.actions.filter(a => a.type === 'pass').map(a => a.playerId));
-    state.passCount = passedIds.size;
+    syncPassCountFromTrick(state);
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
     return { ...state };
   }
@@ -244,7 +279,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.pileHistory.push(cards.slice());
     state.pileOwners = state.pileOwners || [];
     state.pileOwners.push(player.id);
-    state.passCount = 0;
+    syncPassCountFromTrick(state);
     state.tenRule = { active: true, direction: null };
     return { ...state, tenRulePending: true } as GameState;
   }
@@ -267,7 +302,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.pileHistory.push(cards.slice());
     state.pileOwners = state.pileOwners || [];
     state.pileOwners.push(player.id);
-    state.passCount = 0;
+    syncPassCountFromTrick(state);
     // Activate challenge for validation purposes (so only higher quads or Joker can beat)
     state.fourOfAKindChallenge = { active: true, value: cards[0].value, starterIndex: pIndex };
     // Advance to next player
@@ -290,7 +325,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.pileOwners = state.pileOwners || [];
     state.pileOwners.push(player.id);
     state.pile = combined;
-    state.passCount = 0;
+    syncPassCountFromTrick(state);
     // Activate challenge
     state.fourOfAKindChallenge = { active: true, value: cards[0].value, starterIndex: pIndex };
     state.lastClear = { type: "four", value: cards[0].value, playerIndex: pIndex };
@@ -304,7 +339,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.pileHistory.push(cards.slice());
     state.pileOwners = state.pileOwners || [];
     state.pileOwners.push(player.id);
-    state.passCount = 0;
+    syncPassCountFromTrick(state);
     // Resolve any active four-of-a-kind challenge
     if (state.fourOfAKindChallenge && state.fourOfAKindChallenge.active) {
       state.fourOfAKindChallenge = undefined;
@@ -320,7 +355,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.pileHistory.push(cards.slice());
     state.pileOwners = state.pileOwners || [];
     state.pileOwners.push(player.id);
-    state.passCount = 0;
+    syncPassCountFromTrick(state);
     // Advance to next player
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
     state.mustPlay = false;
@@ -332,7 +367,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.pileHistory.push(cards.slice());
     state.pileOwners = state.pileOwners || [];
     state.pileOwners.push(player.id);
-    state.passCount = 0;
+    syncPassCountFromTrick(state);
     // advance from the player who just played
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
     state.mustPlay = false;
@@ -965,7 +1000,7 @@ export function passTurn(state: GameState, playerId: string): GameState {
 
   // Recompute passed players from currentTrick actions (distinct ids)
   const passedIds = new Set(state.currentTrick.actions.filter(a => a.type === 'pass').map(a => a.playerId));
-  state.passCount = passedIds.size; // keep passCount in sync
+  syncPassCountFromTrick(state);
 
   // Debugging detail: log current pass/finalization state to help diagnose
   // premature trick finalization. This prints active players, leader, others

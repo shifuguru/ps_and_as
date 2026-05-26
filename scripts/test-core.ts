@@ -162,6 +162,7 @@ function makeEmptyGame(names: string[]): GameState {
   s = playCards(s, g.players[3].id, [joker]);
   assert.ok(s.currentTrick && s.currentTrick.actions.some((a:any)=>a.type==='pass' && a.playerId===g.players[1].id), "Pass by P2 should still be recorded after Joker");
   assert.ok(s.currentTrick && s.currentTrick.actions.some((a:any)=>a.type==='pass' && a.playerId===g.players[2].id), "Pass by P3 should still be recorded after Joker");
+  assert.strictEqual(s.passCount, 2, "passCount should stay 2 after Joker when two players passed");
 
   // Force it to be P2's turn and attempt to play (even though they passed earlier this trick)
   s.currentPlayerIndex = 1;
@@ -170,6 +171,24 @@ function makeEmptyGame(names: string[]): GameState {
   // The engine should convert this attempt into a pass (playCards -> passTurn) and not change hand
   assert.strictEqual(s2.players[1].hand.length, beforeHandLen, "P2 hand should be unchanged when attempting to play after passing");
   assert.ok(s2.currentTrick && s2.currentTrick.actions.filter((a:any)=>a.type==='pass' && a.playerId===g.players[1].id).length >= 2, "P2 should now have an additional pass recorded");
+}
+
+// 1b) passCount survives a normal beat play mid-trick
+{
+  const g = makeEmptyGame(["P1", "P2", "P3"]);
+  const fiveH: Card = { suit: "hearts", value: 5 };
+  const sixH: Card = { suit: "hearts", value: 6 };
+  const sevenH: Card = { suit: "hearts", value: 7 };
+  g.players[0].hand = [fiveH];
+  g.players[1].hand = [sixH];
+  g.players[2].hand = [sevenH];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, g.players[0].id, [fiveH]);
+  s = passTurn(s, g.players[1].id);
+  assert.strictEqual(s.passCount, 1, "one pass recorded");
+  s = playCards(s, g.players[2].id, [sevenH]);
+  assert.strictEqual(s.passCount, 1, "passCount should remain 1 after a beat play");
 }
 
 // 2) A 2 clears the pile and starts a fresh trick; previous passes no longer block

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -23,7 +23,7 @@ import LobbyStatusBar, {
 import BottomBar, { BottomBarControls } from "../components/BottomBar";
 import BlurPanel from "../components/BlurPanel";
 import OpponentSeat from "../components/OpponentSeat";
-import { NetworkAdapter, MockAdapter } from "../game/network";
+import { NetworkAdapter, MockAdapter, type LobbyMember } from "../game/network";
 import { getOrCreatePlayerId } from "../services/gameCenter";
 import { triggerHaptic } from "../utils/haptics";
 import { ACTION_BAR_HEIGHT } from "../components/ActionBar";
@@ -45,15 +45,23 @@ export default function CreateGame({
   isJoining = false,
   onNavigateToAchievements,
   joinRoomId,
+  onRoomReady,
 }: {
   onBack: () => void;
-  onStart: (names: string[], localPlayerName: string, localPlayerId?: string) => void;
+  onStart: (
+    lobby: LobbyMember[],
+    localPlayerName: string,
+    localSocketId?: string,
+  ) => void;
   adapter?: NetworkAdapter;
   isJoining?: boolean;
   onNavigateToAchievements?: () => void;
   joinRoomId?: string;
+  onRoomReady?: (roomId: string) => void;
 }) {
   const [names, setNames] = useState<string[]>([]);
+  const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[]>([]);
+  const lobbyMembersRef = useRef<LobbyMember[]>([]);
   const [roomName, setRoomName] = useState<string>("My Room");
   const [playerName, setPlayerName] = useState<string>("");
   const [playerId, setPlayerId] = useState<string | null>(null);
@@ -130,12 +138,22 @@ export default function CreateGame({
     net.on("message", (ev) => {
       if (!mounted) return;
       if (ev.type === "state" && ev.state?.type === "lobby") {
-        setNames(ev.state.players.map((p: { name: string }) => p.name));
+        const members = ev.state.players as LobbyMember[];
+        setLobbyMembers(members);
+        setNames(members.map((p) => p.name));
         setHostId(ev.state.host ?? null);
         setConnectionStatus("connected");
       }
       if (ev.type === "state" && ev.state?.type === "startGame") {
-        onStart(ev.state.players, playerName, playerId ?? undefined);
+        const members = lobbyMembersRef.current;
+        const fallback: LobbyMember[] = (ev.state.players as string[]).map(
+          (name, i) => ({ id: String(i + 1), name }),
+        );
+        onStart(
+          members.length > 0 ? members : fallback,
+          playerName,
+          usingMock ? undefined : localId ?? undefined,
+        );
       }
       if (ev.type === "state" && ev.state?.type === "connected") {
         if (ev.state.name === playerName) {
@@ -160,11 +178,6 @@ export default function CreateGame({
     });
     return () => {
       mounted = false;
-      try {
-        if (adapter) adapter.disconnect();
-      } catch {
-        /* ignore */
-      }
     };
   }, []);
 
@@ -178,10 +191,12 @@ export default function CreateGame({
           await adapter.connect();
           if (!isJoining && (adapter as any).createRoom) {
             const rid = `${roomName.trim().replace(/\s+/g, "_")}-${Date.now()}`;
-            (adapter as any).createRoom(rid, playerName);
+            (adapter as any).createRoom(rid, playerName, roomName.trim());
             setActualRoomId(rid);
+            onRoomReady?.(rid);
           } else if (joinRoomId) {
             setActualRoomId(joinRoomId);
+            onRoomReady?.(joinRoomId);
           }
         } else {
           setConnectionStatus("connecting");
@@ -273,13 +288,23 @@ export default function CreateGame({
   const handleStart = () => {
     triggerHaptic("heavy");
     if (usingMock) {
-      onStart(names, playerName, playerId ?? undefined);
+      onStart(
+        names.map((name, i) => ({ id: String(i + 1), name })),
+        playerName,
+        undefined,
+      );
       return;
     }
     if ((net as any).startGame && isHost && actualRoomId) {
       (net as any).startGame(actualRoomId);
     } else {
-      onStart(names, playerName, playerId ?? undefined);
+      onStart(
+        lobbyMembers.length > 0
+          ? lobbyMembers
+          : names.map((name, i) => ({ id: String(i + 1), name })),
+        playerName,
+        localId ?? undefined,
+      );
     }
   };
 
@@ -293,7 +318,7 @@ export default function CreateGame({
 
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
-      <FeltBackground />
+      {Platform.OS !== "web" ? <FeltBackground /> : null}
 
       <LobbyStatusBar
         playerCount={names.length}

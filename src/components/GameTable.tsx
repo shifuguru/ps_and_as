@@ -26,7 +26,37 @@ const MAX_STEP_X = 40;
 const MAX_STEP_Y = 22;
 const BUNDLE_OVERLAP = 26;
 
+/** Newest plays keep full diagonal spacing; older plays pack into a tight tail. */
+const FULL_SPREAD_LAYERS = 5;
+const CONDENSED_STEP_X = 10;
+const CONDENSED_STEP_Y = 7;
+
 const MAX_FILL_SCALE_DEFAULT = Platform.OS === "web" ? 0.96 : 1.0;
+
+function buriedPlayCount(playCount: number): number {
+  return Math.max(0, playCount - FULL_SPREAD_LAYERS);
+}
+
+function playPosition(
+  playIndex: number,
+  buriedCount: number,
+  stepX: number,
+  stepY: number,
+): { left: number; top: number } {
+  if (playIndex < buriedCount) {
+    return {
+      left: playIndex * CONDENSED_STEP_X,
+      top: playIndex * CONDENSED_STEP_Y,
+    };
+  }
+  const spreadIndex = playIndex - buriedCount;
+  const baseX = buriedCount * CONDENSED_STEP_X;
+  const baseY = buriedCount * CONDENSED_STEP_Y;
+  return {
+    left: baseX + spreadIndex * stepX,
+    top: baseY + spreadIndex * stepY,
+  };
+}
 
 type Props = {
   plays: CardType[][];
@@ -63,8 +93,10 @@ export default function GameTable({
     [layoutHint],
   );
 
-  const { stepX, stepY, stackWidth, stackHeight, fillScale } = useMemo(() => {
-    const spreadSlots = Math.max(playCount - 1, 0);
+  const { stackWidth, stackHeight, fillScale, positions } = useMemo(() => {
+    const buriedCount = buriedPlayCount(playCount);
+    const spreadCount = playCount - buriedCount;
+    const spreadSlots = Math.max(spreadCount - 1, 0);
     const pileW = pileSize.width;
     const pileH = Math.max(80, pileSize.height);
 
@@ -86,8 +118,12 @@ export default function GameTable({
         ? 0
         : Math.min(MAX_STEP_Y, Math.max(MIN_STEP_Y, usableH / spreadSlots));
 
-    const width = spreadSlots * computedStepX + CARD_W + bundleExtra;
-    const height = CARD_H + spreadSlots * computedStepY;
+    const condensedExtentX = buriedCount * CONDENSED_STEP_X;
+    const condensedExtentY = buriedCount * CONDENSED_STEP_Y;
+    const width =
+      condensedExtentX + spreadSlots * computedStepX + CARD_W + bundleExtra;
+    const height =
+      CARD_H + condensedExtentY + spreadSlots * computedStepY;
 
     const displayScale = scaleLimits.displayScale;
     const scaledW = width * displayScale;
@@ -102,12 +138,17 @@ export default function GameTable({
       );
     }
 
+    const positions = Array.from({ length: playCount }, (_, i) =>
+      playPosition(i, buriedCount, computedStepX, computedStepY),
+    );
+
     return {
       stepX: computedStepX,
       stepY: computedStepY,
       stackWidth: width,
       stackHeight: height,
       fillScale: fit,
+      positions,
     };
   }, [playCount, pileSize, bundleExtra, scaleLimits]);
 
@@ -146,14 +187,15 @@ export default function GameTable({
               {plays.map((play, playIndex) => {
                 const bundleWidth =
                   CARD_W + (play.length - 1) * (CARD_W - BUNDLE_OVERLAP);
+                const pos = positions[playIndex] ?? { left: 0, top: 0 };
                 return (
                   <View
                     key={`play-${playIndex}-${play.map((c) => `${c.suit}${c.value}`).join("-")}`}
                     style={[
                       styles.playGroup,
                       {
-                        left: playIndex * stepX,
-                        top: playIndex * stepY,
+                        left: pos.left,
+                        top: pos.top,
                         width: bundleWidth,
                         height: CARD_H,
                         zIndex: playIndex,

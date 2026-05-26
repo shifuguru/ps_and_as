@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Modal } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Platform } from "react-native";
 import {
   createGame,
+  createGameFromLobby,
   GameState,
   playCards,
   passTurn,
@@ -25,12 +26,15 @@ import {
 import { createDeck, shuffleDeck, dealCards } from "../game/ruleset";
 import Card from "../components/Card";
 import { ScrollView, Dimensions } from "react-native";
-import { MockAdapter } from "../game/network";
+import { MockAdapter, type NetworkAdapter } from "../game/network";
+import { isSocketAdapter, SocketAdapter } from "../game/socketAdapter";
+import type { LobbyMember } from "../game/network";
 import {
   isFullGameState,
   normalizeLobbyNames,
   resolveLocalHumanPlayer,
 } from "../utils/localPlayer";
+import { recordRoundResult } from "../services/playerStats";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import DebugViewer from "../components/DebugViewer";
 import { Card as CardType } from "../game/ruleset";
@@ -49,6 +53,7 @@ import PlayerHand, {
   type PlayerHandHandle,
 } from "../components/PlayerHand";
 import ActionBar from "../components/ActionBar";
+import RoundCompleteModal from "../components/RoundCompleteModal";
 import GameTable from "../components/GameTable";
 import GamePlayArea from "../components/GamePlayArea";
 import OpponentSeat from "../components/OpponentSeat";
@@ -316,6 +321,7 @@ type TrickPauseSnapshot = {
 
 export default function GameScreen({
   initialPlayers,
+  initialLobbyPlayers,
   localPlayerName,
   localPlayerId,
   adapter: networkAdapter,
@@ -323,9 +329,10 @@ export default function GameScreen({
   onBack,
 }: {
   initialPlayers?: string[];
+  initialLobbyPlayers?: LobbyMember[];
   localPlayerName?: string;
   localPlayerId?: string;
-  adapter?: any;
+  adapter?: NetworkAdapter | MockAdapter | SocketAdapter;
   roomId?: string;
   onBack?: () => void;
 } = {}) {
@@ -344,6 +351,12 @@ export default function GameScreen({
     fallbackAdapterRef.current = new MockAdapter();
   }
   const adapter = networkAdapter ?? fallbackAdapterRef.current!;
+  const onlineMultiplayer = isSocketAdapter(networkAdapter) && !!roomId;
+
+  function broadcastGameAction(action: Record<string, unknown>) {
+    if (!onlineMultiplayer || !isSocketAdapter(networkAdapter) || !roomId) return;
+    networkAdapter.sendGameAction(roomId, action);
+  }
 
   // UX pacing: centralized CPU turn delay for a more relaxed feel
   const CPU_DELAY_MS = 1100;
@@ -362,6 +375,7 @@ export default function GameScreen({
   const [trickPauseSnapshot, setTrickPauseSnapshot] =
     useState<TrickPauseSnapshot | null>(null);
   const lastTrickLenRef = React.useRef<number>(0);
+  const roundStatsRecordedRef = React.useRef(false);
   const trickPauseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -431,6 +445,21 @@ export default function GameScreen({
     const allPlayersFinished = state.finishedOrder.length === state.players.length;
     if (allPlayersFinished && !roundOver) {
       setRoundOver(true);
+      if (!roundStatsRecordedRef.current) {
+        roundStatsRecordedRef.current = true;
+        const human = resolveLocalHumanPlayer(
+          state.players,
+          localPlayerName,
+          localPlayerId,
+          networkAdapter,
+        );
+        if (human) {
+          const placement = state.finishedOrder.indexOf(human.id);
+          if (placement >= 0) {
+            void recordRoundResult(placement, state.finishedOrder.length);
+          }
+        }
+      }
       // Auto-ready all CPU players only (not human players)
       const newReady: { [playerId: string]: boolean } = {};
       state.players.forEach((p) => {
@@ -599,6 +628,7 @@ export default function GameScreen({
 
     setState(newState);
     setRoundOver(false);
+    roundStatsRecordedRef.current = false;
     setPlayerReadyStates({});
   }
   
@@ -635,15 +665,16 @@ export default function GameScreen({
   }
 
   useEffect(() => {
-    const names = normalizeLobbyNames(initialPlayers, localPlayerName);
-    const g = createGame(names);
+    const g = initialLobbyPlayers?.length
+      ? createGameFromLobby(initialLobbyPlayers)
+      : createGame(normalizeLobbyNames(initialPlayers, localPlayerName));
     setState(g);
-    adapter.connect();
+    void adapter.connect();
     adapter.on("message", (ev) => {
       // structured log for incoming adapter events
       emitDebug("adapter:event", {
         evType: ev.type,
-        evStateType: ev.state?.type,
+        evStateType: ev.type === "state" ? ev.state?.type : undefined,
         roomId,
         raw: ev,
       });
@@ -655,6 +686,13 @@ export default function GameScreen({
           ":",
           ev.state.action.type,
         );
+
+        if (
+          localPlayerId &&
+          ev.state.action.playerId === localPlayerId
+        ) {
+          return;
+        }
 
         // Apply the action to our local game state
         if (ev.state.action.type === "play") {
@@ -727,7 +765,9 @@ export default function GameScreen({
     });
 
     return () => {
-      adapter.disconnect();
+      if (!networkAdapter) {
+        void fallbackAdapterRef.current?.disconnect();
+      }
     };
   }, []);
 
@@ -1107,6 +1147,12 @@ export default function GameScreen({
       });
       setSelected([]);
       setState(next);
+      broadcastGameAction({
+        type: "play",
+        playerId: actor.id,
+        playerName: actor.name,
+        cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
+      });
     }
   };
 
@@ -1139,6 +1185,11 @@ export default function GameScreen({
         after: snapshotState(next),
       });
       setState(next);
+      broadcastGameAction({
+        type: "pass",
+        playerId: actor.id,
+        playerName: actor.name,
+      });
     }
   };
 
@@ -1419,7 +1470,7 @@ export default function GameScreen({
   // Note: no appear animation here to avoid flashing on re-renders
   return (
     <ScreenContainer ignoreHeaderOffset={true} style={{ flex: 1 }}>
-      <FeltBackground />
+      {Platform.OS !== "web" ? <FeltBackground /> : null}
 
       <StatusBar
         currentPlayerName={current.name}
@@ -1654,78 +1705,26 @@ export default function GameScreen({
           </BottomBarControls>
         )}
 
-        {/* Round End Modal with Game Summary */}
-        {roundOver && (
-          <Modal visible={true} transparent={true} animationType="fade">
-            <View style={local.modalOverlay}>
-              <View style={[local.modalContent, { minWidth: 360, maxWidth: 500 }]}>
-                <Text style={local.modalTitle}>🎉 Round Complete! 🎉</Text>
-                
-                <View style={{ width: '100%', marginVertical: 16 }}>
-                  <Text style={[local.modalText, { marginBottom: 12, fontWeight: '700' }]}>Final Rankings:</Text>
-                  {state.finishedOrder.map((playerId, index) => {
-                    const player = state.players.find(p => p.id === playerId);
-                    if (!player) return null;
-                    
-                    // Determine role based on position and player count
-                    let roleName = 'Civilian';
-                    if (index === 0) {
-                      roleName = '👑 President';
-                    } else if (state.finishedOrder.length >= 5) {
-                      // 5+ players: use Vice roles
-                      if (index === 1) roleName = '⭐ Vice President';
-                      else if (index === state.finishedOrder.length - 1) roleName = '💩 Asshole';
-                      else if (index === state.finishedOrder.length - 2) roleName = '💩 Vice Asshole';
-                    } else if (index === state.finishedOrder.length - 1) {
-                      // 2-4 players: only President and Asshole
-                      roleName = '💩 Asshole';
-                    }
-                    
-                    return (
-                      <View key={playerId} style={local.rankingRow}>
-                        <Text style={local.rankingPosition}>{index + 1}.</Text>
-                        <Text style={local.rankingName}>{player.name}</Text>
-                        <Text style={local.rankingRole}>{roleName}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-
-                <View style={local.modalButtons}>
-                  <TouchableOpacity
-                    style={[local.modalButton, { marginRight: 8, backgroundColor: '#555' }]}
-                    onPress={() => {
-                      if (onBack) onBack();
-                    }}
-                  >
-                    <Text style={[local.modalButtonText, { color: '#fff' }]}>Quit Game</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[local.modalButton, { marginLeft: 8 }]}
-                    onPress={() => {
-                      const currentPlayerId = current?.id;
-                      if (!currentPlayerId) return;
-                      setPlayerReadyStates((prev) => ({
-                        ...prev,
-                        [currentPlayerId]: !prev[currentPlayerId],
-                      }));
-                    }}
-                  >
-                    <Text style={local.modalButtonText}>
-                      {playerReadyStates[current?.id || ''] ? 'Unready' : 'Ready for Next Round'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <Text style={[local.modalText, { fontSize: 12, marginTop: 12, opacity: 0.7 }]}>
-                  {Object.values(playerReadyStates).filter(r => r).length} / {state.players.length} players ready
-                </Text>
-              </View>
-            </View>
-          </Modal>
-        )}
       </BottomBar>
+
+      <RoundCompleteModal
+        visible={roundOver}
+        finishedOrder={state.finishedOrder}
+        players={state.players}
+        readyStates={playerReadyStates}
+        localPlayerId={humanPlayer?.id}
+        onQuit={() => {
+          if (onBack) onBack();
+        }}
+        onToggleReady={() => {
+          const id = humanPlayer?.id;
+          if (!id) return;
+          setPlayerReadyStates((prev) => ({
+            ...prev,
+            [id]: !prev[id],
+          }));
+        }}
+      />
       
     </ScreenContainer>
   );
@@ -2055,31 +2054,5 @@ const local = StyleSheet.create({
     color: "#d4af37",
     fontSize: 11,
     fontWeight: "800",
-  },
-  rankingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: "rgba(212,175,55,0.08)",
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  rankingPosition: {
-    color: "#d4af37",
-    fontSize: 18,
-    fontWeight: "800",
-    width: 30,
-  },
-  rankingName: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-    flex: 1,
-  },
-  rankingRole: {
-    color: "#d4af37",
-    fontSize: 14,
-    fontWeight: "600",
   },
 });

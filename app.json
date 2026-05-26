@@ -13,7 +13,13 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "entitlements": {
+        "com.apple.developer.game-center": true
+      },
+      "infoPlist": {
+        "GKGameCenterUsageDescription": "Sign in to sync your name, achievements, and stats across devices."
+      }
     },
     "android": {
       "adaptiveIcon": {

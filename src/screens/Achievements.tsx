@@ -1,426 +1,654 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator, StyleSheet } from "react-native";
-import { styles } from "../styles/theme";
-import Header from "../components/Header";
-import { 
-  authenticatePlayer, 
-  isPlayerAuthenticated, 
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  StyleSheet,
+  Platform,
+  useWindowDimensions,
+} from "react-native";
+import ScreenContainer from "../components/ScreenContainer";
+import FeltBackground from "../components/FeltBackground";
+import BlurPanel from "../components/BlurPanel";
+import { useLayoutInsets } from "../hooks/useLayoutInsets";
+import { playerInitials } from "../utils/playerDisplay";
+import {
+  authenticatePlayer,
   getOrCreatePlayerId,
-  getCachedPlayerName,
   cachePlayerName,
-  PlayerInfo 
+  showGameCenterAchievements,
+  showGameCenterLeaderboards,
+  isGameCenterPlatformSupported,
+  type PlayerInfo,
 } from "../services/gameCenter";
+import { syncStatsToGameCenter } from "../services/gameCenterSync";
+import {
+  ACHIEVEMENTS,
+  DEFAULT_PLAYER_STATS,
+  getPlayerStats,
+  unlockedAchievements,
+  winRate,
+  type PlayerStats,
+} from "../services/playerStats";
+
+const GOLD = "#d4af37";
 
 export default function Achievements({ onBack }: { onBack: () => void }) {
+  const insets = useLayoutInsets();
+  const { width } = useWindowDimensions();
+  const contentMaxWidth = Math.min(440, Math.max(300, width - 48));
+
   const [playerInfo, setPlayerInfo] = useState<PlayerInfo | null>(null);
-  const [playerName, setPlayerName] = useState<string>("");
+  const [playerName, setPlayerName] = useState("");
+  const [savedName, setSavedName] = useState("");
+  const [stats, setStats] = useState<PlayerStats | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [saveFlash, setSaveFlash] = useState(false);
 
-  // Load player info on mount
-  useEffect(() => {
-    loadPlayerInfo();
-  }, []);
-
-  const loadPlayerInfo = async () => {
+  const loadAll = useCallback(async () => {
     setIsLoading(true);
     try {
-      const info = await getOrCreatePlayerId();
+      const [info, playerStats] = await Promise.all([
+        getOrCreatePlayerId(),
+        getPlayerStats(),
+      ]);
       setPlayerInfo(info);
       setPlayerName(info.displayName);
-      console.log("[Achievements] Loaded player info:", info);
+      setSavedName(info.displayName);
+      setStats(playerStats);
+
+      if (info.isAuthenticated && playerStats.roundsPlayed > 0) {
+        void syncStatsToGameCenter(playerStats);
+      }
     } catch (error) {
-      console.error("[Achievements] Failed to load player info:", error);
+      console.error("[Achievements] Failed to load:", error);
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
+
+  const nameDirty = playerName.trim() !== savedName.trim();
+
+  const handleSaveName = async () => {
+    const trimmed = playerName.trim();
+    if (!trimmed) {
+      Alert.alert("Invalid Name", "Please enter a valid name.");
+      return;
+    }
+
+    try {
+      await cachePlayerName(trimmed);
+      setSavedName(trimmed);
+      setPlayerName(trimmed);
+      if (playerInfo) {
+        setPlayerInfo({ ...playerInfo, displayName: trimmed });
+      }
+      setSaveFlash(true);
+      setTimeout(() => setSaveFlash(false), 2000);
+    } catch (error) {
+      console.error("[Achievements] Failed to save name:", error);
+      Alert.alert("Error", "Failed to save name. Please try again.");
     }
   };
 
   const handleLogin = async () => {
     setIsAuthenticating(true);
     try {
-      console.log("[Achievements] Attempting GameCenter login...");
       const info = await authenticatePlayer();
-      
       if (info.source === "gamecenter") {
         setPlayerInfo(info);
-        setPlayerName(info.displayName);
-        await cachePlayerName(info.displayName);
-        Alert.alert(
-          "Login Successful",
-          `Welcome, ${info.displayName}!`,
-          [{ text: "OK" }]
-        );
+        if (!savedName || savedName === "Player") {
+          setPlayerName(info.displayName);
+          await cachePlayerName(info.displayName);
+          setSavedName(info.displayName);
+        }
+        Alert.alert("Connected", `Signed in as ${info.displayName}`);
+        if (stats) {
+          void syncStatsToGameCenter(stats);
+        }
       } else {
         Alert.alert(
-          "Login Failed",
-          "GameCenter is not available. You can still set your name manually.",
-          [{ text: "OK" }]
+          "Unavailable",
+          "Game Center is not available on this device. You can still set a local name.",
         );
       }
-    } catch (error) {
-      console.error("[Achievements] Login error:", error);
-      Alert.alert(
-        "Login Error",
-        "Could not connect to GameCenter. Please check your settings.",
-        [{ text: "OK" }]
-      );
+    } catch {
+      Alert.alert("Error", "Could not connect to Game Center.");
     } finally {
       setIsAuthenticating(false);
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to log out? Your local name will be preserved.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            // Reset to fallback info
-            const info = await getOrCreatePlayerId();
-            setPlayerInfo({ ...info, source: "fallback", isAuthenticated: false });
-            Alert.alert("Logged Out", "You can still play with your local name.", [{ text: "OK" }]);
-          }
-        }
-      ]
-    );
-  };
-
-  const handleSaveName = async () => {
-    if (!playerName.trim()) {
-      Alert.alert("Invalid Name", "Please enter a valid name.", [{ text: "OK" }]);
-      return;
-    }
-
-    try {
-      await cachePlayerName(playerName.trim());
-      if (playerInfo) {
-        setPlayerInfo({ ...playerInfo, displayName: playerName.trim() });
-      }
-      Alert.alert("Name Saved", `Your name has been set to: ${playerName.trim()}`, [{ text: "OK" }]);
-    } catch (error) {
-      console.error("[Achievements] Failed to save name:", error);
-      Alert.alert("Error", "Failed to save name. Please try again.", [{ text: "OK" }]);
-    }
-  };
+  const unlocked = stats ? unlockedAchievements(stats) : [];
+  const unlockedIds = new Set(unlocked.map((a) => a.id));
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color="#d4af37" />
-        <Text style={{ color: "#fff", marginTop: 16, fontSize: 16 }}>Loading...</Text>
-      </View>
+      <ScreenContainer ignoreHeaderOffset style={styles.loadingRoot}>
+        {Platform.OS !== "web" ? <FeltBackground /> : null}
+        <View style={styles.loadingCenter}>
+          <ActivityIndicator size="large" color={GOLD} />
+          <Text style={styles.loadingText}>Loading profile…</Text>
+        </View>
+      </ScreenContainer>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
-        {/* Header */}
-        <Header title="Achievements" onBack={onBack} />
+    <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
+      {Platform.OS !== "web" ? <FeltBackground /> : null}
 
-        {/* Player Profile Section */}
-        <View style={local.section}>
-          <Text style={local.sectionTitle}>Player Profile</Text>
-          
-          {/* Player Name Input */}
-          <View style={local.inputContainer}>
-            <Text style={local.label}>Display Name</Text>
-            <TextInput
-              style={local.input}
-              value={playerName}
-              onChangeText={setPlayerName}
-              placeholder="Enter your name"
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              maxLength={20}
-            />
-            <TouchableOpacity 
-              style={local.saveButton}
-              onPress={handleSaveName}
-            >
-              <Text style={local.saveButtonText}>Save Name</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: insets.top + 12,
+            paddingBottom: Math.max(insets.bottom, 16) + 24,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.content, { maxWidth: contentMaxWidth }]}>
+          <View style={styles.topBar}>
+            <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.leaveText}>Leave</Text>
             </TouchableOpacity>
+            <Text style={styles.screenTitle}>Achievements</Text>
+            <View style={styles.topBarSpacer} />
           </View>
 
-          {/* Authentication Status */}
-          <View style={local.statusContainer}>
-            <View style={local.statusRow}>
-              <Text style={local.statusLabel}>Status:</Text>
-              <View style={[
-                local.statusBadge, 
-                playerInfo?.isAuthenticated ? local.statusAuthenticated : local.statusGuest
-              ]}>
-                <Text style={local.statusBadgeText}>
-                  {playerInfo?.isAuthenticated ? "🎮 Authenticated" : "👤 Guest"}
+          {/* Profile */}
+          <BlurPanel style={styles.panel} intensity={52}>
+            <Text style={styles.panelEyebrow}>Player profile</Text>
+
+            <View style={styles.profileRow}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {playerInitials(savedName || playerName || "?")}
+                </Text>
+              </View>
+              <View style={styles.profileMeta}>
+                <Text style={styles.profileName} numberOfLines={1}>
+                  {savedName || "Player"}
+                </Text>
+                <Text style={styles.profileHint}>
+                  {playerInfo?.isAuthenticated ? "Game Center" : "Local profile"}
                 </Text>
               </View>
             </View>
 
-            <View style={local.statusRow}>
-              <Text style={local.statusLabel}>Source:</Text>
-              <Text style={local.statusValue}>
-                {playerInfo?.source === "gamecenter" ? "GameCenter" : "Local Device"}
-              </Text>
-            </View>
+            <Text style={styles.fieldLabel}>Display name</Text>
+            <TextInput
+              style={styles.input}
+              value={playerName}
+              onChangeText={setPlayerName}
+              placeholder="Enter your name"
+              placeholderTextColor="rgba(255,255,255,0.35)"
+              maxLength={20}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
 
-            <View style={local.statusRow}>
-              <Text style={local.statusLabel}>Player ID:</Text>
-              <Text style={[local.statusValue, { fontSize: 11, opacity: 0.6 }]}>
-                {playerInfo?.id.substring(0, 24)}...
-              </Text>
-            </View>
-          </View>
-
-          {/* Login/Logout Button */}
-          {playerInfo?.isAuthenticated ? (
-            <TouchableOpacity 
-              style={local.logoutButton}
-              onPress={handleLogout}
+            <TouchableOpacity
+              style={[
+                styles.saveBtn,
+                nameDirty && styles.saveBtnActive,
+                saveFlash && styles.saveBtnSaved,
+              ]}
+              onPress={handleSaveName}
+              disabled={!nameDirty && !saveFlash}
+              activeOpacity={0.85}
             >
-              <Text style={local.logoutButtonText}>Logout from GameCenter</Text>
+              <Text
+                style={[
+                  styles.saveBtnText,
+                  (nameDirty || saveFlash) && styles.saveBtnTextActive,
+                ]}
+              >
+                {saveFlash ? "Saved" : "Save name"}
+              </Text>
             </TouchableOpacity>
-          ) : (
-            <TouchableOpacity 
-              style={local.loginButton}
-              onPress={handleLogin}
-              disabled={isAuthenticating}
-            >
-              {isAuthenticating ? (
-                <ActivityIndicator size="small" color="#000" />
+          </BlurPanel>
+
+          {/* Statistics */}
+          <BlurPanel style={styles.panel} intensity={48}>
+            <Text style={styles.panelEyebrow}>Statistics</Text>
+            <View style={styles.statsGrid}>
+              <StatCard label="Rounds" value={String(stats?.roundsPlayed ?? 0)} />
+              <StatCard
+                label="President"
+                value={String(stats?.timesPresident ?? 0)}
+              />
+              <StatCard label="Win rate" value={`${winRate(stats ?? DEFAULT_PLAYER_STATS)}%`} />
+              <StatCard
+                label="Achievements"
+                value={`${unlocked.length}/${ACHIEVEMENTS.length}`}
+              />
+            </View>
+
+            <View style={styles.roleRow}>
+              <RolePill label="Vice Pres." count={stats?.timesVicePresident ?? 0} />
+              <RolePill label="Vice Asshole" count={stats?.timesViceAsshole ?? 0} />
+              <RolePill label="Asshole" count={stats?.timesAsshole ?? 0} />
+            </View>
+            {(stats?.bestPresidentStreak ?? 0) > 0 ? (
+              <Text style={styles.streakText}>
+                Best president streak: {stats?.bestPresidentStreak}
+              </Text>
+            ) : null}
+          </BlurPanel>
+
+          {/* Achievements */}
+          <BlurPanel style={styles.panel} intensity={48}>
+            <Text style={styles.panelEyebrow}>Achievements</Text>
+            <View style={styles.achievementList}>
+              {ACHIEVEMENTS.map((achievement) => {
+                const earned = unlockedIds.has(achievement.id);
+                return (
+                  <View
+                    key={achievement.id}
+                    style={[
+                      styles.achievementRow,
+                      earned && styles.achievementRowEarned,
+                    ]}
+                  >
+                    <Text style={styles.achievementEmoji}>{achievement.emoji}</Text>
+                    <View style={styles.achievementBody}>
+                      <Text
+                        style={[
+                          styles.achievementTitle,
+                          !earned && styles.achievementTitleLocked,
+                        ]}
+                      >
+                        {achievement.title}
+                      </Text>
+                      <Text style={styles.achievementDesc}>
+                        {achievement.description}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.achievementStatus,
+                        earned && styles.achievementStatusEarned,
+                      ]}
+                    >
+                      {earned ? "✓" : "—"}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </BlurPanel>
+
+          {/* Game Center (iOS) */}
+          {isGameCenterPlatformSupported() ? (
+            <BlurPanel style={styles.panel} intensity={44}>
+              <Text style={styles.panelEyebrow}>Game Center</Text>
+              {playerInfo?.isAuthenticated ? (
+                <>
+                  <Text style={styles.accountText}>
+                    Signed in with Game Center. Achievements and leaderboards
+                    sync when you finish a round.
+                  </Text>
+                  <View style={styles.gcActions}>
+                    <TouchableOpacity
+                      style={styles.gcBtn}
+                      onPress={() => void showGameCenterAchievements()}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.gcBtnText}>View achievements</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.gcBtn}
+                      onPress={() => void showGameCenterLeaderboards()}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.gcBtnText}>View leaderboards</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
               ) : (
-                <Text style={local.loginButtonText}>Login with GameCenter</Text>
+                <>
+                  <Text style={styles.accountText}>
+                    Sign in to sync achievements and leaderboards with Apple
+                    Game Center. Requires a physical iOS device with Game Center
+                    enabled in Settings.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.loginBtn}
+                    onPress={handleLogin}
+                    disabled={isAuthenticating}
+                    activeOpacity={0.85}
+                  >
+                    {isAuthenticating ? (
+                      <ActivityIndicator size="small" color="#111" />
+                    ) : (
+                      <Text style={styles.loginBtnText}>Sign in with Game Center</Text>
+                    )}
+                  </TouchableOpacity>
+                </>
               )}
-            </TouchableOpacity>
-          )}
-
-          <Text style={local.helpText}>
-            {playerInfo?.isAuthenticated 
-              ? "Your name is synced with GameCenter. Changes here won't affect your GameCenter profile."
-              : "Login with GameCenter to sync your profile across devices. Or play as a guest with a local name."
-            }
-          </Text>
-        </View>
-
-        {/* Achievements Section (Placeholder) */}
-        <View style={local.section}>
-          <Text style={local.sectionTitle}>🏆 Your Achievements</Text>
-          <View style={local.achievementPlaceholder}>
-            <Text style={local.achievementPlaceholderText}>
-              No achievements yet!
-            </Text>
-            <Text style={local.achievementPlaceholderSubtext}>
-              Play games to unlock achievements
-            </Text>
-          </View>
-        </View>
-
-        {/* Stats Section (Placeholder) */}
-        <View style={local.section}>
-          <Text style={local.sectionTitle}>📊 Statistics</Text>
-          <View style={local.statsGrid}>
-            <View style={local.statCard}>
-              <Text style={local.statValue}>0</Text>
-              <Text style={local.statLabel}>Games Played</Text>
-            </View>
-            <View style={local.statCard}>
-              <Text style={local.statValue}>0</Text>
-              <Text style={local.statLabel}>Games Won</Text>
-            </View>
-            <View style={local.statCard}>
-              <Text style={local.statValue}>0%</Text>
-              <Text style={local.statLabel}>Win Rate</Text>
-            </View>
-            <View style={local.statCard}>
-              <Text style={local.statValue}>0</Text>
-              <Text style={local.statLabel}>Achievements</Text>
-            </View>
-          </View>
+            </BlurPanel>
+          ) : null}
         </View>
       </ScrollView>
+    </ScreenContainer>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value}</Text>
     </View>
   );
 }
 
-const local = StyleSheet.create({
-  header: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    marginBottom: 24,
-    paddingTop: 8,
+function RolePill({ label, count }: { label: string; count: number }) {
+  return (
+    <View style={styles.rolePill}>
+      <Text style={styles.rolePillLabel}>{label}</Text>
+      <Text style={styles.rolePillValue}>{count}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  loadingRoot: { flex: 1 },
+  loadingCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  backButton: {
-    padding: 8,
+  loadingText: {
+    color: "rgba(255,255,255,0.7)",
+    marginTop: 14,
+    fontSize: 15,
+  },
+  scroll: { flex: 1 },
+  scrollContent: {
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  content: {
+    width: "100%",
+  },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  leaveText: {
+    color: GOLD,
+    fontSize: 15,
+    fontWeight: "700",
+    width: 56,
+  },
+  screenTitle: {
+    flex: 1,
+    color: "#ffffff",
+    fontSize: 22,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  topBarSpacer: { width: 56 },
+  panel: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  panelEyebrow: {
+    color: GOLD,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.9,
+    marginBottom: 12,
+  },
+  profileRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(212, 175, 55, 0.18)",
+    borderWidth: 2,
+    borderColor: "rgba(212, 175, 55, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
-  backButtonText: {
-    color: "#d4af37",
+  avatarText: {
+    color: "#fff",
+    fontWeight: "800",
     fontSize: 16,
-    fontWeight: "600" as const,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold" as const,
-    color: "#d4af37",
+  profileMeta: {
     flex: 1,
+    minWidth: 0,
   },
-  section: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.2)",
+  profileName: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold" as const,
-    color: "#d4af37",
-    marginBottom: 16,
+  profileHint: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: "600",
   },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 14,
-    marginBottom: 8,
-    fontWeight: "600" as const,
+  fieldLabel: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+    marginBottom: 6,
   },
   input: {
-    backgroundColor: "rgba(0,0,0,0.3)",
-    borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.3)",
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.14)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 16,
     color: "#fff",
     marginBottom: 12,
   },
-  saveButton: {
-    backgroundColor: "#d4af37",
-    borderRadius: 8,
-    padding: 12,
-    alignItems: "center" as const,
+  saveBtn: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.12)",
   },
-  saveButtonText: {
-    color: "#000",
-    fontSize: 16,
-    fontWeight: "bold" as const,
+  saveBtnActive: {
+    backgroundColor: GOLD,
+    borderColor: GOLD,
   },
-  statusContainer: {
-    backgroundColor: "rgba(0,0,0,0.3)",
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
+  saveBtnSaved: {
+    backgroundColor: "rgba(76,175,80,0.35)",
+    borderColor: "rgba(76,175,80,0.6)",
   },
-  statusRow: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    marginBottom: 12,
-  },
-  statusLabel: {
-    color: "rgba(255,255,255,0.6)",
+  saveBtnText: {
+    color: "rgba(255,255,255,0.45)",
+    fontWeight: "800",
     fontSize: 14,
-    width: 80,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
-  statusValue: {
-    color: "#fff",
-    fontSize: 14,
-    flex: 1,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    flex: 1,
-  },
-  statusAuthenticated: {
-    backgroundColor: "rgba(76,175,80,0.2)",
-    borderWidth: 1,
-    borderColor: "rgba(76,175,80,0.5)",
-  },
-  statusGuest: {
-    backgroundColor: "rgba(158,158,158,0.2)",
-    borderWidth: 1,
-    borderColor: "rgba(158,158,158,0.5)",
-  },
-  statusBadgeText: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "600" as const,
-    textAlign: "center" as const,
-  },
-  loginButton: {
-    backgroundColor: "#d4af37",
-    borderRadius: 8,
-    padding: 14,
-    alignItems: "center" as const,
-    marginBottom: 12,
-  },
-  loginButtonText: {
-    color: "#000",
-    fontSize: 16,
-    fontWeight: "bold" as const,
-  },
-  logoutButton: {
-    backgroundColor: "rgba(244,67,54,0.2)",
-    borderWidth: 1,
-    borderColor: "rgba(244,67,54,0.5)",
-    borderRadius: 8,
-    padding: 14,
-    alignItems: "center" as const,
-    marginBottom: 12,
-  },
-  logoutButtonText: {
-    color: "#ff5252",
-    fontSize: 16,
-    fontWeight: "bold" as const,
-  },
-  helpText: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: "center" as const,
-  },
-  achievementPlaceholder: {
-    padding: 40,
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
-  },
-  achievementPlaceholderText: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 16,
-    marginBottom: 8,
-  },
-  achievementPlaceholderSubtext: {
-    color: "rgba(255,255,255,0.3)",
-    fontSize: 14,
+  saveBtnTextActive: {
+    color: "#111",
   },
   statsGrid: {
-    flexDirection: "row" as const,
-    flexWrap: "wrap" as const,
-    gap: 12,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
   },
   statCard: {
-    backgroundColor: "rgba(0,0,0,0.3)",
-    borderRadius: 8,
-    padding: 16,
-    width: "47%",
+    width: "48%",
+    flexGrow: 1,
+    minWidth: "46%",
     alignItems: "center",
-  },
-  statValue: {
-    color: "#d4af37",
-    fontSize: 28,
-    fontWeight: "bold" as const,
-    marginBottom: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.12)",
   },
   statLabel: {
     color: "rgba(255,255,255,0.6)",
-    fontSize: 12,
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 4,
     textAlign: "center",
+  },
+  statValue: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  roleRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 4,
+  },
+  rolePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  rolePillLabel: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 10,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  rolePillValue: {
+    color: GOLD,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  streakText: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 8,
+    textAlign: "center",
+  },
+  achievementList: {
+    gap: 8,
+  },
+  achievementRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.08)",
+    opacity: 0.55,
+  },
+  achievementRowEarned: {
+    opacity: 1,
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
+    borderColor: "rgba(212, 175, 55, 0.35)",
+  },
+  achievementEmoji: {
+    fontSize: 22,
+    width: 32,
+    textAlign: "center",
+  },
+  achievementBody: {
+    flex: 1,
+    minWidth: 0,
+    marginHorizontal: 8,
+  },
+  achievementTitle: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  achievementTitleLocked: {
+    color: "rgba(255,255,255,0.65)",
+  },
+  achievementDesc: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  achievementStatus: {
+    color: "rgba(255,255,255,0.25)",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  achievementStatusEarned: {
+    color: GOLD,
+  },
+  accountText: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  loginBtn: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    backgroundColor: GOLD,
+  },
+  loginBtnText: {
+    color: "#111",
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  gcActions: {
+    gap: 8,
+  },
+  gcBtn: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  gcBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
   },
 });
