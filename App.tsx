@@ -15,6 +15,7 @@ import { styles } from "./src/styles/theme";
 import { SocketAdapter } from "./src/game/socketAdapter";
 import { MockAdapter } from "./src/game/network";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import ErrorBoundary from "./src/components/ErrorBoundary";
 
 export default function App() {
   // splashVisible: whether the splash overlay is still mounted
@@ -254,15 +255,17 @@ export default function App() {
           )
         )}
         {menuVisible && screen === "game" && (
-          <GameScreen 
-            initialPlayers={lobbyPlayers ?? undefined} 
-            localPlayerName={localPlayerName ?? undefined}
-            // pass device id (if we have it) so logs can include the device id
-            localPlayerId={localPlayerId ?? undefined}
-            // pass a shared mock adapter for local games to avoid multiple adapters/log interleaving
-            adapter={localAdapter ?? undefined}
-            onBack={() => setScreen("menu")} 
-          />
+          <ErrorBoundary onReset={() => setScreen("menu")}>
+            <GameScreen 
+              initialPlayers={lobbyPlayers ?? undefined} 
+              localPlayerName={localPlayerName ?? undefined}
+              // pass device id (if we have it) so logs can include the device id
+              localPlayerId={localPlayerId ?? undefined}
+              // pass a shared mock adapter for local games to avoid multiple adapters/log interleaving
+              adapter={localAdapter ?? undefined}
+              onBack={() => setScreen("menu")} 
+            />
+          </ErrorBoundary>
         )}
       </ImageBackground>
     </View>
