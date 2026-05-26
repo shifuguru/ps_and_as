@@ -91,7 +91,11 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
         >
           <Text style={styles.title}>P's & A's</Text>
           <Text style={styles.subtitle}>Presidents and Assholes</Text>
+<<<<<<< Updated upstream
           <Text style={styles.subtitle}>App designed by Michael Drury</Text>
+=======
+          <Text style={styles.subtitle}>App design by Michael Drury</Text>
+>>>>>>> Stashed changes
         </Animated.View>
       </View>
     </Animated.View>

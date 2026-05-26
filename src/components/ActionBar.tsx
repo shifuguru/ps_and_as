@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 import React, { useEffect, useRef } from "react";
 import {
   View,
@@ -19,6 +20,11 @@ const GOLD_DIM = "rgba(212, 175, 55, 0.45)";
 const GOLD_GLOW = "rgba(212, 175, 55, 0.22)";
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+=======
+import React from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { responsive } from "../utils/responsive";
+>>>>>>> Stashed changes
 
 type Props = {
   selectedCount: number;
@@ -158,6 +164,7 @@ export default function ActionBar({
       : "rgba(255,255,255,0.04)";
 
   return (
+<<<<<<< Updated upstream
     <View style={[styles.container, { width: barWidth, maxWidth: barWidth }]}>
       <View style={styles.actionTrack}>
         <AnimatedTouchable
@@ -174,6 +181,22 @@ export default function ActionBar({
             triggerHaptic("light");
             onPass();
           }}
+=======
+    <View style={styles.container}>
+      <TouchableOpacity
+        style={[styles.primaryButton, playDisabled && styles.disabledButton]}
+        onPress={onPlay}
+        disabled={playDisabled}
+      >
+        <Text style={styles.primaryText}>
+          {selectedCount > 0 ? `Play (${selectedCount})` : "Play"}
+        </Text>
+      </TouchableOpacity>
+      <View style={styles.sideButtons}>
+        <TouchableOpacity
+          style={[styles.secondaryButton, passDisabled && styles.disabledButton]}
+          onPress={onPass}
+>>>>>>> Stashed changes
           disabled={passDisabled}
           accessibilityRole="button"
           accessibilityLabel={
@@ -267,6 +290,7 @@ const styles = StyleSheet.create({
   },
   actionTrack: {
     flexDirection: "row",
+<<<<<<< Updated upstream
     alignItems: "stretch",
     gap: 10,
     padding: 5,
@@ -275,9 +299,16 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(255,255,255,0.12)",
     minHeight: 58,
+=======
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: responsive.spacing.md,
+    gap: responsive.spacing.sm,
+>>>>>>> Stashed changes
   },
   passButton: {
     flex: 1,
+<<<<<<< Updated upstream
     borderRadius: 14,
     borderWidth: 1,
     alignItems: "center",
@@ -375,6 +406,57 @@ const styles = StyleSheet.create({
   },
   buttonMuted: {
     opacity: 0.4,
+=======
+    minHeight: responsive.buttonHeight,
+    borderRadius: responsive.borderRadius.lg,
+    backgroundColor: "#d4af37",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: responsive.spacing.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+  },
+  secondaryButton: {
+    minWidth: responsive.buttonHeight * 0.75,
+    minHeight: responsive.buttonHeight,
+    borderRadius: responsive.borderRadius.lg,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tertiaryButton: {
+    minWidth: responsive.buttonHeight * 0.65,
+    minHeight: responsive.buttonHeight,
+    borderRadius: responsive.borderRadius.lg,
+    backgroundColor: "rgba(212, 175, 55, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  sideButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: responsive.spacing.sm,
+  },
+  primaryText: {
+    color: "#111",
+    fontSize: responsive.fontSize.base,
+    fontWeight: "700",
+  },
+  secondaryText: {
+    color: "#d4af37",
+    fontSize: responsive.fontSize.base,
+    fontWeight: "700",
+  },
+  tertiaryText: {
+    color: "#d4af37",
+    fontSize: responsive.fontSize.sm,
+    fontWeight: "600",
+>>>>>>> Stashed changes
   },
   textMuted: {
     opacity: 0.65,

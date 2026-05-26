@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 import React from "react";
 import {
   View,
@@ -130,3 +131,73 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
 });
+=======
+import React from "react";
+import {
+  View,
+  StyleSheet,
+  ViewStyle,
+  StyleProp,
+  Platform,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
+import { responsive } from "../utils/responsive";
+
+type Props = {
+  children?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  minHeight?: number;
+  bottomOffset?: number; // additional bottom margin above safe area
+};
+
+export default function BottomBar({
+  children,
+  style,
+  minHeight,
+  bottomOffset = 0,
+}: Props) {
+  const insets = useSafeAreaInsets();
+  const bottom = Platform.OS === 'web' ? 0 : (insets.bottom || 0);
+  const height = minHeight ?? responsive.bottomBarHeight;
+
+  return (
+    <View
+      pointerEvents="box-none"
+      style={[
+        styles.container,
+        { bottom, minHeight: height },
+        style as any,
+      ]}
+    >
+      <BlurView intensity={85} style={[styles.inner, { minHeight: height, paddingBottom: Platform.OS === 'web' ? responsive.spacing.lg : responsive.spacing.xl }]}>
+        {children}
+      </BlurView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 200,
+    elevation: 200,
+    alignItems: "center",
+  },
+  inner: {
+    width: "100%",
+    borderTopWidth: 1.5,
+    borderTopColor: "rgba(212,175,55,0.3)",
+    paddingTop: responsive.spacing.md,
+    paddingHorizontal: responsive.spacing.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    overflow: Platform.OS === "android" ? "hidden" : "visible",
+    alignItems: "center",
+  },
+});
+>>>>>>> Stashed changes
