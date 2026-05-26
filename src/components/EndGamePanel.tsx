@@ -13,9 +13,7 @@ export default function EndGamePanel({
   players: any[];
   readyStates: { [playerId: string]: boolean };
 }) {
-  // Always expand when visible; animate between 0 and EXPANDED_HEIGHT
   const EXPANDED_HEIGHT = 320;
-  const PANEL_BG = '#1a1a1a';
   const panelHeight = useAnimatedValue(visible ? EXPANDED_HEIGHT : 0);
 
   function useAnimatedValue(initialValue: number) {
@@ -30,7 +28,6 @@ export default function EndGamePanel({
     return animVal;
   }
 
-  // Build a placement list: show finished order with placements, then remaining players
   const placements = finishedOrder.map((playerId, idx) => {
     const player = players.find((p) => p.id === playerId);
     const ordinal = (n: number) => {
@@ -61,7 +58,7 @@ export default function EndGamePanel({
       ]}
     >
       <View style={local.header}>
-        <Text style={local.title}>Round Over - Final Placements</Text>
+        <Text style={local.title}>Round Over</Text>
       </View>
 
       <View style={local.placementsContainer}>
@@ -69,7 +66,7 @@ export default function EndGamePanel({
           <View key={p.playerId} style={local.placementRow}>
             <Text style={local.placement}>{p.placement}</Text>
             <Text style={local.playerName}>{p.name}</Text>
-            {p.ready && <Text style={local.readyBadge}>✓ Ready</Text>}
+            {p.ready && <Text style={local.readyBadge}>Ready</Text>}
           </View>
         ))}
       </View>
@@ -96,12 +93,12 @@ const local = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    color: colors.accent,
+    color: '#e8e8e8',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   expandToggle: {
-    color: colors.accent,
+    color: '#e8e8e8',
     fontSize: 18,
     fontWeight: '700',
   },
@@ -115,7 +112,7 @@ const local = StyleSheet.create({
     paddingHorizontal: 8,
   },
   placement: {
-    color: colors.accent,
+    color: '#7aacd6',
     fontSize: 14,
     fontWeight: '700',
     minWidth: 40,
@@ -127,20 +124,20 @@ const local = StyleSheet.create({
     marginLeft: 8,
   },
   readyBadge: {
-    color: '#4caf50',
+    color: '#7aacd6',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   expandedInfo: {
     paddingHorizontal: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(212, 175, 55, 0.2)',
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
   },
   cardTradePrompt: {
     color: colors.secondary,
     fontSize: 18,
     lineHeight: 16,
-    opacity: 0.7,
+    opacity: 0.5,
   },
 });

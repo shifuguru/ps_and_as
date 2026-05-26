@@ -23,27 +23,16 @@ export default function StatusBar({
 }: Props) {
   return (
     <View style={styles.container}>
-      <View style={styles.sideSection}>
-        <Text style={styles.label}>Turn</Text>
-        <Text style={styles.value}>{currentPlayerName}</Text>
+      <View style={styles.left}>
+        <Text style={styles.turnLabel}>{isHumanTurn ? "Your turn" : currentPlayerName}</Text>
+        {mustPlay && <View style={styles.mustPlayDot} />}
       </View>
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.label}>Players</Text>
-          <Text style={styles.value}>{playerCount}</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.label}>Pile</Text>
-          <Text style={styles.value}>{pileCount}</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.label}>Hand</Text>
-          <Text style={styles.value}>{currentHandCount}</Text>
-        </View>
-      </View>
-      <View style={styles.sideSectionRight}>
-        <Text style={styles.label}>{isHumanTurn ? "Your turn" : "Waiting"}</Text>
-        <Text style={styles.value}>{mustPlay ? "Must play" : `Passes ${passCount}`}</Text>
+      <View style={styles.stats}>
+        <Text style={styles.stat}>{currentHandCount} cards</Text>
+        <Text style={styles.divider}>·</Text>
+        <Text style={styles.stat}>{pileCount} pile</Text>
+        <Text style={styles.divider}>·</Text>
+        <Text style={styles.stat}>{playerCount}p</Text>
       </View>
     </View>
   );
@@ -55,49 +44,42 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    backgroundColor: "rgba(20, 34, 24, 0.95)",
-    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.16)",
-    shadowColor: "#000",
-    shadowOpacity: 0.16,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 16,
+    borderColor: "rgba(255,255,255,0.06)",
   },
-  sideSection: {
-    flex: 1,
-    minWidth: 130,
-  },
-  sideSectionRight: {
-    flex: 1,
-    alignItems: "flex-end",
-    minWidth: 130,
-  },
-  statsRow: {
-    flex: 2,
+  left: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    marginHorizontal: 12,
-  },
-  statCard: {
     alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.04)",
   },
-  label: {
-    color: "#a7c9a7",
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 4,
-  },
-  value: {
+  turnLabel: {
     color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+  },
+  mustPlayDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#7aacd6",
+    marginLeft: 8,
+  },
+  stats: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  stat: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  divider: {
+    color: "rgba(255,255,255,0.2)",
+    fontSize: 13,
+    marginHorizontal: 8,
   },
 });

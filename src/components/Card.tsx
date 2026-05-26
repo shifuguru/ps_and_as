@@ -38,7 +38,7 @@ export default function Card({ card, selected, onPress, highlight = 0, faceDown 
   );
 
   const elevation = glow.interpolate({ inputRange: [0, 1], outputRange: [2, 10] });
-  const borderGlow = glow.interpolate({ inputRange: [0, 1], outputRange: ["rgba(212,175,55,0.15)", "rgba(212,175,55,0.9)"] });
+  const borderGlow = glow.interpolate({ inputRange: [0, 1], outputRange: ["rgba(255,255,255,0.08)", "rgba(122, 172, 214, 0.6)"] });
 
   const suitSymbol = (() => {
     switch (card.suit) {
@@ -54,6 +54,9 @@ export default function Card({ card, selected, onPress, highlight = 0, faceDown 
         return "★";
     }
   })();
+
+  const isRed = card.suit === "hearts" || card.suit === "diamonds";
+  const suitColor = isRed ? "#c45c5c" : "rgba(255,255,255,0.45)";
 
   const label = (() => {
     if (card.suit === "joker") return "JOKER";
@@ -72,18 +75,17 @@ export default function Card({ card, selected, onPress, highlight = 0, faceDown 
             <View style={local.backFace} />
           ) : (
             <>
-              {/* corner rank/suit markers */}
               <View style={local.cornerTopLeft} pointerEvents="none">
                 <Text style={local.cornerText}>{label}</Text>
-                <Text style={local.cornerTextSmall}>{suitSymbol}</Text>
+                <Text style={[local.cornerTextSmall, { color: suitColor }]}>{suitSymbol}</Text>
               </View>
 
               <Text style={local.value}>{label}</Text>
-              <Text style={local.suit}>{suitSymbol}</Text>
+              <Text style={[local.suit, { color: suitColor }]}>{suitSymbol}</Text>
 
               <View style={local.cornerBottomRight} pointerEvents="none">
                 <Text style={local.cornerText}>{label}</Text>
-                <Text style={local.cornerTextSmall}>{suitSymbol}</Text>
+                <Text style={[local.cornerTextSmall, { color: suitColor }]}>{suitSymbol}</Text>
               </View>
             </>
           )}
@@ -97,14 +99,14 @@ const local = StyleSheet.create({
   card: {
     width: 86,
     height: 124,
-    backgroundColor: "#101712",
-    borderRadius: 14,
+    backgroundColor: "#111111",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.15)",
+    borderColor: "rgba(255,255,255,0.08)",
     shadowColor: "black",
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
@@ -116,14 +118,14 @@ const local = StyleSheet.create({
     justifyContent: "center",
   },
   value: {
-    color: "#f0f0f0",
+    color: "#e8e8e8",
     fontWeight: "700",
     fontSize: 18,
   },
   suit: {
-    color: "#d4af37",
+    color: "rgba(255,255,255,0.45)",
     fontSize: 20,
-    marginTop: 6,
+    marginTop: 4,
   },
   cornerTopLeft: {
     position: "absolute",
@@ -138,15 +140,15 @@ const local = StyleSheet.create({
     alignItems: "flex-end",
     transform: [{ rotate: "180deg" }],
   },
-  backFace: { width: "80%", height: "60%", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 6 },
+  backFace: { width: "80%", height: "60%", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 6 },
   cornerText: {
-    color: "#f0f0f0",
+    color: "#e8e8e8",
     fontWeight: "700",
     fontSize: 10,
     lineHeight: 12,
   },
   cornerTextSmall: {
-    color: "#d4af37",
+    color: "rgba(255,255,255,0.45)",
     fontSize: 10,
     lineHeight: 12,
   },

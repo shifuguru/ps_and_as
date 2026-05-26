@@ -36,7 +36,7 @@ export default function MoreMenu({ onBack, onFindGame, onAchievements, onSetting
             activeOpacity={0.7}
           >
             <View style={styles.iconWrap}>
-              <MenuIcon name={item.icon} size={22} color="#d4af37" />
+              <MenuIcon name={item.icon} size={22} color="rgba(255,255,255,0.5)" />
             </View>
             <Text style={styles.label}>{item.label}</Text>
           </TouchableOpacity>
@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(20, 20, 20, 0.85)",
     borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.18)",
+    borderColor: "rgba(255, 255, 255, 0.08)",
     borderRadius: 14,
     paddingVertical: 16,
     paddingHorizontal: 18,

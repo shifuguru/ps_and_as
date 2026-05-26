@@ -12,7 +12,7 @@ type Props = {
   children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   minHeight?: number;
-  bottomOffset?: number; // additional bottom margin above safe area
+  bottomOffset?: number;
 };
 
 export default function BottomBar({
@@ -49,15 +49,15 @@ const styles = StyleSheet.create({
   },
   inner: {
     width: "100%",
-    backgroundColor: "rgba(15, 15, 15, 0.98)",
-    borderTopWidth: 2,
-    borderTopColor: "rgba(212,175,55,0.4)",
+    backgroundColor: "rgba(10, 10, 10, 0.97)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
     paddingTop: 12,
     paddingHorizontal: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
     overflow: Platform.OS === "android" ? "hidden" : "visible",
     alignItems: "center",
   },

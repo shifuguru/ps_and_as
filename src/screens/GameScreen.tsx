@@ -1209,7 +1209,7 @@ export default function GameScreen({
       {showDebugOverlay && (
         <View style={local.debugOverlay}>
           <View style={local.debugHeader}>
-            <Text style={{ color: "#d4af37", fontWeight: "800" }}>
+            <Text style={{ color: "#e8e8e8", fontWeight: "600" }}>
               Full Game Log
             </Text>
             <TouchableOpacity
@@ -1227,10 +1227,10 @@ export default function GameScreen({
                 .map((log, idx) => {
                   const color =
                     log.kind === "win"
-                      ? "#ffd700"
+                      ? "#7aacd6"
                       : log.kind === "pass"
-                        ? "#8B4513"
-                        : "#f0f0f0";
+                        ? "rgba(255,255,255,0.35)"
+                        : "rgba(255,255,255,0.7)";
                   return (
                     <Text
                       key={idx}
@@ -1246,7 +1246,7 @@ export default function GameScreen({
                   );
                 })
             ) : (
-              <Text style={{ color: "#aaa", fontSize: 12 }}>
+              <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 12 }}>
                 No log entries yet.
               </Text>
             )}
@@ -1259,7 +1259,7 @@ export default function GameScreen({
         <Modal visible={true} transparent={true} animationType="fade">
           <View style={local.modalOverlay}>
             <View style={local.modalContent}>
-              <Text style={local.modalTitle}>You played a 10!</Text>
+              <Text style={local.modalTitle}>You played a 10</Text>
               <Text style={local.modalText}>
                 Choose direction for next player:
               </Text>
@@ -1271,7 +1271,7 @@ export default function GameScreen({
                     setState(newState);
                   }}
                 >
-                  <Text style={local.modalButtonText}>⬇️ Lower</Text>
+                  <Text style={local.modalButtonText}>Lower</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[local.modalButton, { marginRight: 12 }]}
@@ -1280,7 +1280,7 @@ export default function GameScreen({
                     setState(newState);
                   }}
                 >
-                  <Text style={local.modalButtonText}>⬆️ Higher</Text>
+                  <Text style={local.modalButtonText}>Higher</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1310,8 +1310,8 @@ export default function GameScreen({
         {/* Winner banner */}
         {showWinnerBanner && lastTrickWinner && (
           <View style={{ position: 'absolute', top: 18, left: 18, right: 18, alignItems: 'center', zIndex: 200 }}>
-            <View style={{ backgroundColor: 'rgba(212,175,55,0.96)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 }}>
-              <Text style={{ color: '#111', fontWeight: '800' }}>{lastTrickWinner} won the trick</Text>
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.95)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}>
+              <Text style={{ color: '#0a0a0a', fontWeight: '600', fontSize: 14 }}>{lastTrickWinner} won the trick</Text>
             </View>
           </View>
         )}
@@ -1332,10 +1332,10 @@ export default function GameScreen({
                   .map((log, idx) => {
                     const color =
                       log.kind === "win"
-                        ? "#ffd700"
+                        ? "#7aacd6"
                         : log.kind === "pass"
-                          ? "#8B4513"
-                          : "#f0f0f0";
+                          ? "rgba(255,255,255,0.35)"
+                          : "rgba(255,255,255,0.7)";
                     return (
                       <Text key={idx} style={[local.gameLogText, { color }]}>
                         {log.text}
@@ -1388,25 +1388,25 @@ export default function GameScreen({
             onPress={() => {
               try { const next = passTurn(state, current.id); setState(next); console.log('[DBG] forced pass applied'); } catch (e) { console.warn(e); }
             }}
-            style={{ padding: 8, backgroundColor: '#333', borderRadius: 8 }}
+            style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8 }}
           >
-            <Text style={{ color: '#d4af37', fontWeight: '700' }}>Force Pass</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontWeight: '600', fontSize: 12 }}>Force Pass</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => {
               try { const nextIdx = nextActivePlayerIndex(state, state.currentPlayerIndex); setState({ ...state, currentPlayerIndex: nextIdx }); console.log('[DBG] forced advance to', nextIdx); } catch (e) { console.warn(e); }
             }}
-            style={{ padding: 8, backgroundColor: '#333', borderRadius: 8 }}
+            style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8 }}
           >
-            <Text style={{ color: '#d4af37', fontWeight: '700' }}>Advance</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontWeight: '600', fontSize: 12 }}>Advance</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => console.log('[DBG] state dump', JSON.parse(JSON.stringify(state)))}
-            style={{ padding: 8, backgroundColor: '#333', borderRadius: 8 }}
+            style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8 }}
           >
-            <Text style={{ color: '#d4af37', fontWeight: '700' }}>Log State</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontWeight: '600', fontSize: 12 }}>Log State</Text>
           </TouchableOpacity>
         </View>
 
@@ -1415,7 +1415,7 @@ export default function GameScreen({
           <Modal visible={true} transparent={true} animationType="fade">
             <View style={local.modalOverlay}>
               <View style={[local.modalContent, { minWidth: 360, maxWidth: 500 }]}>
-                <Text style={local.modalTitle}>🎉 Round Complete! 🎉</Text>
+                <Text style={local.modalTitle}>Round Complete</Text>
                 
                 <View style={{ width: '100%', marginVertical: 16 }}>
                   <Text style={[local.modalText, { marginBottom: 12, fontWeight: '700' }]}>Final Rankings:</Text>
@@ -1426,15 +1426,13 @@ export default function GameScreen({
                     // Determine role based on position and player count
                     let roleName = 'Neutral';
                     if (index === 0) {
-                      roleName = '👑 President';
+                      roleName = 'President';
                     } else if (state.finishedOrder.length >= 5) {
-                      // 5+ players: use Vice roles
-                      if (index === 1) roleName = '⭐ Vice President';
-                      else if (index === state.finishedOrder.length - 1) roleName = '💩 Asshole';
-                      else if (index === state.finishedOrder.length - 2) roleName = '💩 Vice Asshole';
+                      if (index === 1) roleName = 'Vice President';
+                      else if (index === state.finishedOrder.length - 1) roleName = 'Asshole';
+                      else if (index === state.finishedOrder.length - 2) roleName = 'Vice Asshole';
                     } else if (index === state.finishedOrder.length - 1) {
-                      // 2-4 players: only President and Asshole
-                      roleName = '💩 Asshole';
+                      roleName = 'Asshole';
                     }
                     
                     return (
@@ -1507,12 +1505,12 @@ const local = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
   },
-  navBackText: { color: "#d4af37", fontWeight: "800", fontSize: 14 },
-  navTitle: { color: "#d4af37", fontWeight: "800", fontSize: 16 },
+  navBackText: { color: "rgba(255,255,255,0.6)", fontWeight: "600", fontSize: 14 },
+  navTitle: { color: "#e8e8e8", fontWeight: "600", fontSize: 16 },
   pileArea: { marginTop: 6, marginBottom: 8 },
   tableBorder: {
-    borderWidth: 2,
-    borderColor: "rgba(212,175,55,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
     borderStyle: "dashed",
     padding: 8,
     borderRadius: 8,
@@ -1521,8 +1519,8 @@ const local = StyleSheet.create({
     alignItems: 'center',
   },
   sectionTitle: {
-    color: "#d4af37",
-    fontWeight: "700",
+    color: "rgba(255,255,255,0.5)",
+    fontWeight: "600",
     marginBottom: 4,
     fontSize: 12,
   },
@@ -1540,12 +1538,12 @@ const local = StyleSheet.create({
     marginBottom: 3,
   },
   playerRowCurrent: {
-    backgroundColor: "rgba(212,175,55,0.08)",
-    borderColor: "rgba(212,175,55,0.12)",
+    backgroundColor: "rgba(122,172,214,0.06)",
+    borderColor: "rgba(122,172,214,0.1)",
     borderWidth: 1,
   },
   playerName: { color: "#fff", fontWeight: "600", fontSize: 13 },
-  playerNameCurrent: { color: "#ffd" },
+  playerNameCurrent: { color: "#fff" },
   playerCount: { color: "#ccc", fontSize: 11 },
   avatar: {
     width: 32,
@@ -1557,7 +1555,7 @@ const local = StyleSheet.create({
   },
   avatarText: { color: "#fff", fontWeight: "700", fontSize: 12 },
   turnBadge: {
-    backgroundColor: "#d4af37",
+    backgroundColor: "#7aacd6",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 10,
@@ -1574,25 +1572,25 @@ const local = StyleSheet.create({
   },
   actionButtonPrimary: { marginRight: 4 },
   actionButtonSecondary: { marginHorizontal: 4 },
-  actionButtonTertiary: { marginLeft: 4, backgroundColor: "rgba(212, 175, 55, 0.15)" },
+  actionButtonTertiary: { marginLeft: 4, backgroundColor: "rgba(255, 255, 255, 0.06)" },
   actionText: { color: "#fff", fontWeight: "800", fontSize: 16 },
   bottomBar: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    borderTopWidth: 2,
-    borderTopColor: "rgba(212,175,55,0.4)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
     paddingTop: 8,
     paddingBottom: 28,
     paddingHorizontal: 8,
-    backgroundColor: "rgba(15, 15, 15, 0.98)",
+    backgroundColor: "rgba(10, 10, 10, 0.97)",
     zIndex: 50,
     alignItems: 'center',
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
   },
   modalOverlay: {
     flex: 1,
@@ -1603,18 +1601,19 @@ const local = StyleSheet.create({
   modalContent: {
     backgroundColor: "rgba(15, 15, 15, 0.98)",
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "rgba(212, 175, 55, 0.6)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
     padding: 24,
     minWidth: 280,
     alignItems: "center",
   },
   modalTitle: {
-    color: "#d4af37",
-    fontSize: 24,
-    fontWeight: "700",
+    color: "#e8e8e8",
+    fontSize: 22,
+    fontWeight: "600",
     marginBottom: 16,
     textAlign: "center",
+    letterSpacing: -0.3,
   },
   modalText: {
     color: "#fff",
@@ -1627,47 +1626,46 @@ const local = StyleSheet.create({
     justifyContent: "center",
   },
   modalButton: {
-    backgroundColor: "#d4af37",
+    backgroundColor: "#fff",
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     minWidth: 100,
     alignItems: "center",
   },
   modalButtonText: {
-    color: "#111",
-    fontSize: 12,
-    fontWeight: "700",
+    color: "#0a0a0a",
+    fontSize: 13,
+    fontWeight: "600",
   },
   turnIndicator: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: "rgba(212, 175, 55, 0.15)",
-    borderRadius: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: 8,
     marginTop: 8,
     marginHorizontal: 8,
     alignItems: "center",
   },
   turnIndicatorText: {
-    color: "#d4af37",
+    color: "rgba(255,255,255,0.5)",
     fontSize: 14,
-    fontWeight: "600",
-    fontStyle: "italic",
+    fontWeight: "500",
   },
   gameLogContainer: {
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     borderRadius: 8,
     padding: 12,
     marginHorizontal: 8,
     marginBottom: 8,
     maxHeight: 240,
     borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.3)",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   gameLogTitle: {
-    color: "#d4af37",
-    fontSize: 14,
-    fontWeight: "700",
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13,
+    fontWeight: "600",
     marginBottom: 8,
     textTransform: "uppercase",
   },
@@ -1675,7 +1673,7 @@ const local = StyleSheet.create({
     maxHeight: 100,
   },
   gameLogText: {
-    color: "#f0f0f0",
+    color: "rgba(255,255,255,0.7)",
     fontSize: 13,
     marginBottom: 4,
     lineHeight: 18,
@@ -1689,16 +1687,16 @@ const local = StyleSheet.create({
   playTypeBadge: {
     marginTop: 36,
     alignSelf: "center",
-    backgroundColor: "rgba(212,175,55,0.12)",
+    backgroundColor: "rgba(122,172,214,0.1)",
     paddingHorizontal: 18,
     paddingVertical: 6,
-    borderRadius: 10,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.22)",
+    borderColor: "rgba(122,172,214,0.2)",
   },
   playTypeText: {
-    color: "#d4af37",
-    fontWeight: "800",
+    color: "#7aacd6",
+    fontWeight: "700",
     fontSize: 12,
   },
   debugOverlay: {
@@ -1707,9 +1705,9 @@ const local = StyleSheet.create({
     right: 12,
     width: 320,
     height: 220,
-    backgroundColor: "rgba(12,12,12,0.92)",
+    backgroundColor: "rgba(10,10,10,0.95)",
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.25)",
+    borderColor: "rgba(255,255,255,0.08)",
     borderRadius: 10,
     padding: 8,
     zIndex: 120,
@@ -1735,8 +1733,8 @@ const local = StyleSheet.create({
     paddingHorizontal: 8,
   },
   logToggleText: {
-    color: "#d4af37",
-    fontWeight: "700",
+    color: "rgba(255,255,255,0.5)",
+    fontWeight: "600",
   },
   smallToggle: {
     backgroundColor: "transparent",
@@ -1745,8 +1743,8 @@ const local = StyleSheet.create({
     borderRadius: 6,
   },
   smallToggleText: {
-    color: "#d4af37",
-    fontWeight: "700",
+    color: "rgba(255,255,255,0.5)",
+    fontWeight: "600",
     fontSize: 12,
   },
   passedBadge: {
@@ -1764,41 +1762,41 @@ const local = StyleSheet.create({
   },
   placementBadge: {
     marginLeft: 8,
-    backgroundColor: "rgba(212,175,55,0.18)",
+    backgroundColor: "rgba(122,172,214,0.1)",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
     marginTop: 2,
   },
   placementBadgeText: {
-    color: "#d4af37",
+    color: "#7aacd6",
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: "600",
   },
   rankingRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: "rgba(212,175,55,0.08)",
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderRadius: 8,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   rankingPosition: {
-    color: "#d4af37",
+    color: "#7aacd6",
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "700",
     width: 30,
   },
   rankingName: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
+    color: "#e8e8e8",
+    fontSize: 15,
+    fontWeight: "600",
     flex: 1,
   },
   rankingRole: {
-    color: "#d4af37",
-    fontSize: 14,
-    fontWeight: "600",
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 13,
+    fontWeight: "500",
   },
 });

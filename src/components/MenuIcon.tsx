@@ -17,7 +17,7 @@ type Props = {
   color?: string;
 };
 
-export default function MenuIcon({ name, size = 20, color = "#d4af37" }: Props) {
+export default function MenuIcon({ name, size = 20, color = "#e8e8e8" }: Props) {
   const s = size;
   const c = color;
   const sw = 1.8;

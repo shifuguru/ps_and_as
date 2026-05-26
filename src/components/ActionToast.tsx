@@ -20,6 +20,6 @@ export default function ActionToast({ text, show = false, onDone }: any) {
 }
 
 const styles = StyleSheet.create({
-  toast: { position: 'absolute', bottom: 120, left: '50%', marginLeft: -60, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(212,175,55,0.2)' },
+  toast: { position: 'absolute', bottom: 120, left: '50%', marginLeft: -60, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(122,172,214,0.2)' },
   text: { color: '#fff', fontWeight: '800' },
 });

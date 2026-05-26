@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 15, 15, 0.98)",
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: "rgba(212, 175, 55, 0.5)",
+    borderColor: "rgba(122, 172, 214, 0.5)",
     zIndex: 100,
   },
   header: {
@@ -158,10 +158,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(212, 175, 55, 0.3)",
+    borderBottomColor: "rgba(122, 172, 214, 0.3)",
   },
   title: {
-    color: "#d4af37",
+    color: "#7aacd6",
     fontWeight: "700",
     fontSize: 16,
   },
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(255, 255, 255, 0.1)",
   },
   sectionTitle: {
-    color: "#d4af37",
+    color: "#7aacd6",
     fontWeight: "700",
     fontSize: 14,
     marginBottom: 8,

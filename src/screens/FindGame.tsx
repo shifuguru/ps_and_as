@@ -224,7 +224,7 @@ export default function FindGame({
           <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, marginBottom: 8 }}>Your Name:</Text>
           <View style={{ 
             borderWidth: 1,
-            borderColor: "rgba(212, 175, 55, 0.3)",
+            borderColor: "rgba(122, 172, 214, 0.3)",
             borderRadius: 8,
             paddingVertical: 12, 
             paddingHorizontal: 16,
@@ -235,7 +235,7 @@ export default function FindGame({
           }}>
             <Text style={{ color: "white", fontSize: 16 }}>{playerName}</Text>
             <TouchableOpacity onPress={onNavigateToAchievements || onBack}>
-              <Text style={{ color: "#d4af37", fontSize: 12 }}>Change in Achievements →</Text>
+              <Text style={{ color: "#7aacd6", fontSize: 12 }}>Change in Achievements →</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -264,7 +264,7 @@ export default function FindGame({
           justifyContent: "space-between"
         }}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            {isSearching && <ActivityIndicator size="small" color="#d4af37" style={{ marginRight: 8 }} />}
+            {isSearching && <ActivityIndicator size="small" color="#7aacd6" style={{ marginRight: 8 }} />}
             <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14 }}>
               {isSearching ? "Searching..." : `Found ${availableRooms.length} game${availableRooms.length !== 1 ? 's' : ''}`}
             </Text>
@@ -278,7 +278,7 @@ export default function FindGame({
             }}
             style={{ padding: 4 }}
           >
-            <Text style={{ color: "#d4af37", fontSize: 13 }}>🔄 Refresh</Text>
+            <Text style={{ color: "#7aacd6", fontSize: 13 }}>🔄 Refresh</Text>
           </TouchableOpacity>
         </View>
 
@@ -306,10 +306,10 @@ export default function FindGame({
                   backgroundColor: "rgba(0,0,0,0.4)",
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "rgba(212, 175, 55, 0.2)",
+                  borderColor: "rgba(122, 172, 214, 0.2)",
                   padding: 16,
                   marginBottom: 12,
-                  shadowColor: "#d4af37",
+                  shadowColor: "#7aacd6",
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.1,
                   shadowRadius: 4
@@ -317,7 +317,7 @@ export default function FindGame({
               >
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: "#d4af37", fontSize: 16, fontWeight: "600", marginBottom: 4 }}>
+                    <Text style={{ color: "#7aacd6", fontSize: 16, fontWeight: "600", marginBottom: 4 }}>
                       {room.roomName || room.hostName + "'s Game"}
                     </Text>
                     <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginBottom: 4 }}>
@@ -334,19 +334,19 @@ export default function FindGame({
                   </View>
                   <TouchableOpacity
                     style={{
-                      backgroundColor: room.playerCount >= room.maxPlayers ? "rgba(100,100,100,0.3)" : "rgba(212, 175, 55, 0.2)",
+                      backgroundColor: room.playerCount >= room.maxPlayers ? "rgba(100,100,100,0.3)" : "rgba(255, 255, 255, 0.08)",
                       paddingVertical: 8,
                       paddingHorizontal: 16,
                       borderRadius: 8,
                       borderWidth: 1,
-                      borderColor: room.playerCount >= room.maxPlayers ? "rgba(150,150,150,0.3)" : "#d4af37",
+                      borderColor: room.playerCount >= room.maxPlayers ? "rgba(150,150,150,0.3)" : "rgba(255,255,255,0.15)",
                       marginLeft: 12
                     }}
                     onPress={() => handleJoinRoom(room.roomId)}
                     disabled={room.playerCount >= room.maxPlayers || !playerName.trim()}
                   >
                     <Text style={{ 
-                      color: room.playerCount >= room.maxPlayers ? "rgba(255,255,255,0.4)" : "#d4af37", 
+                      color: room.playerCount >= room.maxPlayers ? "rgba(255,255,255,0.4)" : "#e8e8e8", 
                       fontSize: 14,
                       fontWeight: "600"
                     }}>
