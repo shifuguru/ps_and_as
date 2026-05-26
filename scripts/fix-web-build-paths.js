@@ -10,27 +10,49 @@ if (!fs.existsSync(buildIndex)) {
   process.exit(1);
 }
 
-let html = fs.readFileSync(buildIndex, 'utf8');
-const basePrefix = `${basePath}/`;
+function rewriteHtmlPaths(html) {
+  const basePrefix = `${basePath}/`;
+  const doubledPrefix = `${basePath}${basePath}/`;
 
-// Expo may already emit /repo-name/... when app.json experiments.baseUrl is set.
-// Only rewrite root-absolute paths that are not already under basePath.
-const alreadyPrefixed =
-  html.includes(`${basePrefix}_expo/`) ||
-  html.includes(`href="${basePrefix}`) ||
-  html.includes(`src="${basePrefix}`);
+  // Repair any previously doubled prefixes from older deploys/builds.
+  while (html.includes(doubledPrefix)) {
+    html = html.split(doubledPrefix).join(basePrefix);
+  }
 
-if (!alreadyPrefixed) {
-  html = html.replace(/(href|src)=(['"])\/(?!\/)/g, `$1=$2${basePrefix}`);
+  // Prefix root-absolute asset URLs, but never double-prefix.
+  html = html.replace(/(href|src)=(['"])(\/[^'"]*)/g, (match, attr, quote, urlPath) => {
+    if (urlPath.startsWith('//')) return match;
+    if (urlPath === basePath || urlPath.startsWith(basePrefix)) return match;
+    return `${attr}=${quote}${basePath}${urlPath}`;
+  });
+
+  return html;
 }
 
+function patchViewport(html) {
+  const viewport =
+    "width=device-width, initial-scale=1, viewport-fit=cover, shrink-to-fit=no";
+  if (/name="viewport"/i.test(html)) {
+    return html.replace(
+      /name="viewport" content="[^"]*"/i,
+      `name="viewport" content="${viewport}"`,
+    );
+  }
+  return html.replace(
+    "<head>",
+    `<head>\n    <meta name="viewport" content="${viewport}" />`,
+  );
+}
+
+let html = fs.readFileSync(buildIndex, "utf8");
+html = rewriteHtmlPaths(html);
+html = patchViewport(html);
 fs.writeFileSync(buildIndex, html, 'utf8');
 
-// GitHub Pages serves 404.html for unknown routes — copy for SPA deep links
+// GitHub Pages serves 404.html for unknown routes — copy for SPA deep links.
 fs.copyFileSync(buildIndex, path.join(buildDir, '404.html'));
 
-console.log(
-  alreadyPrefixed
-    ? `web-build already uses base path ${basePath}; copied 404.html only.`
-    : `Prepared web-build for GitHub Pages (base: ${basePath}).`,
-);
+// Prevent Jekyll from stripping or ignoring Expo output folders.
+fs.writeFileSync(path.join(buildDir, '.nojekyll'), '', 'utf8');
+
+console.log(`Prepared web-build for GitHub Pages (base: ${basePath}).`);

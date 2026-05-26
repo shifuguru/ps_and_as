@@ -25,8 +25,13 @@ import {
 import { createDeck, shuffleDeck, dealCards } from "../game/ruleset";
 import Card from "../components/Card";
 import { ScrollView, Dimensions } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MockAdapter } from "../game/network";
+import {
+  isFullGameState,
+  normalizeLobbyNames,
+  resolveLocalHumanPlayer,
+} from "../utils/localPlayer";
+import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import DebugViewer from "../components/DebugViewer";
 import { Card as CardType } from "../game/ruleset";
 import Header from "../components/Header";
@@ -334,7 +339,11 @@ export default function GameScreen({
   const [revealedHands, setRevealedHands] = useState<{
     [playerId: string]: boolean;
   }>({});
-  const adapter = networkAdapter || new MockAdapter();
+  const fallbackAdapterRef = useRef<MockAdapter | null>(null);
+  if (!networkAdapter && !fallbackAdapterRef.current) {
+    fallbackAdapterRef.current = new MockAdapter();
+  }
+  const adapter = networkAdapter ?? fallbackAdapterRef.current!;
 
   // UX pacing: centralized CPU turn delay for a more relaxed feel
   const CPU_DELAY_MS = 1100;
@@ -359,7 +368,7 @@ export default function GameScreen({
   const trickBannerTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const insets = useSafeAreaInsets();
+  const insets = useLayoutInsets();
 
   function snapshotState(s: GameState | null) {
     if (!s) return null;
@@ -626,27 +635,7 @@ export default function GameScreen({
   }
 
   useEffect(() => {
-    const placeholders = new Set(["You", "You (Host)", "Player"]);
-    let names =
-      initialPlayers && initialPlayers.length >= 2
-        ? [...initialPlayers]
-        : ["Alice", "Bob", "Charlie", "Dana"];
-    if (localPlayerName) {
-      let replaced = false;
-      names = names.map((name) => {
-        if (placeholders.has(name)) {
-          replaced = true;
-          return localPlayerName;
-        }
-        return name;
-      });
-      if (!replaced) {
-        const humanIdx = names.findIndex(
-          (name) => !/^CPU\s/i.test(name.trim()),
-        );
-        if (humanIdx >= 0) names[humanIdx] = localPlayerName;
-      }
-    }
+    const names = normalizeLobbyNames(initialPlayers, localPlayerName);
     const g = createGame(names);
     setState(g);
     adapter.connect();
@@ -728,9 +717,8 @@ export default function GameScreen({
           });
         }
       }
-      // Legacy support for MockAdapter
-      else if (ev.type === "state") {
-        // Log the incoming state snapshot from the adapter
+      // Legacy support for MockAdapter — only apply full game snapshots.
+      else if (ev.type === "state" && isFullGameState(ev.state)) {
         emitDebug("adapter:state", {
           incomingStateSummary: summarizeState(ev.state),
         });
@@ -747,29 +735,16 @@ export default function GameScreen({
   // For mock/local games (MockAdapter or no network adapter provided) we treat
   // any non-CPU-named players as local humans. For multiplayer we only treat
   // the player matching `localPlayerId` or `localPlayerName` as the local human.
-  const usingMock = !networkAdapter || (networkAdapter as any)?.constructor?.name === "MockAdapter";
+  const humanPlayer = state
+    ? resolveLocalHumanPlayer(
+        state.players,
+        localPlayerName,
+        localPlayerId,
+        networkAdapter,
+      )
+    : null;
 
-  let localControlledIds: string[] = [];
-  if (state) {
-    if (usingMock) {
-      localControlledIds = state.players
-        .filter((p) => !(p.name && typeof p.name === "string" && p.name.startsWith("CPU")))
-        .map((p) => p.id);
-    } else {
-      if (localPlayerId) localControlledIds = [localPlayerId];
-      else if (localPlayerName && state)
-        localControlledIds = state.players.filter((p) => p.name === localPlayerName).map((p) => p.id);
-    }
-  }
-
-  // Registered local human player (by device id or name) used for logging and
-  // as a fallback view when the current player isn't a local-controlled hotseat player.
-  let humanPlayer = null as any;
-  if (state) {
-    if (localPlayerId) humanPlayer = state.players.find((p) => p.id === localPlayerId);
-    if (!humanPlayer && localPlayerName) humanPlayer = state.players.find((p) => p.name === localPlayerName);
-    if (!humanPlayer) humanPlayer = state.players.find((p) => p.name === "You" || p.name === "You (Host)");
-  }
+  const localControlledIds = humanPlayer ? [humanPlayer.id] : [];
 
   // CPU auto-play effect
   useEffect(() => {

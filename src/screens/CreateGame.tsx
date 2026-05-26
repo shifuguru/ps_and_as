@@ -14,7 +14,7 @@ import {
   Keyboard,
   StyleSheet,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import ScreenContainer from "../components/ScreenContainer";
 import FeltBackground from "../components/FeltBackground";
 import LobbyStatusBar, {
@@ -68,7 +68,7 @@ export default function CreateGame({
 
   const net = adapter ?? new MockAdapter();
   const { width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const insets = useLayoutInsets();
   const topBarHeight = insets.top + LOBBY_STATUS_BAR_HEIGHT;
   const bottomBarHeight = lobbyBottomReserve(insets.bottom || 0);
 

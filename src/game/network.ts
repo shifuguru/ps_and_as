@@ -125,3 +125,7 @@ export class MockAdapter implements NetworkAdapter {
     setTimeout(() => this.handlers.forEach((h) => h({ type: "state", state: { type: "lobby", players, host } })), 10);
   }
 }
+
+export function isMockAdapter(adapter: NetworkAdapter | null | undefined): boolean {
+  return !adapter || adapter instanceof MockAdapter;
+}

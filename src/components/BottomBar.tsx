@@ -14,7 +14,7 @@ import {
 
 } from "react-native";
 
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLayoutInsets } from "../hooks/useLayoutInsets";
 
 import BlurPanel from "./BlurPanel";
 import { ACTION_BAR_HEIGHT } from "./ActionBar";
@@ -86,7 +86,7 @@ export default function BottomBar({
 
 }: Props) {
 
-  const insets = useSafeAreaInsets();
+  const insets = useLayoutInsets();
 
   const bottomInset = Platform.OS === "web" ? 0 : insets.bottom || 0;
 

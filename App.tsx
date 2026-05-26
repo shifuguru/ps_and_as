@@ -135,10 +135,18 @@ export default function App() {
       html, body, #root {
         height: 100%;
         min-height: 100%;
+        min-height: 100dvh;
         margin: 0;
         padding: 0;
         background-color: #0f5d2f;
         overflow: hidden;
+        overscroll-behavior: none;
+      }
+      @supports (height: 100dvh) {
+        html, body, #root {
+          height: 100dvh;
+          min-height: 100dvh;
+        }
       }
       html, body, #root, #root * {
         user-select: none !important;
@@ -333,7 +341,8 @@ const localMenuStyles = StyleSheet.create({
 
 const appStyles = StyleSheet.create({
   webRoot: {
-    minHeight: "100vh",
+    minHeight: "100dvh",
+    height: "100dvh",
     width: "100%",
   } as object,
 });
