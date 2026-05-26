@@ -20,20 +20,16 @@ import {
   nextActivePlayerIndex,
 } from "../game/core";
 import { createDeck, shuffleDeck, dealCards } from "../game/ruleset";
-import Card from "../components/Card";
-import { ScrollView, Dimensions } from "react-native";
+import { ScrollView } from "react-native";
 import { MockAdapter } from "../game/network";
-import DebugViewer from "../components/DebugViewer";
 import { Card as CardType } from "../game/ruleset";
-import Header from "../components/Header";
 import ScreenContainer from "../components/ScreenContainer";
-import EndGamePanel from "../components/EndGamePanel";
-import BottomBar from "../components/BottomBar";
-import ActionBar from "../components/ActionBar";
-import GameTable from "../components/GameTable";
 import PlayerHand from "../components/PlayerHand";
-import StatusBar from "../components/StatusBar";
-import { styles } from "../styles/theme";
+import OpponentPills from "../components/OpponentPills";
+import TurnBanner from "../components/TurnBanner";
+import TableCenter from "../components/TableCenter";
+import HandDock from "../components/HandDock";
+import { triggerHaptic } from "../utils/haptics";
 
 // Helper: check if a card value can be part of any valid play
 function canCardBePlayedAtAll(
@@ -752,8 +748,6 @@ export default function GameScreen({
 
   if (!state) return null;
 
-  const width = Dimensions.get("window").width;
-  const isLargeScreen = width >= 900;
   const current = state.players[state.currentPlayerIndex];
 
   const currentIsLocalHuman = localControlledIds.includes(current.id);
@@ -940,7 +934,6 @@ export default function GameScreen({
     }
   };
 
-  const bottomBarMinHeight = 220;
   const currentPlayerCount = state.players.length;
   const pileCount = state.pile.length;
   const passCount = state.passCount;
@@ -1203,84 +1196,121 @@ export default function GameScreen({
 
   // Note: no appear animation here to avoid flashing on re-renders
 
+  const passedPlayerIds = state.players
+    .filter((p) => hasPassedInCurrentTrick(state, p.id))
+    .map((p) => p.id);
+
+  const localPlayerIndex = state.players.findIndex((p) =>
+    localControlledIds.includes(p.id)
+  ) ?? 0;
+
+  const playButtonDisabled = !isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id);
+  const passButtonDisabled = !isHumanTurn || roundOver;
+  const showPlayButton = selected.length > 0;
+
   return (
     <ScreenContainer ignoreHeaderOffset={true} style={{ flex: 1 }}>
-      {/* Toggleable structured debug overlay (doesn't block bottom hand) */}
+
+      {/* Back button — top-left */}
+      <TouchableOpacity
+        style={local.backButton}
+        onPress={() => { if (onBack) onBack(); }}
+      >
+        <Text style={local.backButtonText}>{"\u2190"}</Text>
+      </TouchableOpacity>
+
+      {/* Overflow menu — top-right */}
+      <TouchableOpacity
+        style={local.overflowButton}
+        onPress={() => setShowDebugOverlay(!showDebugOverlay)}
+      >
+        <Text style={local.overflowText}>{"\u22EE"}</Text>
+      </TouchableOpacity>
+
+      {/* Debug/log overlay */}
       {showDebugOverlay && (
         <View style={local.debugOverlay}>
           <View style={local.debugHeader}>
-            <Text style={{ color: "#d4af37", fontWeight: "800" }}>
-              Full Game Log
-            </Text>
-            <TouchableOpacity
-              onPress={() => setShowDebugOverlay(false)}
-              style={{ padding: 6 }}
-            >
+            <Text style={{ color: "#e8e8e8", fontWeight: "600" }}>Game Log</Text>
+            <TouchableOpacity onPress={() => setShowDebugOverlay(false)} style={{ padding: 6 }}>
               <Text style={{ color: "#fff" }}>Close</Text>
             </TouchableOpacity>
           </View>
           <ScrollView style={local.debugScroll}>
             {recentFullLog && recentFullLog.length > 0 ? (
-              recentFullLog
-                .slice()
-                .reverse()
-                .map((log, idx) => {
-                  const color =
-                    log.kind === "win"
-                      ? "#ffd700"
-                      : log.kind === "pass"
-                        ? "#8B4513"
-                        : "#f0f0f0";
-                  return (
-                    <Text
-                      key={idx}
-                      style={{
-                        color,
-                        fontSize: 12,
-                        marginBottom: 4,
-                        lineHeight: 18,
-                      }}
-                    >
-                      {log.text}
-                    </Text>
-                  );
-                })
+              recentFullLog.slice().reverse().map((log, idx) => {
+                const color = log.kind === "win" ? "#7aacd6" : log.kind === "pass" ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.7)";
+                return <Text key={idx} style={{ color, fontSize: 12, marginBottom: 4, lineHeight: 18 }}>{log.text}</Text>;
+              })
             ) : (
-              <Text style={{ color: "#aaa", fontSize: 12 }}>
-                No log entries yet.
-              </Text>
+              <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 12 }}>No log entries yet.</Text>
             )}
           </ScrollView>
+          {/* Debug controls */}
+          <View style={{ flexDirection: 'row', marginTop: 8, gap: 6 }}>
+            <TouchableOpacity
+              onPress={() => { try { const next = passTurn(state, current.id); setState(next); } catch (e) { console.warn(e); } }}
+              style={local.debugButton}
+            >
+              <Text style={local.debugButtonText}>Force Pass</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => { try { const nextIdx = nextActivePlayerIndex(state, state.currentPlayerIndex); setState({ ...state, currentPlayerIndex: nextIdx }); } catch (e) { console.warn(e); } }}
+              style={local.debugButton}
+            >
+              <Text style={local.debugButtonText}>Advance</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => console.log('[DBG] state dump', JSON.parse(JSON.stringify(state)))}
+              style={local.debugButton}
+            >
+              <Text style={local.debugButtonText}>Log</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
-      {/* 10 Rule Modal - Higher or Lower */}
+      {/* Opponent pills — floating at top */}
+      <OpponentPills
+        players={state.players}
+        localPlayerIndex={localPlayerIndex}
+        activePlayerIndex={state.currentPlayerIndex}
+        finishedOrder={state.finishedOrder}
+        passedPlayerIds={passedPlayerIds}
+      />
+
+      {/* Table center — card pile + play type */}
+      <TableCenter
+        pileCards={visiblePileCards}
+        playTypeLabel={playTypeLabel}
+      />
+
+      {/* Turn banner */}
+      <TurnBanner
+        isYourTurn={isHumanTurn}
+        opponentName={!isHumanTurn ? current.name : undefined}
+      />
+
+      {/* Winner toast */}
+      {showWinnerBanner && lastTrickWinner && (
+        <View style={local.winnerToast}>
+          <Text style={local.winnerToastText}>{lastTrickWinner} won the trick</Text>
+        </View>
+      )}
+
+      {/* 10 Rule Modal */}
       {state.tenRulePending && isHumanTurn && (
         <Modal visible={true} transparent={true} animationType="fade">
           <View style={local.modalOverlay}>
             <View style={local.modalContent}>
-              <Text style={local.modalTitle}>You played a 10!</Text>
-              <Text style={local.modalText}>
-                Choose direction for next player:
-              </Text>
+              <Text style={local.modalTitle}>You played a 10</Text>
+              <Text style={local.modalText}>Choose direction for next player:</Text>
               <View style={local.modalButtons}>
-                <TouchableOpacity
-                  style={local.modalButton}
-                  onPress={() => {
-                    const newState = setTenRuleDirection(state, "lower");
-                    setState(newState);
-                  }}
-                >
-                  <Text style={local.modalButtonText}>⬇️ Lower</Text>
+                <TouchableOpacity style={local.modalButton} onPress={() => setState(setTenRuleDirection(state, "lower"))}>
+                  <Text style={local.modalButtonText}>Lower</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[local.modalButton, { marginRight: 12 }]}
-                  onPress={() => {
-                    const newState = setTenRuleDirection(state, "higher");
-                    setState(newState);
-                  }}
-                >
-                  <Text style={local.modalButtonText}>⬆️ Higher</Text>
+                <TouchableOpacity style={[local.modalButton, { marginLeft: 12 }]} onPress={() => setState(setTenRuleDirection(state, "higher"))}>
+                  <Text style={local.modalButtonText}>Higher</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1288,81 +1318,55 @@ export default function GameScreen({
         </Modal>
       )}
 
-      {/* Scrollable game content */}
-      <View style={{ padding: 10 }}>
-        <StatusBar
-          currentPlayerName={current.name}
-          currentHandCount={hand.length}
-          playerCount={state.players.length}
-          pileCount={pileCount}
-          passCount={passCount}
-          mustPlay={!!state.mustPlay}
-          isHumanTurn={isHumanTurn}
-          isLargeScreen={isLargeScreen}
-        />
-
-        <GameTable
-          pileCards={visiblePileCards}
-          playTypeLabel={playTypeLabel}
-          lastPlayInfo={lastPlayInfo || 'Current turn: ' + current.name}
-        />
-
-        {/* Winner banner */}
-        {showWinnerBanner && lastTrickWinner && (
-          <View style={{ position: 'absolute', top: 18, left: 18, right: 18, alignItems: 'center', zIndex: 200 }}>
-            <View style={{ backgroundColor: 'rgba(212,175,55,0.96)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 }}>
-              <Text style={{ color: '#111', fontWeight: '800' }}>{lastTrickWinner} won the trick</Text>
+      {/* Round End Modal */}
+      {roundOver && (
+        <Modal visible={true} transparent={true} animationType="fade">
+          <View style={local.modalOverlay}>
+            <View style={[local.modalContent, { minWidth: 360, maxWidth: 500 }]}>
+              <Text style={local.modalTitle}>Round Complete</Text>
+              <View style={{ width: '100%', marginVertical: 16 }}>
+                <Text style={[local.modalText, { marginBottom: 12, fontWeight: '700' }]}>Final Rankings:</Text>
+                {state.finishedOrder.map((playerId, index) => {
+                  const player = state.players.find(p => p.id === playerId);
+                  if (!player) return null;
+                  let roleName = 'Neutral';
+                  if (index === 0) roleName = 'President';
+                  else if (state.finishedOrder.length >= 5) {
+                    if (index === 1) roleName = 'Vice President';
+                    else if (index === state.finishedOrder.length - 1) roleName = 'Asshole';
+                    else if (index === state.finishedOrder.length - 2) roleName = 'Vice Asshole';
+                  } else if (index === state.finishedOrder.length - 1) roleName = 'Asshole';
+                  return (
+                    <View key={playerId} style={local.rankingRow}>
+                      <Text style={local.rankingPosition}>{index + 1}.</Text>
+                      <Text style={local.rankingName}>{player.name}</Text>
+                      <Text style={local.rankingRole}>{roleName}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+              <View style={local.modalButtons}>
+                <TouchableOpacity style={[local.modalButton, { marginRight: 8, backgroundColor: '#555' }]} onPress={() => { if (onBack) onBack(); }}>
+                  <Text style={[local.modalButtonText, { color: '#fff' }]}>Quit Game</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[local.modalButton, { marginLeft: 8 }]} onPress={() => {
+                  const currentPlayerId = current?.id;
+                  if (!currentPlayerId) return;
+                  setPlayerReadyStates((prev) => ({ ...prev, [currentPlayerId]: !prev[currentPlayerId] }));
+                }}>
+                  <Text style={local.modalButtonText}>{playerReadyStates[current?.id || ''] ? 'Unready' : 'Ready for Next Round'}</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={[local.modalText, { fontSize: 12, marginTop: 12, opacity: 0.7 }]}>
+                {Object.values(playerReadyStates).filter(r => r).length} / {state.players.length} players ready
+              </Text>
             </View>
           </View>
-        )}
-      </View>
+        </Modal>
+      )}
 
-      {/* Player hand and actions - sticky at bottom */}
-      <BottomBar minHeight={bottomBarMinHeight} style={local.bottomBar}>
-
-        {/* Game Log (toggleable) */}
-        {showGameLog && (
-          <View>
-            <Text style={local.gameLogTitle}>Current Trick Log</Text>
-            <ScrollView style={local.gameLogScroll} nestedScrollEnabled>
-              {currentTrickLog && currentTrickLog.length > 0 ? (
-                currentTrickLog
-                  .slice()
-                  .reverse()
-                  .map((log, idx) => {
-                    const color =
-                      log.kind === "win"
-                        ? "#ffd700"
-                        : log.kind === "pass"
-                          ? "#8B4513"
-                          : "#f0f0f0";
-                    return (
-                      <Text key={idx} style={[local.gameLogText, { color }]}>
-                        {log.text}
-                      </Text>
-                    );
-                  })
-              ) : (
-                <Text style={[local.gameLogText, { color: "#aaa" }]}>
-                  No game log entries yet.
-                </Text>
-              )}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* Turn indicator */}
-        {!isHumanTurn && (
-          <View style={local.turnIndicator}>
-            <Text style={local.turnIndicatorText}>
-              Waiting for {current.name}...
-            </Text>
-          </View>
-        )}
-
-        {/* Logs toggle placed above the Game Log view */}
-        {/* moved log toggles to the table header */}
-
+      {/* Hand dock — cards + actions at bottom */}
+      <HandDock>
         <PlayerHand
           cards={hand}
           selectedIndices={selected}
@@ -1371,228 +1375,146 @@ export default function GameScreen({
           onCardPress={handleCardPress}
         />
 
-        <ActionBar
-          selectedCount={selected.length}
-          onPlay={handlePlayPress}
-          onPass={handlePassPress}
-          onQuit={() => {
-            if (onBack) onBack();
-          }}
-          playDisabled={!isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id)}
-          passDisabled={!isHumanTurn || roundOver}
-        />
-
-        {/* Debug controls to help unblock stuck CPU turns */}
-        <View style={{ flexDirection: 'row', marginTop: 8, gap: 8 }}>
+        {/* Play button — only visible when cards selected */}
+        {showPlayButton && (
           <TouchableOpacity
-            onPress={() => {
-              try { const next = passTurn(state, current.id); setState(next); console.log('[DBG] forced pass applied'); } catch (e) { console.warn(e); }
-            }}
-            style={{ padding: 8, backgroundColor: '#333', borderRadius: 8 }}
+            style={[local.playButton, playButtonDisabled && local.playButtonDisabled]}
+            onPress={() => { triggerHaptic("medium"); handlePlayPress(); }}
+            disabled={playButtonDisabled}
           >
-            <Text style={{ color: '#d4af37', fontWeight: '700' }}>Force Pass</Text>
+            <Text style={local.playButtonText}>
+              Play{selected.length > 0 ? ` (${selected.length})` : ""}
+            </Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => {
-              try { const nextIdx = nextActivePlayerIndex(state, state.currentPlayerIndex); setState({ ...state, currentPlayerIndex: nextIdx }); console.log('[DBG] forced advance to', nextIdx); } catch (e) { console.warn(e); }
-            }}
-            style={{ padding: 8, backgroundColor: '#333', borderRadius: 8 }}
-          >
-            <Text style={{ color: '#d4af37', fontWeight: '700' }}>Advance</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => console.log('[DBG] state dump', JSON.parse(JSON.stringify(state)))}
-            style={{ padding: 8, backgroundColor: '#333', borderRadius: 8 }}
-          >
-            <Text style={{ color: '#d4af37', fontWeight: '700' }}>Log State</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Round End Modal with Game Summary */}
-        {roundOver && (
-          <Modal visible={true} transparent={true} animationType="fade">
-            <View style={local.modalOverlay}>
-              <View style={[local.modalContent, { minWidth: 360, maxWidth: 500 }]}>
-                <Text style={local.modalTitle}>🎉 Round Complete! 🎉</Text>
-                
-                <View style={{ width: '100%', marginVertical: 16 }}>
-                  <Text style={[local.modalText, { marginBottom: 12, fontWeight: '700' }]}>Final Rankings:</Text>
-                  {state.finishedOrder.map((playerId, index) => {
-                    const player = state.players.find(p => p.id === playerId);
-                    if (!player) return null;
-                    
-                    // Determine role based on position and player count
-                    let roleName = 'Neutral';
-                    if (index === 0) {
-                      roleName = '👑 President';
-                    } else if (state.finishedOrder.length >= 5) {
-                      // 5+ players: use Vice roles
-                      if (index === 1) roleName = '⭐ Vice President';
-                      else if (index === state.finishedOrder.length - 1) roleName = '💩 Asshole';
-                      else if (index === state.finishedOrder.length - 2) roleName = '💩 Vice Asshole';
-                    } else if (index === state.finishedOrder.length - 1) {
-                      // 2-4 players: only President and Asshole
-                      roleName = '💩 Asshole';
-                    }
-                    
-                    return (
-                      <View key={playerId} style={local.rankingRow}>
-                        <Text style={local.rankingPosition}>{index + 1}.</Text>
-                        <Text style={local.rankingName}>{player.name}</Text>
-                        <Text style={local.rankingRole}>{roleName}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-
-                <View style={local.modalButtons}>
-                  <TouchableOpacity
-                    style={[local.modalButton, { marginRight: 8, backgroundColor: '#555' }]}
-                    onPress={() => {
-                      if (onBack) onBack();
-                    }}
-                  >
-                    <Text style={[local.modalButtonText, { color: '#fff' }]}>Quit Game</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[local.modalButton, { marginLeft: 8 }]}
-                    onPress={() => {
-                      const currentPlayerId = current?.id;
-                      if (!currentPlayerId) return;
-                      setPlayerReadyStates((prev) => ({
-                        ...prev,
-                        [currentPlayerId]: !prev[currentPlayerId],
-                      }));
-                    }}
-                  >
-                    <Text style={local.modalButtonText}>
-                      {playerReadyStates[current?.id || ''] ? 'Unready' : 'Ready for Next Round'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <Text style={[local.modalText, { fontSize: 12, marginTop: 12, opacity: 0.7 }]}>
-                  {Object.values(playerReadyStates).filter(r => r).length} / {state.players.length} players ready
-                </Text>
-              </View>
-            </View>
-          </Modal>
         )}
-      </BottomBar>
+
+        {/* Pass link */}
+        {!roundOver && isHumanTurn && (
+          <TouchableOpacity
+            style={local.passLink}
+            onPress={() => { triggerHaptic("light"); handlePassPress(); }}
+            disabled={passButtonDisabled}
+          >
+            <Text style={[local.passLinkText, passButtonDisabled && { opacity: 0.3 }]}>Pass this turn</Text>
+          </TouchableOpacity>
+        )}
+      </HandDock>
     </ScreenContainer>
   );
 }
 
 const local = StyleSheet.create({
-  container: { flex: 1 },
-  scrollableContent: { flex: 1, paddingHorizontal: 12, paddingTop: 0 },
-  header: { marginBottom: 6 },
-  gameId: { color: "#ddd", fontSize: 10 },
-  finished: { color: "#ddd", fontSize: 10 },
-  navBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-    marginTop: 48,
-  },
-  navBack: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-  },
-  navBackText: { color: "#d4af37", fontWeight: "800", fontSize: 14 },
-  navTitle: { color: "#d4af37", fontWeight: "800", fontSize: 16 },
-  pileArea: { marginTop: 6, marginBottom: 8 },
-  tableBorder: {
-    borderWidth: 2,
-    borderColor: "rgba(212,175,55,0.18)",
-    borderStyle: "dashed",
-    padding: 8,
-    borderRadius: 8,
-    minHeight: 100,
-    justifyContent: "center",
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    color: "#d4af37",
-    fontWeight: "700",
-    marginBottom: 4,
-    fontSize: 12,
-  },
-  pileCards: { flexDirection: "row", alignItems: "center" },
-  pileCardWrapper: { marginRight: 6 },
-  playersArea: { marginVertical: 6 },
-  playersGrid: { flexDirection: "row", flexWrap: "wrap" },
-  playerCell: { width: "50%", paddingHorizontal: 4, marginBottom: 6 },
-  playerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 6,
-    borderRadius: 4,
-    backgroundColor: "rgba(255,255,255,0.02)",
-    marginBottom: 3,
-  },
-  playerRowCurrent: {
-    backgroundColor: "rgba(212,175,55,0.08)",
-    borderColor: "rgba(212,175,55,0.12)",
-    borderWidth: 1,
-  },
-  playerName: { color: "#fff", fontWeight: "600", fontSize: 13 },
-  playerNameCurrent: { color: "#ffd" },
-  playerCount: { color: "#ccc", fontSize: 11 },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { color: "#fff", fontWeight: "700", fontSize: 12 },
-  turnBadge: {
-    backgroundColor: "#d4af37",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  turnBadgeText: { color: "#111", fontWeight: "700", fontSize: 11 },
-  actions: { flexDirection: "row", marginTop: 12, alignItems: "center" },
-  actionButton: {
-    backgroundColor: "#222",
-    paddingVertical: 16,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    flex: 1,
-    alignItems: "center",
-  },
-  actionButtonPrimary: { marginRight: 4 },
-  actionButtonSecondary: { marginHorizontal: 4 },
-  actionButtonTertiary: { marginLeft: 4, backgroundColor: "rgba(212, 175, 55, 0.15)" },
-  actionText: { color: "#fff", fontWeight: "800", fontSize: 16 },
-  bottomBar: {
+  backButton: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopWidth: 2,
-    borderTopColor: "rgba(212,175,55,0.4)",
-    paddingTop: 8,
-    paddingBottom: 28,
-    paddingHorizontal: 8,
-    backgroundColor: "rgba(15, 15, 15, 0.98)",
-    zIndex: 50,
-    alignItems: 'center',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
+    top: 52,
+    left: 16,
+    zIndex: 100,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backButtonText: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 20,
+    fontWeight: "600",
+  },
+  overflowButton: {
+    position: "absolute",
+    top: 52,
+    right: 16,
+    zIndex: 100,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  overflowText: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  winnerToast: {
+    position: "absolute",
+    top: 100,
+    left: 24,
+    right: 24,
+    alignItems: "center",
+    zIndex: 200,
+  },
+  winnerToastText: {
+    backgroundColor: "rgba(255,255,255,0.95)",
+    color: "#0a0a0a",
+    fontWeight: "600",
+    fontSize: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  playButton: {
+    width: "100%",
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+  },
+  playButtonDisabled: {
+    opacity: 0.3,
+  },
+  playButtonText: {
+    color: "#0a0a0a",
+    fontWeight: "700",
+    fontSize: 16,
+    letterSpacing: -0.2,
+  },
+  passLink: {
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  passLinkText: {
+    color: "rgba(255,255,255,0.4)",
+    fontWeight: "500",
+    fontSize: 13,
+  },
+  debugOverlay: {
+    position: "absolute",
+    top: 52,
+    right: 60,
+    width: 300,
+    maxHeight: 280,
+    backgroundColor: "rgba(10,10,10,0.96)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 12,
+    padding: 10,
+    zIndex: 120,
+    elevation: 120,
+  },
+  debugHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  debugScroll: {
+    maxHeight: 160,
+  },
+  debugButton: {
+    padding: 6,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 6,
+  },
+  debugButtonText: {
+    color: "rgba(255,255,255,0.4)",
+    fontWeight: "600",
+    fontSize: 11,
   },
   modalOverlay: {
     flex: 1,
@@ -1603,18 +1525,19 @@ const local = StyleSheet.create({
   modalContent: {
     backgroundColor: "rgba(15, 15, 15, 0.98)",
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "rgba(212, 175, 55, 0.6)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
     padding: 24,
     minWidth: 280,
     alignItems: "center",
   },
   modalTitle: {
-    color: "#d4af37",
-    fontSize: 24,
-    fontWeight: "700",
+    color: "#e8e8e8",
+    fontSize: 22,
+    fontWeight: "600",
     marginBottom: 16,
     textAlign: "center",
+    letterSpacing: -0.3,
   },
   modalText: {
     color: "#fff",
@@ -1627,178 +1550,42 @@ const local = StyleSheet.create({
     justifyContent: "center",
   },
   modalButton: {
-    backgroundColor: "#d4af37",
+    backgroundColor: "#fff",
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     minWidth: 100,
     alignItems: "center",
   },
   modalButtonText: {
-    color: "#111",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  turnIndicator: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: "rgba(212, 175, 55, 0.15)",
-    borderRadius: 6,
-    marginTop: 8,
-    marginHorizontal: 8,
-    alignItems: "center",
-  },
-  turnIndicatorText: {
-    color: "#d4af37",
-    fontSize: 14,
-    fontWeight: "600",
-    fontStyle: "italic",
-  },
-  gameLogContainer: {
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    borderRadius: 8,
-    padding: 12,
-    marginHorizontal: 8,
-    marginBottom: 8,
-    maxHeight: 240,
-    borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.3)",
-  },
-  gameLogTitle: {
-    color: "#d4af37",
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 8,
-    textTransform: "uppercase",
-  },
-  gameLogScroll: {
-    maxHeight: 100,
-  },
-  gameLogText: {
-    color: "#f0f0f0",
+    color: "#0a0a0a",
     fontSize: 13,
-    marginBottom: 4,
-    lineHeight: 18,
-  },
-  actionsSecondary: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  playTypeBadge: {
-    marginTop: 36,
-    alignSelf: "center",
-    backgroundColor: "rgba(212,175,55,0.12)",
-    paddingHorizontal: 18,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.22)",
-  },
-  playTypeText: {
-    color: "#d4af37",
-    fontWeight: "800",
-    fontSize: 12,
-  },
-  debugOverlay: {
-    position: "absolute",
-    top: 90,
-    right: 12,
-    width: 320,
-    height: 220,
-    backgroundColor: "rgba(12,12,12,0.92)",
-    borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.25)",
-    borderRadius: 10,
-    padding: 8,
-    zIndex: 120,
-    elevation: 120,
-  },
-  debugHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  debugScroll: {
-    maxHeight: 180,
-  },
-  gameLogControls: {
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    alignItems: "flex-start",
-  },
-  logToggleButton: {
-    backgroundColor: "transparent",
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-  },
-  logToggleText: {
-    color: "#d4af37",
-    fontWeight: "700",
-  },
-  smallToggle: {
-    backgroundColor: "transparent",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-  },
-  smallToggleText: {
-    color: "#d4af37",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  passedBadge: {
-    marginLeft: 8,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginTop: 2,
-  },
-  passedBadgeText: {
-    color: "#ddd",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  placementBadge: {
-    marginLeft: 8,
-    backgroundColor: "rgba(212,175,55,0.18)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginTop: 2,
-  },
-  placementBadgeText: {
-    color: "#d4af37",
-    fontSize: 11,
-    fontWeight: "800",
+    fontWeight: "600",
   },
   rankingRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: "rgba(212,175,55,0.08)",
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderRadius: 8,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   rankingPosition: {
-    color: "#d4af37",
+    color: "#7aacd6",
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "700",
     width: 30,
   },
   rankingName: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
+    color: "#e8e8e8",
+    fontSize: 15,
+    fontWeight: "600",
     flex: 1,
   },
   rankingRole: {
-    color: "#d4af37",
-    fontSize: 14,
-    fontWeight: "600",
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 13,
+    fontWeight: "500",
   },
 });

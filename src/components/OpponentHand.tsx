@@ -30,6 +30,6 @@ export default function OpponentHand({ count = 0, revealed = false }: any) {
 const styles = StyleSheet.create({
   container: { alignItems: 'center', marginTop: 8 },
   back: { position: 'absolute', width: 72, height: 40, borderRadius: 6, backgroundColor: 'rgba(20,20,20,0.9)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.04)' },
-  countOverlay: { position: 'absolute', right: -6, top: -6, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(212,175,55,0.22)' },
+  countOverlay: { position: 'absolute', right: -6, top: -6, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(122,172,214,0.22)' },
   countText: { color: '#fff', fontWeight: '800' },
 });

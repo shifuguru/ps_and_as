@@ -27,7 +27,7 @@ export default function ActionBar({
         disabled={playDisabled}
       >
         <Text style={styles.primaryText}>
-          {selectedCount > 0 ? `Play Selected (${selectedCount})` : "Select Cards"}
+          {selectedCount > 0 ? `Play (${selectedCount})` : "Select Cards"}
         </Text>
       </TouchableOpacity>
       <View style={styles.sideButtons}>
@@ -52,37 +52,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 12,
+    marginTop: 10,
   },
   primaryButton: {
     flex: 1,
-    minHeight: 58,
-    marginRight: 10,
-    borderRadius: 16,
-    backgroundColor: "#d4af37",
+    minHeight: 52,
+    marginRight: 8,
+    borderRadius: 12,
+    backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
   },
   secondaryButton: {
-    minWidth: 110,
-    minHeight: 58,
-    borderRadius: 16,
+    minWidth: 90,
+    minHeight: 52,
+    borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginRight: 8,
   },
   tertiaryButton: {
-    minWidth: 94,
-    minHeight: 58,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    minWidth: 72,
+    minHeight: 52,
+    borderRadius: 12,
+    backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -91,21 +87,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryText: {
-    color: "#111",
-    fontWeight: "800",
-    fontSize: 16,
+    color: "#0a0a0a",
+    fontWeight: "700",
+    fontSize: 15,
+    letterSpacing: -0.2,
   },
   secondaryText: {
-    color: "#fff",
-    fontWeight: "800",
-    fontSize: 15,
+    color: "#e8e8e8",
+    fontWeight: "600",
+    fontSize: 14,
   },
   tertiaryText: {
-    color: "#d4af37",
-    fontWeight: "800",
-    fontSize: 15,
+    color: "rgba(255,255,255,0.5)",
+    fontWeight: "600",
+    fontSize: 14,
   },
   disabledButton: {
-    opacity: 0.4,
+    opacity: 0.3,
   },
 });

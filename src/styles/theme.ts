@@ -2,14 +2,14 @@ import { StyleSheet } from "react-native";
 import { TextStyle, ViewStyle } from "react-native";
 export const HEADER_OFFSET = 120;
 const colors = {
-  primary: "#0f0f0f", // deeper noir tone
-  secondary: "#f0f0f0", // softer white for better readability
-  accent: "#d4af37", // rich gold (Art Deco vibe)
+  primary: "#0a0a0a",
+  secondary: "#e8e8e8",
+  accent: "#7aacd6",
   background: "#000000",
   overlay: "rgba(0,0,0,0.45)",
-  buttonBackground: "rgba(20, 20, 20, 0.85)",
-  buttonBorder: "rgba(212, 175, 55, 0.25)", // gold tint border
-  highlight: "#ffcc00",
+  buttonBackground: "rgba(255, 255, 255, 0.06)",
+  buttonBorder: "rgba(255, 255, 255, 0.10)",
+  highlight: "#7aacd6",
   shadow: "rgba(0, 0, 0, 0.9)",
 };
 
@@ -17,7 +17,7 @@ const colors = {
 const fonts = {
   regular: "System",
   bold: "System-Bold",
-  title: "'Georgia', 'Palatino Linotype', 'Book Antiqua', Palatino, serif", // Elegant serif fonts
+  title: "'Inter', 'SF Pro Display', -apple-system, 'Helvetica Neue', sans-serif",
 };
 
 const styles = StyleSheet.create({
@@ -53,24 +53,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     marginBottom: 12,
-    textShadowColor: "rgba(255, 215, 0, 0.25)", // subtle gold glow
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 8,
+    letterSpacing: -0.5,
   },
 
   subtitle: {
-    color: colors.accent,
-    fontSize: 16,
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 14,
     textAlign: "center",
-    letterSpacing: 1.2,
+    letterSpacing: 0.5,
     marginBottom: 18,
   },
 
   developerLabel: {
-    color: colors.accent,
-    fontSize: 16,
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 14,
     textAlign: "center",
-    letterSpacing: 1.2,
+    letterSpacing: 0.5,
   },
 
   buttonGroup: {
@@ -82,49 +80,35 @@ const styles = StyleSheet.create({
     backgroundColor: colors.buttonBackground,
     borderColor: colors.buttonBorder,
     borderWidth: 1,
-    borderRadius: 10,
-    marginVertical: 8,
+    borderRadius: 12,
+    marginVertical: 6,
     paddingVertical: 14,
     alignItems: "center",
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
-    shadowOffset: { width: 3, height: 3 },
   },
 
   buttonText: {
     color: colors.secondary,
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: "600",
     textTransform: "uppercase",
-    letterSpacing: 1.5,
-    textShadowColor: "rgba(0,0,0,0.8)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+    letterSpacing: 1.2,
   },
 
   muteBtn: {
     backgroundColor: colors.buttonBackground,
     borderColor: colors.buttonBorder,
     borderWidth: 1,
-    borderRadius: 10,
-    marginVertical: 8,
+    borderRadius: 12,
+    marginVertical: 6,
     paddingVertical: 14,
     alignItems: "center",
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
-    shadowOffset: { width: 3, height: 3 },
   },
   muteIcon: {
     color: colors.secondary,
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: "600",
     textTransform: "uppercase",
-    letterSpacing: 1.5,
-    textShadowColor: "rgba(0,0,0,0.8)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+    letterSpacing: 1.2,
   },
 
   // alias names used by App.tsx
@@ -141,33 +125,28 @@ const styles = StyleSheet.create({
       backgroundColor: colors.buttonBackground,
       borderColor: colors.buttonBorder,
       borderWidth: 1,
-      borderRadius: 10,
-      marginVertical: 8,
+      borderRadius: 12,
+      marginVertical: 6,
       paddingVertical: 14,
       alignItems: "center",
-      shadowColor: colors.shadow,
-      shadowOpacity: 0.9,
-      shadowRadius: 6,
-      shadowOffset: { width: 3, height: 3 },
     }]),
   },
 
   menuButtonText: {
     ...StyleSheet.flatten([{
       color: colors.secondary,
-      fontSize: 18,
+      fontSize: 15,
       fontWeight: "600",
       textTransform: "uppercase",
-      letterSpacing: 1.5,
+      letterSpacing: 1.2,
     }]),
   },
 
   // Optional decorative accent line
   decoLine: {
     width: "60%",
-    height: 2,
-    backgroundColor: colors.accent,
-    opacity: 0.6,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
     marginVertical: 16,
   },
   // Header styles (centralized so all screens share consistent layout)
@@ -192,8 +171,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: colors.secondary,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     fontFamily: fonts.title,
+    letterSpacing: -0.3,
   } as TextStyle,
   headerBackButton: {
     paddingHorizontal: 8,
@@ -204,4 +184,3 @@ const styles = StyleSheet.create({
 });
 
 export { colors, fonts, styles };
-

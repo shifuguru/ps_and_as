@@ -18,7 +18,7 @@ export default function TurnIndicator({ active = false }: any) {
   }, [active]);
 
   const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.22] });
-  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.9] });
+  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.7] });
 
   if (!active) return <View style={{ width: 0, height: 0 }} />;
 
@@ -28,5 +28,5 @@ export default function TurnIndicator({ active = false }: any) {
 }
 
 const styles = StyleSheet.create({
-  ring: { position: 'absolute', width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: 'rgba(212,175,55,0.9)', top: -16, left: -16, zIndex: -1 },
+  ring: { position: 'absolute', width: 72, height: 72, borderRadius: 36, borderWidth: 2, borderColor: 'rgba(122,172,214,0.6)', top: -16, left: -16, zIndex: -1 },
 });

@@ -111,7 +111,7 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
   if (isLoading) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color="#d4af37" />
+        <ActivityIndicator size="large" color="#7aacd6" />
         <Text style={{ color: "#fff", marginTop: 16, fontSize: 16 }}>Loading...</Text>
       </View>
     );
@@ -257,14 +257,14 @@ const local = StyleSheet.create({
     marginRight: 12,
   },
   backButtonText: {
-    color: "#d4af37",
+    color: "#7aacd6",
     fontSize: 16,
     fontWeight: "600" as const,
   },
   title: {
     fontSize: 32,
     fontWeight: "bold" as const,
-    color: "#d4af37",
+    color: "#7aacd6",
     flex: 1,
   },
   section: {
@@ -273,12 +273,12 @@ const local = StyleSheet.create({
     padding: 20,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.2)",
+    borderColor: "rgba(122,172,214,0.2)",
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: "bold" as const,
-    color: "#d4af37",
+    color: "#7aacd6",
     marginBottom: 16,
   },
   inputContainer: {
@@ -293,7 +293,7 @@ const local = StyleSheet.create({
   input: {
     backgroundColor: "rgba(0,0,0,0.3)",
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.3)",
+    borderColor: "rgba(122,172,214,0.3)",
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
@@ -301,8 +301,8 @@ const local = StyleSheet.create({
     marginBottom: 12,
   },
   saveButton: {
-    backgroundColor: "#d4af37",
-    borderRadius: 8,
+    backgroundColor: "#fff",
+    borderRadius: 10,
     padding: 12,
     alignItems: "center" as const,
   },
@@ -355,8 +355,8 @@ const local = StyleSheet.create({
     textAlign: "center" as const,
   },
   loginButton: {
-    backgroundColor: "#d4af37",
-    borderRadius: 8,
+    backgroundColor: "#fff",
+    borderRadius: 10,
     padding: 14,
     alignItems: "center" as const,
     marginBottom: 12,
@@ -413,7 +413,7 @@ const local = StyleSheet.create({
     alignItems: "center",
   },
   statValue: {
-    color: "#d4af37",
+    color: "#7aacd6",
     fontSize: 28,
     fontWeight: "bold" as const,
     marginBottom: 4,

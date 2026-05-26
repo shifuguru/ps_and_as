@@ -30,10 +30,9 @@ export default function GameTable({ pileCards, playTypeLabel, lastPlayInfo }: Pr
 
   return (
     <Animated.View style={[styles.tableFrame, { opacity: fade, transform: [{ scale }] }]}>
-      <View style={styles.tableHeader}>
-        <Text style={styles.tableTitle}>Central Play Area</Text>
-        {lastPlayInfo ? <Text style={styles.tableSubtitle}>{lastPlayInfo}</Text> : null}
-      </View>
+      {lastPlayInfo ? (
+        <Text style={styles.tableSubtitle}>{lastPlayInfo}</Text>
+      ) : null}
       <View style={styles.pileArea}>
         {pileCards.length === 0 ? (
           <Text style={styles.emptyText}>No cards on the table yet.</Text>
@@ -61,7 +60,7 @@ export default function GameTable({ pileCards, playTypeLabel, lastPlayInfo }: Pr
             })}
             {cardCount > 1 && (
               <View style={styles.pileCountBadge}>
-                <Text style={styles.pileCountText}>{cardCount} cards</Text>
+                <Text style={styles.pileCountText}>{cardCount}</Text>
               </View>
             )}
           </View>
@@ -79,43 +78,29 @@ export default function GameTable({ pileCards, playTypeLabel, lastPlayInfo }: Pr
 const styles = StyleSheet.create({
   tableFrame: {
     width: "100%",
-    padding: 18,
-    borderRadius: 20,
-    backgroundColor: "rgba(24, 40, 28, 0.96)",
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.16)",
-    shadowColor: "#000",
-    shadowOpacity: 0.22,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 16,
-    marginVertical: 12,
-    minHeight: 240,
-  },
-  tableHeader: {
-    marginBottom: 14,
-  },
-  tableTitle: {
-    color: "#d4af37",
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 4,
+    borderColor: "rgba(255,255,255,0.05)",
+    marginVertical: 10,
+    minHeight: 220,
   },
   tableSubtitle: {
-    color: "#bbb",
+    color: "rgba(255,255,255,0.35)",
     fontSize: 12,
+    marginBottom: 10,
   },
   pileArea: {
     flex: 1,
-    minHeight: 180,
+    minHeight: 160,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.14)",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.04)",
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
+    borderRadius: 12,
   },
   emptyText: {
-    color: "#ccc",
+    color: "rgba(255,255,255,0.25)",
     fontSize: 14,
     textAlign: "center",
   },
@@ -130,34 +115,34 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
   playBadge: {
-    marginTop: 14,
+    marginTop: 12,
     alignSelf: "center",
-    backgroundColor: "rgba(212,175,55,0.12)",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    backgroundColor: "rgba(122, 172, 214, 0.1)",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.24)",
+    borderColor: "rgba(122, 172, 214, 0.2)",
   },
   playBadgeText: {
-    color: "#d4af37",
-    fontWeight: "800",
+    color: "#7aacd6",
+    fontWeight: "700",
     fontSize: 12,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   pileCountBadge: {
     position: "absolute",
-    right: 12,
-    bottom: 12,
+    right: 8,
+    bottom: 8,
     backgroundColor: "rgba(0,0,0,0.6)",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.2)",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 10,
   },
   pileCountText: {
-    color: "#fff",
+    color: "rgba(255,255,255,0.6)",
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "600",
   },
 });

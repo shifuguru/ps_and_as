@@ -290,7 +290,7 @@ export default function CreateGame({
                                 width: "48%",
                                 marginBottom: 10,
                                 borderWidth: 1,
-                                borderColor: "rgba(212,175,55,0.18)",
+                                borderColor: "rgba(122,172,214,0.18)",
                                 borderRadius: 10,
                                 backgroundColor: "rgba(0,0,0,0.25)",
                                 padding: 12,
@@ -362,7 +362,7 @@ export default function CreateGame({
                               {
                                 paddingVertical: 8,
                                 paddingHorizontal: 16,
-                                backgroundColor: "rgba(212,175,55,0.1)",
+                                backgroundColor: "rgba(122,172,214,0.1)",
                                 marginRight: 8,
                               },
                             ]}
@@ -397,7 +397,7 @@ export default function CreateGame({
                               {
                                 paddingVertical: 8,
                                 paddingHorizontal: 16,
-                                backgroundColor: "rgba(212,175,55,0.2)",
+                                backgroundColor: "rgba(122,172,214,0.2)",
                               },
                             ]}
                             onPress={() => {
@@ -524,8 +524,8 @@ export default function CreateGame({
 
           <Modal visible={showPlayerModal} transparent animationType="fade" onRequestClose={() => setShowPlayerModal(false)}>
             <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center' }}>
-              <View style={{ backgroundColor: 'rgba(15,15,15,0.98)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', padding: 16, minWidth: 280 }}>
-                <Text style={{ color: '#d4af37', fontWeight: '800', fontSize: 16, marginBottom: 8 }}>Player</Text>
+              <View style={{ backgroundColor: 'rgba(15,15,15,0.98)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', padding: 16, minWidth: 280 }}>
+                <Text style={{ color: '#e8e8e8', fontWeight: '600', fontSize: 16, marginBottom: 8 }}>Player</Text>
                 <Text style={{ color: '#fff', marginBottom: 16 }}>{typeof selectedLobbyIndex === 'number' ? names[selectedLobbyIndex] : ''}</Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <TouchableOpacity style={[styles.menuButton, { flex: 1, marginRight: 8 }]} onPress={() => { setShowPlayerModal(false); onNavigateToAchievements && onNavigateToAchievements(); }}>

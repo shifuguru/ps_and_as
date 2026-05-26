@@ -2,9 +2,9 @@ import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 
 const COLORS = [
-  "rgba(8, 12, 10, 1)",
-  "rgba(12, 20, 16, 1)",
-  "rgba(6, 14, 10, 1)",
+  "rgba(6, 8, 12, 1)",
+  "rgba(10, 14, 20, 1)",
+  "rgba(4, 6, 10, 1)",
 ];
 
 export default function AnimatedBackground() {
@@ -13,23 +13,15 @@ export default function AnimatedBackground() {
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pan, {
-          toValue: 1,
-          duration: 18000,
-          useNativeDriver: false,
-        }),
-        Animated.timing(pan, {
-          toValue: 0,
-          duration: 18000,
-          useNativeDriver: false,
-        }),
+        Animated.timing(pan, { toValue: 1, duration: 20000, useNativeDriver: false }),
+        Animated.timing(pan, { toValue: 0, duration: 20000, useNativeDriver: false }),
       ]),
     ).start();
   }, [pan]);
 
-  const bg1 = pan.interpolate({
+  const bg = pan.interpolate({
     inputRange: [0, 0.5, 1],
-    outputRange: [COLORS[0], COLORS[1], COLORS[2]],
+    outputRange: COLORS,
   });
 
   const translateY = pan.interpolate({
@@ -39,50 +31,36 @@ export default function AnimatedBackground() {
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {/* Base dark layer */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: "#060e0a" }]} />
-
-      {/* Slow-moving gradient overlay */}
       <Animated.View
         style={[
           StyleSheet.absoluteFill,
-          { backgroundColor: bg1, transform: [{ translateY }] },
+          { backgroundColor: bg, transform: [{ translateY }] },
         ]}
       />
-
-      {/* Radial-ish accent glow (top-center) */}
-      <View style={styles.glowTop} />
-
+      {/* Subtle top ambient light */}
+      <View style={styles.topGlow} />
       {/* Bottom vignette */}
-      <View style={styles.vignetteBottom} />
-
-      {/* Overall darkening scrim */}
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { backgroundColor: "rgba(0,0,0,0.30)" },
-        ]}
-      />
+      <View style={styles.bottomScrim} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  glowTop: {
+  topGlow: {
     position: "absolute",
-    top: -120,
-    left: "20%",
-    width: "60%",
-    height: 360,
-    borderRadius: 180,
-    backgroundColor: "rgba(212,175,55,0.04)",
+    top: -80,
+    left: "15%",
+    width: "70%",
+    height: 260,
+    borderRadius: 200,
+    backgroundColor: "rgba(122, 172, 214, 0.04)",
   },
-  vignetteBottom: {
+  bottomScrim: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     height: "40%",
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: "rgba(0,0,0,0.25)",
   },
 });
