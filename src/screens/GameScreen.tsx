@@ -197,6 +197,7 @@ export default function GameScreen({
   onBack?: () => void;
 } = {}) {
   const [state, setState] = useState<GameState | null>(null);
+  const [initError, setInitError] = useState<string | null>(null);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
   const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
   const [showGameLog, setShowGameLog] = useState<boolean>(false);
@@ -452,8 +453,14 @@ export default function GameScreen({
       initialPlayers && initialPlayers.length >= 2
         ? initialPlayers
         : ["Alice", "Bob", "Charlie", "Dana"];
-    const g = createGame(names);
-    setState(g);
+    try {
+      const g = createGame(names);
+      setState(g);
+    } catch (e: any) {
+      console.error('[GameScreen] createGame failed:', e);
+      setInitError(e?.message || String(e));
+      return;
+    }
     adapter.connect();
     adapter.on("message", (ev) => {
       // structured log for incoming adapter events
@@ -750,7 +757,27 @@ export default function GameScreen({
     return () => clearTimeout(timer);
   }, [state]);
 
-  if (!state) return null;
+  if (initError) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1a2e1a' }}>
+        <Text style={{ color: '#ff6b6b', fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Game failed to start</Text>
+        <Text style={{ color: '#ccc', fontSize: 14, textAlign: 'center', paddingHorizontal: 20 }}>{initError}</Text>
+        {onBack && (
+          <TouchableOpacity onPress={onBack} style={{ marginTop: 20, paddingVertical: 10, paddingHorizontal: 24, backgroundColor: '#333', borderRadius: 8 }}>
+            <Text style={{ color: '#fff', fontSize: 16 }}>Back to Menu</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  }
+
+  if (!state) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1a2e1a' }}>
+        <Text style={{ color: '#d4af37', fontSize: 16 }}>Loading game...</Text>
+      </View>
+    );
+  }
 
   const width = Dimensions.get("window").width;
   const isLargeScreen = width >= 900;
