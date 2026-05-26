@@ -5,10 +5,19 @@ import { Card as CardType } from "../game/ruleset";
 export default function Card({ card, selected, onPress, highlight = 0, faceDown = false, disabled = false, style, }: { card: CardType; selected: boolean; onPress: () => void; highlight?: number; faceDown?: boolean; disabled?: boolean; style?: any; }) {
   const anim = React.useRef(new Animated.Value(selected ? 1 : 0)).current;
   const glow = React.useRef(new Animated.Value(highlight)).current;
+  const float = React.useRef(new Animated.Value(6)).current;
+
+  // Subtle vertical float on mount
+  React.useEffect(() => {
+    Animated.spring(float, {
+      toValue: 0,
+      useNativeDriver: false,
+      stiffness: 120,
+      damping: 10,
+    } as any).start();
+  }, []);
 
   React.useEffect(() => {
-    // Use JS-driven animation for this spring so it can be combined with the
-    // `glow` JS-driven timing animation (avoids mixing native vs JS drivers).
     Animated.spring(anim, {
       toValue: selected ? 1 : 0,
       useNativeDriver: false,
@@ -18,11 +27,11 @@ export default function Card({ card, selected, onPress, highlight = 0, faceDown 
   }, [selected]);
 
   React.useEffect(() => {
-    // animate glow value toward highlight (0..1)
     Animated.timing(glow, { toValue: Math.max(0, Math.min(1, highlight)), duration: 220, useNativeDriver: false }).start();
   }, [highlight]);
 
-  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
+  const selectTranslateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
+  const translateY = Animated.add(selectTranslateY, float);
   const scale = Animated.add(
     anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }),
     glow.interpolate({ inputRange: [0, 1], outputRange: [0, 0.04] })

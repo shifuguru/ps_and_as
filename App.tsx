@@ -1,16 +1,15 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
-import { View, ImageBackground, Animated, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { View, Animated, StyleSheet, Text, TouchableOpacity, Platform } from "react-native";
 import SplashScreen from "./src/screens/SplashScreen";
-import { Platform } from 'react-native';
-import MainMenu from "./src/screens/MainMenu";
 import CreateGame from "./src/screens/CreateGame";
 import FindGame from "./src/screens/FindGame";
 import GameScreen from "./src/screens/GameScreen";
 import Achievements from "./src/screens/Achievements";
 import Settings from "./src/screens/Settings";
-import Header from "./src/components/Header";
+import MoreMenu from "./src/screens/MoreMenu";
 import { useMenuAudio } from "./src/hooks/useMenuAudio";
-import MuteButton from "./src/components/ui/MuteButton";
+import MenuIcon from "./src/components/MenuIcon";
+import AnimatedBackground from "./src/components/AnimatedBackground";
 import { styles } from "./src/styles/theme";
 import { SocketAdapter } from "./src/game/socketAdapter";
 import { MockAdapter } from "./src/game/network";
@@ -22,7 +21,7 @@ export default function App() {
   const [splashVisible, setSplashVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const { playEffect, toggleMute, isMuted, muted } = useMenuAudio();
-  const [screen, setScreen] = useState<"menu" | "create" | "find" | "game" | "achievements" | "settings">("menu");
+  const [screen, setScreen] = useState<"menu" | "create" | "find" | "game" | "achievements" | "settings" | "more">("menu");
   const [lobbyPlayers, setLobbyPlayers] = useState<string[] | null>(null);
   const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
@@ -66,7 +65,32 @@ export default function App() {
     });
   };
 
-  const buttons = ["Create Game", "Find Game", "Random Game", "Local", "Achievements", "Settings"];
+  const primaryButtons: { label: string; icon: "plus" | "shuffle" | "person" | "ellipsis"; action: () => void }[] = [
+    {
+      label: "Create Game",
+      icon: "plus",
+      action: () => setScreen("create"),
+    },
+    {
+      label: "Random Game",
+      icon: "shuffle",
+      action: () => {
+        const rnd = ["You", "CPU 1", "CPU 2", "CPU 3"];
+        setLobbyPlayers(rnd);
+        setScreen("game");
+      },
+    },
+    {
+      label: "Local",
+      icon: "person",
+      action: () => setScreen("create"),
+    },
+    {
+      label: "More",
+      icon: "ellipsis",
+      action: () => setScreen("more"),
+    },
+  ];
   const [wallpaperSource, setWallpaperSource] = useState<any>(require("./assets/ps_and_as_bg.png"));
   const [wallpaperTint, setWallpaperTint] = useState<string | null>(null);
   const [wallpaperRawUri, setWallpaperRawUri] = useState<string | null>(null);
@@ -104,34 +128,8 @@ export default function App() {
   return (
     <SafeAreaProvider>
     <View style={{ flex: 1 }}>
-        <ImageBackground
-          source={wallpaperSource}
-          resizeMode="cover"
-          style={styles.background}
-        >
-          {/* If using the bundled felt asset, render a semi-transparent overlay
-              with the selected felt color so the texture shows through. We detect
-              the felt choice by checking the raw storage value (wallpaperRawUri). */}
-          {(() => {
-            try {
-              const svc = require("./src/services/wallpaper");
-              const isFeltSelected = wallpaperRawUri === null || wallpaperRawUri === svc.FELT_GREY_ASSET_MARKER;
-              if (!isFeltSelected || !wallpaperTint) return null;
-              // Normalize tint string: append alpha if user stored a 6-digit hex
-              const t = (wallpaperTint || "").trim();
-              let bg: string | undefined = undefined;
-              if (/^#[0-9a-fA-F]{6}$/.test(t)) bg = t + "99";
-              else if (/^#[0-9a-fA-F]{8}$/.test(t)) bg = t;
-              else bg = t || undefined;
-              return <View style={[StyleSheet.absoluteFillObject, { backgroundColor: bg }]} pointerEvents="none" />;
-            } catch (e) {
-              return null;
-            }
-          })()}
-        {/* Background scrim to improve contrast over wallpapers */}
-        <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.36)' }} />
-        </View>
+        {/* Animated dark gradient background replaces static texture */}
+        <AnimatedBackground />
 
         {/* Splash overlay (kept mounted until hide animation finishes) */}
         {splashVisible && (
@@ -150,47 +148,44 @@ export default function App() {
           </Animated.View>
         )}
 
-        {/* Main menu or screens */}
+        {/* Main menu — consolidated with icons */}
         {menuVisible && screen === "menu" && (
           <Animated.View style={[styles.menuContainer, { opacity: menuOpacity }]}>
             <Text style={[styles.title, { fontFamily: Platform.OS === 'ios' ? 'Snell Roundhand' : "'Georgia', 'Palatino Linotype', 'Book Antiqua', serif", fontSize: 48, fontStyle: 'italic', marginTop: 120 }]}>P's & A's</Text>
             <Text style={styles.subtitle}>Created by Michael Drury.</Text>
 
             <View style={styles.buttonGroup}>
-              {buttons.map((label, i) => (
+              {primaryButtons.map((btn, i) => (
                 <TouchableOpacity
                   key={i}
-                  style={styles.menuButton}
+                  style={[styles.menuButton, localMenuStyles.menuRow]}
                   onPress={() => {
                     playEffect("click");
-                    if (label === "Create Game") setScreen("create");
-                    else if (label === "Find Game") setScreen("find");
-                    else if (label === "Random Game") {
-                      // start a quick random 4-player game
-                      const rnd = ["You", "CPU 1", "CPU 2", "CPU 3"];
-                      setLobbyPlayers(rnd);
-                      setScreen("game");
-                    } else if (label === "Local") {
-                      // open Create Game screen in local (hotseat) mode so user can customize players
-                      setScreen("create");
-                    } else if (label === "Achievements") {
-                      setScreen("achievements");
-                    } else if (label === "Settings") {
-                      setScreen("settings");
-                    }
+                    btn.action();
                   }}
                 >
-                  <Text style={styles.menuButtonText}>{label}</Text>
+                  <View style={localMenuStyles.iconWrap}>
+                    <MenuIcon name={btn.icon} size={20} color="#d4af37" />
+                  </View>
+                  <Text style={styles.menuButtonText}>{btn.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </Animated.View>
         )}
         {menuVisible && screen === "achievements" && (
-          <Achievements onBack={() => setScreen("menu")} />
+          <Achievements onBack={() => setScreen("more")} />
         )}
         {menuVisible && screen === "settings" && (
-          <Settings onWallpaperChange={() => reloadWallpaper()} onBack={() => setScreen("menu")} />
+          <Settings onWallpaperChange={() => reloadWallpaper()} onBack={() => setScreen("more")} />
+        )}
+        {menuVisible && screen === "more" && (
+          <MoreMenu
+            onBack={() => setScreen("menu")}
+            onFindGame={() => setScreen("find")}
+            onAchievements={() => setScreen("achievements")}
+            onSettings={() => setScreen("settings")}
+          />
         )}
         {menuVisible && screen === "create" && (
           <CreateGame 
@@ -228,7 +223,7 @@ export default function App() {
           discoveryAdapter ? (
             <FindGame 
               adapter={discoveryAdapter} 
-              onBack={() => setScreen("menu")}
+              onBack={() => setScreen("more")}
               onNavigateToAchievements={() => setScreen("achievements")}
               onJoinRoom={(roomId, playerName) => {
                 // Create a new adapter for this specific room with auto-join enabled
@@ -264,8 +259,20 @@ export default function App() {
             onBack={() => setScreen("menu")} 
           />
         )}
-      </ImageBackground>
     </View>
     </SafeAreaProvider>
   );
 }
+
+const localMenuStyles = StyleSheet.create({
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconWrap: {
+    marginRight: 12,
+    width: 24,
+    alignItems: "center",
+  },
+});
