@@ -196,13 +196,7 @@ export default function GameScreen({
   roomId?: string;
   onBack?: () => void;
 } = {}) {
-  const [state, setState] = useState<GameState | null>(() => {
-    const names =
-      initialPlayers && initialPlayers.length >= 2
-        ? initialPlayers
-        : ["Alice", "Bob", "Charlie", "Dana"];
-    return createGame(names);
-  });
+  const [state, setState] = useState<GameState | null>(null);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
   const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
   const [showGameLog, setShowGameLog] = useState<boolean>(false);
@@ -454,6 +448,12 @@ export default function GameScreen({
   }
 
   useEffect(() => {
+    const names =
+      initialPlayers && initialPlayers.length >= 2
+        ? initialPlayers
+        : ["Alice", "Bob", "Charlie", "Dana"];
+    const g = createGame(names);
+    setState(g);
     adapter.connect();
     adapter.on("message", (ev) => {
       // structured log for incoming adapter events
