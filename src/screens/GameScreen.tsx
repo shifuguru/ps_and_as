@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Platform } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import {
   createGame,
   createGameFromLobby,
@@ -25,7 +25,7 @@ import {
 } from "../game/core";
 import { createDeck, shuffleDeck, dealCards } from "../game/ruleset";
 import Card from "../components/Card";
-import { ScrollView, Dimensions } from "react-native";
+import { ScrollView } from "react-native";
 import { MockAdapter, type NetworkAdapter } from "../game/network";
 import { isSocketAdapter, SocketAdapter } from "../game/socketAdapter";
 import type { LobbyMember } from "../game/network";
@@ -47,18 +47,24 @@ import BottomBar, {
   localSeatBottomOffset,
   reservedBottomHeight,
 } from "../components/BottomBar";
-import FeltBackground from "../components/FeltBackground";
 import PlayerHand, {
   HAND_FAN_HEIGHT,
   type PlayerHandHandle,
 } from "../components/PlayerHand";
 import ActionBar from "../components/ActionBar";
 import RoundCompleteModal from "../components/RoundCompleteModal";
+import TenRuleModal from "../components/TenRuleModal";
 import GameTable from "../components/GameTable";
 import GamePlayArea from "../components/GamePlayArea";
 import OpponentSeat from "../components/OpponentSeat";
 import { LOCAL_SEAT_BAND } from "../utils/tableLayout";
-import StatusBar, { STATUS_BAR_HEIGHT } from "../components/StatusBar";
+import {
+  buildTrickPlayDisplays,
+  buildPlaysFromTrick,
+  passedIdsFromTrick,
+  lastPlayPlayerId,
+  type TrickPlayDisplay,
+} from "../utils/trickDisplay";
 import { styles } from "../styles/theme";
 import { responsive, isLandscape, adaptiveScale } from "../utils/responsive";
 
@@ -259,62 +265,8 @@ function canCardBePlayedAtAll(
   );
 }
 
-/** Build chronological play groups for the table (one entry per player action). */
-function buildTrickPlays(state: GameState): CardType[][] {
-  const plays: CardType[][] = [];
-  const seen = new Set<string>();
-
-  if (state.pileHistory) {
-    for (let i = 0; i < state.pileHistory.length; i++) {
-      const entry = state.pileHistory[i];
-      if (!Array.isArray(entry) || entry.length === 0) continue;
-      const owner = (state.pileOwners && state.pileOwners[i]) || "";
-      const sig = `${owner}|${entry.map((c) => `${c.suit}:${c.value}`).join("|")}`;
-      if (seen.has(sig)) continue;
-      seen.add(sig);
-      plays.push(entry.slice());
-    }
-  }
-
-  if (state.currentTrick?.actions) {
-    for (const action of state.currentTrick.actions) {
-      if (action.type !== "play" || !action.cards || action.cards.length === 0) {
-        continue;
-      }
-      const owner = action.playerId || action.playerName || "";
-      const sig = `${owner}|${action.cards.map((c) => `${c.suit}:${c.value}`).join("|")}`;
-      if (seen.has(sig)) continue;
-      seen.add(sig);
-      plays.push(action.cards.slice());
-    }
-  }
-
-  if (plays.length === 0 && state.pile.length > 0) {
-    plays.push(state.pile.slice());
-  }
-
-  return plays;
-}
-
-/** Rebuild table plays from a completed trick's action log. */
-function buildPlaysFromTrick(trick: TrickHistory): CardType[][] {
-  const plays: CardType[][] = [];
-  for (const action of trick.actions) {
-    if (action.type === "play" && action.cards && action.cards.length > 0) {
-      plays.push(action.cards.slice());
-    }
-  }
-  return plays;
-}
-
-function passedIdsFromTrick(trick: TrickHistory): string[] {
-  return trick.actions
-    .filter((action) => action.type === "pass")
-    .map((action) => action.playerId);
-}
-
 type TrickPauseSnapshot = {
-  plays: CardType[][];
+  plays: TrickPlayDisplay[];
   passedPlayerIds: string[];
   winnerName: string;
 };
@@ -967,7 +919,6 @@ export default function GameScreen({
   // const height = windowDimensions.height;
   // const landscape = isLandscape(width, height);
   
-  const isLargeScreen = Dimensions.get("window").width >= 900;
   const current = state.players[state.currentPlayerIndex];
 
   const currentIsLocalHuman = localControlledIds.includes(current.id);
@@ -1196,14 +1147,11 @@ export default function GameScreen({
   const handVisible = hand.length > 0;
   const bottomBarHeight = reservedBottomHeight(insets.bottom || 0, handVisible);
   const localSeatBottom = localSeatBottomOffset(insets.bottom || 0, handVisible);
-  const localSeatAnchorInPlayArea = bottomBarHeight - localSeatBottom;
-  const topBarHeight = insets.top + STATUS_BAR_HEIGHT;
-  const currentPlayerCount = state.players.length;
-  const pileToBeat = state.pile.length;
-  const passCount = state.passCount;
-  const trickPlays = buildTrickPlays(state);
+  const contentTopPadding = insets.top + 8;
+  const trickPlays = buildTrickPlayDisplays(state);
+  const activeLastPlayId = lastPlayPlayerId(state);
 
-  const displayPlays =
+  const displayPlays: TrickPlayDisplay[] =
     trickPauseActive && trickPauseSnapshot
       ? showWinnerBanner
         ? []
@@ -1388,18 +1336,24 @@ export default function GameScreen({
     if (!state) return null;
 
     // If a 10 was just played and direction is pending
-    if (state.tenRulePending) return "10 - CHOOSE!";
+    if (state.tenRulePending) return "10 - Choose!";
 
     // If a ten-rule is active with a direction
     if (state.tenRule?.active && state.tenRule.direction) {
-      return `10 - ${state.tenRule.direction.toUpperCase()}!`;
+      const dir =
+        state.tenRule.direction === "higher"
+          ? "Higher"
+          : state.tenRule.direction === "lower"
+            ? "Lower"
+            : state.tenRule.direction;
+      return `10 - ${dir}!`;
     }
 
     // If pile is empty, nothing to show
     if (!state.pile || state.pile.length === 0) return null;
 
     // Joker detection: if the pile contains a joker, label as JOKER
-    if (state.pile.some((c) => c.value === 15)) return "JOKER!";
+    if (state.pile.some((c) => c.value === 15)) return "Joker!";
 
     // Determine if the active pile is a run. Use the engine helpers so we
     // recognize runs formed across recent single-card plays in the current
@@ -1437,17 +1391,17 @@ export default function GameScreen({
               : m === 4
                 ? "Quads"
                 : `${m}x`;
-      return `${kind} - RUNS!`;
+      return `${kind} - Runs!`;
     }
 
     // Otherwise show by count (non-run)
     const count = state.pile.length;
-    if (count === 1) return "singles";
-    if (count === 2) return "doubles";
-    if (count === 3) return "triples";
-    if (count === 4) return "quads";
+    if (count === 1) return "Singles";
+    if (count === 2) return "Doubles";
+    if (count === 3) return "Triples";
+    if (count === 4) return "Quads";
 
-    return `${count}-of-a-kind`;
+    return `${count} Of a Kind`;
   }
 
   const playTypeLabel = getPlayTypeLabel();
@@ -1470,23 +1424,9 @@ export default function GameScreen({
   // Note: no appear animation here to avoid flashing on re-renders
   return (
     <ScreenContainer ignoreHeaderOffset={true} style={{ flex: 1 }}>
-      {Platform.OS !== "web" ? <FeltBackground /> : null}
-
-      <StatusBar
-        currentPlayerName={current.name}
-        currentHandCount={hand.length}
-        playerCount={state.players.length}
-        pileToBeat={pileToBeat}
-        passCount={passCount}
-        mustPlay={!!state.mustPlay}
-        isHumanTurn={isHumanTurn}
-        isLargeScreen={isLargeScreen}
-        topInset={insets.top}
-      />
-
       {/* Toggleable structured debug overlay (doesn't block bottom hand) */}
       {showDebugOverlay && (
-        <View style={local.debugOverlay}>
+        <View style={[local.debugOverlay, { top: contentTopPadding + 4 }]}>
           <View style={local.debugHeader}>
             <Text style={{ color: "#d4af37", fontWeight: "800" }}>
               Full Game Log
@@ -1533,46 +1473,19 @@ export default function GameScreen({
         </View>
       )}
 
-      {/* 10 Rule Modal - Higher or Lower */}
-      {state.tenRulePending && isHumanTurn && (
-        <Modal visible={true} transparent={true} animationType="fade">
-          <View style={local.modalOverlay}>
-            <View style={local.modalContent}>
-              <Text style={local.modalTitle}>You played a 10!</Text>
-              <Text style={local.modalText}>
-                Choose direction for next player:
-              </Text>
-              <View style={local.modalButtons}>
-                <TouchableOpacity
-                  style={local.modalButton}
-                  onPress={() => {
-                    const newState = setTenRuleDirection(state, "lower");
-                    setState(newState);
-                  }}
-                >
-                  <Text style={local.modalButtonText}>⬇️ Lower</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[local.modalButton]}
-                  onPress={() => {
-                    const newState = setTenRuleDirection(state, "higher");
-                    setState(newState);
-                  }}
-                >
-                  <Text style={local.modalButtonText}>⬆️ Higher</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
+      <TenRuleModal
+        visible={!!state.tenRulePending && isHumanTurn}
+        onChoose={(direction) => {
+          setState(setTenRuleDirection(state, direction));
+        }}
+      />
 
-      {/* Game content — pad for blur overlays at top and bottom */}
+      {/* Game content — pad for bottom hand sheet */}
       <View
         style={{
           flex: 1,
           paddingHorizontal: 12,
-          paddingTop: topBarHeight + 8,
+          paddingTop: contentTopPadding,
           paddingBottom: bottomBarHeight,
         }}
       >
@@ -1582,7 +1495,10 @@ export default function GameScreen({
           currentPlayerId={current.id}
           finishedOrder={state.finishedOrder}
           passedPlayerIds={displayPassedPlayerIds}
-          localSeatAnchorFromBottom={localSeatAnchorInPlayArea}
+          lastPlayPlayerId={activeLastPlayId}
+          playTypeLabel={
+            playTypeLabel && !trickPauseActive ? playTypeLabel : null
+          }
         >
           <GameTable
             plays={displayPlays}
@@ -1591,22 +1507,6 @@ export default function GameScreen({
         </GamePlayArea>
       </View>
 
-      {/* Play type label — fixed above local player avatar */}
-      {playTypeLabel && !trickPauseActive ? (
-        <View
-          style={[
-            local.playTypeOverlay,
-            { bottom: localSeatBottom + LOCAL_SEAT_BAND + 6 },
-          ]}
-          pointerEvents="none"
-        >
-          <View style={local.playTypeBadge}>
-            <Text style={local.playTypeBadgeText}>{playTypeLabel}</Text>
-          </View>
-        </View>
-      ) : null}
-
-      {/* Local player seat — anchored just above the hand fan */}
       {localSeatPlayer ? (
         <View
           style={[
@@ -1624,6 +1524,9 @@ export default function GameScreen({
             isOut={state.finishedOrder.includes(localSeatPlayer.id)}
             hasPassed={displayPassedPlayerIds.includes(localSeatPlayer.id)}
             isLocal
+            isLastPlay={
+              !!activeLastPlayId && localSeatPlayer.id === activeLastPlayId
+            }
           />
         </View>
       ) : null}
@@ -1748,18 +1651,20 @@ const local = StyleSheet.create({
     alignItems: "center",
   },
   playTypeBadge: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderRadius: 16,
+    backgroundColor: "rgba(212, 175, 55, 0.12)",
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.35)",
   },
   playTypeBadgeText: {
-    color: "#fff",
-    fontWeight: "700",
+    color: "#d4af37",
+    fontWeight: "800",
     fontSize: 12,
     textAlign: "center",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
   },
   scrollableContent: { flex: 1, paddingHorizontal: 12, paddingTop: 0 },
   header: { marginBottom: 6 },
@@ -1849,51 +1754,6 @@ const local = StyleSheet.create({
   actionButtonSecondary: { marginHorizontal: 4 },
   actionButtonTertiary: { marginLeft: 4, backgroundColor: "rgba(212, 175, 55, 0.15)" },
   actionText: { color: "#fff", fontWeight: "800", fontSize: 16 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: {
-    backgroundColor: "rgba(15, 15, 15, 0.98)",
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "rgba(212, 175, 55, 0.6)",
-    padding: 24,
-    minWidth: 280,
-    alignItems: "center",
-  },
-  modalTitle: {
-    color: "#d4af37",
-    fontSize: 24,
-    fontWeight: "700",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  modalText: {
-    color: "#fff",
-    fontSize: 16,
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  modalButton: {
-    backgroundColor: "#d4af37",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    minWidth: 100,
-    alignItems: "center",
-  },
-  modalButtonText: {
-    color: "#111",
-    fontSize: 12,
-    fontWeight: "700",
-  },
   turnIndicator: {
     paddingVertical: 8,
     paddingHorizontal: 16,
@@ -1983,7 +1843,6 @@ const local = StyleSheet.create({
   },
   debugOverlay: {
     position: "absolute",
-    top: 90,
     right: 12,
     width: 320,
     height: 220,

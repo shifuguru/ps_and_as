@@ -3,9 +3,9 @@ import { View, StyleSheet } from "react-native";
 import OpponentSeat, { OpponentSeatPlayer } from "./OpponentSeat";
 import type { OpponentRingLayout } from "../utils/tableLayout";
 import {
-  SEAT_FOOTPRINT_H,
   SEAT_FOOTPRINT_W,
-  opponentRowPositions,
+  opponentRingAngles,
+  polarSeatPosition,
 } from "../utils/tableLayout";
 
 type Props = {
@@ -17,9 +17,10 @@ type Props = {
   arenaWidth: number;
   arenaHeight: number;
   ringLayout: OpponentRingLayout;
+  lastPlayPlayerId?: string | null;
 };
 
-/** Order opponents clockwise from the seat after the local player. */
+/** Clockwise from the seat after the local player. */
 export function orderOpponents(
   players: OpponentSeatPlayer[],
   localPlayerIds: string[],
@@ -43,37 +44,6 @@ export function orderOpponents(
   return ordered;
 }
 
-/** Degrees clockwise from top (0° = 12 o'clock). Arc spans the top/sides only. */
-function opponentAngles(count: number): number[] {
-  if (count === 0) return [];
-  if (count === 1) return [0];
-
-  const span = Math.max(140, Math.min(220, 34 * (count - 1)));
-  const start = -span / 2;
-  const step = span / (count - 1);
-  return Array.from({ length: count }, (_, i) => start + i * step);
-}
-
-function polarSeatPosition(
-  angleDeg: number,
-  cx: number,
-  cy: number,
-  rx: number,
-  ry: number,
-  minTop: number,
-  arenaWidth: number,
-  arenaHeight: number,
-) {
-  const rad = (angleDeg * Math.PI) / 180;
-  const x = cx + rx * Math.sin(rad) - SEAT_FOOTPRINT_W / 2;
-  const y = cy - ry * Math.cos(rad) - SEAT_FOOTPRINT_H / 2;
-  const maxTop = Math.max(minTop, arenaHeight - SEAT_FOOTPRINT_H - 4);
-  return {
-    left: Math.max(0, Math.min(x, arenaWidth - SEAT_FOOTPRINT_W)),
-    top: Math.max(minTop, Math.min(y, maxTop)),
-  };
-}
-
 export default function OpponentRing({
   players,
   localPlayerIds,
@@ -83,6 +53,7 @@ export default function OpponentRing({
   arenaWidth,
   arenaHeight,
   ringLayout,
+  lastPlayPlayerId,
 }: Props) {
   const allPlayerIds = useMemo(
     () => players.map((p) => p.id),
@@ -105,50 +76,38 @@ export default function OpponentRing({
   );
 
   const angles = useMemo(
-    () => opponentAngles(opponents.length),
-    [opponents.length],
-  );
-
-  const rowPositions = useMemo(
-    () =>
-      ringLayout.mode === "row"
-        ? opponentRowPositions(
-            opponents.length,
-            arenaWidth,
-            ringLayout.rowY,
-            ringLayout.rowSpan,
-          )
-        : [],
-    [ringLayout, opponents.length, arenaWidth],
+    () => opponentRingAngles(ringLayout.totalPlayers),
+    [ringLayout.totalPlayers],
   );
 
   if (opponents.length === 0 || arenaWidth <= 0 || arenaHeight <= 0) {
     return null;
   }
 
-  const compact = opponents.length >= 5;
+  const compact = ringLayout.totalPlayers >= 6;
 
   return (
     <View style={styles.arena} pointerEvents="box-none">
       {opponents.map((player, index) => {
+        const angle = angles[index];
+        if (angle === undefined) return null;
+
         const isOut = finishedSet.has(player.id);
         const isActive = !isOut && player.id === currentPlayerId;
         const isCPU =
           typeof player.name === "string" && player.name.startsWith("CPU");
+        const isLastPlay =
+          !!lastPlayPlayerId && player.id === lastPlayPlayerId && !isOut;
 
-        const pos =
-          ringLayout.mode === "row"
-            ? rowPositions[index]
-            : polarSeatPosition(
-                angles[index],
-                ringLayout.cx,
-                ringLayout.cy,
-                ringLayout.rx,
-                ringLayout.ry,
-                ringLayout.minTop,
-                arenaWidth,
-                arenaHeight,
-              );
+        const pos = polarSeatPosition(
+          angle,
+          ringLayout.cx,
+          ringLayout.cy,
+          ringLayout.radius,
+          ringLayout.minTop,
+          arenaWidth,
+          arenaHeight,
+        );
 
         return (
           <View
@@ -162,6 +121,7 @@ export default function OpponentRing({
               isOut={isOut}
               hasPassed={passedSet.has(player.id)}
               isThinking={isActive && isCPU}
+              isLastPlay={isLastPlay}
               compact={compact}
             />
           </View>

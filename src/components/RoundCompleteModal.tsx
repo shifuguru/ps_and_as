@@ -9,8 +9,7 @@ import {
 } from "react-native";
 import BlurPanel from "./BlurPanel";
 import { triggerHaptic } from "../utils/haptics";
-
-const GOLD = "#d4af37";
+import { GOLD, ui, BLUR_MODAL } from "../styles/uiStandards";
 
 type Player = { id: string; name: string };
 
@@ -67,10 +66,13 @@ export default function RoundCompleteModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.overlay}>
-        <BlurPanel style={[styles.card, { width: cardWidth, maxWidth: cardWidth }]}>
-          <Text style={styles.eyebrow}>Round complete</Text>
-          <Text style={styles.headline}>Final rankings</Text>
+      <View style={ui.modalOverlay}>
+        <BlurPanel
+          style={[ui.modalCard, { width: cardWidth, maxWidth: cardWidth }]}
+          {...BLUR_MODAL}
+        >
+          <Text style={ui.modalTitle}>Round Complete</Text>
+          <Text style={[ui.modalBody, { fontSize: 22, marginBottom: 18 }]}>Final Rankings</Text>
 
           <View style={styles.rankings}>
             {finishedOrder.map((playerId, index) => {
@@ -108,25 +110,25 @@ export default function RoundCompleteModal({
           </View>
 
           <Text style={styles.readyCount}>
-            {readyCount} / {players.length} players ready
+            {readyCount} / {players.length} Players Ready
           </Text>
 
-          <View style={styles.actionTrack}>
+          <View style={ui.actionTrack}>
             <TouchableOpacity
-              style={styles.secondaryBtn}
+              style={ui.actionSecondary}
               activeOpacity={0.82}
               onPress={() => {
                 triggerHaptic("light");
                 onQuit();
               }}
               accessibilityRole="button"
-              accessibilityLabel="Quit game"
+              accessibilityLabel="Quit Game"
             >
-              <Text style={styles.secondaryBtnText}>Quit</Text>
+              <Text style={ui.actionSecondaryText}>Quit Game</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.primaryBtn, isReady && styles.primaryBtnReady]}
+              style={[ui.actionPrimary, isReady && { backgroundColor: GOLD }]}
               activeOpacity={0.82}
               onPress={() => {
                 triggerHaptic("medium");
@@ -134,16 +136,16 @@ export default function RoundCompleteModal({
               }}
               accessibilityRole="button"
               accessibilityLabel={
-                isReady ? "Mark unready for next round" : "Ready for next round"
+                isReady ? "Mark Unready For Next Round" : "Ready For Next Round"
               }
             >
               <Text
                 style={[
-                  styles.primaryBtnText,
-                  isReady && styles.primaryBtnTextReady,
+                  ui.actionPrimaryText,
+                  isReady && { color: "#111111" },
                 ]}
               >
-                {isReady ? "Unready" : "Next round"}
+                {isReady ? "Not Ready" : "Next Round"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -154,35 +156,6 @@ export default function RoundCompleteModal({
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.72)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  card: {
-    borderRadius: 18,
-    padding: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(212, 175, 55, 0.3)",
-  },
-  eyebrow: {
-    color: GOLD,
-    fontSize: 11,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1.1,
-    textAlign: "center",
-    marginBottom: 4,
-  },
-  headline: {
-    color: "#ffffff",
-    fontSize: 22,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 18,
-  },
   rankings: {
     width: "100%",
     marginBottom: 14,
@@ -224,8 +197,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     marginTop: 2,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
   },
   readyBadge: {
     marginLeft: 8,
@@ -240,66 +212,14 @@ const styles = StyleSheet.create({
     color: GOLD,
     fontSize: 10,
     fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
+    letterSpacing: 0.2,
   },
   readyCount: {
     color: "rgba(255, 255, 255, 0.55)",
     fontSize: 11,
     fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.7,
+    letterSpacing: 0.2,
     textAlign: "center",
     marginBottom: 14,
-  },
-  actionTrack: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 10,
-    padding: 5,
-    borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255, 255, 255, 0.12)",
-  },
-  secondaryBtn: {
-    flex: 1,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.12)",
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-  },
-  secondaryBtnText: {
-    color: "#f0f0f0",
-    fontWeight: "700",
-    fontSize: 14,
-    letterSpacing: 0.3,
-  },
-  primaryBtn: {
-    flex: 1.45,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: GOLD,
-    backgroundColor: "rgba(212, 175, 55, 0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-  },
-  primaryBtnReady: {
-    backgroundColor: GOLD,
-  },
-  primaryBtnText: {
-    color: "#f5f0e6",
-    fontWeight: "800",
-    fontSize: 14,
-    letterSpacing: 0.3,
-  },
-  primaryBtnTextReady: {
-    color: "#111111",
   },
 });

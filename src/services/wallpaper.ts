@@ -11,7 +11,37 @@ const STORAGE_TINT_KEY = "@ps_and_as_wallpaper_tint";
 export const DEFAULT_WALLPAPER = require("../../assets/ps_and_as_bg.png");
 export const FELT_WALLPAPER = require("../../assets/felt_grey.png");
 const FELT_GREY_ASSET_MARKER = "asset:felt_grey";
-export const DEFAULT_FELT_COLOR = "#0f5d2f";
+export type FeltPreset = {
+  hex: string;
+  name: string;
+};
+
+/** Classic card-table felt tints (approximate swatches over grey felt texture). */
+export const FELT_PRESETS: FeltPreset[] = [
+  { hex: "#0f5132", name: "Casino Green" },
+  { hex: "#6b1c23", name: "Baccarat Red" },
+  { hex: "#1e3a5f", name: "Tournament Blue" },
+  { hex: "#2a2a2a", name: "Charcoal" },
+  { hex: "#4a2352", name: "Royal Purple" },
+  { hex: "#5a8a3d", name: "Olive Green" },
+];
+
+export const DEFAULT_FELT_COLOR = FELT_PRESETS[0].hex;
+
+/** Accept `#rrggbb`, `rrggbb`, or `#rrggbbaa` and return a canonical `#rrggbb`. */
+export function normalizeHexColor(input: string): string | null {
+  const raw = input.trim();
+  if (!raw) return null;
+
+  const withHash = raw.startsWith("#") ? raw : `#${raw}`;
+  if (/^#[0-9a-fA-F]{6}$/.test(withHash)) {
+    return withHash.toLowerCase();
+  }
+  if (/^#[0-9a-fA-F]{8}$/.test(withHash)) {
+    return withHash.slice(0, 7).toLowerCase();
+  }
+  return null;
+}
 
 export async function getWallpaperUri(): Promise<string | null> {
   try {
@@ -54,7 +84,9 @@ export async function setWallpaperTint(hex: string | null): Promise<void> {
       await AsyncStorage.removeItem(STORAGE_TINT_KEY);
       return;
     }
-    await AsyncStorage.setItem(STORAGE_TINT_KEY, hex);
+    const normalized = normalizeHexColor(hex);
+    if (!normalized) return;
+    await AsyncStorage.setItem(STORAGE_TINT_KEY, normalized);
   } catch (e) {
     // ignore
   }

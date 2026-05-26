@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, TouchableWithoutFeedback, View, StyleSheet, Easing, Platform } from "react-native";
+import { Animated, TouchableWithoutFeedback, View, StyleSheet, Easing, Platform, Text } from "react-native";
 import { Card as CardType } from "../game/ruleset";
 
 export default function Card({
@@ -24,7 +24,7 @@ export default function Card({
   compact?: boolean;
   /** Opening-lead pulse (same rhythm as the Pass button flash) */
   flash?: boolean;
-  /** hand = semi-transparent table face on blur; table = opaque face for stacking */
+  /** hand = opaque face so overlapped fan cards don't bleed through */
   variant?: "hand" | "table";
   style?: any;
 }) {
@@ -90,6 +90,55 @@ export default function Card({
 
   const isTable = variant === "table";
 
+  // Table cards: static, fully opaque, no motion — avoids blur from nested transforms.
+  if (isTable) {
+    const suitIsRed = card.suit === "hearts" || card.suit === "diamonds";
+    const labelColor = "#1a1a1a";
+    const suitColor = suitIsRed ? "#b71c1c" : "#1a1a1a";
+
+    const suitSymbol = (() => {
+      switch (card.suit) {
+        case "hearts":
+          return "♥";
+        case "diamonds":
+          return "♦";
+        case "clubs":
+          return "♣";
+        case "spades":
+          return "♠";
+        case "joker":
+          return "★";
+      }
+    })();
+
+    const label = (() => {
+      if (card.suit === "joker") return "JOKER";
+      if (card.value <= 10 && card.value >= 2) return String(card.value);
+      if (card.value === 11) return "J";
+      if (card.value === 12) return "Q";
+      if (card.value === 13) return "K";
+      return "A";
+    })();
+
+    return (
+      <View style={[local.cardTableShell, local.cardTable, style]}>
+        <View style={local.inner}>
+          <View style={[local.cardFace, local.cardFaceOpaque]} pointerEvents="none" />
+          <View style={local.cornerTopLeft} pointerEvents="none">
+            <Text style={[local.cornerText, { color: labelColor }]}>{label}</Text>
+            <Text style={[local.cornerTextSmall, { color: suitColor }]}>{suitSymbol}</Text>
+          </View>
+          <Text style={[local.value, { color: labelColor }]}>{label}</Text>
+          <Text style={[local.suit, { color: suitColor }]}>{suitSymbol}</Text>
+          <View style={local.cornerBottomRight} pointerEvents="none">
+            <Text style={[local.cornerText, { color: labelColor }]}>{label}</Text>
+            <Text style={[local.cornerTextSmall, { color: suitColor }]}>{suitSymbol}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   const elevation = glow.interpolate({ inputRange: [0, 1], outputRange: [2, 10] });
   const borderGlow = glow.interpolate({
     inputRange: [0, 1],
@@ -99,13 +148,9 @@ export default function Card({
   const cardBackground = flash
     ? flashAnim.interpolate({
         inputRange: [0, 1],
-        outputRange: isTable
-          ? ["#f5f4ef", "#ffffff"]
-          : ["rgba(245, 244, 239, 0.82)", "rgba(255, 255, 255, 0.96)"],
+        outputRange: ["#f5f4ef", "#ffffff"],
       })
-    : isTable
-      ? "#f5f4ef"
-      : "rgba(245, 244, 239, 0.82)";
+    : "#f5f4ef";
 
   const cardBorder = flash
     ? flashAnim.interpolate({
@@ -118,19 +163,25 @@ export default function Card({
   const defaultLabelColor = "#1a1a1a";
   const defaultSuitColor = suitIsRed ? "#b71c1c" : "#1a1a1a";
 
-  const labelColor = flash
-    ? flashAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["#1a1a1a", "#111111"],
-      })
-    : defaultLabelColor;
+  const labelColor = disabled
+    ? "#7a7a7a"
+    : flash
+      ? flashAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: ["#1a1a1a", "#111111"],
+        })
+      : defaultLabelColor;
 
-  const suitColor = flash
-    ? flashAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [defaultSuitColor, suitIsRed ? "#8b0000" : "#333333"],
-      })
-    : defaultSuitColor;
+  const suitColor = disabled
+    ? suitIsRed
+      ? "#9a8080"
+      : "#7a7a7a"
+    : flash
+      ? flashAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [defaultSuitColor, suitIsRed ? "#8b0000" : "#333333"],
+        })
+      : defaultSuitColor;
 
   const AnimatedText = Animated.Text;
 
@@ -162,7 +213,7 @@ export default function Card({
     <Animated.View
       style={[
         local.card,
-        isTable ? local.cardTable : local.cardHand,
+        local.cardHand,
         style,
         {
           transform: [{ translateY }, { scale }],
@@ -170,7 +221,7 @@ export default function Card({
           borderColor: cardBorder,
           backgroundColor: cardBackground,
         } as any,
-        disabled && { opacity: 0.35 },
+        disabled && local.cardDisabled,
         flash && local.cardFlash,
       ]}
     >
@@ -183,13 +234,7 @@ export default function Card({
                 pointerEvents="none"
               />
             ) : (
-              <View
-                style={[
-                  local.cardFace,
-                  isTable ? local.cardFaceOpaque : local.cardFaceTranslucent,
-                ]}
-                pointerEvents="none"
-              />
+              <View style={[local.cardFace, local.cardFaceOpaque]} pointerEvents="none" />
             )
           )}
           {faceDown ? (
@@ -221,6 +266,9 @@ export default function Card({
               </View>
             </>
           )}
+          {disabled && !faceDown && (
+            <View style={local.disabledWash} pointerEvents="none" />
+          )}
         </View>
       </TouchableWithoutFeedback>
     </Animated.View>
@@ -239,20 +287,31 @@ const local = StyleSheet.create({
     overflow: "hidden",
   },
   cardHand: {
-    backgroundColor: "rgba(245, 244, 239, 0.82)",
+    backgroundColor: "#f5f4ef",
     borderColor: "rgba(0,0,0,0.1)",
     shadowColor: "#000",
     shadowOpacity: 0.18,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
   },
-  cardTable: {
+  cardDisabled: {
+    opacity: 0.88,
+    ...Platform.select({
+      web: { filter: "saturate(0.35)" as any },
+      default: {},
+    }),
+  },
+  cardTableShell: {
+    borderRadius: 14,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+    overflow: "hidden",
     backgroundColor: "#f5f4ef",
-    borderColor: "rgba(0,0,0,0.1)",
-    shadowColor: "#000",
-    shadowOpacity: 0.22,
-    shadowRadius: 6,
-    shadowOffset: { width: 2, height: 3 },
+  },
+  cardTable: {
+    borderColor: "rgba(0,0,0,0.14)",
   },
   cardFlash: {
     ...Platform.select({
@@ -284,8 +343,10 @@ const local = StyleSheet.create({
   cardFaceOpaque: {
     backgroundColor: "#f5f4ef",
   },
-  cardFaceTranslucent: {
-    backgroundColor: "rgba(245, 244, 239, 0.82)",
+  disabledWash: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 13,
+    backgroundColor: "rgba(168, 166, 158, 0.38)",
   },
   value: {
     color: "#1a1a1a",

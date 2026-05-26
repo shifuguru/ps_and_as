@@ -1,6 +1,7 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import BlurPanel from "./BlurPanel";
+import { BLUR_CHROME } from "../styles/uiStandards";
 
 export const LOBBY_STATUS_BAR_HEIGHT = 58;
 
@@ -10,7 +11,6 @@ type Props = {
   statusLabel: string;
   statusValue: string;
   topInset?: number;
-  onLeave?: () => void;
 };
 
 export default function LobbyStatusBar({
@@ -19,22 +19,13 @@ export default function LobbyStatusBar({
   statusLabel,
   statusValue,
   topInset = 0,
-  onLeave,
 }: Props) {
   return (
-    <BlurPanel style={[styles.panel, { paddingTop: topInset + 6 }]}>
+    <BlurPanel
+      style={[styles.panel, { paddingTop: topInset + 6 }]}
+      {...BLUR_CHROME}
+    >
       <View style={styles.container}>
-        <View style={styles.sideSection}>
-          {onLeave ? (
-            <TouchableOpacity
-              onPress={onLeave}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.leaveText}>Leave</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
         <View style={styles.centerSection}>
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
@@ -50,7 +41,7 @@ export default function LobbyStatusBar({
           </View>
         </View>
 
-        <View style={styles.sideSectionRight}>
+        <View style={styles.statusSection}>
           <Text style={styles.label}>{statusLabel}</Text>
           <Text style={styles.value} numberOfLines={1}>
             {statusValue}
@@ -79,22 +70,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
-  sideSection: {
-    flex: 1,
-    alignItems: "flex-start",
-    justifyContent: "center",
-    minWidth: 0,
-  },
-  sideSectionRight: {
-    flex: 1,
-    alignItems: "flex-end",
-    justifyContent: "center",
-    minWidth: 0,
-  },
   centerSection: {
-    flexShrink: 0,
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    minWidth: 0,
+  },
+  statusSection: {
+    flexShrink: 0,
+    alignItems: "flex-end",
+    justifyContent: "center",
+    minWidth: 72,
+    paddingLeft: 8,
   },
   statsRow: {
     flexDirection: "row",
@@ -117,16 +104,11 @@ const styles = StyleSheet.create({
   roomCard: {
     maxWidth: 120,
   },
-  leaveText: {
-    color: "#d4af37",
-    fontSize: 15,
-    fontWeight: "700",
-  },
   label: {
     color: "rgba(255,255,255,0.65)",
     fontSize: 10,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
+    fontWeight: "700",
+    letterSpacing: 0.2,
     marginBottom: 2,
     textAlign: "center",
   },

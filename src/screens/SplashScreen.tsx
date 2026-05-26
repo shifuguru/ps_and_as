@@ -89,9 +89,9 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
             transform: [{ translateY: textTranslate }],
           }}
         >
-          <Text style={styles.title}>P's & A's</Text>
-          <Text style={styles.subtitle}>Presidents and Assholes</Text>
-          <Text style={styles.subtitle}>App designed by Michael Drury</Text>
+          <Text style={styles.title}>P&apos;s & A&apos;s</Text>
+          <Text style={styles.subtitle}>Presidents & Assholes</Text>
+          <Text style={styles.credit}>App designed by Michael Drury</Text>
         </Animated.View>
       </View>
     </Animated.View>
@@ -118,5 +118,12 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.7)",
     fontSize: 12,
     marginTop: 6,
+    letterSpacing: 0.8,
+    fontWeight: "600",
+  },
+  credit: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 11,
+    marginTop: 10,
   },
 });

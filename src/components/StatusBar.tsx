@@ -30,7 +30,12 @@ export default function StatusBar({
   topInset = 0,
 }: Props) {
   return (
-    <BlurPanel style={[styles.panel, { paddingTop: topInset + 6 }]}>
+    <BlurPanel
+      style={[styles.panel, { paddingTop: topInset + 6 }]}
+      intensity={40}
+      scrimOpacity={0.16}
+      webOpacity={0.05}
+    >
       <View style={styles.container}>
         <View style={styles.sideSection}>
           <Text style={styles.label}>Turn</Text>

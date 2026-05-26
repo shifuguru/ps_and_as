@@ -7,6 +7,9 @@ import GameScreen from "./src/screens/GameScreen";
 import Achievements from "./src/screens/Achievements";
 import Settings from "./src/screens/Settings";
 import MainMenu from "./src/screens/MainMenu";
+import ScreenContainer from "./src/components/ScreenContainer";
+import BlurPanel from "./src/components/BlurPanel";
+import { ui, BLUR_PANEL } from "./src/styles/uiStandards";
 import { useMenuAudio } from "./src/hooks/useMenuAudio";
 import AnimatedBackground from "./src/components/AnimatedBackground";
 import { SocketAdapter } from "./src/game/socketAdapter";
@@ -16,6 +19,7 @@ import { isSocketAdapter } from "./src/game/socketAdapter";
 import { getOrCreatePlayerId } from "./src/services/gameCenter";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import FeltBackground from "./src/components/FeltBackground";
+import { DEFAULT_FELT_COLOR } from "./src/services/wallpaper";
 import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
 import { tryCollapseSafariChrome } from "./src/utils/safariChrome";
 
@@ -118,17 +122,19 @@ export default function App() {
       action: () => {
         disconnectRoom();
         setIsOnlineGame(false);
-        setRoomAdapter(new SocketAdapter(undefined, "", "", false));
+        setRoomAdapter(null);
+        setJoinedRoomId(null);
         setScreen("create");
       },
     },
     {
-      label: "Random Game",
+      label: "Quick Game",
       icon: "shuffle",
       action: () => {
         void startRandomGame();
       },
     },
+    /* LOCAL GAME DISABLED FOR NOW
     {
       label: "Local",
       icon: "person",
@@ -138,11 +144,14 @@ export default function App() {
         setScreen("create");
       },
     },
+    */
+    /* FIND GAME DISABLED FOR NOW
     {
       label: "Find Game",
       icon: "globe",
       action: () => setScreen("find"),
     },
+    */
     {
       label: "Achievements",
       icon: "trophy",
@@ -171,7 +180,7 @@ export default function App() {
         min-height: 100dvh;
         margin: 0;
         padding: 0;
-        background-color: #0f5d2f;
+        background-color: ${DEFAULT_FELT_COLOR};
         overflow: hidden;
         overscroll-behavior: none;
       }
@@ -231,14 +240,20 @@ export default function App() {
   return (
     <SafeAreaProvider>
     <View style={[{ flex: 1 }, Platform.OS === "web" && appStyles.webRoot]}>
-        {/* Full-bleed felt on web — paints under notch & Safari URL bar */}
-        {Platform.OS === "web" && <FeltBackground fullBleed />}
+        {/* Persistent felt wallpaper — one instance for the whole app */}
+        <FeltBackground
+          fullBleed
+          tint={wallpaperTint ?? DEFAULT_FELT_COLOR}
+        />
 
+        <View style={appStyles.appContent}>
         {/* Menu / lobby background — game & menu use their own felt layer */}
         {screen !== "game" &&
           screen !== "create" &&
           screen !== "find" &&
-          screen !== "menu" && <AnimatedBackground />}
+          screen !== "menu" &&
+          screen !== "achievements" &&
+          screen !== "settings" && <AnimatedBackground />}
 
         {/* Splash overlay (kept mounted until hide animation finishes) */}
         {splashVisible && (
@@ -274,7 +289,14 @@ export default function App() {
           <Achievements onBack={() => setScreen("menu")} />
         )}
         {menuVisible && screen === "settings" && (
-          <Settings onWallpaperChange={() => reloadWallpaper()} onBack={() => setScreen("menu")} />
+          <Settings
+            onWallpaperPreview={(tint) => setWallpaperTint(tint)}
+            onWallpaperChange={() => reloadWallpaper()}
+            onBack={() => {
+              void reloadWallpaper();
+              setScreen("menu");
+            }}
+          />
         )}
         {menuVisible && screen === "create" && (
           <CreateGame 
@@ -287,7 +309,7 @@ export default function App() {
               setIsOnlineGame(false);
               setScreen("menu");
             }}
-            onNavigateToAchievements={() => setScreen("achievements")}
+            onNavigateToSettings={() => setScreen("settings")}
             onStart={(members, localName, localSocketId) => {
               console.log("[App] CreateGame onStart:", members, localName, localSocketId);
               setLobbyMembers(members);
@@ -316,7 +338,7 @@ export default function App() {
             <FindGame 
               adapter={discoveryAdapter} 
               onBack={() => setScreen("menu")}
-              onNavigateToAchievements={() => setScreen("achievements")}
+              onNavigateToSettings={() => setScreen("settings")}
               onJoinRoom={(roomId, playerName) => {
                 setRoomAdapter(
                   new SocketAdapter(undefined, roomId, playerName, true),
@@ -328,18 +350,31 @@ export default function App() {
               }} 
             />
           ) : (
-            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}>
-              <Text style={{ color: "#fff", fontSize: 24, fontWeight: "700" }}>Network Unavailable</Text>
-              <Text style={{ color: "rgba(255,255,255,0.7)", textAlign: "center", marginTop: 20 }}>
-                Unable to connect to server.{"\n"}Please check your connection.
-              </Text>
-              <TouchableOpacity
-                style={{ marginTop: 24, paddingVertical: 12, paddingHorizontal: 24 }}
-                onPress={() => setScreen("menu")}
+            <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
+              <View
+                style={{
+                  flex: 1,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  padding: 24,
+                }}
               >
-                <Text style={{ color: "#d4af37", fontWeight: "700" }}>Back</Text>
-              </TouchableOpacity>
-            </View>
+                <BlurPanel style={[ui.panel, { width: "100%", maxWidth: 360 }]} {...BLUR_PANEL} intensity={52}>
+                  <Text style={ui.panelEyebrow}>Connection</Text>
+                  <Text style={ui.emptyTitle}>Network Unavailable</Text>
+                  <Text style={[ui.emptyBody, { marginBottom: 16 }]}>
+                    Unable to connect to the game server. Check your connection and try again.
+                  </Text>
+                  <TouchableOpacity
+                    style={ui.btnSecondary}
+                    onPress={() => setScreen("menu")}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={ui.btnSecondaryText}>Back To Menu</Text>
+                  </TouchableOpacity>
+                </BlurPanel>
+              </View>
+            </ScreenContainer>
           )
         )}
         {menuVisible && screen === "game" && (
@@ -365,6 +400,7 @@ export default function App() {
             }}
           />
         )}
+        </View>
     </View>
     </SafeAreaProvider>
   );
@@ -376,4 +412,9 @@ const appStyles = StyleSheet.create({
     height: "100dvh",
     width: "100%",
   } as object,
+  appContent: {
+    flex: 1,
+    position: "relative",
+    zIndex: 1,
+  },
 });

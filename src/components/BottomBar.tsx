@@ -4,6 +4,10 @@ import {
 
   View,
 
+  Text,
+
+  TouchableOpacity,
+
   StyleSheet,
 
   ViewStyle,
@@ -19,12 +23,16 @@ import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import BlurPanel from "./BlurPanel";
 import { ACTION_BAR_HEIGHT } from "./ActionBar";
 import { HAND_FAN_HEIGHT } from "./PlayerHand";
+import { ui } from "../styles/uiStandards";
 
 
 
 /** Height of controls below the hand (ActionBar + padding). Keep in sync with ActionBar. */
 
 export const BOTTOM_CONTROLS_HEIGHT = ACTION_BAR_HEIGHT + 16;
+
+/** Space for the centered leave pill below an action track (gap + button). */
+export const BOTTOM_LEAVE_ROW_HEIGHT = 34;
 
 
 
@@ -37,6 +45,13 @@ export const HAND_CONTROLS_GAP = 20;
 /** Extra height the sheet extends past the bottom edge. */
 
 export const BOTTOM_SHEET_BLEED = 32;
+
+/** Reserve scroll padding for a bottom panel with action track + leave (no hand). */
+export function menuBottomReserve(safeBottom = 0): number {
+  const outerPad =
+    Platform.OS === "web" ? 12 + BOTTOM_SHEET_BLEED : safeBottom + 10;
+  return ACTION_BAR_HEIGHT + 18 + BOTTOM_LEAVE_ROW_HEIGHT + outerPad + 8;
+}
 
 /** Vertical space to reserve above the bottom sheet — keep in sync with GameScreen padding. */
 export function reservedBottomHeight(
@@ -111,7 +126,9 @@ export default function BottomBar({
 
       ]}
 
-      intensity={58}
+      intensity={42}
+      scrimOpacity={0.16}
+      webOpacity={0.05}
 
     >
 
@@ -188,6 +205,52 @@ export function BottomBarControls({
 }) {
 
   return <View style={[styles.controls, style]}>{children}</View>;
+
+}
+
+
+
+/** Centered leave control — always sits below the primary action track. */
+
+export function BottomBarLeave({
+
+  onPress,
+
+  label = "Leave",
+
+  accessibilityLabel,
+
+}: {
+
+  onPress: () => void;
+
+  label?: string;
+
+  accessibilityLabel?: string;
+
+}) {
+
+  return (
+
+    <TouchableOpacity
+
+      style={ui.leaveButton}
+
+      onPress={onPress}
+
+      accessibilityRole="button"
+
+      accessibilityLabel={accessibilityLabel ?? label}
+
+      hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
+
+    >
+
+      <Text style={ui.leaveButtonText}>{label}</Text>
+
+    </TouchableOpacity>
+
+  );
 
 }
 

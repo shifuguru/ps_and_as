@@ -1,231 +1,204 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   LayoutChangeEvent,
   Platform,
+  Animated,
+  Easing,
 } from "react-native";
 import Card from "./Card";
-import { Card as CardType } from "../game/ruleset";
 import type { PlayAreaLayout } from "../utils/tableLayout";
 import { tableScaleLimits } from "../utils/tableLayout";
-
-/** Table pile display scale (hand cards stay full size) — overridden by layoutHint */
-const DEFAULT_TABLE_DISPLAY_SCALE = Platform.OS === "web" ? 0.88 : 0.92;
-
-/** Must match Card.tsx layout footprint */
-const CARD_W = 86;
-const CARD_H = 124;
-
-const IDEAL_STEP_X = 28;
-const IDEAL_STEP_Y = 18;
-const MIN_STEP_X = 20;
-const MIN_STEP_Y = 12;
-const MAX_STEP_X = 40;
-const MAX_STEP_Y = 22;
-const BUNDLE_OVERLAP = 26;
-
-/** Newest plays keep full diagonal spacing; older plays pack into a tight tail. */
-const FULL_SPREAD_LAYERS = 5;
-const CONDENSED_STEP_X = 10;
-const CONDENSED_STEP_Y = 7;
-
-const MAX_FILL_SCALE_DEFAULT = Platform.OS === "web" ? 0.96 : 1.0;
-
-function buriedPlayCount(playCount: number): number {
-  return Math.max(0, playCount - FULL_SPREAD_LAYERS);
-}
-
-function playPosition(
-  playIndex: number,
-  buriedCount: number,
-  stepX: number,
-  stepY: number,
-): { left: number; top: number } {
-  if (playIndex < buriedCount) {
-    return {
-      left: playIndex * CONDENSED_STEP_X,
-      top: playIndex * CONDENSED_STEP_Y,
-    };
-  }
-  const spreadIndex = playIndex - buriedCount;
-  const baseX = buriedCount * CONDENSED_STEP_X;
-  const baseY = buriedCount * CONDENSED_STEP_Y;
-  return {
-    left: baseX + spreadIndex * stepX,
-    top: baseY + spreadIndex * stepY,
-  };
-}
+import type { TrickPlayDisplay } from "../utils/trickDisplay";
+import {
+  computePlayStackLayout,
+  layoutPlayBundle,
+  MAX_SPREAD_WIDTH_RATIO,
+} from "../utils/tablePlayLayout";
+import { GOLD } from "../styles/uiStandards";
 
 type Props = {
-  plays: CardType[][];
+  plays: TrickPlayDisplay[];
+  playTypeLabel?: string | null;
   winnerMessage?: string | null;
   layoutHint?: PlayAreaLayout | null;
 };
 
+function playKey(play: TrickPlayDisplay, index: number): string {
+  return `${index}-${play.playerId}-${play.cards.map((c) => `${c.suit}${c.value}`).join("-")}`;
+}
+
 export default function GameTable({
   plays,
+  playTypeLabel,
   winnerMessage,
   layoutHint,
 }: Props) {
-  const [pileSize, setPileSize] = useState({ width: 0, height: 0 });
-
-  const playCount = plays.length;
-  const maxBundle = useMemo(
-    () => Math.max(1, ...plays.map((p) => p.length)),
-    [plays],
-  );
-
-  const bundleExtra = (maxBundle - 1) * (CARD_W - BUNDLE_OVERLAP);
+  const [zoneSize, setZoneSize] = useState({ width: 0, height: 0 });
+  const enterAnim = useRef(new Animated.Value(0)).current;
+  const prevPlayCount = useRef(plays.length);
 
   const scaleLimits = useMemo(
     () =>
       layoutHint
         ? tableScaleLimits(layoutHint)
-        : {
-            displayScale:
-              Platform.OS === "web"
-                ? DEFAULT_TABLE_DISPLAY_SCALE
-                : DEFAULT_TABLE_DISPLAY_SCALE + 0.06,
-            maxFillScale: MAX_FILL_SCALE_DEFAULT,
-          },
+        : { displayScale: 0.96, maxFillScale: 1.4 },
     [layoutHint],
   );
 
-  const { stackWidth, stackHeight, fillScale, positions } = useMemo(() => {
-    const buriedCount = buriedPlayCount(playCount);
-    const spreadCount = playCount - buriedCount;
-    const spreadSlots = Math.max(spreadCount - 1, 0);
-    const pileW = pileSize.width;
-    const pileH = Math.max(80, pileSize.height);
+  const layout = useMemo(() => {
+    return computePlayStackLayout({
+      plays,
+      zoneWidth: zoneSize.width,
+      zoneHeight: zoneSize.height,
+      maxFillScale: scaleLimits.maxFillScale,
+      displayScale: scaleLimits.displayScale,
+    });
+  }, [plays, zoneSize, scaleLimits]);
 
-    const usableW =
-      pileW > 0
-        ? Math.max(72, pileW * 0.9 - CARD_W - bundleExtra)
-        : spreadSlots * IDEAL_STEP_X;
-    const usableH =
-      pileH > 0
-        ? Math.max(64, pileH * 0.78 - CARD_H)
-        : spreadSlots * IDEAL_STEP_Y;
+  const maxSpreadWidth =
+    zoneSize.width > 0 ? zoneSize.width * MAX_SPREAD_WIDTH_RATIO : undefined;
 
-    const computedStepX =
-      spreadSlots === 0
-        ? 0
-        : Math.min(MAX_STEP_X, Math.max(MIN_STEP_X, usableW / spreadSlots));
-    const computedStepY =
-      spreadSlots === 0
-        ? 0
-        : Math.min(MAX_STEP_Y, Math.max(MIN_STEP_Y, usableH / spreadSlots));
-
-    const condensedExtentX = buriedCount * CONDENSED_STEP_X;
-    const condensedExtentY = buriedCount * CONDENSED_STEP_Y;
-    const width =
-      condensedExtentX + spreadSlots * computedStepX + CARD_W + bundleExtra;
-    const height =
-      CARD_H + condensedExtentY + spreadSlots * computedStepY;
-
-    const displayScale = scaleLimits.displayScale;
-    const scaledW = width * displayScale;
-    const scaledH = height * displayScale;
-
-    let fit = 1;
-    if (pileW > 0 && pileH > 0 && scaledW > 0 && scaledH > 0) {
-      fit = Math.min(
-        scaleLimits.maxFillScale,
-        (pileW * 0.9) / scaledW,
-        (pileH * 0.88) / scaledH,
-      );
+  useEffect(() => {
+    if (plays.length > prevPlayCount.current) {
+      enterAnim.setValue(0);
+      Animated.timing(enterAnim, {
+        toValue: 1,
+        duration: 280,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
     }
+    prevPlayCount.current = plays.length;
+  }, [plays.length, enterAnim]);
 
-    const positions = Array.from({ length: playCount }, (_, i) =>
-      playPosition(i, buriedCount, computedStepX, computedStepY),
-    );
-
-    return {
-      stepX: computedStepX,
-      stepY: computedStepY,
-      stackWidth: width,
-      stackHeight: height,
-      fillScale: fit,
-      positions,
-    };
-  }, [playCount, pileSize, bundleExtra, scaleLimits]);
-
-  const onPileLayout = (event: LayoutChangeEvent) => {
+  const onZoneLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
-    setPileSize((prev) =>
+    setZoneSize((prev) =>
       prev.width === width && prev.height === height ? prev : { width, height },
     );
   };
 
-  const totalScale = fillScale * scaleLimits.displayScale;
+  const enterTranslateY = enterAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [8, 0],
+  });
+
+  const totalScale = layout.fillScale * layout.displayScale;
+  const playCount = plays.length;
+  const cardW = Math.round(layout.cardWidth * totalScale);
+  const cardH = Math.round(layout.cardHeight * totalScale);
+  const stackW = Math.round(layout.stackWidth * totalScale);
+  const stackH = Math.round(layout.stackHeight * totalScale);
+  const scalePos = (value: number) => Math.round(value * totalScale);
 
   return (
-    <View style={styles.tableFrame} onLayout={onPileLayout}>
-      <View style={styles.pileHost} pointerEvents="box-none">
+    <View style={styles.tableFrame} onLayout={onZoneLayout}>
+      <View style={styles.anchorHost} pointerEvents="box-none">
         {winnerMessage && playCount === 0 ? (
-          <View style={styles.winnerBannerCenter}>
-            <Text style={styles.winnerBannerText}>
-              {winnerMessage} won the trick
-            </Text>
+          <View style={styles.tableMessageCenter} pointerEvents="none">
+            <View style={styles.trickResultPill}>
+              <Text style={styles.trickResultEyebrow}>Trick Won</Text>
+              <Text style={styles.trickResultName} numberOfLines={1}>
+                {winnerMessage}
+              </Text>
+            </View>
           </View>
         ) : playCount === 0 ? (
-          <Text style={styles.emptyText}>No cards on the table yet.</Text>
+          <View style={styles.tableMessageCenter} pointerEvents="none">
+            <Text style={styles.emptyText}>No cards on the table yet.</Text>
+          </View>
         ) : (
-          <View style={styles.pileColumn}>
+          <Animated.View
+            style={[
+              styles.playCluster,
+              {
+                position: "absolute",
+                left: layout.centerOffsetX,
+                top: layout.centerOffsetY,
+                transform: [{ translateY: enterTranslateY }],
+              },
+            ]}
+          >
             <View
               style={[
                 styles.playStack,
                 {
-                  width: stackWidth,
-                  height: stackHeight,
-                  transform: [{ scale: totalScale }],
+                  width: stackW,
+                  height: stackH,
                 },
               ]}
             >
-              {plays.map((play, playIndex) => {
-                const bundleWidth =
-                  CARD_W + (play.length - 1) * (CARD_W - BUNDLE_OVERLAP);
-                const pos = positions[playIndex] ?? { left: 0, top: 0 };
-                return (
-                  <View
-                    key={`play-${playIndex}-${play.map((c) => `${c.suit}${c.value}`).join("-")}`}
-                    style={[
-                      styles.playGroup,
-                      {
-                        left: pos.left,
-                        top: pos.top,
-                        width: bundleWidth,
-                        height: CARD_H,
-                        zIndex: playIndex,
-                      },
-                    ]}
-                  >
-                    {play.map((card, cardIndex) => (
-                      <View
-                        key={`${card.suit}-${card.value}-${cardIndex}`}
-                        style={[
-                          styles.bundleCard,
-                          {
-                            left: cardIndex * (CARD_W - BUNDLE_OVERLAP),
-                            zIndex: cardIndex,
-                          },
-                        ]}
-                      >
-                        <Card
-                          card={card}
-                          selected={false}
-                          variant="table"
-                          onPress={() => {}}
-                        />
-                      </View>
-                    ))}
-                  </View>
-                );
-              })}
-            </View>
-          </View>
+                {plays.map((play, playIndex) => {
+                  const bundle = layoutPlayBundle(
+                    play.cards.length,
+                    cardW,
+                    maxSpreadWidth
+                      ? Math.round(maxSpreadWidth * 0.55 * totalScale)
+                      : undefined,
+                    cardH,
+                  );
+                  const pos = layout.positions[playIndex] ?? {
+                    left: 0,
+                    top: 0,
+                    opacity: 1,
+                    scale: 1,
+                  };
+                  const isNewest = playIndex === playCount - 1;
+
+                  return (
+                    <View
+                      key={playKey(play, playIndex)}
+                      style={[
+                        styles.playGroup,
+                        isNewest ? styles.playGroupActive : styles.playGroupBuried,
+                        {
+                          left: scalePos(pos.left),
+                          top: scalePos(pos.top),
+                          width: bundle.width,
+                          height: bundle.height,
+                          zIndex: playIndex,
+                        },
+                      ]}
+                    >
+                      {play.cards.map((card, cardIndex) => (
+                        <View
+                          key={`${card.suit}-${card.value}-${cardIndex}`}
+                          style={[
+                            styles.bundleCard,
+                            {
+                              left: bundle.cardOffsets[cardIndex] ?? 0,
+                              width: cardW,
+                              height: cardH,
+                              zIndex: cardIndex,
+                            },
+                          ]}
+                        >
+                          <Card
+                            card={card}
+                            selected={false}
+                            variant="table"
+                            style={{
+                              width: cardW,
+                              height: cardH,
+                            }}
+                            onPress={() => {}}
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })}
+              </View>
+
+              {playTypeLabel ? (
+                <View style={styles.playTypeBadge}>
+                  <Text style={styles.playTypeBadgeText}>{playTypeLabel}</Text>
+                </View>
+              ) : null}
+          </Animated.View>
         )}
       </View>
     </View>
@@ -237,43 +210,98 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
-  pileHost: {
+  anchorHost: {
     flex: 1,
     minHeight: 0,
-    justifyContent: "center",
-    alignItems: "center",
+    position: "relative",
   },
-  pileColumn: {
+  playCluster: {
     alignItems: "center",
-    justifyContent: "center",
   },
   playStack: {
     position: "relative",
   },
   playGroup: {
     position: "absolute",
+    overflow: "visible",
   },
+  playGroupActive: Platform.select({
+    ios: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.22,
+      shadowRadius: 6,
+    },
+    android: { elevation: 4 },
+    default: {},
+  }),
+  playGroupBuried: Platform.select({
+    ios: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.12,
+      shadowRadius: 2,
+    },
+    android: { elevation: 1 },
+    default: {},
+  }),
   bundleCard: {
     position: "absolute",
     top: 0,
+    overflow: "hidden",
+  },
+  playTypeBadge: {
+    marginTop: 8,
+    backgroundColor: "rgba(212, 175, 55, 0.14)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.38)",
+  },
+  playTypeBadgeText: {
+    color: "#d4af37",
+    fontWeight: "800",
+    fontSize: 11,
+    textAlign: "center",
+    letterSpacing: 0.4,
   },
   emptyText: {
-    color: "#ccc",
-    fontSize: 14,
-    textAlign: "center",
-    paddingHorizontal: 24,
-  },
-  winnerBannerCenter: {
-    backgroundColor: "rgba(212,175,55,0.96)",
-    borderRadius: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    maxWidth: "88%",
-  },
-  winnerBannerText: {
-    color: "#111",
-    fontWeight: "800",
+    color: "rgba(255,255,255,0.55)",
     fontSize: 13,
     textAlign: "center",
+    paddingHorizontal: 20,
+    maxWidth: 280,
+  },
+  tableMessageCenter: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  trickResultPill: {
+    alignSelf: "center",
+    maxWidth: 240,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(212, 175, 55, 0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.38)",
+    alignItems: "center",
+  },
+  trickResultEyebrow: {
+    color: GOLD,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  trickResultName: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
+    letterSpacing: 0.2,
   },
 });

@@ -665,6 +665,14 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
       : trickRunInfo.multiplicity || 1;
   const inRunContext = runSeq.length >= 2 && isRunContextSequence(runSeq);
   const isPileRun = effPile.length >= 3 && isRunContextSequence(effPile);
+  const pileIsUniform = allSameValue(pile);
+  const closesToQuad =
+    pileIsUniform &&
+    pileCount > 0 &&
+    pileCount < 4 &&
+    allSameValue(cards) &&
+    cards[0].value === pile[0].value &&
+    playCount + pileCount === 4;
   // 6. Four-of-a-kind challenge: only higher quads or Joker allowed
   if (fourOfAKindChallenge?.active) {
     const challengeVal = fourOfAKindChallenge.value;
@@ -685,6 +693,9 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   }
   // 8. If pile is empty, any uniform play or run is allowed
   if (pileCount === 0) return true;
+  // 8b. Closing to four-of-a-kind across turns (before 10-rule — same-rank
+  // completion must be allowed even when tens triggered higher/lower mode).
+  if (closesToQuad && !inRunContext) return true;
   // 9. 10 Rule: only outside run contexts — tens do not constrain run continuation
   if (tenRule?.active && tenRule.direction && !inRunContext) {
     if (!allSameValue(cards)) return false;
@@ -705,12 +716,7 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
     const playRank = rankIndex(cards[0].value);
     return Math.abs(playRank - lastRank) === 1;
   }
-  // 11. Completing four-of-a-kind across turns
-  const pileIsUniform = allSameValue(pile);
-  if (pileIsUniform && pileCount > 0 && pileCount < 4 && allSameValue(cards) && cards[0].value === pile[0].value) {
-    if (playCount + pileCount === 4) return true;
-  }
-  // 12. Twos rule: only Joker or completing quad can beat 2s
+  // 11. Twos rule: only Joker or completing quad can beat 2s
   const pileIsTwos = pileIsUniform && pile.length > 0 && pile[0].value === 2;
   if (pileIsTwos) {
     if (isSingleJoker(cards)) return true;

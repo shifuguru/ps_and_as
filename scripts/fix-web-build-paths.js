@@ -44,11 +44,11 @@ function patchViewport(html) {
     );
   }
 
-  const themeColor = '<meta name="theme-color" content="#0f5d2f" />';
+  const themeColor = '<meta name="theme-color" content="#0f5132" />';
   if (/name="theme-color"/i.test(html)) {
     html = html.replace(
       /name="theme-color" content="[^"]*"/i,
-      'name="theme-color" content="#0f5d2f"',
+      'name="theme-color" content="#0f5132"',
     );
   } else {
     html = html.replace("<head>", `<head>\n    ${themeColor}`);
@@ -99,8 +99,8 @@ function writeWebManifest() {
     start_url: `${basePath}/`,
     scope: `${basePath}/`,
     display: "standalone",
-    background_color: "#0f5d2f",
-    theme_color: "#0f5d2f",
+    background_color: "#0f5132",
+    theme_color: "#0f5132",
     orientation: "portrait",
     icons: [
       {

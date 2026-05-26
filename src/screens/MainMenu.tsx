@@ -11,12 +11,11 @@ import {
   ViewStyle,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
-import FeltBackground from "../components/FeltBackground";
 import BlurPanel from "../components/BlurPanel";
 import MenuIcon from "../components/MenuIcon";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 
-const GOLD = "#d4af37";
+import { GOLD } from "../styles/uiStandards";
 
 export type MainMenuButton = {
   label: string;
@@ -64,8 +63,6 @@ export default function MainMenu({ buttons, onButtonPress, style }: Props) {
 
   return (
     <ScreenContainer ignoreHeaderOffset style={[{ flex: 1 }, style]}>
-      {Platform.OS !== "web" ? <FeltBackground /> : null}
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
@@ -162,7 +159,6 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 15,
     fontWeight: "700",
-    letterSpacing: 0.9,
-    textTransform: "uppercase",
+    letterSpacing: 0.3,
   },
 });

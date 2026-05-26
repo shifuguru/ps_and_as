@@ -11,8 +11,8 @@ type RingProps = Omit<
 >;
 
 type Props = RingProps & {
-  /** Distance from play-area bottom to the local seat anchor */
-  localSeatAnchorFromBottom?: number;
+  lastPlayPlayerId?: string | null;
+  playTypeLabel?: string | null;
 };
 
 export default function GamePlayArea({
@@ -21,7 +21,8 @@ export default function GamePlayArea({
   currentPlayerId,
   finishedOrder,
   passedPlayerIds,
-  localSeatAnchorFromBottom,
+  lastPlayPlayerId,
+  playTypeLabel,
   children,
 }: Props & { children: React.ReactNode }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -35,28 +36,29 @@ export default function GamePlayArea({
 
   const layout = useMemo(() => {
     if (size.width <= 0 || size.height <= 0) return null;
-    const opponentCount = players.filter(
-      (p) => !localPlayerIds.includes(p.id),
-    ).length;
     return computePlayAreaLayout(
       size.width,
       size.height,
-      opponentCount,
-      localSeatAnchorFromBottom,
+      players.length,
     );
   }, [
     size.width,
     size.height,
-    players,
-    localPlayerIds,
-    localSeatAnchorFromBottom,
+    players.length,
   ]);
 
   const tableChild =
     layout && React.isValidElement(children)
-      ? React.cloneElement(children as React.ReactElement<{ layoutHint?: typeof layout }>, {
-          layoutHint: layout,
-        })
+      ? React.cloneElement(
+          children as React.ReactElement<{
+            layoutHint?: typeof layout;
+            playTypeLabel?: string | null;
+          }>,
+          {
+            layoutHint: layout,
+            playTypeLabel,
+          },
+        )
       : children;
 
   return (
@@ -67,6 +69,8 @@ export default function GamePlayArea({
             styles.cardZone,
             {
               top: layout.cardZoneTop,
+              left: layout.cardZoneLeft,
+              width: layout.cardZoneWidth,
               height: layout.cardZoneHeight,
             },
           ]}
@@ -87,6 +91,7 @@ export default function GamePlayArea({
             arenaWidth={layout.width}
             arenaHeight={layout.height}
             ringLayout={layout.opponentRing}
+            lastPlayPlayerId={lastPlayPlayerId}
           />
         </View>
       )}
@@ -102,12 +107,10 @@ const styles = StyleSheet.create({
   },
   cardZone: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    zIndex: 1,
+    zIndex: 8,
   },
   seatOverlay: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 15,
+    zIndex: 20,
   },
 });

@@ -10,8 +10,12 @@ import {
   StyleSheet,
   useWindowDimensions,
 } from "react-native";
+import BottomBar, {
+  BottomBarControls,
+  BottomBarLeave,
+  menuBottomReserve,
+} from "../components/BottomBar";
 import ScreenContainer from "../components/ScreenContainer";
-import FeltBackground from "../components/FeltBackground";
 import LobbyStatusBar, {
   LOBBY_STATUS_BAR_HEIGHT,
 } from "../components/LobbyStatusBar";
@@ -22,8 +26,7 @@ import { SocketAdapter } from "../game/socketAdapter";
 import { getOrCreatePlayerId } from "../services/gameCenter";
 import { triggerHaptic } from "../utils/haptics";
 import { playerInitials } from "../utils/playerDisplay";
-
-const GOLD = "#d4af37";
+import { GOLD, BLUR_PANEL, contentMaxWidth, ui } from "../styles/uiStandards";
 
 interface AvailableRoom {
   roomId: string;
@@ -55,12 +58,12 @@ export default function FindGame({
   onBack,
   onJoinRoom,
   adapter,
-  onNavigateToAchievements,
+  onNavigateToSettings,
 }: {
   onBack: () => void;
   onJoinRoom: (roomId: string, playerName: string) => void;
   adapter: NetworkAdapter;
-  onNavigateToAchievements?: () => void;
+  onNavigateToSettings?: () => void;
 }) {
   const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([]);
   const [isSearching, setIsSearching] = useState(true);
@@ -73,7 +76,8 @@ export default function FindGame({
   const insets = useLayoutInsets();
   const { width } = useWindowDimensions();
   const topBarHeight = insets.top + LOBBY_STATUS_BAR_HEIGHT;
-  const contentMaxWidth = Math.min(520, Math.max(320, width - 24));
+  const bottomBarHeight = menuBottomReserve(insets.bottom || 0);
+  const contentMax = contentMaxWidth(width, 520, 320, 24);
   const socket = adapter as SocketAdapter;
 
   useEffect(() => {
@@ -152,7 +156,7 @@ export default function FindGame({
 
   const handleJoinRoom = (roomId: string) => {
     if (!playerName.trim()) {
-      setError("Set your name in Achievements first.");
+      setError("Set your name in Settings first.");
       return;
     }
     triggerHaptic("medium");
@@ -162,15 +166,12 @@ export default function FindGame({
 
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
-      {Platform.OS !== "web" ? <FeltBackground /> : null}
-
       <LobbyStatusBar
         playerCount={availableRooms.length}
         roomName="Find Game"
         statusLabel="Server"
         statusValue={connectionLabel(connectionStatus)}
         topInset={insets.top}
-        onLeave={onBack}
       />
 
       <KeyboardAvoidingView
@@ -181,15 +182,15 @@ export default function FindGame({
           style={{ flex: 1 }}
           contentContainerStyle={{
             paddingTop: topBarHeight + 12,
-            paddingBottom: insets.bottom + 24,
+            paddingBottom: bottomBarHeight,
             paddingHorizontal: 12,
             alignItems: "center",
           }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={{ width: contentMaxWidth }}>
-            <BlurPanel style={styles.profilePanel} intensity={48}>
+          <View style={{ width: contentMax }}>
+            <BlurPanel style={[ui.panel, { marginBottom: 16 }]} {...BLUR_PANEL}>
               <View style={styles.profileRow}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
@@ -197,17 +198,17 @@ export default function FindGame({
                   </Text>
                 </View>
                 <View style={styles.profileCopy}>
-                  <Text style={styles.fieldLabel}>Playing as</Text>
+                  <Text style={ui.fieldLabel}>Playing As</Text>
                   <Text style={styles.playerName} numberOfLines={1}>
                     {playerName || "…"}
                   </Text>
                 </View>
-                {onNavigateToAchievements ? (
+                {onNavigateToSettings ? (
                   <TouchableOpacity
-                    style={styles.editBtn}
-                    onPress={onNavigateToAchievements}
+                    style={ui.btnSecondary}
+                    onPress={onNavigateToSettings}
                   >
-                    <Text style={styles.editBtnText}>Edit</Text>
+                    <Text style={ui.btnSecondaryText}>Edit</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -224,16 +225,10 @@ export default function FindGame({
                 ) : null}
                 <Text style={styles.listTitle}>
                   {isSearching
-                    ? "Searching for games…"
-                    : `${availableRooms.length} open game${availableRooms.length === 1 ? "" : "s"}`}
+                    ? "Searching For Games…"
+                    : `${availableRooms.length} Open Game${availableRooms.length === 1 ? "" : "s"}`}
                 </Text>
               </View>
-              <TouchableOpacity
-                onPress={refreshRooms}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={styles.refreshText}>Refresh</Text>
-              </TouchableOpacity>
             </View>
 
             {error ? (
@@ -243,9 +238,9 @@ export default function FindGame({
             ) : null}
 
             {availableRooms.length === 0 && !isSearching ? (
-              <BlurPanel style={styles.emptyPanel} intensity={44}>
-                <Text style={styles.emptyTitle}>No games nearby</Text>
-                <Text style={styles.emptyBody}>
+              <BlurPanel style={ui.panel} intensity={44}>
+                <Text style={ui.emptyTitle}>No Games Nearby</Text>
+                <Text style={ui.emptyBody}>
                   Host a public game from Create Game and it will show up here
                   for others on your network.
                 </Text>
@@ -256,7 +251,7 @@ export default function FindGame({
                 return (
                   <BlurPanel
                     key={room.roomId}
-                    style={styles.roomCard}
+                    style={[ui.panel, { padding: 14, marginBottom: 10 }]}
                     intensity={46}
                   >
                     <View style={styles.roomRow}>
@@ -279,7 +274,8 @@ export default function FindGame({
                       </View>
                       <TouchableOpacity
                         style={[
-                          styles.joinBtn,
+                          ui.btnGold,
+                          { paddingVertical: 10, paddingHorizontal: 18 },
                           full && styles.joinBtnDisabled,
                         ]}
                         onPress={() => handleJoinRoom(room.roomId)}
@@ -302,18 +298,41 @@ export default function FindGame({
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <BottomBar>
+        <BottomBarControls style={styles.bottomControls}>
+          <View style={{ width: contentMax, alignSelf: "center" }}>
+            <View style={ui.actionTrack}>
+              <TouchableOpacity
+                style={[
+                  ui.actionSecondary,
+                  !onNavigateToSettings && { flex: 1 },
+                ]}
+                onPress={refreshRooms}
+                disabled={isSearching}
+              >
+                <Text style={ui.actionSecondaryText}>Refresh</Text>
+              </TouchableOpacity>
+              {onNavigateToSettings ? (
+                <TouchableOpacity
+                  style={ui.actionPrimary}
+                  onPress={onNavigateToSettings}
+                >
+                  <Text style={ui.actionPrimaryText}>Settings</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <BottomBarLeave onPress={onBack} />
+          </View>
+        </BottomBarControls>
+      </BottomBar>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  profilePanel: {
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    marginBottom: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
+  bottomControls: {
+    paddingTop: 18,
   },
   profileRow: {
     flexDirection: "row",
@@ -339,30 +358,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  fieldLabel: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.7,
-    marginBottom: 2,
-  },
   playerName: {
     color: "#fff",
     fontSize: 18,
-    fontWeight: "700",
-  },
-  editBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
-  },
-  editBtnText: {
-    color: GOLD,
-    fontSize: 13,
     fontWeight: "700",
   },
   listHeader: {
@@ -382,11 +380,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  refreshText: {
-    color: GOLD,
-    fontSize: 13,
-    fontWeight: "700",
-  },
   errorPanel: {
     borderRadius: 14,
     padding: 12,
@@ -399,33 +392,6 @@ const styles = StyleSheet.create({
     color: "#ff8a8a",
     fontSize: 13,
     lineHeight: 18,
-  },
-  emptyPanel: {
-    borderRadius: 16,
-    padding: 24,
-    alignItems: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  emptyTitle: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 17,
-    fontWeight: "700",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  emptyBody: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: "center",
-  },
-  roomCard: {
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
   },
   roomRow: {
     flexDirection: "row",
@@ -458,14 +424,6 @@ const styles = StyleSheet.create({
   roomMetaDot: {
     color: "rgba(255,255,255,0.25)",
     marginHorizontal: 6,
-  },
-  joinBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    backgroundColor: "rgba(212,175,55,0.15)",
-    borderWidth: 1,
-    borderColor: GOLD,
   },
   joinBtnDisabled: {
     backgroundColor: "rgba(255,255,255,0.06)",

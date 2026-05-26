@@ -39,11 +39,11 @@ export const WEB_SPLASH_OVERLAY =
       } as object)
     : null;
 
-let backdropInjected = false;
+let backdropStyleEl: HTMLStyleElement | null = null;
 
 /** Paint felt on html/body so it fills under the iOS status bar in standalone PWA. */
 export function ensureWebFeltBackdrop(tint = DEFAULT_FELT_COLOR): void {
-  if (Platform.OS !== "web" || backdropInjected) return;
+  if (Platform.OS !== "web") return;
 
   const doc: any = (globalThis as { document?: any }).document;
   if (!doc) return;
@@ -57,10 +57,7 @@ export function ensureWebFeltBackdrop(tint = DEFAULT_FELT_COLOR): void {
   if (!url) return;
 
   const tintRgb = hexToRgb(tint) ?? { r: 15, g: 93, b: 47 };
-
-  const style = doc.createElement("style");
-  style.setAttribute("data-app", "felt-backdrop");
-  style.textContent = `
+  const css = `
     html, body {
       background-color: ${tint};
       background-image:
@@ -73,8 +70,17 @@ export function ensureWebFeltBackdrop(tint = DEFAULT_FELT_COLOR): void {
       background-attachment: fixed;
     }
   `;
+
+  if (backdropStyleEl) {
+    (backdropStyleEl as { textContent: string }).textContent = css;
+    return;
+  }
+
+  const style = doc.createElement("style");
+  style.setAttribute("data-app", "felt-backdrop");
+  style.textContent = css;
   doc.head.appendChild(style);
-  backdropInjected = true;
+  backdropStyleEl = style;
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {

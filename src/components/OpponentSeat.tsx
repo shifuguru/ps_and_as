@@ -58,6 +58,8 @@ type Props = {
   compact?: boolean;
   /** Local human — highlighted seat at bottom of table */
   isLocal?: boolean;
+  /** Played the current pile — subtle ownership glow */
+  isLastPlay?: boolean;
 };
 
 export default function OpponentSeat({
@@ -68,6 +70,7 @@ export default function OpponentSeat({
   isThinking = false,
   compact = false,
   isLocal = false,
+  isLastPlay = false,
 }: Props) {
   const pulse = useRef(new Animated.Value(0)).current;
   const initials = playerInitials(player.name);
@@ -120,6 +123,19 @@ export default function OpponentSeat({
       ]}
     >
       <View style={[styles.avatarWrap, { width: avatarSize, height: avatarSize }]}>
+        {isLastPlay && !isOut && !isActive && (
+          <View
+            style={[
+              styles.lastPlayRing,
+              {
+                width: avatarSize + 8,
+                height: avatarSize + 8,
+                borderRadius: (avatarSize + 8) / 2,
+              },
+            ]}
+            pointerEvents="none"
+          />
+        )}
         {isActive && !isOut && (
           <Animated.View
             style={[
@@ -221,6 +237,12 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
+  lastPlayRing: {
+    position: "absolute",
+    borderWidth: 2,
+    borderColor: "rgba(212,175,55,0.55)",
+    backgroundColor: "rgba(212,175,55,0.08)",
+  },
   avatar: {
     alignItems: "center",
     justifyContent: "center",
@@ -285,8 +307,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 9,
     fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
     color: "rgba(255,255,255,0.55)",
   },
   passPill: {

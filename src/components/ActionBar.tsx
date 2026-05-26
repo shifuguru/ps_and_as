@@ -10,6 +10,7 @@ import {
   Easing,
 } from "react-native";
 import { triggerHaptic } from "../utils/haptics";
+import { ui } from "../styles/uiStandards";
 
 /** Fixed height budget for bottom-bar layout math (see GameScreen). */
 export const ACTION_BAR_HEIGHT = 108;
@@ -51,7 +52,7 @@ export default function ActionBar({
   const playLabel = hasSelection ? `Play (${selectedCount})` : "Play";
   const playHint = hasSelection
     ? "Tap to play selected cards"
-    : "Select cards from your hand";
+    : "Select Cards From Your Hand";
 
   const showPassFlash =
     isPlayerTurn && noValidPlays && !passDisabled;
@@ -177,7 +178,7 @@ export default function ActionBar({
           disabled={passDisabled}
           accessibilityRole="button"
           accessibilityLabel={
-            showPassFlash ? "Pass turn — no valid plays available" : "Pass turn"
+            showPassFlash ? "Pass Turn — No Valid Plays Available" : "Pass Turn"
           }
           accessibilityState={{ disabled: passDisabled }}
         >
@@ -205,7 +206,7 @@ export default function ActionBar({
                 },
               ]}
             >
-              No valid plays
+              No Valid Plays
             </Animated.Text>
           )}
         </AnimatedTouchable>
@@ -242,19 +243,19 @@ export default function ActionBar({
             {playLabel}
           </Text>
           {isPlayerTurn && !playDisabled && !hasSelection && (
-            <Text style={styles.playSubtext}>Select cards first</Text>
+            <Text style={styles.playSubtext}>Select Cards First</Text>
           )}
         </AnimatedTouchable>
       </View>
 
       <TouchableOpacity
-        style={styles.quitButton}
+        style={ui.leaveButton}
         onPress={onQuit}
         accessibilityRole="button"
-        accessibilityLabel="Leave game"
+        accessibilityLabel="Leave Game"
         hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
       >
-        <Text style={styles.quitText}>Leave game</Text>
+        <Text style={ui.leaveButtonText}>Leave Game</Text>
       </TouchableOpacity>
     </View>
   );
@@ -336,8 +337,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "600",
     marginTop: 3,
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
+    letterSpacing: 0.2,
   },
   playText: {
     color: "rgba(255,255,255,0.35)",
@@ -357,21 +357,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 3,
     letterSpacing: 0.2,
-  },
-  quitButton: {
-    alignSelf: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-  },
-  quitText: {
-    color: "rgba(255,255,255,0.45)",
-    fontWeight: "600",
-    fontSize: 12,
-    letterSpacing: 0.4,
   },
   buttonMuted: {
     opacity: 0.4,

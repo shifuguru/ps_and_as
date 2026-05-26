@@ -72,8 +72,11 @@ export class MockAdapter implements NetworkAdapter {
   }
 
   joinRoom(roomId: string, name: string) {
-    const id = `p-${Date.now()}`;
     this.rooms[roomId] = this.rooms[roomId] || [];
+    if (this.rooms[roomId].some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+      return;
+    }
+    const id = `p-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     this.rooms[roomId].push({ id, name, ready: false } as any);
     setTimeout(() => this.handlers.forEach((h) => h({ type: "state", state: { type: "connected", id, name } })), 10);
     this.emitLobby(roomId);

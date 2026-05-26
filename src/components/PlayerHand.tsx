@@ -122,7 +122,11 @@ function gutterForScroll(
 }
 
 function scrollBounds(count: number, containerWidth: number, step: number) {
-  if (count <= 1) return { min: 0, max: 0 };
+  if (count <= 0) return { min: 0, max: 0 };
+  if (count === 1) {
+    const centered = scrollToCenterCard(0, containerWidth, step);
+    return { min: centered, max: centered };
+  }
   const min = scrollToCenterCard(0, containerWidth, step);
   const max = scrollToCenterCard(count - 1, containerWidth, step);
   return { min: Math.min(min, max), max: Math.max(min, max) };
@@ -207,8 +211,8 @@ function computeCarouselSlots(
     const zIndex = 1000 - Math.abs(i - focused) * 10 + i;
     const viewportDist = Math.abs(dist);
     const opacity = Math.max(
-      0.4,
-      1 - viewportDist / (containerWidth * 0.48),
+      0.94,
+      1 - viewportDist / (containerWidth * 1.1),
     );
     const compact = i !== focused;
 

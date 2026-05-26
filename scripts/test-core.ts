@@ -116,6 +116,26 @@ assert.strictEqual(
   "9 should extend back from 10 in 9-10 sequence despite active 10-rule"
 );
 
+// Quad close on 10s must work even when 10-rule is active
+const twoTens: Card[] = [
+  { suit: "hearts", value: 10 },
+  { suit: "diamonds", value: 10 },
+];
+const pileTwoTens: Card[] = [
+  { suit: "spades", value: 10 },
+  { suit: "clubs", value: 10 },
+];
+assert.strictEqual(
+  isValidPlay(twoTens, pileTwoTens, { active: true, direction: "higher" }),
+  true,
+  "2 tens on 2 tens should close quad with 10-rule higher active",
+);
+assert.strictEqual(
+  isValidPlay(twoTens, pileTwoTens, { active: true, direction: "lower" }),
+  true,
+  "2 tens on 2 tens should close quad with 10-rule lower active",
+);
+
 console.log("Run-with-10 context tests passed");
 
 // --- Pass-lock tests and 8-player coverage ---
