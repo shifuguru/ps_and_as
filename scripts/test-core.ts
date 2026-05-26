@@ -146,7 +146,7 @@ function makeEmptyGame(names: string[]): GameState {
   assert.ok(s2.currentTrick && s2.currentTrick.actions.filter((a:any)=>a.type==='pass' && a.playerId===g.players[1].id).length >= 2, "P2 should now have an additional pass recorded");
 }
 
-// 2) A 2 clears the pile and starts a fresh trick; previous passes no longer block
+// 2) A 2 is a high card (only Joker or completing quad can beat); trick does NOT auto-reset
 {
   const g = makeEmptyGame(["P1","P2","P3"]);
   const fiveH: Card = { suit: "hearts", value: 5 };
@@ -158,12 +158,14 @@ function makeEmptyGame(names: string[]): GameState {
   g.currentPlayerIndex = 0;
   let s = playCards(g, g.players[0].id, [fiveH]); // P1 plays
   s = passTurn(s, g.players[1].id); // P2 passes
-  s = playCards(s, g.players[2].id, [twoC]); // P3 plays 2 -> clears & starts fresh trick
-  assert.ok(s.currentTrick && s.currentTrick.actions.length === 0, "After 2, currentTrick should reset for fresh passes/plays");
-  // Now P2 should be eligible to play again (no pass recorded in the new trick)
+  s = playCards(s, g.players[2].id, [twoC]); // P3 plays 2
+  // 2s do not auto-clear; the trick continues with the 2 on the pile
+  assert.ok(s.currentTrick && s.currentTrick.actions.length > 0, "After 2, currentTrick should still have actions (trick not auto-reset)");
+  assert.strictEqual(s.pile[0].value, 2, "Pile should contain the played 2");
+  // P2 already passed this trick so they cannot play a regular card on the 2
   s.currentPlayerIndex = 1;
   const s2 = playCards(s, g.players[1].id, [sixH]);
-  assert.notStrictEqual(s2, s, "P2 should be able to play in the new trick after a 2 cleared");
+  assert.strictEqual(s2.players[1].hand.length, s.players[1].hand.length, "P2 cannot beat a 2 with a 6 (only Joker or quad completion allowed)");
 }
 
 // 3) 8-player trick resolution: leader wins when all others pass
