@@ -15,8 +15,6 @@ import {
   Animated,
   Platform,
   type ViewStyle,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
 } from "react-native";
 import Card from "./Card";
 import { Card as CardType } from "../game/ruleset";
@@ -304,6 +302,9 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   const anchorRankRef = useRef<number | null>(null);
   const anchorIndexRef = useRef(0);
   const isDraggingRef = useRef(false);
+  const handOuterRef = useRef<View>(null);
+  const cardsLengthRef = useRef(cards.length);
+  cardsLengthRef.current = cards.length;
 
   boundsRef.current = bounds;
   layoutWidthRef.current = layoutWidth;
@@ -480,40 +481,56 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
 
   useImperativeHandle(ref, () => ({ scrollToIndex }), [cards]);
 
-  const handleWheel = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (cards.length <= 1) return;
-    const native = e.nativeEvent as NativeScrollEvent & { deltaX?: number };
-    const delta = native.deltaX ?? 0;
-    if (Math.abs(delta) < 0.5) return;
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = handOuterRef.current as any;
+    if (!node) return;
 
-    const scrolled = applyScroll(scrollRef.current + delta);
-    const snapped = snapScroll(
-      scrolled,
-      cards.length,
-      layoutWidthRef.current,
-      boundsRef.current.min,
-      boundsRef.current.max,
-      stepRef.current,
-    );
-    scrollRef.current = snapped;
-    scrollX.stopAnimation();
-    Animated.spring(scrollX, {
-      toValue: snapped,
-      useNativeDriver: true,
-      stiffness: 320,
-      damping: 32,
-      mass: 0.7,
-    }).start(({ finished }) => {
-      if (finished) scrollRef.current = snapped;
-    });
-  };
+    const onWheel = (event: any) => {
+      if (cardsLengthRef.current <= 1) return;
+      event.preventDefault?.();
+
+      const deltaY = event.deltaY ?? 0;
+      const deltaX = event.deltaX ?? 0;
+      const delta =
+        Math.abs(deltaY) >= Math.abs(deltaX) ? deltaY : deltaX;
+      if (Math.abs(delta) < 1) return;
+
+      const count = cardsLengthRef.current;
+      const w = layoutWidthRef.current;
+      const s = stepRef.current;
+      const { min, max } = boundsRef.current;
+
+      // One wheel notch = exactly one card (scroll down → next card to the right)
+      const direction = delta > 0 ? 1 : -1;
+      const currentIndex = focusedCardIndex(count, w, scrollRef.current, s);
+      const nextIndex = Math.max(0, Math.min(count - 1, currentIndex + direction));
+      if (nextIndex === currentIndex) return;
+
+      const snapped = clampScroll(scrollToCenterCard(nextIndex, w, s), min, max);
+      scrollRef.current = snapped;
+      scrollX.stopAnimation();
+      Animated.spring(scrollX, {
+        toValue: snapped,
+        useNativeDriver: true,
+        stiffness: 320,
+        damping: 32,
+        mass: 0.7,
+      }).start(({ finished }) => {
+        if (finished) scrollRef.current = snapped;
+      });
+    };
+
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return () => node.removeEventListener("wheel", onWheel);
+  }, [scrollX]);
 
   return (
     <View
+      ref={handOuterRef}
       style={styles.handOuter}
       onLayout={onLayout}
       {...(cards.length > 1 ? panResponder.panHandlers : {})}
-      {...(Platform.OS === "web" ? ({ onWheel: handleWheel } as object) : {})}
     >
       <Animated.View
         style={[

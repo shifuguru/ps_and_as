@@ -1,42 +1,44 @@
-import React, { useEffect, useRef, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
-  Animated,
   StyleSheet,
-  Dimensions,
   LayoutChangeEvent,
+  Platform,
 } from "react-native";
 import Card from "./Card";
 import { Card as CardType } from "../game/ruleset";
+import type { PlayAreaLayout } from "../utils/tableLayout";
+import { tableScaleLimits } from "../utils/tableLayout";
 
-/** Must match Card.tsx */
+/** Table pile display scale (hand cards stay full size) — overridden by layoutHint */
+const DEFAULT_TABLE_DISPLAY_SCALE = Platform.OS === "web" ? 0.88 : 0.92;
+
+/** Must match Card.tsx layout footprint */
 const CARD_W = 86;
 const CARD_H = 124;
 
-/** Preferred offset between consecutive plays when space allows */
-const IDEAL_STEP_X = 32;
-const IDEAL_STEP_Y = 22;
-/** Minimum peek of the previous play */
-const MIN_STEP_X = 24;
-const MIN_STEP_Y = 16;
-/** Cap so a short trick does not spread off-screen */
-const MAX_STEP_X = 48;
-const MAX_STEP_Y = 34;
-/** Overlap within a multi-card play (doubles / triples / quads) */
+const IDEAL_STEP_X = 28;
+const IDEAL_STEP_Y = 18;
+const MIN_STEP_X = 20;
+const MIN_STEP_Y = 12;
+const MAX_STEP_X = 40;
+const MAX_STEP_Y = 22;
 const BUNDLE_OVERLAP = 26;
 
+const MAX_FILL_SCALE_DEFAULT = Platform.OS === "web" ? 0.96 : 1.0;
+
 type Props = {
-  /** Chronological plays in the current trick — each entry is one player's play */
   plays: CardType[][];
-  playTypeLabel: string | null;
-  /** Shown below the play-type badge when a trick is won */
   winnerMessage?: string | null;
+  layoutHint?: PlayAreaLayout | null;
 };
 
-export default function GameTable({ plays, playTypeLabel, winnerMessage }: Props) {
-  const fade = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.98)).current;
+export default function GameTable({
+  plays,
+  winnerMessage,
+  layoutHint,
+}: Props) {
   const [pileSize, setPileSize] = useState({ width: 0, height: 0 });
 
   const playCount = plays.length;
@@ -47,15 +49,32 @@ export default function GameTable({ plays, playTypeLabel, winnerMessage }: Props
 
   const bundleExtra = (maxBundle - 1) * (CARD_W - BUNDLE_OVERLAP);
 
+  const scaleLimits = useMemo(
+    () =>
+      layoutHint
+        ? tableScaleLimits(layoutHint)
+        : {
+            displayScale:
+              Platform.OS === "web"
+                ? DEFAULT_TABLE_DISPLAY_SCALE
+                : DEFAULT_TABLE_DISPLAY_SCALE + 0.06,
+            maxFillScale: MAX_FILL_SCALE_DEFAULT,
+          },
+    [layoutHint],
+  );
+
   const { stepX, stepY, stackWidth, stackHeight, fillScale } = useMemo(() => {
     const spreadSlots = Math.max(playCount - 1, 0);
+    const pileW = pileSize.width;
+    const pileH = Math.max(80, pileSize.height);
+
     const usableW =
-      pileSize.width > 0
-        ? Math.max(80, pileSize.width * 0.94 - CARD_W - bundleExtra)
+      pileW > 0
+        ? Math.max(72, pileW * 0.9 - CARD_W - bundleExtra)
         : spreadSlots * IDEAL_STEP_X;
     const usableH =
-      pileSize.height > 0
-        ? Math.max(72, pileSize.height * 0.88 - CARD_H)
+      pileH > 0
+        ? Math.max(64, pileH * 0.78 - CARD_H)
         : spreadSlots * IDEAL_STEP_Y;
 
     const computedStepX =
@@ -67,48 +86,30 @@ export default function GameTable({ plays, playTypeLabel, winnerMessage }: Props
         ? 0
         : Math.min(MAX_STEP_Y, Math.max(MIN_STEP_Y, usableH / spreadSlots));
 
-    const sx = computedStepX;
-    const sy = computedStepY;
+    const width = spreadSlots * computedStepX + CARD_W + bundleExtra;
+    const height = CARD_H + spreadSlots * computedStepY;
 
-    const width = spreadSlots * sx + CARD_W + bundleExtra;
-    const height = CARD_H + spreadSlots * sy;
+    const displayScale = scaleLimits.displayScale;
+    const scaledW = width * displayScale;
+    const scaledH = height * displayScale;
 
     let fit = 1;
-    if (pileSize.width > 0 && pileSize.height > 0 && width > 0 && height > 0) {
+    if (pileW > 0 && pileH > 0 && scaledW > 0 && scaledH > 0) {
       fit = Math.min(
-        1.18,
-        (pileSize.width * 0.98) / width,
-        (pileSize.height * 0.92) / height,
+        scaleLimits.maxFillScale,
+        (pileW * 0.9) / scaledW,
+        (pileH * 0.88) / scaledH,
       );
     }
 
     return {
-      stepX: sx,
-      stepY: sy,
+      stepX: computedStepX,
+      stepY: computedStepY,
       stackWidth: width,
       stackHeight: height,
       fillScale: fit,
     };
-  }, [playCount, pileSize, bundleExtra]);
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fade, {
-        toValue: 1,
-        duration: 260,
-        useNativeDriver: false,
-      }),
-      Animated.spring(scale, {
-        toValue: 1,
-        stiffness: 220,
-        damping: 18,
-        useNativeDriver: false,
-      } as any),
-    ]).start();
-  }, [playCount, playTypeLabel]);
-
-  const windowWidth = Dimensions.get("window").width;
-  const isWide = windowWidth >= 900;
+  }, [playCount, pileSize, bundleExtra, scaleLimits]);
 
   const onPileLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -117,30 +118,28 @@ export default function GameTable({ plays, playTypeLabel, winnerMessage }: Props
     );
   };
 
+  const totalScale = fillScale * scaleLimits.displayScale;
+
   return (
-    <Animated.View
-      style={[styles.tableFrame, { opacity: fade, transform: [{ scale }] }]}
-    >
-      <View style={styles.pileArea} onLayout={onPileLayout}>
-        {playCount === 0 ? (
+    <View style={styles.tableFrame} onLayout={onPileLayout}>
+      <View style={styles.pileHost} pointerEvents="box-none">
+        {winnerMessage && playCount === 0 ? (
+          <View style={styles.winnerBannerCenter}>
+            <Text style={styles.winnerBannerText}>
+              {winnerMessage} won the trick
+            </Text>
+          </View>
+        ) : playCount === 0 ? (
           <Text style={styles.emptyText}>No cards on the table yet.</Text>
         ) : (
-          <View
-            style={[
-              styles.playStackOuter,
-              {
-                width: stackWidth * fillScale,
-                height: stackHeight * fillScale,
-              },
-            ]}
-          >
+          <View style={styles.pileColumn}>
             <View
               style={[
                 styles.playStack,
                 {
                   width: stackWidth,
                   height: stackHeight,
-                  transform: [{ scale: fillScale }],
+                  transform: [{ scale: totalScale }],
                 },
               ]}
             >
@@ -187,37 +186,22 @@ export default function GameTable({ plays, playTypeLabel, winnerMessage }: Props
           </View>
         )}
       </View>
-      {playTypeLabel ? (
-        <View style={[styles.playBadge, isWide && { alignSelf: "flex-start" }]}>
-          <Text style={styles.playBadgeText}>{playTypeLabel}</Text>
-        </View>
-      ) : null}
-      {winnerMessage ? (
-        <View style={styles.winnerBanner}>
-          <Text style={styles.winnerBannerText}>{winnerMessage} won the trick</Text>
-        </View>
-      ) : null}
-    </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   tableFrame: {
     flex: 1,
-    width: "100%",
-    padding: 12,
-    marginVertical: 8,
-    minHeight: 220,
+    minHeight: 0,
   },
-  pileArea: {
+  pileHost: {
     flex: 1,
-    minHeight: 200,
+    minHeight: 0,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
   },
-  playStackOuter: {
+  pileColumn: {
     alignItems: "center",
     justifyContent: "center",
   },
@@ -237,28 +221,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 24,
   },
-  playBadge: {
-    marginTop: 14,
-    alignSelf: "center",
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.18)",
-  },
-  playBadgeText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  winnerBanner: {
-    marginTop: 10,
-    alignSelf: "center",
+  winnerBannerCenter: {
     backgroundColor: "rgba(212,175,55,0.96)",
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    maxWidth: "88%",
   },
   winnerBannerText: {
     color: "#111",

@@ -387,6 +387,17 @@ export function getPlayCount(cards: Card[]) {
   return cards.length;
 }
 
+/** How many cards of `playValue` must be played to answer the current pile. */
+export function cardsNeededToPlay(pile: Card[], playValue: number): number {
+  const pileCount = pile.length;
+  if (pileCount === 0) return 1;
+  const uniform = pile.every((c) => c.value === pile[0].value);
+  if (uniform && pileCount < 4 && playValue === pile[0].value) {
+    return 4 - pileCount;
+  }
+  return pileCount;
+}
+
 // Rank order (low -> high): 3,4,5,6,7,8,9,10,J(11),Q(12),K(13),A(14),2,Joker(15)
 // Note: card numeric values use 2 for the '2' card and 15 for Jokers. The
 // RANK_ORDER array maps card values to the game's rank ordering (index in the

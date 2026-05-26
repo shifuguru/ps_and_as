@@ -19,6 +19,8 @@ import {
   runFromCurrentTrickInfo,
   isRunContextSequence,
   nextActivePlayerIndex,
+  cardsNeededToPlay,
+  TrickHistory,
 } from "../game/core";
 import { createDeck, shuffleDeck, dealCards } from "../game/ruleset";
 import Card from "../components/Card";
@@ -33,9 +35,8 @@ import EndGamePanel from "../components/EndGamePanel";
 import BottomBar, {
   BottomBarControls,
   BottomBarHand,
-  BOTTOM_CONTROLS_HEIGHT,
-  BOTTOM_SHEET_BLEED,
-  HAND_CONTROLS_GAP,
+  localSeatBottomOffset,
+  reservedBottomHeight,
 } from "../components/BottomBar";
 import FeltBackground from "../components/FeltBackground";
 import PlayerHand, {
@@ -44,6 +45,9 @@ import PlayerHand, {
 } from "../components/PlayerHand";
 import ActionBar from "../components/ActionBar";
 import GameTable from "../components/GameTable";
+import GamePlayArea from "../components/GamePlayArea";
+import OpponentSeat from "../components/OpponentSeat";
+import { LOCAL_SEAT_BAND } from "../utils/tableLayout";
 import StatusBar, { STATUS_BAR_HEIGHT } from "../components/StatusBar";
 import { styles } from "../styles/theme";
 import { responsive, isLandscape, adaptiveScale } from "../utils/responsive";
@@ -227,11 +231,10 @@ function canCardBePlayedAtAll(
     return false;
   }
 
-  // Regular play: check if we can play the required count
-  const requiredCount = pileCount;
+  // Regular play: match pile count, or fewer when completing a quad across turns
+  const requiredCount = cardsNeededToPlay(pile, cardValue);
   if (sameValue.length < requiredCount) return false;
 
-  // Check if playing this card (with required count) would be valid
   const cardsToPlay = sameValue.slice(0, requiredCount);
   return isValidPlay(
     cardsToPlay,
@@ -283,6 +286,29 @@ function buildTrickPlays(state: GameState): CardType[][] {
   return plays;
 }
 
+/** Rebuild table plays from a completed trick's action log. */
+function buildPlaysFromTrick(trick: TrickHistory): CardType[][] {
+  const plays: CardType[][] = [];
+  for (const action of trick.actions) {
+    if (action.type === "play" && action.cards && action.cards.length > 0) {
+      plays.push(action.cards.slice());
+    }
+  }
+  return plays;
+}
+
+function passedIdsFromTrick(trick: TrickHistory): string[] {
+  return trick.actions
+    .filter((action) => action.type === "pass")
+    .map((action) => action.playerId);
+}
+
+type TrickPauseSnapshot = {
+  plays: CardType[][];
+  passedPlayerIds: string[];
+  winnerName: string;
+};
+
 export default function GameScreen({
   initialPlayers,
   localPlayerName,
@@ -312,6 +338,9 @@ export default function GameScreen({
 
   // UX pacing: centralized CPU turn delay for a more relaxed feel
   const CPU_DELAY_MS = 1100;
+  const TRICK_PASS_HOLD_MS = 900;
+  const TRICK_WINNER_SHOW_MS = 800;
+  const TRICK_PAUSE_TOTAL_MS = TRICK_PASS_HOLD_MS + TRICK_WINNER_SHOW_MS;
 
   // End-game state: track round completion and player ready status
   const [roundOver, setRoundOver] = useState(false);
@@ -320,7 +349,16 @@ export default function GameScreen({
   }>({});
   const [lastTrickWinner, setLastTrickWinner] = useState<string | null>(null);
   const [showWinnerBanner, setShowWinnerBanner] = useState(false);
+  const [trickPauseActive, setTrickPauseActive] = useState(false);
+  const [trickPauseSnapshot, setTrickPauseSnapshot] =
+    useState<TrickPauseSnapshot | null>(null);
   const lastTrickLenRef = React.useRef<number>(0);
+  const trickPauseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const trickBannerTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const insets = useSafeAreaInsets();
 
   function snapshotState(s: GameState | null) {
@@ -342,17 +380,42 @@ export default function GameScreen({
     };
   }
 
-  // Detect when round is over: all players have either finished or passed out
+  // Detect trick wins (pause briefly) and round completion
   useEffect(() => {
     if (!state) return;
     const len = state.trickHistory ? state.trickHistory.length : 0;
     if (len > (lastTrickLenRef.current || 0)) {
-      // new trick finalized
-      const last = state.trickHistory && state.trickHistory[state.trickHistory.length - 1];
+      const last =
+        state.trickHistory && state.trickHistory[state.trickHistory.length - 1];
       if (last && last.winnerName) {
+        setTrickPauseSnapshot({
+          plays: buildPlaysFromTrick(last),
+          passedPlayerIds: passedIdsFromTrick(last),
+          winnerName: last.winnerName,
+        });
         setLastTrickWinner(last.winnerName);
-        setShowWinnerBanner(true);
-        setTimeout(() => setShowWinnerBanner(false), 3000);
+        setShowWinnerBanner(false);
+        setTrickPauseActive(true);
+
+        if (trickBannerTimerRef.current) {
+          clearTimeout(trickBannerTimerRef.current);
+        }
+        if (trickPauseTimerRef.current) {
+          clearTimeout(trickPauseTimerRef.current);
+        }
+
+        trickBannerTimerRef.current = setTimeout(() => {
+          setShowWinnerBanner(true);
+          trickBannerTimerRef.current = null;
+        }, TRICK_PASS_HOLD_MS);
+
+        trickPauseTimerRef.current = setTimeout(() => {
+          setShowWinnerBanner(false);
+          setTrickPauseActive(false);
+          setTrickPauseSnapshot(null);
+          setLastTrickWinner(null);
+          trickPauseTimerRef.current = null;
+        }, TRICK_PAUSE_TOTAL_MS);
       }
       lastTrickLenRef.current = len;
     }
@@ -371,6 +434,17 @@ export default function GameScreen({
       setPlayerReadyStates(newReady);
     }
   }, [state, roundOver, localPlayerId, localPlayerName]);
+
+  useEffect(() => {
+    return () => {
+      if (trickPauseTimerRef.current) {
+        clearTimeout(trickPauseTimerRef.current);
+      }
+      if (trickBannerTimerRef.current) {
+        clearTimeout(trickBannerTimerRef.current);
+      }
+    };
+  }, []);
 
   // When all players are marked ready, start the next round: redeal, trade, and set starter
   useEffect(() => {
@@ -552,10 +626,27 @@ export default function GameScreen({
   }
 
   useEffect(() => {
-    const names =
+    const placeholders = new Set(["You", "You (Host)", "Player"]);
+    let names =
       initialPlayers && initialPlayers.length >= 2
-        ? initialPlayers
+        ? [...initialPlayers]
         : ["Alice", "Bob", "Charlie", "Dana"];
+    if (localPlayerName) {
+      let replaced = false;
+      names = names.map((name) => {
+        if (placeholders.has(name)) {
+          replaced = true;
+          return localPlayerName;
+        }
+        return name;
+      });
+      if (!replaced) {
+        const humanIdx = names.findIndex(
+          (name) => !/^CPU\s/i.test(name.trim()),
+        );
+        if (humanIdx >= 0) names[humanIdx] = localPlayerName;
+      }
+    }
     const g = createGame(names);
     setState(g);
     adapter.connect();
@@ -682,7 +773,7 @@ export default function GameScreen({
 
   // CPU auto-play effect
   useEffect(() => {
-    if (!state) return;
+    if (!state || trickPauseActive) return;
 
     const current = state.players[state.currentPlayerIndex];
 
@@ -852,7 +943,7 @@ export default function GameScreen({
     }, CPU_DELAY_MS); // Adjustable CPU delay for visibility
 
     return () => clearTimeout(timer);
-  }, [state]);
+  }, [state, trickPauseActive]);
 
   if (!state) return null;
 
@@ -865,7 +956,7 @@ export default function GameScreen({
   const current = state.players[state.currentPlayerIndex];
 
   const currentIsLocalHuman = localControlledIds.includes(current.id);
-  const isHumanTurn = currentIsLocalHuman;
+  const isHumanTurn = currentIsLocalHuman && !trickPauseActive;
 
   let hand = [] as CardType[];
   if (currentIsLocalHuman) {
@@ -929,6 +1020,7 @@ export default function GameScreen({
       : -1;
 
   const handleCardPress = (idx: number) => {
+    if (trickPauseActive || roundOver) return;
     const card = hand[idx];
     const ownerIdForHand = currentIsLocalHuman ? current.id : humanPlayer?.id;
     if (ownerIdForHand && hasPassedInCurrentTrick(state, ownerIdForHand)) {
@@ -965,7 +1057,10 @@ export default function GameScreen({
       return;
     }
 
-    const take = Math.min(pileCount, sameAll.length);
+    const take = Math.min(
+      cardsNeededToPlay(state.pile, tappedValue),
+      sameAll.length,
+    );
     const selectedRank =
       currentSelected.length > 0 ? hand[currentSelected[0]]?.value : null;
     if (selectedRank === tappedValue) {
@@ -980,7 +1075,7 @@ export default function GameScreen({
   };
 
   const handlePlayPress = () => {
-    if (roundOver || !isHumanTurn) return;
+    if (roundOver || !isHumanTurn || trickPauseActive) return;
     const actor = current;
     if (!actor) return;
     if (hasPassedInCurrentTrick(state, actor.id)) {
@@ -1041,7 +1136,7 @@ export default function GameScreen({
   };
 
   const handlePassPress = () => {
-    if (roundOver || !isHumanTurn) return;
+    if (roundOver || !isHumanTurn || trickPauseActive) return;
     const actor = current;
     if (!actor) return;
     if (hasPassedInCurrentTrick(state, actor.id)) {
@@ -1072,17 +1167,55 @@ export default function GameScreen({
     }
   };
 
-  const bottomBarHeight =
-    HAND_FAN_HEIGHT +
-    HAND_CONTROLS_GAP +
-    BOTTOM_CONTROLS_HEIGHT +
-    (insets.bottom || 0) +
-    18;
+  const handVisible = hand.length > 0;
+  const bottomBarHeight = reservedBottomHeight(insets.bottom || 0, handVisible);
+  const localSeatBottom = localSeatBottomOffset(insets.bottom || 0, handVisible);
+  const localSeatAnchorInPlayArea = bottomBarHeight - localSeatBottom;
   const topBarHeight = insets.top + STATUS_BAR_HEIGHT;
   const currentPlayerCount = state.players.length;
   const pileToBeat = state.pile.length;
   const passCount = state.passCount;
   const trickPlays = buildTrickPlays(state);
+
+  const displayPlays =
+    trickPauseActive && trickPauseSnapshot
+      ? showWinnerBanner
+        ? []
+        : trickPauseSnapshot.plays
+      : trickPlays;
+
+  const opponentPlayers = state.players.map((p) => ({
+    id: p.id,
+    name: p.name,
+    handCount: p.hand.length,
+    role: p.role,
+  }));
+
+  const passedPlayerIds =
+    state.currentTrick?.actions
+      ?.filter((a) => a.type === "pass")
+      .map((a) => a.playerId) ?? [];
+
+  const displayPassedPlayerIds =
+    trickPauseActive && trickPauseSnapshot
+      ? trickPauseSnapshot.passedPlayerIds
+      : passedPlayerIds;
+
+  const winnerBannerName =
+    showWinnerBanner && trickPauseSnapshot?.winnerName
+      ? trickPauseSnapshot.winnerName
+      : showWinnerBanner && lastTrickWinner
+        ? lastTrickWinner
+        : null;
+
+  const localSeatPlayer = humanPlayer
+    ? {
+        id: humanPlayer.id,
+        name: humanPlayer.name,
+        handCount: humanPlayer.hand.length,
+        role: humanPlayer.role,
+      }
+    : null;
 
   // Build log entries
   type LogEntry = { text: string; kind: "play" | "pass" | "win" | "info" };
@@ -1417,38 +1550,90 @@ export default function GameScreen({
           paddingBottom: bottomBarHeight,
         }}
       >
-        <View style={{ flex: 1 }}>
+        <GamePlayArea
+          players={opponentPlayers}
+          localPlayerIds={localControlledIds}
+          currentPlayerId={current.id}
+          finishedOrder={state.finishedOrder}
+          passedPlayerIds={displayPassedPlayerIds}
+          localSeatAnchorFromBottom={localSeatAnchorInPlayArea}
+        >
           <GameTable
-            plays={trickPlays}
-            playTypeLabel={playTypeLabel}
-            winnerMessage={
-              showWinnerBanner && lastTrickWinner ? lastTrickWinner : null
+            plays={displayPlays}
+            winnerMessage={winnerBannerName}
+          />
+        </GamePlayArea>
+      </View>
+
+      {/* Play type label — fixed above local player avatar */}
+      {playTypeLabel && !trickPauseActive ? (
+        <View
+          style={[
+            local.playTypeOverlay,
+            { bottom: localSeatBottom + LOCAL_SEAT_BAND + 6 },
+          ]}
+          pointerEvents="none"
+        >
+          <View style={local.playTypeBadge}>
+            <Text style={local.playTypeBadgeText}>{playTypeLabel}</Text>
+          </View>
+        </View>
+      ) : null}
+
+      {/* Local player seat — anchored just above the hand fan */}
+      {localSeatPlayer ? (
+        <View
+          style={[
+            local.localSeatOverlay,
+            { bottom: localSeatBottom, height: LOCAL_SEAT_BAND },
+          ]}
+          pointerEvents="box-none"
+        >
+          <OpponentSeat
+            player={localSeatPlayer}
+            isActive={
+              !state.finishedOrder.includes(localSeatPlayer.id) &&
+              localSeatPlayer.id === current.id
             }
+            isOut={state.finishedOrder.includes(localSeatPlayer.id)}
+            hasPassed={displayPassedPlayerIds.includes(localSeatPlayer.id)}
+            isLocal
           />
         </View>
-      </View>
+      ) : null}
 
       {/* Player hand + actions — sticky bottom sheet */}
       <BottomBar>
-        <BottomBarHand height={HAND_FAN_HEIGHT}>
-          {!isHumanTurn && (
-            <View style={local.waitingPill}>
-              <Text style={local.waitingPillText}>Waiting for {current.name}…</Text>
-            </View>
-          )}
+        {handVisible ? (
+          <BottomBarHand height={HAND_FAN_HEIGHT}>
+            {!isHumanTurn && (
+              <View style={local.waitingPill}>
+                <Text style={local.waitingPillText}>
+                  Waiting for {current.name}…
+                </Text>
+              </View>
+            )}
 
-          <PlayerHand
-            ref={handRef}
-            cards={hand}
-            selectedIndices={selected}
-            playableIndices={playableIndices}
-            startingCardIndex={startingCardIndex}
-            disabled={!isHumanTurn}
-            onCardPress={handleCardPress}
-          />
-        </BottomBarHand>
+            <PlayerHand
+              ref={handRef}
+              cards={hand}
+              selectedIndices={selected}
+              playableIndices={playableIndices}
+              startingCardIndex={startingCardIndex}
+              disabled={!isHumanTurn}
+              onCardPress={handleCardPress}
+            />
+          </BottomBarHand>
+        ) : null}
 
         <BottomBarControls>
+          {!handVisible && !isHumanTurn ? (
+            <View style={[local.waitingPill, local.waitingPillCollapsed]}>
+              <Text style={local.waitingPillText}>
+                Waiting for {current.name}…
+              </Text>
+            </View>
+          ) : null}
           <ActionBar
             selectedCount={selected.length}
             onPlay={handlePlayPress}
@@ -1573,6 +1758,35 @@ export default function GameScreen({
 
 const local = StyleSheet.create({
   container: { flex: 1 },
+  localSeatOverlay: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    zIndex: 55,
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  playTypeOverlay: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    zIndex: 56,
+    alignItems: "center",
+  },
+  playTypeBadge: {
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  playTypeBadgeText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 12,
+    textAlign: "center",
+  },
   scrollableContent: { flex: 1, paddingHorizontal: 12, paddingTop: 0 },
   header: { marginBottom: 6 },
   gameId: { color: "#ddd", fontSize: 10 },
@@ -1733,6 +1947,13 @@ const local = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(255, 255, 255, 0.18)",
   },
+  waitingPillCollapsed: {
+    position: "relative",
+    top: 0,
+    alignSelf: "center",
+    marginBottom: 8,
+    zIndex: 0,
+  },
   waitingPillText: {
     color: "rgba(255, 255, 255, 0.85)",
     fontSize: 12,
@@ -1785,21 +2006,6 @@ const local = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 10,
-  },
-  playTypeBadge: {
-    marginTop: 36,
-    alignSelf: "center",
-    backgroundColor: "rgba(212,175,55,0.12)",
-    paddingHorizontal: 18,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.22)",
-  },
-  playTypeText: {
-    color: "#d4af37",
-    fontWeight: "800",
-    fontSize: 12,
   },
   debugOverlay: {
     position: "absolute",

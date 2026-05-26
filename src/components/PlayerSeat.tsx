@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import OpponentHand from './OpponentHand';
 import TurnIndicator from './TurnIndicator';
+import { playerInitials } from '../utils/playerDisplay';
 
 export default function PlayerSeat({
   player,
@@ -17,7 +18,7 @@ export default function PlayerSeat({
       <TurnIndicator active={isActive} />
       <TouchableOpacity onPress={() => onPress && onPress(player)} style={styles.info}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{(name || '?').substr(0,2).toUpperCase()}</Text>
+          <Text style={styles.avatarText}>{playerInitials(name)}</Text>
         </View>
         <View style={{ marginLeft: 8 }}>
           <Text style={styles.name}>{name}</Text>

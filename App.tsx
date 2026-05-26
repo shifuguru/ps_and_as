@@ -6,13 +6,13 @@ import FindGame from "./src/screens/FindGame";
 import GameScreen from "./src/screens/GameScreen";
 import Achievements from "./src/screens/Achievements";
 import Settings from "./src/screens/Settings";
-import MoreMenu from "./src/screens/MoreMenu";
 import { useMenuAudio } from "./src/hooks/useMenuAudio";
 import MenuIcon from "./src/components/MenuIcon";
 import AnimatedBackground from "./src/components/AnimatedBackground";
 import { styles } from "./src/styles/theme";
 import { SocketAdapter } from "./src/game/socketAdapter";
 import { MockAdapter } from "./src/game/network";
+import { getOrCreatePlayerId } from "./src/services/gameCenter";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 export default function App() {
@@ -21,7 +21,7 @@ export default function App() {
   const [splashVisible, setSplashVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const { playEffect, toggleMute, isMuted, muted } = useMenuAudio();
-  const [screen, setScreen] = useState<"menu" | "create" | "find" | "game" | "achievements" | "settings" | "more">("menu");
+  const [screen, setScreen] = useState<"menu" | "create" | "find" | "game" | "achievements" | "settings">("menu");
   const [lobbyPlayers, setLobbyPlayers] = useState<string[] | null>(null);
   const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
@@ -65,7 +65,29 @@ export default function App() {
     });
   };
 
-  const primaryButtons: { label: string; icon: "plus" | "shuffle" | "person" | "ellipsis"; action: () => void }[] = [
+  const startRandomGame = async () => {
+    const playerInfo = await getOrCreatePlayerId();
+    const hostName = playerInfo.displayName || "Player";
+    setLocalPlayerName(hostName);
+    setLocalPlayerId(playerInfo.id);
+    setLobbyPlayers([hostName, "CPU 1", "CPU 2", "CPU 3"]);
+    try {
+      const m = new MockAdapter();
+      setLocalAdapter(m);
+    } catch (e) {
+      console.warn("[App] Failed to create MockAdapter:", e);
+      setLocalAdapter(null);
+    }
+    setRoomAdapter(null);
+    setJoinedRoomId(null);
+    setScreen("game");
+  };
+
+  const primaryButtons: {
+    label: string;
+    icon: "plus" | "shuffle" | "person" | "globe" | "trophy" | "gear";
+    action: () => void;
+  }[] = [
     {
       label: "Create Game",
       icon: "plus",
@@ -75,9 +97,7 @@ export default function App() {
       label: "Random Game",
       icon: "shuffle",
       action: () => {
-        const rnd = ["You", "CPU 1", "CPU 2", "CPU 3"];
-        setLobbyPlayers(rnd);
-        setScreen("game");
+        void startRandomGame();
       },
     },
     {
@@ -86,9 +106,19 @@ export default function App() {
       action: () => setScreen("create"),
     },
     {
-      label: "More",
-      icon: "ellipsis",
-      action: () => setScreen("more"),
+      label: "Find Game",
+      icon: "globe",
+      action: () => setScreen("find"),
+    },
+    {
+      label: "Achievements",
+      icon: "trophy",
+      action: () => setScreen("achievements"),
+    },
+    {
+      label: "Settings",
+      icon: "gear",
+      action: () => setScreen("settings"),
     },
   ];
   const [wallpaperSource, setWallpaperSource] = useState<any>(require("./assets/ps_and_as_bg.png"));
@@ -102,6 +132,14 @@ export default function App() {
     const style = doc.createElement("style");
     style.setAttribute("data-app", "no-text-select");
     style.textContent = `
+      html, body, #root {
+        height: 100%;
+        min-height: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #0f5d2f;
+        overflow: hidden;
+      }
       html, body, #root, #root * {
         user-select: none !important;
         -webkit-user-select: none !important;
@@ -151,9 +189,9 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-    <View style={{ flex: 1 }}>
-        {/* Animated dark gradient background replaces static texture */}
-        <AnimatedBackground />
+    <View style={[{ flex: 1 }, Platform.OS === "web" && appStyles.webRoot]}>
+        {/* Menu / lobby background — game screen uses its own felt layer */}
+        {screen !== "game" && screen !== "create" && <AnimatedBackground />}
 
         {/* Splash overlay (kept mounted until hide animation finishes) */}
         {splashVisible && (
@@ -198,18 +236,10 @@ export default function App() {
           </Animated.View>
         )}
         {menuVisible && screen === "achievements" && (
-          <Achievements onBack={() => setScreen("more")} />
+          <Achievements onBack={() => setScreen("menu")} />
         )}
         {menuVisible && screen === "settings" && (
-          <Settings onWallpaperChange={() => reloadWallpaper()} onBack={() => setScreen("more")} />
-        )}
-        {menuVisible && screen === "more" && (
-          <MoreMenu
-            onBack={() => setScreen("menu")}
-            onFindGame={() => setScreen("find")}
-            onAchievements={() => setScreen("achievements")}
-            onSettings={() => setScreen("settings")}
-          />
+          <Settings onWallpaperChange={() => reloadWallpaper()} onBack={() => setScreen("menu")} />
         )}
         {menuVisible && screen === "create" && (
           <CreateGame 
@@ -247,7 +277,7 @@ export default function App() {
           discoveryAdapter ? (
             <FindGame 
               adapter={discoveryAdapter} 
-              onBack={() => setScreen("more")}
+              onBack={() => setScreen("menu")}
               onNavigateToAchievements={() => setScreen("achievements")}
               onJoinRoom={(roomId, playerName) => {
                 // Create a new adapter for this specific room with auto-join enabled
@@ -299,4 +329,11 @@ const localMenuStyles = StyleSheet.create({
     width: 24,
     alignItems: "center",
   },
+});
+
+const appStyles = StyleSheet.create({
+  webRoot: {
+    minHeight: "100vh",
+    width: "100%",
+  } as object,
 });

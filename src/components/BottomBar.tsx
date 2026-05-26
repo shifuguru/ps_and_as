@@ -17,8 +17,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BlurPanel from "./BlurPanel";
-
 import { ACTION_BAR_HEIGHT } from "./ActionBar";
+import { HAND_FAN_HEIGHT } from "./PlayerHand";
 
 
 
@@ -37,6 +37,30 @@ export const HAND_CONTROLS_GAP = 20;
 /** Extra height the sheet extends past the bottom edge. */
 
 export const BOTTOM_SHEET_BLEED = 32;
+
+/** Vertical space to reserve above the bottom sheet — keep in sync with GameScreen padding. */
+export function reservedBottomHeight(
+  safeBottom = 0,
+  handVisible = true,
+): number {
+  const outerPad =
+    Platform.OS === "web" ? 12 + BOTTOM_SHEET_BLEED : safeBottom + 10;
+  const handSection = handVisible
+    ? HAND_FAN_HEIGHT + HAND_CONTROLS_GAP + 2
+    : 0;
+  return 8 + handSection + BOTTOM_CONTROLS_HEIGHT + 4 + outerPad;
+}
+
+/** How far below the top of the bottom sheet the local seat sits (tune for felt/hand gap). */
+export const LOCAL_SEAT_DROP_FROM_BAR_TOP = 52;
+
+/** Screen-bottom offset for the local player seat — just above the hand fan. */
+export function localSeatBottomOffset(
+  safeBottom = 0,
+  handVisible = true,
+): number {
+  return reservedBottomHeight(safeBottom, handVisible) - LOCAL_SEAT_DROP_FROM_BAR_TOP;
+}
 
 
 
