@@ -90,6 +90,32 @@ assert.strictEqual(
   "9 should be allowed after 10 in run context"
 );
 
+// 10-rule must not block run continuation even if it was previously activated
+const tenRuleHigher = { active: true, direction: "higher" as const };
+assert.strictEqual(
+  isValidPlay([jack], [ten], tenRuleHigher, history78910, [{ trickNumber: 0, actions: [] }]),
+  true,
+  "Jack should be allowed after 10 in run context even with 10-rule higher active"
+);
+assert.strictEqual(
+  isValidPlay([nine], [ten], tenRuleHigher, history78910, [{ trickNumber: 0, actions: [] }]),
+  true,
+  "9 should be allowed after 10 in run context even with 10-rule higher active"
+);
+
+// 2-card sequence 9-10: extending with J should work; 10 should not have triggered rule
+const history910: Card[][] = [[nine], [ten]];
+assert.strictEqual(
+  isValidPlay([jack], [ten], tenRuleHigher, history910, [{ trickNumber: 0, actions: [] }]),
+  true,
+  "Jack should extend 9-10 sequence despite active 10-rule"
+);
+assert.strictEqual(
+  isValidPlay([nine], [ten], tenRuleHigher, history910, [{ trickNumber: 0, actions: [] }]),
+  true,
+  "9 should extend back from 10 in 9-10 sequence despite active 10-rule"
+);
+
 console.log("Run-with-10 context tests passed");
 
 // --- Pass-lock tests and 8-player coverage ---

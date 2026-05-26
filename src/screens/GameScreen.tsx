@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from "react-native";
 import {
   createGame,
@@ -14,6 +14,7 @@ import {
   isRun,
   hasPassedInCurrentTrick,
   effectivePile,
+  consecutiveSequenceInfo,
   runFromCurrentTrick,
   runFromCurrentTrickInfo,
   isRunContextSequence,
@@ -22,18 +23,43 @@ import {
 import { createDeck, shuffleDeck, dealCards } from "../game/ruleset";
 import Card from "../components/Card";
 import { ScrollView, Dimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MockAdapter } from "../game/network";
 import DebugViewer from "../components/DebugViewer";
 import { Card as CardType } from "../game/ruleset";
 import Header from "../components/Header";
 import ScreenContainer from "../components/ScreenContainer";
 import EndGamePanel from "../components/EndGamePanel";
-import BottomBar from "../components/BottomBar";
+import BottomBar, {
+  BottomBarControls,
+  BottomBarHand,
+  BOTTOM_CONTROLS_HEIGHT,
+  BOTTOM_SHEET_BLEED,
+  HAND_CONTROLS_GAP,
+} from "../components/BottomBar";
+import FeltBackground from "../components/FeltBackground";
+import PlayerHand, {
+  HAND_FAN_HEIGHT,
+  type PlayerHandHandle,
+} from "../components/PlayerHand";
 import ActionBar from "../components/ActionBar";
 import GameTable from "../components/GameTable";
-import PlayerHand from "../components/PlayerHand";
-import StatusBar from "../components/StatusBar";
+import StatusBar, { STATUS_BAR_HEIGHT } from "../components/StatusBar";
 import { styles } from "../styles/theme";
+
+// Helper: pick `take` same-rank indices including the card the player tapped
+function selectSameRankNearTap(
+  sameAll: number[],
+  take: number,
+  tapIndex: number,
+): number[] {
+  if (sameAll.length <= take) return sameAll;
+  const pos = sameAll.indexOf(tapIndex);
+  if (pos < 0) return sameAll.slice(0, take);
+  let start = Math.max(0, pos - take + 1);
+  if (start + take > sameAll.length) start = sameAll.length - take;
+  return sameAll.slice(start, start + take);
+}
 
 // Helper: check if a card value can be part of any valid play
 function canCardBePlayedAtAll(
@@ -50,37 +76,43 @@ function canCardBePlayedAtAll(
 ): boolean {
   const pileCount = pile.length;
 
-  // Single joker can always beat non-empty pile
+  // Single joker beats a non-empty pile (one joker only — never match pile count)
   if (cardValue === 15) {
     const jokers = hand.filter((c) => c.value === 15);
-    if (jokers.length >= 1) {
-      // Check if single joker is valid
-      if (
-        pileCount > 0 &&
-        isValidPlay(
-          [jokers[0]],
-          pile,
-          tenRule,
-          pileHistory,
-          trickHistory,
-          fourOfAKindChallenge,
-          currentTrick,
-          players,
-          finishedOrder,
-        )
-      )
-        return true;
-      // If pile is empty and this is the very first play of the game, can't start with joker
-      if (
-        pileCount === 0 &&
-        (!trickHistory || trickHistory.length === 0) &&
-        (!currentTrick ||
-          (currentTrick.actions && currentTrick.actions.length === 0)) &&
-        (!pileHistory || pileHistory.length === 0)
-      )
-        return false;
-      if (pileCount === 0) return true;
+    if (jokers.length === 0) return false;
+    if (
+      pileCount === 0 &&
+      (!trickHistory || trickHistory.length === 0) &&
+      (!currentTrick ||
+        (currentTrick.actions && currentTrick.actions.length === 0)) &&
+      (!pileHistory || pileHistory.length === 0)
+    ) {
+      return false;
     }
+    if (pileCount === 0) {
+      return isValidPlay(
+        [jokers[0]],
+        pile,
+        tenRule,
+        pileHistory,
+        trickHistory,
+        fourOfAKindChallenge,
+        currentTrick,
+        players,
+        finishedOrder,
+      );
+    }
+    return isValidPlay(
+      [jokers[0]],
+      pile,
+      tenRule,
+      pileHistory,
+      trickHistory,
+      fourOfAKindChallenge,
+      currentTrick,
+      players,
+      finishedOrder,
+    );
   }
 
   // Find all cards with this value
@@ -110,19 +142,51 @@ function canCardBePlayedAtAll(
     return true;
   }
 
-  // Check if pile is a run
-  // Determine run context using effectivePile + currentTrick run detector
-  let eff = effectivePile(pile, pileHistory);
+  // Check if pile is in a run (or a 2-card sequence being extended)
   const trickRunInfo = runFromCurrentTrickInfo(currentTrick, players, finishedOrder || []);
+  const seqInfo = consecutiveSequenceInfo(
+    pile,
+    pileHistory,
+    currentTrick,
+    players,
+    finishedOrder || [],
+  );
   let runMultiplicity = 1;
-  if (trickRunInfo && trickRunInfo.repCards && trickRunInfo.repCards.length >= 3) {
-    eff = trickRunInfo.repCards;
+  if (trickRunInfo?.repCards && trickRunInfo.repCards.length >= 3) {
     runMultiplicity = trickRunInfo.multiplicity || 1;
   }
-  const isPileRun = !!(eff && eff.length >= 3 && isRunContextSequence(eff));
+  const runSeq =
+    seqInfo.repCards.length >= (trickRunInfo?.repCards?.length || 0)
+      ? seqInfo.repCards
+      : trickRunInfo?.repCards || [];
+  if (runSeq.length >= 2) {
+    runMultiplicity =
+      seqInfo.repCards.length >= (trickRunInfo?.repCards?.length || 0)
+        ? seqInfo.multiplicity
+        : trickRunInfo?.multiplicity || 1;
+  }
+  const inRunContext = runSeq.length >= 2 && isRunContextSequence(runSeq);
 
-  if (isPileRun) {
-    const requiredLength = eff.length;
+  if (inRunContext && runMultiplicity === 1) {
+    const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
+    if (Math.abs(rankIndex(cardValue) - lastRank) === 1) {
+      const card = sameValue[0];
+      return isValidPlay(
+        [card],
+        pile,
+        tenRule,
+        pileHistory,
+        trickHistory,
+        fourOfAKindChallenge,
+        currentTrick,
+        players,
+        finishedOrder,
+      );
+    }
+  }
+
+  if (inRunContext && runMultiplicity > 1 && runSeq.length >= 3) {
+    const requiredLength = runSeq.length;
     const multiplicity = runMultiplicity || 1;
 
     // Try to form runs that include this card value with required multiplicity
@@ -181,6 +245,43 @@ function canCardBePlayedAtAll(
   );
 }
 
+/** Build chronological play groups for the table (one entry per player action). */
+function buildTrickPlays(state: GameState): CardType[][] {
+  const plays: CardType[][] = [];
+  const seen = new Set<string>();
+
+  if (state.pileHistory) {
+    for (let i = 0; i < state.pileHistory.length; i++) {
+      const entry = state.pileHistory[i];
+      if (!Array.isArray(entry) || entry.length === 0) continue;
+      const owner = (state.pileOwners && state.pileOwners[i]) || "";
+      const sig = `${owner}|${entry.map((c) => `${c.suit}:${c.value}`).join("|")}`;
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      plays.push(entry.slice());
+    }
+  }
+
+  if (state.currentTrick?.actions) {
+    for (const action of state.currentTrick.actions) {
+      if (action.type !== "play" || !action.cards || action.cards.length === 0) {
+        continue;
+      }
+      const owner = action.playerId || action.playerName || "";
+      const sig = `${owner}|${action.cards.map((c) => `${c.suit}:${c.value}`).join("|")}`;
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      plays.push(action.cards.slice());
+    }
+  }
+
+  if (plays.length === 0 && state.pile.length > 0) {
+    plays.push(state.pile.slice());
+  }
+
+  return plays;
+}
+
 export default function GameScreen({
   initialPlayers,
   localPlayerName,
@@ -202,6 +303,7 @@ export default function GameScreen({
   const [showGameLog, setShowGameLog] = useState<boolean>(false);
   const [selected, setSelected] = useState<number[]>([]); // indices in hand
   const [focused, setFocused] = useState<number | null>(null);
+  const handRef = useRef<PlayerHandHandle>(null);
   const [revealedHands, setRevealedHands] = useState<{
     [playerId: string]: boolean;
   }>({});
@@ -218,6 +320,7 @@ export default function GameScreen({
   const [lastTrickWinner, setLastTrickWinner] = useState<string | null>(null);
   const [showWinnerBanner, setShowWinnerBanner] = useState(false);
   const lastTrickLenRef = React.useRef<number>(0);
+  const insets = useSafeAreaInsets();
 
   function snapshotState(s: GameState | null) {
     if (!s) return null;
@@ -802,6 +905,24 @@ export default function GameScreen({
     ),
   );
 
+  const hasAnyValidPlay = playableIndices.some(Boolean);
+  const noValidPlays =
+    isHumanTurn &&
+    !roundOver &&
+    !hasAnyValidPlay &&
+    !hasPassedInCurrentTrick(state, current.id);
+
+  const isOpeningLead =
+    state.pile.length === 0 &&
+    (!state.pileHistory || state.pileHistory.length === 0) &&
+    (!state.trickHistory || state.trickHistory.length === 0) &&
+    (!state.currentTrick || state.currentTrick.actions.length === 0);
+
+  const startingCardIndex =
+    isHumanTurn && !roundOver && !!state.mustPlay && isOpeningLead
+      ? hand.findIndex((c) => c.suit === "clubs" && c.value === 3)
+      : -1;
+
   const handleCardPress = (idx: number) => {
     const card = hand[idx];
     const ownerIdForHand = currentIsLocalHuman ? current.id : humanPlayer?.id;
@@ -833,6 +954,12 @@ export default function GameScreen({
       return;
     }
 
+    // Jokers always beat as a single card — never match doubles/triples/quads count
+    if (tappedValue === 15) {
+      setSelected((s) => (s.includes(idx) ? [] : [idx]));
+      return;
+    }
+
     const take = Math.min(pileCount, sameAll.length);
     const selectedRank =
       currentSelected.length > 0 ? hand[currentSelected[0]]?.value : null;
@@ -843,7 +970,7 @@ export default function GameScreen({
         setSelected((s) => [...s, idx]);
       }
     } else {
-      setSelected(sameAll.slice(0, take));
+      setSelected(selectSameRankNearTap(sameAll, take, idx));
     }
   };
 
@@ -940,42 +1067,18 @@ export default function GameScreen({
     }
   };
 
-  const bottomBarMinHeight = 220;
+  const bottomBarHeight =
+    HAND_FAN_HEIGHT +
+    HAND_CONTROLS_GAP +
+    BOTTOM_CONTROLS_HEIGHT +
+    BOTTOM_SHEET_BLEED +
+    (insets.bottom || 0) +
+    16;
+  const topBarHeight = insets.top + STATUS_BAR_HEIGHT;
   const currentPlayerCount = state.players.length;
-  const pileCount = state.pile.length;
+  const pileToBeat = state.pile.length;
   const passCount = state.passCount;
-  const visiblePileCards: CardType[] = [];
-  // build a de-duplicated chronological view using pileHistory + pileOwners,
-  // then append any currentTrick.actions that aren't already represented.
-  const seenSignatures = new Set<string>();
-  if (state.pileHistory && state.pileHistory.length > 0) {
-    for (let i = 0; i < state.pileHistory.length; i++) {
-      const entry = state.pileHistory[i];
-      const owner = (state.pileOwners && state.pileOwners[i]) || "";
-      if (!Array.isArray(entry) || entry.length === 0) continue;
-      // signature for this entry: owner + card list
-      const sig = `${owner}|${(entry as CardType[]).map(c => `${c.suit}:${c.value}`).join("|")}`;
-      if (seenSignatures.has(sig)) continue;
-      seenSignatures.add(sig);
-      visiblePileCards.push(...(entry as CardType[]));
-    }
-  }
-
-  if (state.currentTrick && state.currentTrick.actions && state.currentTrick.actions.length > 0) {
-    state.currentTrick.actions.forEach((a: any) => {
-      if (a.type !== 'play' || !a.cards || a.cards.length === 0) return;
-      const owner = a.playerId || a.playerName || "";
-      const sig = `${owner}|${a.cards.map((c: any) => `${c.suit}:${c.value}`).join("|")}`;
-      if (seenSignatures.has(sig)) return;
-      seenSignatures.add(sig);
-      visiblePileCards.push(...(a.cards as CardType[]));
-    });
-  }
-
-  // fallback: if nothing collected, use effectivePile for safety
-  if (visiblePileCards.length === 0) {
-    visiblePileCards.push(...effectivePile(state.pile, state.pileHistory));
-  }
+  const trickPlays = buildTrickPlays(state);
 
   // Build log entries
   type LogEntry = { text: string; kind: "play" | "pass" | "win" | "info" };
@@ -1202,9 +1305,22 @@ export default function GameScreen({
   });
 
   // Note: no appear animation here to avoid flashing on re-renders
-
   return (
     <ScreenContainer ignoreHeaderOffset={true} style={{ flex: 1 }}>
+      <FeltBackground />
+
+      <StatusBar
+        currentPlayerName={current.name}
+        currentHandCount={hand.length}
+        playerCount={state.players.length}
+        pileToBeat={pileToBeat}
+        passCount={passCount}
+        mustPlay={!!state.mustPlay}
+        isHumanTurn={isHumanTurn}
+        isLargeScreen={isLargeScreen}
+        topInset={insets.top}
+      />
+
       {/* Toggleable structured debug overlay (doesn't block bottom hand) */}
       {showDebugOverlay && (
         <View style={local.debugOverlay}>
@@ -1288,24 +1404,21 @@ export default function GameScreen({
         </Modal>
       )}
 
-      {/* Scrollable game content */}
-      <View style={{ padding: 10 }}>
-        <StatusBar
-          currentPlayerName={current.name}
-          currentHandCount={hand.length}
-          playerCount={state.players.length}
-          pileCount={pileCount}
-          passCount={passCount}
-          mustPlay={!!state.mustPlay}
-          isHumanTurn={isHumanTurn}
-          isLargeScreen={isLargeScreen}
-        />
-
-        <GameTable
-          pileCards={visiblePileCards}
-          playTypeLabel={playTypeLabel}
-          lastPlayInfo={lastPlayInfo || 'Current turn: ' + current.name}
-        />
+      {/* Game content — pad for blur overlays at top and bottom */}
+      <View
+        style={{
+          flex: 1,
+          paddingHorizontal: 12,
+          paddingTop: topBarHeight + 8,
+          paddingBottom: bottomBarHeight,
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          <GameTable
+            plays={trickPlays}
+            playTypeLabel={playTypeLabel}
+          />
+        </View>
 
         {/* Winner banner */}
         {showWinnerBanner && lastTrickWinner && (
@@ -1317,12 +1430,44 @@ export default function GameScreen({
         )}
       </View>
 
-      {/* Player hand and actions - sticky at bottom */}
-      <BottomBar minHeight={bottomBarMinHeight} style={local.bottomBar}>
+      {/* Player hand + actions — sticky bottom sheet */}
+      <BottomBar>
+        <BottomBarHand height={HAND_FAN_HEIGHT}>
+          {!isHumanTurn && (
+            <View style={local.waitingPill}>
+              <Text style={local.waitingPillText}>Waiting for {current.name}…</Text>
+            </View>
+          )}
+
+          <PlayerHand
+            ref={handRef}
+            cards={hand}
+            selectedIndices={selected}
+            playableIndices={playableIndices}
+            startingCardIndex={startingCardIndex}
+            disabled={!isHumanTurn}
+            onCardPress={handleCardPress}
+          />
+        </BottomBarHand>
+
+        <BottomBarControls>
+          <ActionBar
+            selectedCount={selected.length}
+            onPlay={handlePlayPress}
+            onPass={handlePassPress}
+            onQuit={() => {
+              if (onBack) onBack();
+            }}
+            playDisabled={!isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id) || selected.length === 0}
+            passDisabled={!isHumanTurn || roundOver}
+            isPlayerTurn={isHumanTurn && !roundOver}
+            noValidPlays={noValidPlays}
+          />
+        </BottomBarControls>
 
         {/* Game Log (toggleable) */}
         {showGameLog && (
-          <View>
+          <BottomBarControls>
             <Text style={local.gameLogTitle}>Current Trick Log</Text>
             <ScrollView style={local.gameLogScroll} nestedScrollEnabled>
               {currentTrickLog && currentTrickLog.length > 0 ? (
@@ -1348,67 +1493,8 @@ export default function GameScreen({
                 </Text>
               )}
             </ScrollView>
-          </View>
+          </BottomBarControls>
         )}
-
-        {/* Turn indicator */}
-        {!isHumanTurn && (
-          <View style={local.turnIndicator}>
-            <Text style={local.turnIndicatorText}>
-              Waiting for {current.name}...
-            </Text>
-          </View>
-        )}
-
-        {/* Logs toggle placed above the Game Log view */}
-        {/* moved log toggles to the table header */}
-
-        <PlayerHand
-          cards={hand}
-          selectedIndices={selected}
-          playableIndices={playableIndices}
-          disabled={!isHumanTurn}
-          onCardPress={handleCardPress}
-        />
-
-        <ActionBar
-          selectedCount={selected.length}
-          onPlay={handlePlayPress}
-          onPass={handlePassPress}
-          onQuit={() => {
-            if (onBack) onBack();
-          }}
-          playDisabled={!isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id)}
-          passDisabled={!isHumanTurn || roundOver}
-        />
-
-        {/* Debug controls to help unblock stuck CPU turns */}
-        <View style={{ flexDirection: 'row', marginTop: 8, gap: 8 }}>
-          <TouchableOpacity
-            onPress={() => {
-              try { const next = passTurn(state, current.id); setState(next); console.log('[DBG] forced pass applied'); } catch (e) { console.warn(e); }
-            }}
-            style={{ padding: 8, backgroundColor: '#333', borderRadius: 8 }}
-          >
-            <Text style={{ color: '#d4af37', fontWeight: '700' }}>Force Pass</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => {
-              try { const nextIdx = nextActivePlayerIndex(state, state.currentPlayerIndex); setState({ ...state, currentPlayerIndex: nextIdx }); console.log('[DBG] forced advance to', nextIdx); } catch (e) { console.warn(e); }
-            }}
-            style={{ padding: 8, backgroundColor: '#333', borderRadius: 8 }}
-          >
-            <Text style={{ color: '#d4af37', fontWeight: '700' }}>Advance</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => console.log('[DBG] state dump', JSON.parse(JSON.stringify(state)))}
-            style={{ padding: 8, backgroundColor: '#333', borderRadius: 8 }}
-          >
-            <Text style={{ color: '#d4af37', fontWeight: '700' }}>Log State</Text>
-          </TouchableOpacity>
-        </View>
 
         {/* Round End Modal with Game Summary */}
         {roundOver && (
@@ -1424,7 +1510,7 @@ export default function GameScreen({
                     if (!player) return null;
                     
                     // Determine role based on position and player count
-                    let roleName = 'Neutral';
+                    let roleName = 'Civilian';
                     if (index === 0) {
                       roleName = '👑 President';
                     } else if (state.finishedOrder.length >= 5) {
@@ -1482,6 +1568,7 @@ export default function GameScreen({
           </Modal>
         )}
       </BottomBar>
+      
     </ScreenContainer>
   );
 }
@@ -1653,6 +1740,39 @@ const local = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     fontStyle: "italic",
+  },
+  waitingPill: {
+    position: "absolute",
+    top: 4,
+    alignSelf: "center",
+    zIndex: 2000,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255, 255, 255, 0.18)",
+  },
+  waitingPillText: {
+    color: "rgba(255, 255, 255, 0.85)",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  debugRow: {
+    flexDirection: "row",
+    marginTop: 6,
+    gap: 8,
+  },
+  debugBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 8,
+  },
+  debugBtnText: {
+    color: "#d4af37",
+    fontWeight: "700",
+    fontSize: 11,
   },
   gameLogContainer: {
     backgroundColor: "rgba(0, 0, 0, 0.7)",

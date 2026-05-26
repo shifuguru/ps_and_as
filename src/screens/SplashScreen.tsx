@@ -1,56 +1,76 @@
 import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, Animated, Easing, Text } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import { styles as theme } from "../styles/theme";
-
-
-interface Props {
-  onFinish: () => void;
-}
 
 export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
-  const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(1)).current;
+
+  const logoScale = useRef(new Animated.Value(0.6)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
-  const logoScale = useRef(new Animated.Value(0.75)).current;
+
   const textOpacity = useRef(new Animated.Value(0)).current;
-  const textTranslate = useRef(new Animated.Value(8)).current;
+  const textTranslate = useRef(new Animated.Value(10)).current;
 
   useEffect(() => {
-    Animated.sequence([
-      Animated.delay(1000),
+    const sequence = Animated.sequence([
+      // Logo intro
       Animated.parallel([
-        Animated.timing(scale, {
-          toValue: 0,
-          duration: 1200,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
+        Animated.timing(logoOpacity, {
+          toValue: 1,
+          duration: 500,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
         }),
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 1400,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
+        Animated.timing(logoScale, {
+          toValue: 1,
+          duration: 650,
+          easing: Easing.out(Easing.back(1.4)),
+          useNativeDriver: true,
         }),
       ]),
-    ]).start(onFinish);
-  }, []);
+
+      // Text reveal
+      Animated.parallel([
+        Animated.timing(textOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(textTranslate, {
+          toValue: 0,
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+
+      // Hold
+      Animated.delay(900),
+
+      // Exit
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 720,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]);
+
+    sequence.start(({ finished }) => {
+      if (finished) onFinish();
+    });
+  }, [onFinish]);
 
   return (
-    <View style={styles.container}>
-      <Animated.View
-        style={{
-          opacity,
-          backgroundColor: "black",
-          width: "100%",
-          height: "100%",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Animated.View style={{ transform: [{ scale }] }}>
+    <Animated.View style={[styles.container, { opacity }]}>
+      <View style={styles.center}>
+        <Animated.View
+          style={{
+            opacity: logoOpacity,
+            transform: [{ scale: logoScale }],
+          }}
+        >
           <Svg width={110} height={110} viewBox="0 0 100 100" fill="none">
-            {/* simple white monogram / emblem */}
             <Path
               d="M20 20h40a20 20 0 1 1 0 60H20V20z"
               stroke="white"
@@ -59,15 +79,22 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
               strokeLinejoin="round"
             />
           </Svg>
-          <View style={{ width: 120, height: 120, backgroundColor: "white", borderRadius: 60 }} />
         </Animated.View>
-      </Animated.View>
 
-      <Animated.View style={{ marginTop: 18, alignItems: "center", opacity: textOpacity, transform: [{ translateY: textTranslate }] }}>
-        <Text style={styles.title}>P's & A's</Text>
-        <Text style={styles.subtitle}>created by Michael Drury.</Text>
-      </Animated.View>
-    </View>
+        <Animated.View
+          style={{
+            marginTop: 18,
+            alignItems: "center",
+            opacity: textOpacity,
+            transform: [{ translateY: textTranslate }],
+          }}
+        >
+          <Text style={styles.title}>P's & A's</Text>
+          <Text style={styles.subtitle}>Presidents and Assholes</Text>
+          <Text style={styles.subtitle}>App designed by Michael Drury</Text>
+        </Animated.View>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -75,6 +102,9 @@ const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "black",
+  },
+  center: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },

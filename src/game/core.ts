@@ -137,8 +137,6 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   // (e.g., player A plays 8, player B plays 9, player C plays 10 in the same
   // trick). In that case the 10 should NOT activate the ten-rule; we must
   // detect the run via runFromCurrentTrick as well.
-  const baseEffPile = effectivePile(state.pile, state.pileHistory);
-  
   // Create a simulated trick with the current play added to check for run formation
   const simulatedTrick = state.currentTrick ? {
     ...state.currentTrick,
@@ -150,10 +148,18 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
       timestamp: Date.now(),
     }]
   } : undefined;
-  
-  const trickRunInfo = runFromCurrentTrickInfo(simulatedTrick, state.players, state.finishedOrder || []);
-  const effPileForContext = (trickRunInfo.repCards && trickRunInfo.repCards.length >= 3) ? trickRunInfo.repCards : baseEffPile;
-  const isPileRunForContext = effPileForContext && effPileForContext.length >= 3 && isRunContextSequence(effPileForContext);
+
+  const seqForTen = consecutiveSequenceInfo(
+    state.pile,
+    state.pileHistory,
+    simulatedTrick,
+    state.players,
+    state.finishedOrder || [],
+  );
+  const isRunSequenceContext =
+    seqForTen.repCards.length >= 2 && isRunContextSequence(seqForTen.repCards);
+  const isActiveRun =
+    seqForTen.repCards.length >= 3 && isRunSequenceContext;
 
   // Validate play type: must play same number of cards as pile (unless pile is empty)
   // Enforce clear precedence: if this play is a 2 and the current trick already
@@ -225,11 +231,13 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   // Check if 10 was played - will need user input for direction
   const playedTen = containsTen(cards);
   try {
-    console.log(`[core DEBUG] playCards context: playedTen=${playedTen}, effPileForContext=${(effPileForContext||[]).map(c=>c.value).join(',')}, trickRunRep=${(trickRunInfo.repCards||[]).map(c=>c.value).join(',')}, trickRunMultiplicity=${trickRunInfo.multiplicity}`);
-  } catch(e) {}
+    console.log(
+      `[core DEBUG] playCards context: playedTen=${playedTen}, runSeq=${(seqForTen.repCards || []).map((c) => c.value).join(",")}, isRunSequenceContext=${isRunSequenceContext}`,
+    );
+  } catch (e) {}
   // Do not activate the 10-rule when the active pile is a run. Tens are
   // explicitly excluded from influencing runs.
-  if (playedTen && !state.tenRule?.active && !isPileRunForContext) {
+  if (playedTen && !state.tenRule?.active && !isRunSequenceContext) {
     // 10 rule is being activated - add cards to pile but pause for player input
     state.pile = cards;
     state.pileHistory = state.pileHistory || [];
@@ -273,7 +281,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     allSameValue(cards) &&
     cards[0].value === state.pile[0].value &&
     (state.pile.length + cards.length === 4) &&
-    !isPileRunForContext
+    !isActiveRun
   ) {
     // Combine to visible four-of-a-kind on the pile
     const combined = [...state.pile, ...cards];
@@ -400,26 +408,113 @@ export function getHighestValue(cards: Card[]) {
 // is already a run of length>=3, or the concatenation of last single-card plays
 // from pileHistory (chronological) if those form a run. This lets sequences like
 // [3],[4],[5] be treated as an active 3-card run even though state.pile is [5].
+function collectConsecutiveFromHistory(pileHistory?: Card[][]): { repCards: Card[]; multiplicity: number } {
+  if (!pileHistory || pileHistory.length === 0) return { repCards: [], multiplicity: 1 };
+
+  const collected: Card[] = [];
+  let multiplicity: number | null = null;
+  for (let i = pileHistory.length - 1; i >= 0; i--) {
+    const entry = pileHistory[i];
+    if (!entry || entry.length === 0) break;
+    if (entry.some(isJoker)) break;
+    if (multiplicity === null) multiplicity = entry.length;
+    if (entry.length !== multiplicity) break;
+    if (!allSameValue(entry)) break;
+    const candidate = entry[0];
+    if (collected.length > 0) {
+      const immediateSuccessor = collected[collected.length - 1];
+      if (Math.abs(rankIndex(candidate.value) - rankIndex(immediateSuccessor.value)) !== 1) {
+        break;
+      }
+    }
+    collected.push(candidate);
+  }
+  collected.reverse();
+  if (collected.length >= 2 && isRunContextSequence(collected)) {
+    return { repCards: collected, multiplicity: multiplicity || 1 };
+  }
+  return { repCards: [], multiplicity: 1 };
+}
+
+function collectConsecutiveFromTrick(
+  currentTrick?: TrickHistory,
+  players?: Player[],
+  finishedOrder: string[] = [],
+): { repCards: Card[]; multiplicity: number } {
+  if (!currentTrick || !players) return { repCards: [], multiplicity: 1 };
+  const actions = currentTrick.actions;
+  if (!actions || actions.length === 0) return { repCards: [], multiplicity: 1 };
+
+  let lastPlayIndex = -1;
+  for (let i = actions.length - 1; i >= 0; i--) {
+    if (actions[i].type === "play") {
+      lastPlayIndex = i;
+      break;
+    }
+  }
+  if (lastPlayIndex === -1) return { repCards: [], multiplicity: 1 };
+
+  const collectedActions: Card[][] = [];
+  let multiplicity: number | null = null;
+
+  for (let i = lastPlayIndex; i >= 0; i--) {
+    const a = actions[i];
+    if (a.type === "pass") continue;
+    if (a.type !== "play" || !a.cards || a.cards.length === 0) break;
+    if (a.cards.some(isJoker)) break;
+    if (multiplicity === null) multiplicity = a.cards.length;
+    if (a.cards.length !== multiplicity) break;
+    if (collectedActions.length > 0) {
+      const immediateSuccessor = collectedActions[0][0];
+      const candidate = a.cards[0];
+      if (Math.abs(rankIndex(candidate.value) - rankIndex(immediateSuccessor.value)) !== 1) {
+        break;
+      }
+    }
+    collectedActions.unshift(a.cards.slice());
+  }
+
+  if (collectedActions.length === 0 || multiplicity === null) {
+    return { repCards: [], multiplicity: 1 };
+  }
+
+  const repCards: Card[] = collectedActions.map((arr) => arr[0]);
+  if (repCards.length >= 2 && isRunContextSequence(repCards)) {
+    return { repCards, multiplicity };
+  }
+  return { repCards: [], multiplicity: 1 };
+}
+
+/** Consecutive run sequence from trick and/or pile history (2+ cards). */
+export function consecutiveSequenceInfo(
+  pile: Card[],
+  pileHistory?: Card[][],
+  currentTrick?: TrickHistory,
+  players?: Player[],
+  finishedOrder: string[] = [],
+): { repCards: Card[]; multiplicity: number } {
+  const fromTrick = collectConsecutiveFromTrick(currentTrick, players, finishedOrder);
+  const fromHist = collectConsecutiveFromHistory(pileHistory);
+  const best =
+    fromTrick.repCards.length >= fromHist.repCards.length ? fromTrick : fromHist;
+  if (best.repCards.length >= 2) return best;
+  if (pile && pile.length >= 3 && isRun(pile)) {
+    return { repCards: pile, multiplicity: pile.length };
+  }
+  return { repCards: [], multiplicity: 1 };
+}
+
 export function effectivePile(pile: Card[], pileHistory?: Card[][]): Card[] {
   try {
     if (pile && pile.length >= 3 && isRun(pile)) return pile;
-    if (!pileHistory || pileHistory.length === 0) return pile;
-
-    const collected: Card[] = [];
-    // walk backwards through history collecting consecutive single-card plays
-    for (let i = pileHistory.length - 1; i >= 0; i--) {
-      const entry = pileHistory[i];
-      if (!entry || entry.length !== 1) break;
-      const c = entry[0];
-      // Joker cannot form part of a run context; 10 is allowed for context
-      if (c.value === 15) break;
-      collected.push(c);
-    }
-    // collected is reverse chronological (newest first) -> reverse to chronological
-    collected.reverse();
-    if (collected.length >= 3 && isRunContextSequence(collected)) {
-      try { console.log(`[core] effectivePile detected run (context) from pileHistory: ${collected.map(c=>c.value).join(',')}`); } catch (e) {}
-      return collected;
+    const fromHist = collectConsecutiveFromHistory(pileHistory);
+    if (fromHist.repCards.length >= 3) {
+      try {
+        console.log(
+          `[core] effectivePile detected run (context) from pileHistory: ${fromHist.repCards.map((c) => c.value).join(",")}`,
+        );
+      } catch (e) {}
+      return fromHist.repCards;
     }
     return pile;
   } catch (e) {
@@ -452,40 +547,14 @@ export function hasPassedInCurrentTrick(state: GameState, playerId: string) {
 // trick and return both the representative rank cards and the multiplicity.
 // This lets callers distinguish between single runs and Runs*Doubles/Triples/Quads.
 export function runFromCurrentTrickInfo(currentTrick?: TrickHistory, players?: Player[], finishedOrder: string[] = []): { repCards: Card[]; multiplicity: number | null } {
-  if (!currentTrick || !players) return { repCards: [], multiplicity: null };
-  const actions = currentTrick.actions;
-  if (!actions || actions.length === 0) return { repCards: [], multiplicity: null };
-
-  // Find the index of the last play action (ignore trailing passes)
-  let lastPlayIndex = -1;
-  for (let i = actions.length - 1; i >= 0; i--) {
-    if (actions[i].type === 'play') { lastPlayIndex = i; break; }
-  }
-  if (lastPlayIndex === -1) return { repCards: [], multiplicity: null };
-
-  const collectedActions: Card[][] = [];
-  let multiplicity: number | null = null;
-
-  // Walk backwards from the last play action collecting consecutive play actions
-  // with equal multiplicity. This allows intervening pass actions *after* the
-  // last play to be ignored so run context persists while players pass.
-  for (let i = lastPlayIndex; i >= 0; i--) {
-    const a = actions[i];
-    if (a.type !== 'play' || !a.cards || a.cards.length === 0) break;
-    // Disallow Jokers from runs
-    if (a.cards.some(isJoker)) break;
-    if (multiplicity === null) multiplicity = a.cards.length;
-    // All actions in the run tail must have the same multiplicity
-    if (a.cards.length !== multiplicity) break;
-    collectedActions.unshift(a.cards.slice());
-  }
-
-  if (collectedActions.length === 0 || multiplicity === null) return { repCards: [], multiplicity: null };
-
-  const repCards: Card[] = collectedActions.map(arr => arr[0]);
-  if (repCards.length >= 3 && isRunContextSequence(repCards)) {
-    try { console.log(`[core] runFromCurrentTrick detected run (context): ${repCards.map(c=>c.value).join(',')} multiplicity=${multiplicity}`); } catch (e) {}
-    return { repCards, multiplicity };
+  const info = collectConsecutiveFromTrick(currentTrick, players, finishedOrder);
+  if (info.repCards.length >= 3) {
+    try {
+      console.log(
+        `[core] runFromCurrentTrick detected run (context): ${info.repCards.map((c) => c.value).join(",")} multiplicity=${info.multiplicity}`,
+      );
+    } catch (e) {}
+    return { repCards: info.repCards, multiplicity: info.multiplicity };
   }
   return { repCards: [], multiplicity: null };
 }
@@ -521,16 +590,34 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   }
   // 3. Single-rank-per-turn: no multi-rank plays
   if (!allSameValue(cards)) return false;
+  // Jokers beat any non-joker pile but may only be played one at a time
+  if (isJoker(cards[0]) && cards.length > 1) return false;
   // 4. Defensive: prevent joker-on-joker plays
   if (isSingleJoker(cards) && pileCount > 0 && pile.some(c => isJoker(c))) return false;
   // 5. Run detection (consecutive single-card plays)
   let effPile: Card[] = effectivePile(pile, pileHistory);
   const trickRunInfo = runFromCurrentTrickInfo(currentTrick, players, finishedOrder || []);
+  const seqInfo = consecutiveSequenceInfo(
+    pile,
+    pileHistory,
+    currentTrick,
+    players,
+    finishedOrder || [],
+  );
   if (trickRunInfo.repCards && trickRunInfo.repCards.length >= 3) {
     effPile = trickRunInfo.repCards;
   }
-  const isPileRun = effPile.length >= 3 && isRunContextSequence(effPile);
-  const runMultiplicity = trickRunInfo.multiplicity || 1;
+  const runSeq =
+    seqInfo.repCards.length >= trickRunInfo.repCards.length
+      ? seqInfo.repCards
+      : trickRunInfo.repCards;
+  const runMultiplicity =
+    runSeq.length >= 2
+      ? seqInfo.repCards.length >= trickRunInfo.repCards.length
+        ? seqInfo.multiplicity
+        : trickRunInfo.multiplicity || 1
+      : trickRunInfo.multiplicity || 1;
+  const inRunContext = runSeq.length >= 2 && isRunContextSequence(runSeq);
   // 6. Four-of-a-kind challenge: only higher quads or Joker allowed
   if (fourOfAKindChallenge?.active) {
     const challengeVal = fourOfAKindChallenge.value;
@@ -551,8 +638,8 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   }
   // 8. If pile is empty, any uniform play or run is allowed
   if (pileCount === 0) return true;
-  // 9. 10 Rule: only outside runs, applies to same-value plays
-  if (tenRule?.active && tenRule.direction) {
+  // 9. 10 Rule: only outside run contexts — tens do not constrain run continuation
+  if (tenRule?.active && tenRule.direction && !inRunContext) {
     if (!allSameValue(cards)) return false;
     const pileRank = rankIndex(pile[0].value);
     const playRank = rankIndex(cards[0].value);
@@ -562,11 +649,11 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
       return playRank < pileRank;
     }
   }
-  // 10. Run logic: only singles, must continue sequence, no Jokers/2s/10 Rule
-  if (isPileRun) {
+  // 10. Run logic: extend a consecutive sequence (2+ cards); 9 and J both valid after 10
+  if (inRunContext) {
     if (playCount !== runMultiplicity) return false;
     if (isJoker(cards[0])) return false;
-    const lastCard = effPile[effPile.length - 1];
+    const lastCard = runSeq[runSeq.length - 1];
     const lastRank = rankIndex(lastCard.value);
     const playRank = rankIndex(cards[0].value);
     return Math.abs(playRank - lastRank) === 1;
@@ -718,14 +805,32 @@ export function findCPUPlay(hand: Card[], pile: Card[], tenRule?: { active: bool
     return grouped[v];
   }
 
-  // Effective run context: if active, only play an adjacent card/group = multiplicity
+  // Effective run context: extend with an adjacent card/group matching multiplicity
   let effPile = effectivePile(pile, pileHistory);
   const trickRunInfo = runFromCurrentTrickInfo(currentTrick, players, finishedOrder || []);
-  const runMultiplicity = trickRunInfo.multiplicity || 1;
-  if (trickRunInfo.repCards && trickRunInfo.repCards.length >= 3) effPile = trickRunInfo.repCards;
-  const isPileRun = effPile.length >= 3 && isRunContextSequence(effPile);
-  if (isPileRun) {
-    const lastRank = rankIndex(effPile[effPile.length - 1].value);
+  const seqInfo = consecutiveSequenceInfo(
+    pile,
+    pileHistory,
+    currentTrick,
+    players,
+    finishedOrder || [],
+  );
+  if (trickRunInfo.repCards && trickRunInfo.repCards.length >= 3) {
+    effPile = trickRunInfo.repCards;
+  }
+  const runSeq =
+    seqInfo.repCards.length >= trickRunInfo.repCards.length
+      ? seqInfo.repCards
+      : trickRunInfo.repCards;
+  const runMultiplicity =
+    runSeq.length >= 2
+      ? seqInfo.repCards.length >= trickRunInfo.repCards.length
+        ? seqInfo.multiplicity
+        : trickRunInfo.multiplicity || 1
+      : trickRunInfo.multiplicity || 1;
+  const inRunContext = runSeq.length >= 2 && isRunContextSequence(runSeq);
+  if (inRunContext) {
+    const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
     if (runMultiplicity === 1) {
       const adjCard = hand.find(c => {
         if (isJoker(c)) return false;

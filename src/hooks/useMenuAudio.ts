@@ -44,7 +44,7 @@ export function useMenuAudio() {
       // mute flag is reflected on the sound object.
       const { sound } = await AudioModule.Audio.Sound.createAsync(
         require("../../assets/sounds/bg_casino_ambience.mp3"),
-        { shouldPlay: !initMuted, isLooping: true, volume: 0.3 }
+        { shouldPlay: false, isLooping: true, volume: 0.3 }
       );
       bgSound.current = sound;
       // Apply mute state immediately so UI/state and playback are consistent

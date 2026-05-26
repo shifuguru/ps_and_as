@@ -1,69 +1,124 @@
-import React, { useEffect, useRef } from "react";
-import { View, Text, Animated, StyleSheet, Dimensions } from "react-native";
+import React, { useEffect, useRef, useMemo } from "react";
+import {
+  View,
+  Text,
+  Animated,
+  StyleSheet,
+  Dimensions,
+} from "react-native";
 import Card from "./Card";
 import { Card as CardType } from "../game/ruleset";
 
+/** Must match Card.tsx */
+const CARD_W = 86;
+const CARD_H = 124;
+
+/** Offset between consecutive plays in the trick (new play sits on top, shifted) */
+const PLAY_OFFSET_X = 16;
+const PLAY_OFFSET_Y = 12;
+/** Overlap within a multi-card play (doubles / triples / quads) */
+const BUNDLE_OVERLAP = 34;
+
 type Props = {
-  pileCards: CardType[];
+  /** Chronological plays in the current trick — each entry is one player's play */
+  plays: CardType[][];
   playTypeLabel: string | null;
-  lastPlayInfo?: string;
 };
 
-export default function GameTable({ pileCards, playTypeLabel, lastPlayInfo }: Props) {
+export default function GameTable({ plays, playTypeLabel }: Props) {
   const fade = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.98)).current;
 
+  const playCount = plays.length;
+  const maxBundle = useMemo(
+    () => Math.max(1, ...plays.map((p) => p.length)),
+    [plays],
+  );
+
+  const stepX =
+    playCount <= 1 ? 0 : Math.min(PLAY_OFFSET_X, 72 / (playCount - 1));
+  const stepY =
+    playCount <= 1 ? 0 : Math.min(PLAY_OFFSET_Y, 56 / (playCount - 1));
+
+  const stackWidth =
+    (playCount > 0 ? (playCount - 1) * stepX : 0) +
+    CARD_W +
+    (maxBundle - 1) * (CARD_W - BUNDLE_OVERLAP);
+  const stackHeight =
+    CARD_H + (playCount > 0 ? (playCount - 1) * stepY : 0);
+
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fade, { toValue: 1, duration: 260, useNativeDriver: false }),
-      Animated.spring(scale, { toValue: 1, stiffness: 220, damping: 18, useNativeDriver: false } as any),
+      Animated.timing(fade, {
+        toValue: 1,
+        duration: 260,
+        useNativeDriver: false,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        stiffness: 220,
+        damping: 18,
+        useNativeDriver: false,
+      } as any),
     ]).start();
-  }, [pileCards.length, playTypeLabel]);
+  }, [playCount, playTypeLabel]);
 
   const windowWidth = Dimensions.get("window").width;
   const isWide = windowWidth >= 900;
 
-  const visiblePile = pileCards;
-  const cardCount = visiblePile.length;
-  const cardSpacing = cardCount > 10 ? 14 : 18;
-  const centerOffset = ((cardCount - 1) * cardSpacing) / 2;
-
   return (
-    <Animated.View style={[styles.tableFrame, { opacity: fade, transform: [{ scale }] }]}>
-      <View style={styles.tableHeader}>
-        <Text style={styles.tableTitle}>Central Play Area</Text>
-        {lastPlayInfo ? <Text style={styles.tableSubtitle}>{lastPlayInfo}</Text> : null}
-      </View>
+    <Animated.View
+      style={[styles.tableFrame, { opacity: fade, transform: [{ scale }] }]}
+    >
       <View style={styles.pileArea}>
-        {pileCards.length === 0 ? (
+        {playCount === 0 ? (
           <Text style={styles.emptyText}>No cards on the table yet.</Text>
         ) : (
-          <View style={styles.pileStack}>
-            {visiblePile.map((card, index) => {
-              const offset = Math.min(index, 12);
-              const rotation = ((index % 5) - 2) * 2.5;
+          <View
+            style={[
+              styles.playStack,
+              { width: stackWidth, height: stackHeight },
+            ]}
+          >
+            {plays.map((play, playIndex) => {
+              const bundleWidth =
+                CARD_W + (play.length - 1) * (CARD_W - BUNDLE_OVERLAP);
               return (
                 <View
-                  key={`${card.suit}-${card.value}-${index}`}
+                  key={`play-${playIndex}-${play.map((c) => `${c.suit}${c.value}`).join("-")}`}
                   style={[
-                    styles.pileCardWrapper,
+                    styles.playGroup,
                     {
-                      left: offset * cardSpacing - centerOffset,
-                      top: offset * -4,
-                      zIndex: index,
-                      transform: [{ rotate: `${rotation}deg` }],
+                      left: playIndex * stepX,
+                      top: playIndex * stepY,
+                      width: bundleWidth,
+                      height: CARD_H,
+                      zIndex: playIndex,
                     },
                   ]}
                 >
-                  <Card card={card} selected={false} onPress={() => {}} />
+                  {play.map((card, cardIndex) => (
+                    <View
+                      key={`${card.suit}-${card.value}-${cardIndex}`}
+                      style={[
+                        styles.bundleCard,
+                        {
+                          left: cardIndex * (CARD_W - BUNDLE_OVERLAP),
+                          zIndex: cardIndex,
+                        },
+                      ]}
+                    >
+                      <Card
+                        card={card}
+                        selected={false}
+                        variant="table"
+                        onPress={() => {}}
+                      />
+                    </View>
+                  ))}
                 </View>
               );
             })}
-            {cardCount > 1 && (
-              <View style={styles.pileCountBadge}>
-                <Text style={styles.pileCountText}>{cardCount} cards</Text>
-              </View>
-            )}
           </View>
         )}
       </View>
@@ -78,86 +133,49 @@ export default function GameTable({ pileCards, playTypeLabel, lastPlayInfo }: Pr
 
 const styles = StyleSheet.create({
   tableFrame: {
+    flex: 1,
     width: "100%",
-    padding: 18,
-    borderRadius: 20,
-    backgroundColor: "rgba(24, 40, 28, 0.96)",
-    borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.16)",
-    shadowColor: "#000",
-    shadowOpacity: 0.22,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 16,
-    marginVertical: 12,
-    minHeight: 240,
-  },
-  tableHeader: {
-    marginBottom: 14,
-  },
-  tableTitle: {
-    color: "#d4af37",
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  tableSubtitle: {
-    color: "#bbb",
-    fontSize: 12,
+    padding: 12,
+    marginVertical: 8,
+    minHeight: 180,
   },
   pileArea: {
     flex: 1,
-    minHeight: 180,
+    minHeight: 140,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.14)",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.04)",
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
+  playStack: {
+    position: "relative",
+  },
+  playGroup: {
+    position: "absolute",
+  },
+  bundleCard: {
+    position: "absolute",
+    top: 0,
   },
   emptyText: {
     color: "#ccc",
     fontSize: 14,
     textAlign: "center",
-  },
-  pileStack: {
-    width: 260,
-    height: 160,
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-  },
-  pileCardWrapper: {
-    position: "absolute",
+    paddingHorizontal: 24,
   },
   playBadge: {
     marginTop: 14,
     alignSelf: "center",
-    backgroundColor: "rgba(212,175,55,0.12)",
+    backgroundColor: "rgba(255,255,255,0.1)",
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.24)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.18)",
   },
   playBadgeText: {
-    color: "#d4af37",
-    fontWeight: "800",
-    fontSize: 12,
-  },
-  pileCountBadge: {
-    position: "absolute",
-    right: 12,
-    bottom: 12,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.2)",
-  },
-  pileCountText: {
     color: "#fff",
-    fontSize: 11,
     fontWeight: "700",
+    fontSize: 12,
   },
 });
