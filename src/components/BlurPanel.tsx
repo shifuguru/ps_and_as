@@ -26,7 +26,7 @@ export default function BlurPanel({
     return (
       <View style={[styles.fallback, style]}>
         <View style={styles.fallbackTint} pointerEvents="none" />
-        {children}
+        <View style={styles.content}>{children}</View>
       </View>
     );
   }
@@ -34,7 +34,7 @@ export default function BlurPanel({
   return (
     <BlurView intensity={intensity} tint="dark" style={[styles.blur, style]}>
       <View style={styles.scrim} pointerEvents="none" />
-      {children}
+      <View style={styles.content}>{children}</View>
     </BlurView>
   );
 }
@@ -46,6 +46,10 @@ const styles = StyleSheet.create({
   scrim: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(8, 28, 18, 0.28)",
+  },
+  content: {
+    position: "relative",
+    zIndex: 1,
   },
   fallback: {
     backgroundColor: FALLBACK_BG,

@@ -618,6 +618,7 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
         : trickRunInfo.multiplicity || 1
       : trickRunInfo.multiplicity || 1;
   const inRunContext = runSeq.length >= 2 && isRunContextSequence(runSeq);
+  const isPileRun = effPile.length >= 3 && isRunContextSequence(effPile);
   // 6. Four-of-a-kind challenge: only higher quads or Joker allowed
   if (fourOfAKindChallenge?.active) {
     const challengeVal = fourOfAKindChallenge.value;

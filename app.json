@@ -25,7 +25,12 @@
       "package": "com.anonymous.ps_and_as"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
+    },
+    "experiments": {
+      "baseUrl": "/ps_and_as"
     }
   }
 }

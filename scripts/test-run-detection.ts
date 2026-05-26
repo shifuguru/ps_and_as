@@ -13,7 +13,7 @@ import {
 } from "../src/game/core";
 import type { Card } from "../src/game/ruleset";
 
-function card(v: number, suit = "spades"): Card {
+function card(v: number, suit: Card["suit"] = "spades"): Card {
   return { value: v, suit };
 }
 

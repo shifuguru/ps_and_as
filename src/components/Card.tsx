@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, TouchableWithoutFeedback, View, StyleSheet, Easing } from "react-native";
+import { Animated, TouchableWithoutFeedback, View, StyleSheet, Easing, Platform } from "react-native";
 import { Card as CardType } from "../game/ruleset";
 
 export default function Card({
@@ -177,13 +177,20 @@ export default function Card({
       <TouchableWithoutFeedback onPress={disabled ? undefined : onPress} accessibilityLabel={`card-${label}-${card.suit}`}>
         <View style={local.inner}>
           {!faceDown && (
-            <View
-              style={[
-                local.cardFace,
-                isTable ? local.cardFaceOpaque : local.cardFaceTranslucent,
-              ]}
-              pointerEvents="none"
-            />
+            flash ? (
+              <Animated.View
+                style={[local.cardFace, { backgroundColor: cardBackground }]}
+                pointerEvents="none"
+              />
+            ) : (
+              <View
+                style={[
+                  local.cardFace,
+                  isTable ? local.cardFaceOpaque : local.cardFaceTranslucent,
+                ]}
+                pointerEvents="none"
+              />
+            )
           )}
           {faceDown ? (
             <View style={local.backFace} />
@@ -248,10 +255,21 @@ const local = StyleSheet.create({
     shadowOffset: { width: 2, height: 3 },
   },
   cardFlash: {
-    shadowColor: "#fff",
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
+    ...Platform.select({
+      ios: {
+        shadowColor: "#fff",
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 0 },
+      },
+      android: { elevation: 5 },
+      default: {
+        shadowColor: "#fff",
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 0 },
+      },
+    }),
   },
   inner: {
     alignItems: "center",

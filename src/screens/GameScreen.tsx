@@ -22,12 +22,8 @@ import {
 } from "../game/core";
 import { createDeck, shuffleDeck, dealCards } from "../game/ruleset";
 import Card from "../components/Card";
-<<<<<<< Updated upstream
 import { ScrollView, Dimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-=======
-import { ScrollView, Dimensions, useWindowDimensions } from "react-native";
->>>>>>> Stashed changes
 import { MockAdapter } from "../game/network";
 import DebugViewer from "../components/DebugViewer";
 import { Card as CardType } from "../game/ruleset";
@@ -865,7 +861,7 @@ export default function GameScreen({
   // const height = windowDimensions.height;
   // const landscape = isLandscape(width, height);
   
-  // const isLargeScreen = width >= 900;
+  const isLargeScreen = Dimensions.get("window").width >= 900;
   const current = state.players[state.currentPlayerIndex];
 
   const currentIsLocalHuman = localControlledIds.includes(current.id);
@@ -1076,18 +1072,13 @@ export default function GameScreen({
     }
   };
 
-<<<<<<< Updated upstream
   const bottomBarHeight =
     HAND_FAN_HEIGHT +
     HAND_CONTROLS_GAP +
     BOTTOM_CONTROLS_HEIGHT +
-    BOTTOM_SHEET_BLEED +
     (insets.bottom || 0) +
-    16;
+    18;
   const topBarHeight = insets.top + STATUS_BAR_HEIGHT;
-=======
-  const bottomBarMinHeight = responsive.bottomBarHeight;
->>>>>>> Stashed changes
   const currentPlayerCount = state.players.length;
   const pileToBeat = state.pile.length;
   const passCount = state.passCount;
@@ -1417,7 +1408,6 @@ export default function GameScreen({
         </Modal>
       )}
 
-<<<<<<< Updated upstream
       {/* Game content — pad for blur overlays at top and bottom */}
       <View
         style={{
@@ -1431,48 +1421,13 @@ export default function GameScreen({
           <GameTable
             plays={trickPlays}
             playTypeLabel={playTypeLabel}
+            winnerMessage={
+              showWinnerBanner && lastTrickWinner ? lastTrickWinner : null
+            }
           />
         </View>
-=======
-      {/* Main content - scrollable with padding for bottom bar */}
-      <ScrollView
-        contentContainerStyle={{
-          paddingBottom: bottomBarMinHeight + responsive.spacing.lg,
-        }}
-        // scrollEnabled={!landscape || width >= 1024}
-        style={{ flex: 1 }}
-      >
-        <View style={{ }}>
-          <StatusBar
-            currentPlayerName={current.name}
-            currentHandCount={hand.length}
-            playerCount={state.players.length}
-            pileCount={pileCount}
-            passCount={passCount}
-            mustPlay={!!state.mustPlay}
-            isHumanTurn={isHumanTurn}
-            // isLargeScreen={isLargeScreen}
-          />
+      </View>
 
-          <GameTable
-            pileCards={visiblePileCards}
-            playTypeLabel={playTypeLabel}
-            lastPlayInfo={lastPlayInfo || 'Current turn: ' + current.name}
-          />
->>>>>>> Stashed changes
-
-          {/* Winner banner */}
-          {showWinnerBanner && lastTrickWinner && (
-            <View style={{ position: 'absolute', top: 18, left: 18, right: 18, alignItems: 'center', zIndex: 200 }}>
-              <View style={{ backgroundColor: 'rgba(212,175,55,0.96)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 }}>
-                <Text style={{ color: '#111', fontWeight: '800' }}>{lastTrickWinner} won the trick</Text>
-              </View>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-
-<<<<<<< Updated upstream
       {/* Player hand + actions — sticky bottom sheet */}
       <BottomBar>
         <BottomBarHand height={HAND_FAN_HEIGHT}>
@@ -1507,10 +1462,6 @@ export default function GameScreen({
             noValidPlays={noValidPlays}
           />
         </BottomBarControls>
-=======
-      {/* Player hand and actions - sticky at bottom */}
-      <BottomBar minHeight={bottomBarMinHeight}>
->>>>>>> Stashed changes
 
         {/* Game Log (toggleable) */}
         {showGameLog && (

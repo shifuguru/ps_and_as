@@ -96,6 +96,30 @@ export default function App() {
   const [wallpaperRawUri, setWallpaperRawUri] = useState<string | null>(null);
 
   useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const doc: any = (globalThis as { document?: any }).document;
+    if (!doc) return;
+    const style = doc.createElement("style");
+    style.setAttribute("data-app", "no-text-select");
+    style.textContent = `
+      html, body, #root, #root * {
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+      }
+      input, textarea {
+        user-select: text !important;
+        -webkit-user-select: text !important;
+      }
+    `;
+    doc.head.appendChild(style);
+    return () => {
+      doc.head.removeChild(style);
+    };
+  }, []);
+
+  useEffect(() => {
     (async () => {
       try {
         const svc = require("./src/services/wallpaper");
