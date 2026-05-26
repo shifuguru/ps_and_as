@@ -6,10 +6,9 @@ import FindGame from "./src/screens/FindGame";
 import GameScreen from "./src/screens/GameScreen";
 import Achievements from "./src/screens/Achievements";
 import Settings from "./src/screens/Settings";
+import MainMenu from "./src/screens/MainMenu";
 import { useMenuAudio } from "./src/hooks/useMenuAudio";
-import MenuIcon from "./src/components/MenuIcon";
 import AnimatedBackground from "./src/components/AnimatedBackground";
-import { styles } from "./src/styles/theme";
 import { SocketAdapter } from "./src/game/socketAdapter";
 import { MockAdapter } from "./src/game/network";
 import { getOrCreatePlayerId } from "./src/services/gameCenter";
@@ -198,8 +197,10 @@ export default function App() {
   return (
     <SafeAreaProvider>
     <View style={[{ flex: 1 }, Platform.OS === "web" && appStyles.webRoot]}>
-        {/* Menu / lobby background — game screen uses its own felt layer */}
-        {screen !== "game" && screen !== "create" && <AnimatedBackground />}
+        {/* Menu / lobby background — game & menu use their own felt layer */}
+        {screen !== "game" &&
+          screen !== "create" &&
+          screen !== "menu" && <AnimatedBackground />}
 
         {/* Splash overlay (kept mounted until hide animation finishes) */}
         {splashVisible && (
@@ -220,27 +221,14 @@ export default function App() {
 
         {/* Main menu — consolidated with icons */}
         {menuVisible && screen === "menu" && (
-          <Animated.View style={[styles.menuContainer, { opacity: menuOpacity }]}>
-            <Text style={[styles.title, { fontFamily: Platform.OS === 'ios' ? 'Snell Roundhand' : "'Georgia', 'Palatino Linotype', 'Book Antiqua', serif", fontSize: 48, fontStyle: 'italic', marginTop: 120 }]}>P's & A's</Text>
-            <Text style={styles.subtitle}>Presidents & Assholes</Text>
-
-            <View style={styles.buttonGroup}>
-              {primaryButtons.map((btn, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.menuButton, localMenuStyles.menuRow]}
-                  onPress={() => {
-                    playEffect("click");
-                    btn.action();
-                  }}
-                >
-                  <View style={localMenuStyles.iconWrap}>
-                    <MenuIcon name={btn.icon} size={20} color="#d4af37" />
-                  </View>
-                  <Text style={styles.menuButtonText}>{btn.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+          <Animated.View style={[{ flex: 1 }, { opacity: menuOpacity }]}>
+            <MainMenu
+              buttons={primaryButtons}
+              onButtonPress={(action) => {
+                playEffect("click");
+                action();
+              }}
+            />
           </Animated.View>
         )}
         {menuVisible && screen === "achievements" && (
@@ -296,16 +284,16 @@ export default function App() {
               }} 
             />
           ) : (
-            <View style={styles.menuContainer}>
-              <Text style={styles.title}>Network Unavailable</Text>
-              <Text style={[styles.subtitle, { textAlign: "center", marginTop: 20 }]}>
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}>
+              <Text style={{ color: "#fff", fontSize: 24, fontWeight: "700" }}>Network Unavailable</Text>
+              <Text style={{ color: "rgba(255,255,255,0.7)", textAlign: "center", marginTop: 20 }}>
                 Unable to connect to server.{"\n"}Please check your connection.
               </Text>
-              <TouchableOpacity 
-                style={[styles.menuButton, { marginTop: 20 }]} 
+              <TouchableOpacity
+                style={{ marginTop: 24, paddingVertical: 12, paddingHorizontal: 24 }}
                 onPress={() => setScreen("menu")}
               >
-                <Text style={styles.menuButtonText}>Back</Text>
+                <Text style={{ color: "#d4af37", fontWeight: "700" }}>Back</Text>
               </TouchableOpacity>
             </View>
           )
@@ -325,19 +313,6 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
-
-const localMenuStyles = StyleSheet.create({
-  menuRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconWrap: {
-    marginRight: 12,
-    width: 24,
-    alignItems: "center",
-  },
-});
 
 const appStyles = StyleSheet.create({
   webRoot: {

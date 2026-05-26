@@ -15,8 +15,6 @@ type Props = {
   intensity?: number;
 };
 
-const FALLBACK_BG = "rgba(14, 42, 28, 0.68)";
-
 export default function BlurPanel({
   children,
   style,
@@ -52,8 +50,14 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   fallback: {
-    backgroundColor: FALLBACK_BG,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
     overflow: "hidden",
+    ...(Platform.OS === "web"
+      ? ({
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+        } as object)
+      : null),
   },
   fallbackTint: {
     ...StyleSheet.absoluteFillObject,

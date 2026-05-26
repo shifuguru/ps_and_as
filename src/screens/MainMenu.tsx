@@ -2,133 +2,167 @@ import React from "react";
 import {
   View,
   Text,
+  TouchableOpacity,
   StyleSheet,
-  ImageBackground,
-  Pressable,
+  ScrollView,
+  Platform,
+  useWindowDimensions,
+  StyleProp,
+  ViewStyle,
 } from "react-native";
-import { BlurView } from "expo-blur";
-import { useMenuAudio } from "../hooks/useMenuAudio";
+import ScreenContainer from "../components/ScreenContainer";
+import FeltBackground from "../components/FeltBackground";
+import BlurPanel from "../components/BlurPanel";
+import MenuIcon from "../components/MenuIcon";
+import { useLayoutInsets } from "../hooks/useLayoutInsets";
 
-export default function MainMenu() {
-  const { playEffect } = useMenuAudio();
+const GOLD = "#d4af37";
+
+export type MainMenuButton = {
+  label: string;
+  icon: "plus" | "shuffle" | "person" | "globe" | "trophy" | "gear";
+  action: () => void;
+};
+
+type Props = {
+  buttons: MainMenuButton[];
+  onButtonPress: (action: () => void) => void;
+  style?: StyleProp<ViewStyle>;
+};
+
+function MenuGlassButton({
+  label,
+  icon,
+  onPress,
+}: {
+  label: string;
+  icon: MainMenuButton["icon"];
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity activeOpacity={0.82} onPress={onPress}>
+      <BlurPanel intensity={52} style={styles.glassBtn}>
+        <View style={styles.glassBtnRow}>
+          <View style={styles.iconWrap}>
+            <MenuIcon name={icon} size={20} color={GOLD} />
+          </View>
+          <Text style={styles.glassBtnText}>{label}</Text>
+        </View>
+      </BlurPanel>
+    </TouchableOpacity>
+  );
+}
+
+export default function MainMenu({ buttons, onButtonPress, style }: Props) {
+  const insets = useLayoutInsets();
+  const { width, height } = useWindowDimensions();
+  const contentMaxWidth = Math.min(420, Math.max(300, width - 48));
+  const titleFont =
+    Platform.OS === "ios"
+      ? "Snell Roundhand"
+      : "'Georgia', 'Palatino Linotype', 'Book Antiqua', serif";
 
   return (
-    <ImageBackground
-      source={require("../../assets/ps_and_as_bg.png")}
-      style={styles.bg}
-      resizeMode="cover"
-    >
-      <View style={styles.overlay} />
+    <ScreenContainer ignoreHeaderOffset style={[{ flex: 1 }, style]}>
+      <FeltBackground />
 
-      <View style={styles.container}>
-        <BlurView intensity={35} tint="dark" style={styles.card}>
-          <Text style={styles.title}>P’s & A’s</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: insets.top + 16,
+            paddingBottom: Math.max(insets.bottom, 16) + 20,
+            minHeight: height - insets.top - insets.bottom,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.content, { maxWidth: contentMaxWidth }]}>
+          <Text
+            style={[
+              styles.title,
+              { fontFamily: titleFont, fontStyle: "italic" },
+            ]}
+          >
+            P&apos;s & A&apos;s
+          </Text>
           <Text style={styles.subtitle}>Presidents & Assholes</Text>
 
-          <Pressable
-            style={[styles.button, styles.primary]}
-            onPress={() => playEffect("click")}
-          >
-            <Text style={styles.primaryText}>Create Game</Text>
-          </Pressable>
-
-          <View style={styles.grid}>
-            <Pressable style={styles.button} onPress={() => playEffect("click")}>
-              <Text style={styles.text}>Find Game</Text>
-            </Pressable>
-
-            <Pressable style={styles.button} onPress={() => playEffect("click")}>
-              <Text style={styles.text}>Online</Text>
-            </Pressable>
-
-            <Pressable style={styles.button} onPress={() => playEffect("click")}>
-              <Text style={styles.text}>Local</Text>
-            </Pressable>
+          <View style={styles.buttonStack}>
+            {buttons.map((btn) => (
+              <MenuGlassButton
+                key={btn.label}
+                label={btn.label}
+                icon={btn.icon}
+                onPress={() => onButtonPress(btn.action)}
+              />
+            ))}
           </View>
-
-          <View style={styles.footer}>
-            <Pressable onPress={() => playEffect("click")}>
-              <Text style={styles.footerText}>Achievements</Text>
-            </Pressable>
-
-            <Pressable onPress={() => playEffect("click")}>
-              <Text style={styles.footerText}>Settings</Text>
-            </Pressable>
-          </View>
-        </BlurView>
-      </View>
-    </ImageBackground>
+        </View>
+      </ScrollView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  bg: {
+  scroll: {
     flex: 1,
   },
-
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.45)",
-  },
-
-  container: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
-    padding: 20,
-  },
-
-  card: {
-    borderRadius: 24,
-    padding: 20,
-    overflow: "hidden",
-  },
-
-  title: {
-    color: "white",
-    fontSize: 34,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-  },
-
-  subtitle: {
-    color: "rgba(255,255,255,0.6)",
-    marginBottom: 20,
-  },
-
-  button: {
-    paddingVertical: 14,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    marginBottom: 10,
     alignItems: "center",
+    paddingHorizontal: 24,
   },
-
-  primary: {
-    backgroundColor: "rgba(255,255,255,0.18)",
+  content: {
+    width: "100%",
   },
-
-  primaryText: {
-    color: "white",
-    fontSize: 16,
+  title: {
+    color: "#ffffff",
+    fontSize: 48,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 6,
+    textShadowColor: "rgba(212, 175, 55, 0.28)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
+  },
+  subtitle: {
+    color: GOLD,
+    fontSize: 15,
+    textAlign: "center",
+    letterSpacing: 1.4,
+    marginBottom: 28,
     fontWeight: "600",
   },
-
-  text: {
-    color: "rgba(255,255,255,0.85)",
+  buttonStack: {
+    gap: 10,
   },
-
-  grid: {
-    marginTop: 10,
+  glassBtn: {
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.14)",
+    overflow: "hidden",
   },
-
-  footer: {
-    marginTop: 16,
+  glassBtnRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 15,
+    paddingHorizontal: 18,
   },
-
-  footerText: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 13,
+  iconWrap: {
+    width: 24,
+    alignItems: "center",
+    marginRight: 12,
+  },
+  glassBtnText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.9,
+    textTransform: "uppercase",
   },
 });
