@@ -13,7 +13,8 @@ import {
   isFourOfAKind,
   effectivePile,
   isRunContextSequence,
-  nextActivePlayerIndex
+  nextActivePlayerIndex,
+  isPlayerStillIn,
 } from "../src/game/core";
 
 // Basic deck tests
@@ -247,6 +248,43 @@ function makeEmptyGame(names: string[]): GameState {
   // Trick should have ended; winner A leads next
   assert.strictEqual(s.currentTrick.actions.length, 0, "New trick should have started after all others passed");
   assert.strictEqual(s.currentPlayerIndex, 0, "Leader should lead next trick after everyone else passes");
+}
+
+// 4) Playing your last card skips your turn — you should not be asked to pass
+{
+  const names = ["A", "B", "C"];
+  const g = makeEmptyGame(names);
+  const lastCard: Card = { suit: "hearts", value: 7 };
+  g.players[0].hand = [lastCard];
+  g.players[1].hand = [{ suit: "spades", value: 8 }];
+  g.players[2].hand = [{ suit: "diamonds", value: 9 }];
+  g.currentPlayerIndex = 0;
+  g.pile = [{ suit: "clubs", value: 6 }];
+  g.pileHistory = [[{ suit: "clubs", value: 6 }]];
+  g.pileOwners = [g.players[2].id];
+  g.lastPlayPlayerIndex = 2;
+  g.currentTrick = {
+    trickNumber: 1,
+    actions: [
+      {
+        type: "play",
+        playerId: g.players[2].id,
+        playerName: "C",
+        cards: [{ suit: "clubs", value: 6 }],
+        timestamp: 1,
+      },
+    ],
+  };
+
+  const after = playCards(g, g.players[0].id, [lastCard]);
+  assert.strictEqual(after.players[0].hand.length, 0, "A should have no cards left");
+  assert.ok(after.finishedOrder.includes(g.players[0].id), "A should be marked finished");
+  assert.notStrictEqual(
+    after.currentPlayerIndex,
+    0,
+    "Turn should advance away from A after their last card",
+  );
+  assert.ok(isPlayerStillIn(after, g.players[0].id) === false, "A should no longer be active");
 }
 
 console.log("Pass-lock and 8-player tests passed");

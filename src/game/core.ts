@@ -73,6 +73,21 @@ function syncPassCountFromTrick(state: GameState): void {
   state.passCount = passedIds.size;
 }
 
+/** Mark every empty-handed player as finished (out of the round). */
+export function syncFinishedFromEmptyHands(state: GameState): void {
+  for (const p of state.players) {
+    if (p.hand.length === 0 && !state.finishedOrder.includes(p.id)) {
+      state.finishedOrder.push(p.id);
+    }
+  }
+}
+
+export function isPlayerStillIn(state: GameState, playerId: string): boolean {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return false;
+  return !state.finishedOrder.includes(playerId) && player.hand.length > 0;
+}
+
 function buildInitialGameState(players: Player[]): GameState {
   const deck = shuffleDeck(createDeck());
   dealCards(deck, players);
@@ -129,6 +144,12 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   if (pIndex === -1) return state;
   if (state.currentPlayerIndex !== pIndex) return state;
   const player = state.players[pIndex];
+
+  if (!isPlayerStillIn(state, playerId)) {
+    syncFinishedFromEmptyHands(state);
+    state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+    return { ...state };
+  }
 
   // If the player already passed in the current trick, they have forfeited
   // the rest of this trick and cannot play again until the pile is cleared
@@ -238,6 +259,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
 
   // remove cards from player's hand
   player.hand = player.hand.filter((h) => !cards.some((c) => c.suit === h.suit && c.value === h.value));
+  syncFinishedFromEmptyHands(state);
   // record who played last
   state.lastPlayPlayerIndex = pIndex;
 
@@ -373,22 +395,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.mustPlay = false;
   }
 
-  // if player emptied hand, add to finished
-  if (player.hand.length === 0 && !state.finishedOrder.includes(player.id)) {
-    state.finishedOrder.push(player.id);
-  }
-
-  // Defensive: if trick finalization or plays caused other players to have
-  // empty hands but they weren't recorded (edge cases during multi-card
-  // clears or mirrored runtime differences), ensure finishedOrder contains
-  // every player who currently has an empty hand to prevent them remaining
-  // active and producing infinite-pass loops in simulations.
-  for (const p of state.players) {
-    if (p.hand.length === 0 && !state.finishedOrder.includes(p.id)) {
-      state.finishedOrder.push(p.id);
-    }
-  }
-
+  syncFinishedFromEmptyHands(state);
   return { ...state };
 }
 
@@ -409,11 +416,13 @@ export function setTenRuleDirection(state: GameState, direction: "higher" | "low
     }
   }
   
-  // The pile with the 10s remains active
-  // Now advance to the next player who must play according to the direction
-  state.currentPlayerIndex = nextActivePlayerIndex(state, state.currentPlayerIndex);
+  syncFinishedFromEmptyHands(state);
+
+  // The pile with the 10s remains active — advance past the 10 player if they are out.
+  const fromIndex = state.lastPlayPlayerIndex ?? state.currentPlayerIndex;
+  state.currentPlayerIndex = nextActivePlayerIndex(state, fromIndex);
   state.mustPlay = true;
-  
+
   return { ...state };
 }
 
@@ -575,7 +584,7 @@ export function nextActiveIndexFromList(players: Player[], finishedOrder: string
   for (let i = 1; i <= n; i++) {
     const idx = (fromIndex + i) % n;
     const p = players[idx];
-    if (!finishedOrder.includes(p.id)) return idx;
+    if (!finishedOrder.includes(p.id) && p.hand.length > 0) return idx;
   }
   return fromIndex;
 }
@@ -972,6 +981,12 @@ export function passTurn(state: GameState, playerId: string): GameState {
   if (pIndex === -1) return state;
   if (state.currentPlayerIndex !== pIndex) return state;
 
+  if (!isPlayerStillIn(state, playerId)) {
+    syncFinishedFromEmptyHands(state);
+    state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+    return { ...state };
+  }
+
   try {
     console.log(`[core] passTurn ENTRY playerId=${playerId} currentPlayerIndex=${state.currentPlayerIndex} lastPlayPlayerIndex=${state.lastPlayPlayerIndex} passCount=${state.passCount}`);
     if (state.currentTrick) console.log(`[core] currentTrick.actions.length=${state.currentTrick.actions.length}`);
@@ -1012,7 +1027,7 @@ export function passTurn(state: GameState, playerId: string): GameState {
   // premature trick finalization. This prints active players, leader, others
   // set, passed ids, and the last few actions of currentTrick.
   try {
-    const activePlayerIds = state.players.filter(p => !state.finishedOrder.includes(p.id)).map(p => p.id);
+    const activePlayerIds = state.players.filter((p) => isPlayerStillIn(state, p.id)).map((p) => p.id);
     const leaderIdx = state.lastPlayPlayerIndex ?? null;
     const leaderPid = (leaderIdx !== null && leaderIdx >= 0) ? state.players[leaderIdx].id : null;
     const othersDebug = activePlayerIds.filter(id => id !== leaderPid);
@@ -1025,7 +1040,7 @@ export function passTurn(state: GameState, playerId: string): GameState {
   state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
 
   // Determine active players for the trick (not finished)
-  const activePlayerIds = state.players.filter(p => !state.finishedOrder.includes(p.id)).map(p => p.id);
+  const activePlayerIds = state.players.filter((p) => isPlayerStillIn(state, p.id)).map((p) => p.id);
 
   // Who last played? That player is considered the leader for this trick.
   // Prefer state.lastPlayPlayerIndex, but fall back to the last 'play' action in currentTrick
@@ -1077,15 +1092,10 @@ export function passTurn(state: GameState, playerId: string): GameState {
           state.trickHistory = state.trickHistory || [];
           state.trickHistory.push(state.currentTrick);
           state.currentTrick = { trickNumber: state.trickHistory.length + 1, actions: [] };
-          // Defensive: ensure any players who now have empty hands are recorded
-          for (const p of state.players) {
-            if (p.hand.length === 0 && !state.finishedOrder.includes(p.id)) {
-              state.finishedOrder.push(p.id);
-            }
-          }
+          syncFinishedFromEmptyHands(state);
           // If the winner still has cards, they lead the next trick; otherwise
           // advance to the next active player after the winner.
-          if (!state.finishedOrder.includes(winnerPlayer.id)) {
+          if (isPlayerStillIn(state, winnerPlayer.id)) {
             state.currentPlayerIndex = leaderIndex;
             state.mustPlay = true;
           } else {
@@ -1125,7 +1135,7 @@ export function nextActivePlayerIndex(state: GameState, fromIndex: number) {
   for (let i = 1; i <= n; i++) {
     const idx = (fromIndex + i) % n;
     const p = state.players[idx];
-    if (!state.finishedOrder.includes(p.id)) return idx;
+    if (isPlayerStillIn(state, p.id)) return idx;
   }
   return fromIndex;
 }

@@ -744,6 +744,19 @@ export default function GameScreen({
 
     const current = state.players[state.currentPlayerIndex];
 
+    // If current player is out or has no cards, skip their turn.
+    if (state.finishedOrder.includes(current.id) || current.hand.length === 0) {
+      if (state.finishedOrder.length === state.players.length) return;
+      const nextState = passTurn(state, current.id);
+      if (
+        nextState.currentPlayerIndex !== state.currentPlayerIndex ||
+        nextState.finishedOrder.length !== state.finishedOrder.length
+      ) {
+        setState(nextState);
+      }
+      return;
+    }
+
     // If current player has already passed in this trick, auto-advance to next player
     if (hasPassedInCurrentTrick(state, current.id)) {
       const nextState = passTurn(state, current.id);
@@ -775,7 +788,7 @@ export default function GameScreen({
     if (!isCPU) return;
 
     // Check if game is over for this player
-    if (state.finishedOrder.includes(current.id)) return;
+    if (state.finishedOrder.includes(current.id) || current.hand.length === 0) return;
 
     // Add a delay to make CPU play visible
     const timer = setTimeout(() => {
@@ -922,7 +935,12 @@ export default function GameScreen({
   const current = state.players[state.currentPlayerIndex];
 
   const currentIsLocalHuman = localControlledIds.includes(current.id);
-  const isHumanTurn = currentIsLocalHuman && !trickPauseActive;
+  const currentIsOut =
+    state.finishedOrder.includes(current.id) || current.hand.length === 0;
+  const isTenRuleChoice =
+    currentIsLocalHuman && !!state.tenRulePending && !trickPauseActive;
+  const isHumanTurn =
+    currentIsLocalHuman && !trickPauseActive && !currentIsOut && !state.tenRulePending;
 
   let hand = [] as CardType[];
   if (currentIsLocalHuman) {
@@ -1474,7 +1492,7 @@ export default function GameScreen({
       )}
 
       <TenRuleModal
-        visible={!!state.tenRulePending && isHumanTurn}
+        visible={isTenRuleChoice}
         onChoose={(direction) => {
           setState(setTenRuleDirection(state, direction));
         }}
