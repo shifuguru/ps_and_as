@@ -8,6 +8,7 @@ import { NetworkAdapter, MockAdapter } from "../game/network";
 import NetworkDebugPanel from "../components/NetworkDebugPanel";
 import { getOrCreatePlayerId } from "../services/gameCenter";
 import Header from "../components/Header";
+import { triggerHaptic } from "../utils/haptics";
 
 export default function CreateGame({
   onBack,
@@ -547,6 +548,7 @@ export default function CreateGame({
         <View style={{ flexDirection: 'row', width: '100%' }}>
           <TouchableOpacity
             onPress={() => {
+              triggerHaptic("heavy");
               const usingMock = adapter == null || (net as any)?.constructor?.name === 'MockAdapter';
               if (usingMock) {
                 onStart(names, playerName, playerId ?? undefined);

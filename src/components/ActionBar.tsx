@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { triggerHaptic } from "../utils/haptics";
 
 type Props = {
   selectedCount: number;
@@ -22,7 +23,7 @@ export default function ActionBar({
     <View style={styles.container}>
       <TouchableOpacity
         style={[styles.primaryButton, playDisabled && styles.disabledButton]}
-        onPress={onPlay}
+        onPress={() => { triggerHaptic("medium"); onPlay(); }}
         disabled={playDisabled}
       >
         <Text style={styles.primaryText}>
@@ -32,7 +33,7 @@ export default function ActionBar({
       <View style={styles.sideButtons}>
         <TouchableOpacity
           style={[styles.secondaryButton, passDisabled && styles.disabledButton]}
-          onPress={onPass}
+          onPress={() => { triggerHaptic("light"); onPass(); }}
           disabled={passDisabled}
         >
           <Text style={styles.secondaryText}>Pass</Text>
