@@ -269,6 +269,7 @@ type TrickPauseSnapshot = {
   plays: TrickPlayDisplay[];
   passedPlayerIds: string[];
   winnerName: string;
+  winnerId: string;
 };
 
 export default function GameScreen({
@@ -312,9 +313,11 @@ export default function GameScreen({
 
   // UX pacing: centralized CPU turn delay for a more relaxed feel
   const CPU_DELAY_MS = 1100;
-  const TRICK_PASS_HOLD_MS = 900;
+  const TRICK_SPREAD_HOLD_MS = 380;
+  const TRICK_STACK_COLLECT_MS = 520;
   const TRICK_WINNER_SHOW_MS = 800;
-  const TRICK_PAUSE_TOTAL_MS = TRICK_PASS_HOLD_MS + TRICK_WINNER_SHOW_MS;
+  const TRICK_PAUSE_TOTAL_MS =
+    TRICK_SPREAD_HOLD_MS + TRICK_STACK_COLLECT_MS + TRICK_WINNER_SHOW_MS;
 
   // End-game state: track round completion and player ready status
   const [roundOver, setRoundOver] = useState(false);
@@ -323,6 +326,7 @@ export default function GameScreen({
   }>({});
   const [lastTrickWinner, setLastTrickWinner] = useState<string | null>(null);
   const [showWinnerBanner, setShowWinnerBanner] = useState(false);
+  const [stackCollecting, setStackCollecting] = useState(false);
   const [trickPauseActive, setTrickPauseActive] = useState(false);
   const [trickPauseSnapshot, setTrickPauseSnapshot] =
     useState<TrickPauseSnapshot | null>(null);
@@ -332,6 +336,9 @@ export default function GameScreen({
     null,
   );
   const trickBannerTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const trickCollectTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
   const insets = useLayoutInsets();
@@ -367,9 +374,11 @@ export default function GameScreen({
           plays: buildPlaysFromTrick(last),
           passedPlayerIds: passedIdsFromTrick(last),
           winnerName: last.winnerName,
+          winnerId: last.winnerId ?? "",
         });
         setLastTrickWinner(last.winnerName);
         setShowWinnerBanner(false);
+        setStackCollecting(false);
         setTrickPauseActive(true);
 
         if (trickBannerTimerRef.current) {
@@ -378,14 +387,23 @@ export default function GameScreen({
         if (trickPauseTimerRef.current) {
           clearTimeout(trickPauseTimerRef.current);
         }
+        if (trickCollectTimerRef.current) {
+          clearTimeout(trickCollectTimerRef.current);
+        }
+
+        trickCollectTimerRef.current = setTimeout(() => {
+          setStackCollecting(true);
+          trickCollectTimerRef.current = null;
+        }, TRICK_SPREAD_HOLD_MS);
 
         trickBannerTimerRef.current = setTimeout(() => {
           setShowWinnerBanner(true);
           trickBannerTimerRef.current = null;
-        }, TRICK_PASS_HOLD_MS);
+        }, TRICK_SPREAD_HOLD_MS + TRICK_STACK_COLLECT_MS);
 
         trickPauseTimerRef.current = setTimeout(() => {
           setShowWinnerBanner(false);
+          setStackCollecting(false);
           setTrickPauseActive(false);
           setTrickPauseSnapshot(null);
           setLastTrickWinner(null);
@@ -432,6 +450,9 @@ export default function GameScreen({
       }
       if (trickBannerTimerRef.current) {
         clearTimeout(trickBannerTimerRef.current);
+      }
+      if (trickCollectTimerRef.current) {
+        clearTimeout(trickCollectTimerRef.current);
       }
     };
   }, []);
@@ -1193,12 +1214,10 @@ export default function GameScreen({
       ? trickPauseSnapshot.passedPlayerIds
       : passedPlayerIds;
 
-  const winnerBannerName =
-    showWinnerBanner && trickPauseSnapshot?.winnerName
-      ? trickPauseSnapshot.winnerName
-      : showWinnerBanner && lastTrickWinner
-        ? lastTrickWinner
-        : null;
+  const trickWinnerPlayerId =
+    showWinnerBanner && trickPauseSnapshot?.winnerId
+      ? trickPauseSnapshot.winnerId
+      : null;
 
   const localSeatPlayer = humanPlayer
     ? {
@@ -1514,13 +1533,19 @@ export default function GameScreen({
           finishedOrder={state.finishedOrder}
           passedPlayerIds={displayPassedPlayerIds}
           lastPlayPlayerId={activeLastPlayId}
+          plays={displayPlays}
+          skipPlayFlights={trickPauseActive}
+          trickWinnerPlayerId={trickWinnerPlayerId}
           playTypeLabel={
             playTypeLabel && !trickPauseActive ? playTypeLabel : null
           }
         >
           <GameTable
             plays={displayPlays}
-            winnerMessage={winnerBannerName}
+            collectToStack={
+              trickPauseActive && stackCollecting && !showWinnerBanner
+            }
+            collectDurationMs={TRICK_STACK_COLLECT_MS}
           />
         </GamePlayArea>
       </View>
@@ -1544,6 +1569,10 @@ export default function GameScreen({
             isLocal
             isLastPlay={
               !!activeLastPlayId && localSeatPlayer.id === activeLastPlayId
+            }
+            celebrateTrickWin={
+              !!trickWinnerPlayerId &&
+              localSeatPlayer.id === trickWinnerPlayerId
             }
           />
         </View>
@@ -1660,6 +1689,7 @@ const local = StyleSheet.create({
     zIndex: 55,
     alignItems: "center",
     justifyContent: "flex-end",
+    overflow: "visible",
   },
   playTypeOverlay: {
     position: "absolute",

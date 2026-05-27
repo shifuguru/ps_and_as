@@ -18,6 +18,7 @@ type Props = {
   arenaHeight: number;
   ringLayout: OpponentRingLayout;
   lastPlayPlayerId?: string | null;
+  trickWinnerPlayerId?: string | null;
 };
 
 /** Clockwise from the seat after the local player. */
@@ -54,6 +55,7 @@ export default function OpponentRing({
   arenaHeight,
   ringLayout,
   lastPlayPlayerId,
+  trickWinnerPlayerId,
 }: Props) {
   const allPlayerIds = useMemo(
     () => players.map((p) => p.id),
@@ -98,6 +100,8 @@ export default function OpponentRing({
           typeof player.name === "string" && player.name.startsWith("CPU");
         const isLastPlay =
           !!lastPlayPlayerId && player.id === lastPlayPlayerId && !isOut;
+        const celebrateTrickWin =
+          !!trickWinnerPlayerId && player.id === trickWinnerPlayerId && !isOut;
 
         const pos = polarSeatPosition(
           angle,
@@ -122,6 +126,7 @@ export default function OpponentRing({
               hasPassed={passedSet.has(player.id)}
               isThinking={isActive && isCPU}
               isLastPlay={isLastPlay}
+              celebrateTrickWin={celebrateTrickWin}
               compact={compact}
             />
           </View>
@@ -140,5 +145,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: SEAT_FOOTPRINT_W,
     alignItems: "center",
+    overflow: "visible",
   },
 });

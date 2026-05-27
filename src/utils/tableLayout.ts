@@ -173,18 +173,18 @@ export function tableScaleLimits(
   maxFillScale: number;
 } {
   if (layout.isStretchy) {
-    return { displayScale: 0.96, maxFillScale: 1.44 };
+    return { displayScale: 1, maxFillScale: 1.52 };
   }
   if (layout.isCompact) {
-    return { displayScale: 0.94, maxFillScale: 1.38 };
+    return { displayScale: 0.98, maxFillScale: 1.46 };
   }
   if (layout.isTall) {
-    return { displayScale: 0.96, maxFillScale: 1.42 };
+    return { displayScale: 1, maxFillScale: 1.5 };
   }
   if (layout.isWide) {
-    return { displayScale: 1, maxFillScale: 1.48 };
+    return { displayScale: 1, maxFillScale: 1.56 };
   }
-  return { displayScale: 0.96, maxFillScale: 1.4 };
+  return { displayScale: 1, maxFillScale: 1.48 };
 }
 
 export function opponentRowPositions(

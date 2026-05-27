@@ -9,42 +9,67 @@ import {
   Easing,
 } from "react-native";
 import Card from "./Card";
+import { allSameValue, isRun } from "../game/core";
 import type { PlayAreaLayout } from "../utils/tableLayout";
 import { tableScaleLimits } from "../utils/tableLayout";
 import type { TrickPlayDisplay } from "../utils/trickDisplay";
+import { playDisplayKey } from "../utils/tablePlayFlight";
 import {
   computePlayStackLayout,
   layoutPlayBundle,
   MAX_SPREAD_WIDTH_RATIO,
 } from "../utils/tablePlayLayout";
-import { GOLD } from "../styles/uiStandards";
 
-type Props = {
-  plays: TrickPlayDisplay[];
-  playTypeLabel?: string | null;
-  winnerMessage?: string | null;
-  layoutHint?: PlayAreaLayout | null;
-};
+/** z-index stride per play group — cards within use 0..stride-1 by left-to-right order. */
+const GROUP_Z_STRIDE = 100;
+/** Gap between the card row and the play-type pill. */
+const PLAY_TYPE_BADGE_GAP = 16;
 
 function playKey(play: TrickPlayDisplay, index: number): string {
   return `${index}-${play.playerId}-${play.cards.map((c) => `${c.suit}${c.value}`).join("-")}`;
 }
 
+function bundleCapForTable(
+  cards: TrickPlayDisplay["cards"],
+  maxSpreadWidth: number | undefined,
+): number | undefined {
+  if (!maxSpreadWidth) return undefined;
+  const ratio =
+    cards.length >= 3 && isRun(cards)
+      ? 0.95
+      : cards.length > 1 && allSameValue(cards)
+        ? 1
+        : 0.68;
+  return Math.round(maxSpreadWidth * ratio);
+}
+
+type Props = {
+  plays: TrickPlayDisplay[];
+  playTypeLabel?: string | null;
+  layoutHint?: PlayAreaLayout | null;
+  /** Slide all plays onto the first pile (trick-end collect). */
+  collectToStack?: boolean;
+  collectDurationMs?: number;
+  /** Hide plays until their seat-to-table flight finishes. */
+  hiddenPlayKeys?: ReadonlySet<string>;
+};
+
 export default function GameTable({
   plays,
   playTypeLabel,
-  winnerMessage,
   layoutHint,
+  collectToStack = false,
+  collectDurationMs = 520,
+  hiddenPlayKeys,
 }: Props) {
   const [zoneSize, setZoneSize] = useState({ width: 0, height: 0 });
-  const enterAnim = useRef(new Animated.Value(0)).current;
-  const prevPlayCount = useRef(plays.length);
+  const collectAnim = useRef(new Animated.Value(0)).current;
 
   const scaleLimits = useMemo(
     () =>
       layoutHint
         ? tableScaleLimits(layoutHint)
-        : { displayScale: 0.96, maxFillScale: 1.4 },
+        : { displayScale: 1, maxFillScale: 1.48 },
     [layoutHint],
   );
 
@@ -55,24 +80,26 @@ export default function GameTable({
       zoneHeight: zoneSize.height,
       maxFillScale: scaleLimits.maxFillScale,
       displayScale: scaleLimits.displayScale,
+      hiddenPlayKeys,
     });
-  }, [plays, zoneSize, scaleLimits]);
+  }, [plays, zoneSize, scaleLimits, hiddenPlayKeys]);
 
   const maxSpreadWidth =
     zoneSize.width > 0 ? zoneSize.width * MAX_SPREAD_WIDTH_RATIO : undefined;
 
   useEffect(() => {
-    if (plays.length > prevPlayCount.current) {
-      enterAnim.setValue(0);
-      Animated.timing(enterAnim, {
-        toValue: 1,
-        duration: 280,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start();
+    if (!collectToStack) {
+      collectAnim.setValue(0);
+      return;
     }
-    prevPlayCount.current = plays.length;
-  }, [plays.length, enterAnim]);
+    collectAnim.setValue(0);
+    Animated.timing(collectAnim, {
+      toValue: 1,
+      duration: collectDurationMs,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [collectToStack, collectAnim, collectDurationMs]);
 
   const onZoneLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -81,123 +108,224 @@ export default function GameTable({
     );
   };
 
-  const enterTranslateY = enterAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [8, 0],
-  });
+  const cardW = layout.cardWidth;
+  const cardH = layout.cardHeight;
+  const stackTarget = layout.positions[0] ?? { left: 0, top: 0, opacity: 1, scale: 1 };
 
-  const totalScale = layout.fillScale * layout.displayScale;
+  const tableRows = useMemo(() => {
+    const rows = plays.map((play, playIndex) => {
+      const bundle = layoutPlayBundle(
+        play.cards,
+        cardW,
+        bundleCapForTable(play.cards, maxSpreadWidth),
+        cardH,
+      );
+      const pos = layout.positions[playIndex] ?? {
+        left: 0,
+        top: 0,
+        opacity: 1,
+        scale: 1,
+        rotation: 0,
+      };
+      const layoutOffsets = layout.playCardOffsets?.[playIndex];
+      const layoutGroupSize = layout.playGroupSizes?.[playIndex];
+      const cardOffsets = layoutOffsets ?? bundle.cardOffsets;
+      const groupWidth = layoutGroupSize?.width ?? bundle.width;
+      const groupHeight = layoutGroupSize?.height ?? bundle.height;
+      return {
+        play,
+        playIndex,
+        bundle,
+        pos,
+        groupWidth,
+        groupHeight,
+        cardOffsets,
+      };
+    });
+
+    const cardStackRanks: Array<{ playIndex: number; cardIndex: number; x: number }> =
+      [];
+    for (const row of rows) {
+      const groupLeft = row.pos.left;
+      for (let cardIndex = 0; cardIndex < row.play.cards.length; cardIndex++) {
+        cardStackRanks.push({
+          playIndex: row.playIndex,
+          cardIndex,
+          x: groupLeft + (row.cardOffsets[cardIndex] ?? 0),
+        });
+      }
+    }
+    cardStackRanks.sort((a, b) => a.x - b.x);
+    const cardZ = new Map<string, number>();
+    cardStackRanks.forEach((entry, order) => {
+      cardZ.set(`${entry.playIndex}-${entry.cardIndex}`, order);
+    });
+
+    return rows.map((row) => ({
+      ...row,
+      groupZ: row.playIndex * GROUP_Z_STRIDE,
+      cardStackOrder: [...row.play.cards.keys()].sort(
+        (a, b) =>
+          (cardZ.get(`${row.playIndex}-${a}`) ?? 0) -
+          (cardZ.get(`${row.playIndex}-${b}`) ?? 0),
+      ),
+      cardZ,
+    }));
+  }, [plays, layout, cardW, cardH, maxSpreadWidth]);
+
   const playCount = plays.length;
-  const cardW = Math.round(layout.cardWidth * totalScale);
-  const cardH = Math.round(layout.cardHeight * totalScale);
-  const stackW = Math.round(layout.stackWidth * totalScale);
-  const stackH = Math.round(layout.stackHeight * totalScale);
-  const scalePos = (value: number) => Math.round(value * totalScale);
+
+  const playTypeBadgeTop = useMemo(() => {
+    if (tableRows.length === 0) return 0;
+    let rowBottom = 0;
+    for (const row of tableRows) {
+      rowBottom = Math.max(rowBottom, row.pos.top + row.groupHeight);
+    }
+    return rowBottom + PLAY_TYPE_BADGE_GAP;
+  }, [tableRows]);
+
+  const badgeOpacity = collectAnim.interpolate({
+    inputRange: [0, 0.35],
+    outputRange: [1, 0],
+    extrapolate: "clamp",
+  });
 
   return (
     <View style={styles.tableFrame} onLayout={onZoneLayout}>
       <View style={styles.anchorHost} pointerEvents="box-none">
-        {winnerMessage && playCount === 0 ? (
-          <View style={styles.tableMessageCenter} pointerEvents="none">
-            <View style={styles.trickResultPill}>
-              <Text style={styles.trickResultEyebrow}>Trick Won</Text>
-              <Text style={styles.trickResultName} numberOfLines={1}>
-                {winnerMessage}
-              </Text>
-            </View>
-          </View>
-        ) : playCount === 0 ? (
+        {playCount === 0 ? (
           <View style={styles.tableMessageCenter} pointerEvents="none">
             <Text style={styles.emptyText}>No cards on the table yet.</Text>
           </View>
         ) : (
-          <Animated.View
-            style={[
-              styles.playCluster,
-              {
-                position: "absolute",
-                left: layout.centerOffsetX,
-                top: layout.centerOffsetY,
-                transform: [{ translateY: enterTranslateY }],
-              },
-            ]}
-          >
+          <Animated.View style={styles.playCluster}>
             <View
               style={[
                 styles.playStack,
                 {
-                  width: stackW,
-                  height: stackH,
+                  width: zoneSize.width,
+                  height: zoneSize.height,
                 },
               ]}
             >
-                {plays.map((play, playIndex) => {
-                  const bundle = layoutPlayBundle(
-                    play.cards.length,
-                    cardW,
-                    maxSpreadWidth
-                      ? Math.round(maxSpreadWidth * 0.55 * totalScale)
-                      : undefined,
-                    cardH,
-                  );
-                  const pos = layout.positions[playIndex] ?? {
-                    left: 0,
-                    top: 0,
-                    opacity: 1,
-                    scale: 1,
-                  };
+                {tableRows.map((row) => {
+                  const {
+                    play,
+                    playIndex,
+                    pos,
+                    groupZ,
+                    cardStackOrder,
+                    cardOffsets,
+                    groupWidth,
+                    groupHeight,
+                    cardZ,
+                  } = row;
+
                   const isNewest = playIndex === playCount - 1;
+                  const isBuried = pos.tier === "buried";
+                  const isBeaten = pos.tier === "beaten";
+                  const isHidden = hiddenPlayKeys?.has(playDisplayKey(play)) ?? false;
+                  if (isHidden) return null;
+
+                  const deltaX = stackTarget.left - pos.left;
+                  const deltaY = stackTarget.top - pos.top;
+                  const translateX = collectAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, deltaX],
+                  });
+                  const translateY = collectAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, deltaY],
+                  });
+                  const groupScale = collectAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, playIndex === 0 ? 1 : 0.94],
+                  });
+                  const groupOpacity = collectAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, playIndex === 0 ? 1 : 0.88],
+                  });
 
                   return (
-                    <View
+                    <Animated.View
                       key={playKey(play, playIndex)}
                       style={[
                         styles.playGroup,
-                        isNewest ? styles.playGroupActive : styles.playGroupBuried,
+                        isNewest
+                          ? styles.playGroupActive
+                          : isBuried
+                            ? styles.playGroupBuriedStack
+                            : isBeaten
+                              ? styles.playGroupBeaten
+                              : styles.playGroupBuried,
                         {
-                          left: scalePos(pos.left),
-                          top: scalePos(pos.top),
-                          width: bundle.width,
-                          height: bundle.height,
-                          zIndex: playIndex,
+                          left: pos.left,
+                          top: pos.top,
+                          width: groupWidth,
+                          height: groupHeight,
+                          zIndex: groupZ,
+                          opacity: collectToStack ? groupOpacity : 1,
+                          transform: [
+                            { translateX },
+                            { translateY },
+                            { scale: groupScale },
+                            ...(pos.tier === "buried" && pos.rotation
+                              ? [{ rotate: `${pos.rotation}deg` }]
+                              : []),
+                          ],
                         },
                       ]}
                     >
-                      {play.cards.map((card, cardIndex) => (
-                        <View
-                          key={`${card.suit}-${card.value}-${cardIndex}`}
-                          style={[
-                            styles.bundleCard,
-                            {
-                              left: bundle.cardOffsets[cardIndex] ?? 0,
-                              width: cardW,
-                              height: cardH,
-                              zIndex: cardIndex,
-                            },
-                          ]}
-                        >
-                          <Card
-                            card={card}
-                            selected={false}
-                            variant="table"
-                            style={{
-                              width: cardW,
-                              height: cardH,
-                            }}
-                            onPress={() => {}}
-                          />
-                        </View>
-                      ))}
-                    </View>
+                      {(cardStackOrder.map((cardIndex) => ({
+                        play,
+                        playIndex,
+                        cardIndex,
+                        left: cardOffsets[cardIndex] ?? 0,
+                        z: cardZ.get(`${playIndex}-${cardIndex}`) ?? 0,
+                      }))).map((entry) => {
+                        const card = entry.play.cards[entry.cardIndex];
+                        return (
+                          <View
+                            key={`${entry.play.playerId}-${card.suit}-${card.value}-${entry.cardIndex}`}
+                            style={[
+                              styles.bundleCard,
+                              {
+                                left: entry.left,
+                                width: cardW,
+                                height: cardH,
+                                zIndex: entry.z,
+                              },
+                            ]}
+                          >
+                            <Card
+                              card={card}
+                              selected={false}
+                              variant="table"
+                              style={{
+                                width: cardW,
+                                height: cardH,
+                              }}
+                              onPress={() => {}}
+                            />
+                          </View>
+                        );
+                      })}
+                    </Animated.View>
                   );
                 })}
+              {playTypeLabel ? (
+                <Animated.View
+                  style={[
+                    styles.playTypeBadge,
+                    { top: playTypeBadgeTop, opacity: badgeOpacity },
+                  ]}
+                  pointerEvents="none"
+                >
+                  <Text style={styles.playTypeBadgeText}>{playTypeLabel}</Text>
+                </Animated.View>
+              ) : null}
               </View>
 
-              {playTypeLabel ? (
-                <View style={styles.playTypeBadge}>
-                  <Text style={styles.playTypeBadgeText}>{playTypeLabel}</Text>
-                </View>
-              ) : null}
           </Animated.View>
         )}
       </View>
@@ -216,7 +344,7 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   playCluster: {
-    alignItems: "center",
+    ...StyleSheet.absoluteFillObject,
   },
   playStack: {
     position: "relative",
@@ -232,7 +360,6 @@ const styles = StyleSheet.create({
       shadowOpacity: 0.22,
       shadowRadius: 6,
     },
-    android: { elevation: 4 },
     default: {},
   }),
   playGroupBuried: Platform.select({
@@ -242,7 +369,24 @@ const styles = StyleSheet.create({
       shadowOpacity: 0.12,
       shadowRadius: 2,
     },
-    android: { elevation: 1 },
+    default: {},
+  }),
+  playGroupBuriedStack: Platform.select({
+    ios: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.08,
+      shadowRadius: 1,
+    },
+    default: {},
+  }),
+  playGroupBeaten: Platform.select({
+    ios: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.06,
+      shadowRadius: 1,
+    },
     default: {},
   }),
   bundleCard: {
@@ -251,7 +395,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   playTypeBadge: {
-    marginTop: 8,
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
     backgroundColor: "rgba(212, 175, 55, 0.14)",
     borderRadius: 12,
     paddingHorizontal: 12,
@@ -278,30 +425,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
-  },
-  trickResultPill: {
-    alignSelf: "center",
-    maxWidth: 240,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "rgba(212, 175, 55, 0.14)",
-    borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.38)",
-    alignItems: "center",
-  },
-  trickResultEyebrow: {
-    color: GOLD,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  trickResultName: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "700",
-    textAlign: "center",
-    letterSpacing: 0.2,
   },
 });

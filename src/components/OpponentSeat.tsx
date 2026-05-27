@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Player } from "../game/ruleset";
 import { playerInitials } from "../utils/playerDisplay";
+import TrickWinCelebration from "./TrickWinCelebration";
 
 const SEAT_COLORS = [
   "#5a8a6a",
@@ -60,6 +61,8 @@ type Props = {
   isLocal?: boolean;
   /** Played the current pile — subtle ownership glow */
   isLastPlay?: boolean;
+  /** Brief confetti / flag after winning a trick */
+  celebrateTrickWin?: boolean;
 };
 
 export default function OpponentSeat({
@@ -71,6 +74,7 @@ export default function OpponentSeat({
   compact = false,
   isLocal = false,
   isLastPlay = false,
+  celebrateTrickWin = false,
 }: Props) {
   const pulse = useRef(new Animated.Value(0)).current;
   const initials = playerInitials(player.name);
@@ -122,8 +126,15 @@ export default function OpponentSeat({
         isOut && styles.seatOut,
       ]}
     >
-      <View style={[styles.avatarWrap, { width: avatarSize, height: avatarSize }]}>
-        {isLastPlay && !isOut && !isActive && (
+      <View
+        style={[
+          styles.avatarWrap,
+          { width: avatarSize, height: avatarSize },
+          celebrateTrickWin && styles.avatarWrapCelebrate,
+        ]}
+      >
+        <TrickWinCelebration active={celebrateTrickWin} avatarSize={avatarSize} />
+        {isLastPlay && !isOut && !isActive && !celebrateTrickWin && (
           <View
             style={[
               styles.lastPlayRing,
@@ -222,6 +233,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
+    overflow: "visible",
+  },
+  avatarWrapCelebrate: {
+    zIndex: 12,
   },
   turnRing: {
     position: "absolute",

@@ -1,7 +1,19 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, StyleSheet, LayoutChangeEvent } from "react-native";
 import OpponentRing from "./OpponentRing";
-import { computePlayAreaLayout } from "../utils/tableLayout";
+import TableCardFlight, { type CardFlightSpec } from "./TableCardFlight";
+import { computePlayAreaLayout, tableScaleLimits } from "../utils/tableLayout";
+import type { TrickPlayDisplay } from "../utils/trickDisplay";
+import {
+  computePlayStackLayout,
+  MAX_SPREAD_WIDTH_RATIO,
+  stackSpotForPlay,
+} from "../utils/tablePlayLayout";
+import {
+  playDisplayKey,
+  playGroupTargetFromSpot,
+  seatOriginInPlayArea,
+} from "../utils/tablePlayFlight";
 
 export { LOCAL_SEAT_BAND as LOCAL_SEAT_HEIGHT } from "../utils/tableLayout";
 
@@ -13,6 +25,11 @@ type RingProps = Omit<
 type Props = RingProps & {
   lastPlayPlayerId?: string | null;
   playTypeLabel?: string | null;
+  plays?: TrickPlayDisplay[];
+  /** Skip fly-in (trick-end pause snapshot, etc.) */
+  skipPlayFlights?: boolean;
+  flightDurationMs?: number;
+  trickWinnerPlayerId?: string | null;
 };
 
 export default function GamePlayArea({
@@ -23,9 +40,17 @@ export default function GamePlayArea({
   passedPlayerIds,
   lastPlayPlayerId,
   playTypeLabel,
+  plays = [],
+  skipPlayFlights = false,
+  flightDurationMs = 480,
+  trickWinnerPlayerId = null,
   children,
 }: Props & { children: React.ReactNode }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [activeFlights, setActiveFlights] = useState<CardFlightSpec[]>([]);
+  const [landedKeys, setLandedKeys] = useState<Set<string>>(() => new Set());
+  const prevPlayKeysRef = useRef<Set<string>>(new Set());
+  const flightsInitializedRef = useRef(false);
 
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -36,16 +61,168 @@ export default function GamePlayArea({
 
   const layout = useMemo(() => {
     if (size.width <= 0 || size.height <= 0) return null;
-    return computePlayAreaLayout(
-      size.width,
-      size.height,
-      players.length,
-    );
+    return computePlayAreaLayout(size.width, size.height, players.length);
+  }, [size.width, size.height, players.length]);
+
+  const stackLayoutState = useMemo(() => {
+    if (!layout) {
+      return {
+        cardWidth: undefined as number | undefined,
+        cardHeight: undefined as number | undefined,
+        scaleLimits: tableScaleLimits({
+          isCompact: false,
+          isTall: false,
+          isWide: false,
+          isStretchy: false,
+        }),
+      };
+    }
+    const scaleLimits = tableScaleLimits(layout);
+    if (plays.length === 0) {
+      return { cardWidth: undefined, cardHeight: undefined, scaleLimits };
+    }
+    const stackLayout = computePlayStackLayout({
+      plays,
+      zoneWidth: layout.cardZoneWidth,
+      zoneHeight: layout.cardZoneHeight,
+      maxFillScale: scaleLimits.maxFillScale,
+      displayScale: scaleLimits.displayScale,
+    });
+    return {
+      cardWidth: stackLayout.cardWidth,
+      cardHeight: stackLayout.cardHeight,
+      scaleLimits,
+    };
+  }, [plays, layout]);
+
+  const allPlayerIds = useMemo(() => players.map((p) => p.id), [players]);
+
+  useEffect(() => {
+    const currentKeys = new Set(plays.map(playDisplayKey));
+
+    if (!flightsInitializedRef.current) {
+      flightsInitializedRef.current = true;
+      prevPlayKeysRef.current = currentKeys;
+      if (currentKeys.size > 0) {
+        setLandedKeys(currentKeys);
+      }
+      return;
+    }
+
+    if (skipPlayFlights) {
+      prevPlayKeysRef.current = currentKeys;
+      setLandedKeys(currentKeys);
+      setActiveFlights([]);
+      return;
+    }
+
+    if (currentKeys.size < prevPlayKeysRef.current.size) {
+      prevPlayKeysRef.current = currentKeys;
+      setLandedKeys(currentKeys);
+      setActiveFlights([]);
+      return;
+    }
+
+    if (!layout || size.height <= 0) {
+      prevPlayKeysRef.current = currentKeys;
+      return;
+    }
+
+    const newPlays = plays.filter((p) => !prevPlayKeysRef.current.has(playDisplayKey(p)));
+    prevPlayKeysRef.current = currentKeys;
+
+    if (newPlays.length === 0) return;
+
+    const scaleLimits = stackLayoutState.scaleLimits;
+    const cardW = stackLayoutState.cardWidth;
+    const cardH = stackLayoutState.cardHeight;
+    const flightsToStart: CardFlightSpec[] = [];
+
+    for (const play of newPlays) {
+      const key = playDisplayKey(play);
+      const playIndex = plays.findIndex((p) => playDisplayKey(p) === key);
+      if (playIndex < 0) {
+        setLandedKeys((prev) => new Set(prev).add(key));
+        continue;
+      }
+
+      const spot = stackSpotForPlay(
+        playIndex,
+        plays.length,
+        play,
+        layout.cardZoneWidth,
+        layout.cardZoneHeight,
+        layout.cardZoneWidth * MAX_SPREAD_WIDTH_RATIO * 0.55,
+        plays,
+        {
+          maxFillScale: scaleLimits.maxFillScale,
+          displayScale: scaleLimits.displayScale,
+        },
+      );
+
+      const origin = seatOriginInPlayArea(
+        layout,
+        size.height,
+        play.playerId,
+        allPlayerIds,
+        localPlayerIds,
+      );
+      if (!cardW || !cardH) {
+        setLandedKeys((prev) => new Set(prev).add(key));
+        continue;
+      }
+      const target = playGroupTargetFromSpot(spot, play, layout, cardW, cardH);
+
+      if (!origin) {
+        setLandedKeys((prev) => new Set(prev).add(key));
+        continue;
+      }
+
+      flightsToStart.push({
+        id: key,
+        cards: play.cards,
+        fromX: origin.x,
+        fromY: origin.y,
+        toX: target.x,
+        toY: target.y,
+        cardW: target.cardW,
+        cardH: target.cardH,
+      });
+    }
+
+    if (flightsToStart.length > 0) {
+      setActiveFlights((prev) => [...prev, ...flightsToStart]);
+    }
   }, [
-    size.width,
+    plays,
+    layout,
     size.height,
-    players.length,
+    allPlayerIds,
+    localPlayerIds,
+    skipPlayFlights,
+    stackLayoutState,
   ]);
+
+  const handleFlightComplete = useCallback((id: string) => {
+    setActiveFlights((prev) => prev.filter((f) => f.id !== id));
+    setLandedKeys((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
+  const hiddenPlayKeys = useMemo(() => {
+    const hidden = new Set<string>();
+    for (const play of plays) {
+      const key = playDisplayKey(play);
+      if (!landedKeys.has(key)) {
+        hidden.add(key);
+      }
+    }
+    return hidden;
+  }, [plays, landedKeys]);
 
   const tableChild =
     layout && React.isValidElement(children)
@@ -53,10 +230,12 @@ export default function GamePlayArea({
           children as React.ReactElement<{
             layoutHint?: typeof layout;
             playTypeLabel?: string | null;
+            hiddenPlayKeys?: Set<string>;
           }>,
           {
             layoutHint: layout,
             playTypeLabel,
+            hiddenPlayKeys,
           },
         )
       : children;
@@ -80,6 +259,17 @@ export default function GamePlayArea({
         </View>
       )}
 
+      <View style={styles.flightLayer} pointerEvents="none">
+        {activeFlights.map((flight) => (
+            <TableCardFlight
+              key={flight.id}
+              flight={flight}
+              durationMs={flightDurationMs}
+              onComplete={handleFlightComplete}
+            />
+        ))}
+      </View>
+
       {layout && (
         <View style={styles.seatOverlay} pointerEvents="box-none">
           <OpponentRing
@@ -92,6 +282,7 @@ export default function GamePlayArea({
             arenaHeight={layout.height}
             ringLayout={layout.opponentRing}
             lastPlayPlayerId={lastPlayPlayerId}
+            trickWinnerPlayerId={trickWinnerPlayerId}
           />
         </View>
       )}
@@ -109,8 +300,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     zIndex: 8,
   },
+  flightLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 15,
+    overflow: "visible",
+  },
   seatOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 20,
+    overflow: "visible",
   },
 });

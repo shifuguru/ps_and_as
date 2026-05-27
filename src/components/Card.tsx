@@ -309,6 +309,7 @@ const local = StyleSheet.create({
     position: "relative",
     overflow: "hidden",
     backgroundColor: "#f5f4ef",
+    opacity: 1,
   },
   cardTable: {
     borderColor: "rgba(0,0,0,0.14)",
