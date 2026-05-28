@@ -31,6 +31,7 @@ import { DEFAULT_FELT_COLOR } from "./src/services/wallpaper";
 import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
 import { tryCollapseSafariChrome } from "./src/utils/safariChrome";
 import { useVisualViewportSize } from "./src/hooks/useVisualViewportSize";
+import { isMobileWeb, applyMobileWebShellHeight, APP_SHELL_HEIGHT_VAR } from "./src/utils/webViewport";
 import { useAppFonts } from "./src/hooks/useAppFonts";
 import { useBuildUpdateCheck } from "./src/hooks/useBuildUpdateCheck";
 import UpdateRequiredOverlay from "./src/components/UpdateRequiredOverlay";
@@ -277,6 +278,13 @@ function AppContent() {
           min-height: 100dvh;
         }
       }
+      @media (pointer: coarse) and (max-width: 900px), (max-width: 768px) {
+        html, body, #root {
+          height: var(${APP_SHELL_HEIGHT_VAR}, 100dvh) !important;
+          min-height: var(${APP_SHELL_HEIGHT_VAR}, 100dvh) !important;
+          max-height: none !important;
+        }
+      }
       html, body, #root, #root * {
         user-select: none !important;
         -webkit-user-select: none !important;
@@ -302,7 +310,14 @@ function AppContent() {
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const doc: any = (globalThis as { document?: any }).document;
-    if (!doc) return;
+    const win = (globalThis as { window?: Parameters<typeof applyMobileWebShellHeight>[0] }).window;
+    if (!doc || !win) return;
+
+    if (isMobileWeb()) {
+      applyMobileWebShellHeight(win);
+      return;
+    }
+
     const px = `${viewport.height}px`;
     doc.documentElement.style.height = px;
     doc.documentElement.style.minHeight = px;
@@ -312,6 +327,7 @@ function AppContent() {
     if (root) {
       root.style.height = px;
       root.style.minHeight = px;
+      root.style.maxHeight = px;
     }
   }, [viewport.height]);
 
@@ -536,12 +552,23 @@ function AppContent() {
     <View
       style={[
         { flex: 1 },
-        Platform.OS === "web" && {
-          width: "100%",
-          height: viewport.height,
-          minHeight: viewport.height,
-          maxHeight: viewport.height,
-        },
+        Platform.OS === "web" &&
+          (isMobileWeb()
+            ? ({
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                width: "100%",
+                height: viewport.height,
+                minHeight: viewport.height,
+              } as object)
+            : {
+                width: "100%",
+                height: viewport.height,
+                minHeight: viewport.height,
+                maxHeight: viewport.height,
+              }),
       ]}
     >
         {/* Persistent felt wallpaper — one instance for the whole app */}

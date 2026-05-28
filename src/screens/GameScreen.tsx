@@ -9,6 +9,7 @@ import {
   findValidSingleCard,
   rankIndex,
   findCPUPlay,
+  applyCpuTurn,
   setTenRuleDirection,
   isValidPlay,
   RANK_ORDER,
@@ -32,6 +33,7 @@ import {
   assignPlayerRoles,
   applyMandatoryTrades,
   allTradesCompleted,
+  applyServerRolesToPlayers,
   buildFreshRoundState,
   clonePlayersForRound,
   completeWinnerReturn,
@@ -50,7 +52,7 @@ import {
   parseServerGameState,
   resolveLocalHumanPlayer,
 } from "../utils/localPlayer";
-import { recordRoundResult } from "../services/playerStats";
+import { recordRoundResult, recordTrickWin } from "../services/playerStats";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import DebugViewer from "../components/DebugViewer";
 import { Card as CardType } from "../game/ruleset";
@@ -76,6 +78,7 @@ import GameTable from "../components/GameTable";
 import GamePlayArea from "../components/GamePlayArea";
 import DealCeremonyOverlay from "../components/DealCeremonyOverlay";
 import RoleTradeModal from "../components/RoleTradeModal";
+import RoleTradeStrip from "../components/RoleTradeStrip";
 import { computePlayAreaLayout } from "../utils/tableLayout";
 import OpponentSeat from "../components/OpponentSeat";
 import { LOCAL_SEAT_BAND } from "../utils/tableLayout";
@@ -91,6 +94,7 @@ import { responsive, isLandscape, adaptiveScale } from "../utils/responsive";
 import { useAppTheme } from "../context/ThemeContext";
 import {
   buildTableSeatConfig,
+  buildDealerContext,
   resolveDealerId,
 } from "../utils/tableSeats";
 
@@ -135,8 +139,8 @@ function canCardBePlayedAtAll(
   const pileCount = pile.length;
 
   // Single joker beats a non-empty pile (one joker only — never match pile count)
-  if (cardValue === 15) {
-    const jokers = hand.filter((c) => c.value === 15);
+  if (cardValue === 16) {
+    const jokers = hand.filter((c) => isJoker(c));
     if (jokers.length === 0) return false;
     if (
       pileCount === 0 &&
@@ -348,6 +352,7 @@ export default function GameScreen({
     players: GameState["players"];
     trades: ClientPendingTrade[];
     dealSeed?: number;
+    finishOrder: string[];
   } | null>(null);
   const [tradePhase, setTradePhase] = useState<{
     baseState: GameState;
@@ -355,6 +360,7 @@ export default function GameScreen({
     trades: ClientPendingTrade[];
   } | null>(null);
   const [activeTrade, setActiveTrade] = useState<ClientPendingTrade | null>(null);
+  const [tradeReturnPick, setTradeReturnPick] = useState<CardType[]>([]);
   const awaitingDealCeremonyRef = useRef(false);
   const ceremonyDoneForRoundRef = useRef<string | null>(null);
   const ceremonyStartedForRoundRef = useRef<string | null>(null);
@@ -384,6 +390,10 @@ export default function GameScreen({
   }
   const adapter = networkAdapter ?? fallbackAdapterRef.current!;
   const onlineMultiplayer = isSocketAdapter(networkAdapter) && !!roomId;
+  const resolvedHostId =
+    (isSocketAdapter(networkAdapter) ? networkAdapter.getHostId() : null) ??
+    initialLobbyPlayers?.[0]?.id ??
+    null;
   const readOnlyOnline = onlineMultiplayer && spectatorMode;
   const readOnlyGame = gameplayLocked || readOnlyOnline;
 
@@ -489,6 +499,7 @@ export default function GameScreen({
   const [trickPauseSnapshot, setTrickPauseSnapshot] =
     useState<TrickPauseSnapshot | null>(null);
   const lastTrickLenRef = React.useRef<number>(0);
+  const lastRecordedTrickXpRef = React.useRef(0);
   const roundStatsRecordedRef = React.useRef(false);
   const trickPauseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -645,7 +656,11 @@ export default function GameScreen({
         localId,
       );
       pendingTradesCompleteRef.current = null;
-      const next = buildFreshRoundState(baseState, merged);
+      const next = buildFreshRoundState(baseState, merged, {
+        hostId: resolvedHostId,
+        lastRoundOrder: baseState.lastRoundOrder,
+        finishedOrder: ceremonyPrepRef.current?.finishOrder,
+      });
       setState(next);
       setRoundOver(false);
       roundStatsRecordedRef.current = false;
@@ -653,10 +668,11 @@ export default function GameScreen({
       setCeremonyPrep(null);
       setTradePhase(null);
       setActiveTrade(null);
+      setTradeReturnPick([]);
       setGameplayLocked(false);
       ceremonyDoneForRoundRef.current = next.id;
     },
-    [],
+    [resolvedHostId],
   );
 
   const beginTradePhase = useCallback(
@@ -671,6 +687,7 @@ export default function GameScreen({
       }
       setTradePhase({ baseState, players, trades });
       setCeremonyPrep(null);
+      setTradeReturnPick([]);
       const first = trades.find((t) => !t.completed) ?? null;
       setActiveTrade(first);
     },
@@ -704,38 +721,59 @@ export default function GameScreen({
         baseState.players.map((p) => ({ ...p, hand: [] })),
       );
       dealFreshHands(players, nextDealSeed);
-      if (players.some(isDeadHandPlayer)) {
-        applyDeadHandAfterDeal({
-          players,
-          finishedOrder: [],
-          currentPlayerIndex: 0,
-          mustPlay: false,
-        });
-      }
       let trades: ClientPendingTrade[] = [];
+      const rolesById: Record<string, string> = {};
       if (finishedOrder.length >= 2) {
         assignPlayerRoles(players, finishedOrder);
         trades = applyMandatoryTrades(players);
+        for (const p of players) {
+          if (!isDeadHandPlayer(p) && p.role !== "Neutral") {
+            rolesById[p.id] = p.role;
+          }
+        }
       }
+      const dealerContext = buildDealerContext({
+        hostId: resolvedHostId,
+        finishOrder: finishedOrder,
+        lastRoundOrder: baseState.lastRoundOrder,
+        roles: rolesById,
+      });
+      if (players.some(isDeadHandPlayer)) {
+        applyDeadHandAfterDeal(
+          {
+            players,
+            finishedOrder: [],
+            currentPlayerIndex: 0,
+            mustPlay: false,
+          },
+          dealerContext,
+        );
+      }
+      setRoundOver(false);
+      setPlayerReadyStates({});
+      roundStatsRecordedRef.current = false;
       setGameplayLocked(true);
       setCeremonyPrep({
-        baseState,
+        baseState: {
+          ...baseState,
+          lastRoundOrder:
+            finishedOrder.length >= 2 ? finishedOrder : baseState.lastRoundOrder,
+        },
         players,
         trades,
         dealSeed: nextDealSeed,
+        finishOrder: finishedOrder,
       });
       const hiddenPlayers = players.map((p) => ({ ...p, hand: [] }));
-      setState(buildFreshRoundState(baseState, hiddenPlayers));
+      setState(buildFreshRoundState(baseState, hiddenPlayers, dealerContext));
     },
-    [],
+    [resolvedHostId],
   );
 
   function startNextRound(nextDealSeed?: number) {
     if (!state) return;
     const living = livingPlayerIds(state.players);
-    const finishedOrder = living.every((id) => state.finishedOrder.includes(id))
-      ? state.finishedOrder.filter((id) => living.includes(id))
-      : living;
+    const finishedOrder = state.finishedOrder.filter((id) => living.includes(id));
     startRoundCeremony(state, finishedOrder, nextDealSeed);
   }
 
@@ -775,6 +813,10 @@ export default function GameScreen({
   const stateSyncedRef = useRef(false);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const gameplayLockedRef = useRef(gameplayLocked);
+  gameplayLockedRef.current = gameplayLocked;
+  const roundOverRef = useRef(roundOver);
+  roundOverRef.current = roundOver;
   const finalizeCeremonyRoundRef = useRef(finalizeCeremonyRound);
   finalizeCeremonyRoundRef.current = finalizeCeremonyRound;
   const syncRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -824,17 +866,30 @@ export default function GameScreen({
           seedFromProps;
         pendingDealSeedRef.current = undefined;
 
+        const finishOrder = parsed.lastRoundOrder ?? [];
         const players = clonePlayersForRound(
           parsed.players.map((p) => ({ ...p, hand: [] })),
         );
         dealFreshHands(players, roundDealSeed);
+        if (serverRoles) {
+          applyServerRolesToPlayers(players, serverRoles);
+        }
+        const dealerContext = buildDealerContext({
+          hostId: resolvedHostId,
+          finishOrder,
+          lastRoundOrder: parsed.lastRoundOrder,
+          roles: serverRoles,
+        });
         if (players.some(isDeadHandPlayer)) {
-          applyDeadHandAfterDeal({
-            players,
-            finishedOrder: [],
-            currentPlayerIndex: 0,
-            mustPlay: false,
-          });
+          applyDeadHandAfterDeal(
+            {
+              players,
+              finishedOrder: [],
+              currentPlayerIndex: 0,
+              mustPlay: false,
+            },
+            dealerContext,
+          );
         }
         let trades: ClientPendingTrade[] = [];
         if (serverPending && serverRoles) {
@@ -877,15 +932,20 @@ export default function GameScreen({
           }
         }
 
+        setRoundOver(false);
+        setPlayerReadyStates({});
         setGameplayLocked(true);
         setCeremonyPrep({
           baseState: parsed,
           players,
           trades,
           dealSeed: roundDealSeed,
+          finishOrder,
         });
         const hiddenPlayers = players.map((p) => ({ ...p, hand: [] }));
-        setState(buildFreshRoundState(parsed, hiddenPlayers));
+        setState(
+          buildFreshRoundState(parsed, hiddenPlayers, dealerContext),
+        );
         stateSyncedRef.current = true;
         if (typeof spectator === "boolean") {
           setSpectatorMode(spectator);
@@ -1164,10 +1224,20 @@ export default function GameScreen({
 
   myPlayerIdRef.current = myPlayerId;
 
-  const hostPlayerId =
-    (isSocketAdapter(networkAdapter) ? networkAdapter.getHostId() : null) ??
-    initialLobbyPlayers?.[0]?.id ??
-    null;
+  // Persist +15 XP when the local human wins a trick (checkered flag moment).
+  useEffect(() => {
+    if (!showWinnerBanner || !trickPauseSnapshot?.winnerId || !myPlayerId) return;
+    if (trickPauseSnapshot.winnerId !== myPlayerId) return;
+    const trickNum = state?.trickHistory?.length ?? 0;
+    if (trickNum <= lastRecordedTrickXpRef.current) return;
+    lastRecordedTrickXpRef.current = trickNum;
+    void recordTrickWin();
+  }, [
+    showWinnerBanner,
+    trickPauseSnapshot?.winnerId,
+    myPlayerId,
+    state?.trickHistory?.length,
+  ]);
 
   const tableSeats = useMemo(
     () => buildTableSeatConfig(state?.players ?? [], myPlayerId),
@@ -1244,7 +1314,7 @@ export default function GameScreen({
 
   // CPU auto-play effect
   useEffect(() => {
-    if (!state || trickPauseActive || gameplayLocked) return;
+    if (!state || trickPauseActive || gameplayLocked || roundOver) return;
 
     const current = state.players[state.currentPlayerIndex];
 
@@ -1270,20 +1340,15 @@ export default function GameScreen({
         reason: "auto-pass (player already passed earlier in trick)",
         before: snapshotState(state),
       });
-      setState(nextState);
+      if (nextState !== state) {
+        setState(nextState);
+      }
       return;
     }
 
-    // Check if current player is a CPU. Only auto-play explicit CPU-named
-    // players (e.g. "CPU 1"). Do NOT auto-play remote human players in
-    // multiplayer — the server/other clients should drive those turns.
     const isNamedCPU = !!(
       current.name && typeof current.name === "string" && current.name.startsWith("CPU")
     );
-    const adapterIsMock = (adapter as any)?.constructor?.name === "MockAdapter";
-
-    // Only treat as CPU when explicitly named as one. Also ensure we never
-    // auto-play the local human player even in mock/local games.
     let isCPU = isNamedCPU;
     if (humanPlayer && current.id === humanPlayer.id) {
       isCPU = false;
@@ -1291,143 +1356,45 @@ export default function GameScreen({
 
     if (!isCPU) return;
 
-    // Check if game is over for this player
     if (state.finishedOrder.includes(current.id) || current.hand.length === 0) return;
 
-    // Add a delay to make CPU play visible
+    const playerId = current.id;
+    const playerName = current.name;
     const timer = setTimeout(() => {
-      const cpuPlay = findCPUPlay(
-        current.hand,
-        state.pile,
-        state.tenRule,
-        state.pileHistory,
-        state.fourOfAKindChallenge,
-        state.currentTrick,
-        state.players,
-        state.finishedOrder,
-      );
-      // append local device id when this is the local player's entry (if provided)
-      const devSuffix =
-        localPlayerId && localPlayerName && current.name === localPlayerName
-          ? ` dev:${localPlayerId}`
-          : "";
+      const live = stateRef.current;
+      if (!live || trickPauseActive || gameplayLockedRef.current || roundOverRef.current) return;
+      const liveCurrent = live.players[live.currentPlayerIndex];
+      if (!liveCurrent || liveCurrent.id !== playerId) return;
 
-      if (cpuPlay && cpuPlay.length > 0) {
-        // CPU has a valid play
-        const cardStr = cpuPlay
-          .map((c) => {
-            const suit = {
-              hearts: "♥",
-              diamonds: "♦",
-              clubs: "♣",
-              spades: "♠",
-              joker: "★",
-            }[c.suit];
-            const val =
-              c.value === 11
-                ? "J"
-                : c.value === 12
-                  ? "Q"
-                  : c.value === 13
-                    ? "K"
-                    : c.value === 14
-                      ? "A"
-                      : c.value === 15
-                        ? "JOKER"
-                        : String(c.value);
-            return `${val}${suit}`;
-          })
-          .join(", ");
-        // append local device id when this is the local player's entry (if provided)
-        const devSuffix =
-          localPlayerId && localPlayerName && current.name === localPlayerName
-            ? ` dev:${localPlayerId}`
-            : "";
-        console.log(
-          `${current.name} (${current.id})${devSuffix} playing: ${cardStr}`,
-        );
-        emitDebug("action:play:cpu", {
-          playerId: current.id,
-          playerName: current.name,
-          cards: cpuPlay.map((c) => ({ suit: c.suit, value: c.value })),
-          before: snapshotState(state),
+      const nextState = applyCpuTurn(live, playerId);
+      if (nextState === live) {
+        emitDebug("action:cpu:stuck", {
+          playerId,
+          playerName,
+          before: snapshotState(live),
         });
-
-        // Attempt to apply the play. If playCards returns the same state object,
-        // the play was invalid (race or engine mismatch). In that case, fall back
-        // to passing so the CPU doesn't deadlock (this can happen when the CPU's
-        // selected play looks valid in heuristic but is rejected by engine rules).
-        const nextState = playCards(state, current.id, cpuPlay);
-        if (nextState === state) {
-          console.warn(
-            `[GameScreen] CPU ${current.name} suggested play was invalid; falling back to pass`,
-          );
-          emitDebug("action:play:cpu:invalid", {
-            playerId: current.id,
-            playerName: current.name,
-            attempted: cpuPlay.map((c) => ({ suit: c.suit, value: c.value })),
-            before: snapshotState(state),
-          });
-          const passed = passTurn(state, current.id);
-          setState(passed);
-          return;
-        }
-
-        // If 10 was played and tenRulePending, CPU randomly chooses direction
-        if (nextState.tenRulePending) {
-          const direction = Math.random() < 0.5 ? "higher" : "lower";
-          console.log(
-            `${current.name} (${current.id})${devSuffix} played a 10 and chose: ${direction}`,
-          );
-          const finalState = setTenRuleDirection(nextState, direction);
-          emitDebug("action:10:cpu:choose", {
-            playerId: current.id,
-            playerName: current.name,
-            direction,
-            before: snapshotState(state),
-          });
-          setState(finalState);
-        } else {
-          setState(nextState);
-        }
-      } else {
-        // CPU must pass (or cannot play). Even if mustPlay is true, passTurn will
-        // allow the pass when the player truly has no valid play (prevents deadlock).
-        // Detailed debug: why the CPU didn't play
-        try {
-          const reasonDetails = {
-            isCPU: isCPU,
-            hasPassedInCurrentTrick: hasPassedInCurrentTrick(state, current.id),
-            isFinished: state.finishedOrder.includes(current.id),
-            pileCount: state.pile.length,
-            pileTop: state.pile[0]?.value ?? null,
-            pileHistoryLen: state.pileHistory?.length ?? 0,
-            cpuPlayFound: !!cpuPlay,
-            handCount: current.hand.length,
-            currentPlayerIndex: state.currentPlayerIndex,
-          };
-          console.log(
-            `${current.name} (${current.id}) - no valid play, attempting to pass; reason:`,
-            reasonDetails,
-          );
-          emitDebug("action:pass:cpu:reason", {
-            playerId: current.id,
-            playerName: current.name,
-            reasonDetails,
-            before: snapshotState(state),
-          });
-        } catch (e) {
-          console.log(
-            `${current.name} (${current.id}) - no valid play (debug gather failed)`,
-          );
-        }
-        const nextState = passTurn(state, current.id);
-        setState(nextState);
+        return;
       }
-    }, CPU_DELAY_MS); // Adjustable CPU delay for visibility
+
+      if (nextState.tenRulePending) {
+        emitDebug("action:10:cpu:choose:pending", {
+          playerId,
+          playerName,
+          before: snapshotState(live),
+        });
+      } else {
+        emitDebug("action:cpu:applied", {
+          playerId,
+          playerName,
+          before: snapshotState(live),
+          after: snapshotState(nextState),
+        });
+      }
+      setState(nextState);
+    }, CPU_DELAY_MS);
 
     return () => clearTimeout(timer);
-  }, [state, trickPauseActive]);
+  }, [state, trickPauseActive, gameplayLocked, roundOver, humanPlayer?.id]);
 
   if (!state) {
     if (onlineMultiplayer) {
@@ -1733,13 +1700,23 @@ export default function GameScreen({
         : trickPauseSnapshot.plays
       : trickPlays;
 
+  const roleById = useMemo(() => {
+    const src =
+      tradePhase?.players ?? ceremonyPrep?.players ?? state?.players ?? [];
+    const map: Record<string, GameState["players"][number]["role"]> = {};
+    for (const p of src) {
+      map[p.id] = p.role;
+    }
+    return map;
+  }, [tradePhase, ceremonyPrep, state?.players]);
+
   const opponentPlayers = state.players
     .filter((p) => p.id !== humanPlayer?.id)
     .map((p) => ({
       id: p.id,
       name: p.name,
       handCount: p.hand.length,
-      role: p.role,
+      role: roleById[p.id] ?? p.role,
       isDeadHand: isDeadHandPlayer(p),
       sidelinedCount: isDeadHandPlayer(p)
         ? (p.sidelinedHand?.length ?? 0)
@@ -1766,7 +1743,7 @@ export default function GameScreen({
         id: humanPlayer.id,
         name: humanPlayer.name,
         handCount: humanPlayer.hand.length,
-        role: humanPlayer.role,
+        role: roleById[humanPlayer.id] ?? humanPlayer.role,
       }
     : null;
 
@@ -1931,8 +1908,9 @@ export default function GameScreen({
     // If pile is empty, nothing to show
     if (!state.pile || state.pile.length === 0) return null;
 
-    // Joker detection: if the pile contains a joker, label as JOKER
-    if (state.pile.some((c) => c.value === 15)) return "Joker!";
+    // Joker detection
+    if (state.pile.some((c) => isJoker(c))) return "Joker!";
+    if (state.pile.some((c) => c.value === 15 || c.value === 2)) return "2!";
 
     // Determine if the active pile is a run. Use the engine helpers so we
     // recognize runs formed across recent single-card plays in the current
@@ -2164,6 +2142,10 @@ export default function GameScreen({
               !!trickWinnerPlayerId &&
               localSeatPlayer.id === trickWinnerPlayerId
             }
+            showTrickXp={
+              !!trickWinnerPlayerId &&
+              localSeatPlayer.id === trickWinnerPlayerId
+            }
           />
         </View>
       ) : null}
@@ -2193,7 +2175,22 @@ export default function GameScreen({
         ) : null}
 
         <BottomBarControls>
-          {readOnlyOnline ? (
+          {tradePhase && activeTrade ? (
+            <>
+              <RoleTradeStrip
+                trade={activeTrade}
+                localPlayerId={myPlayerId}
+                selectedReturn={tradeReturnPick}
+              />
+              {activeTrade.winnerId !== myPlayerId ? (
+                <View style={[local.waitingPill, local.waitingPillCollapsed]}>
+                  <Text style={local.waitingPillText}>
+                    Waiting for {activeTrade.winnerName} to pick return cards…
+                  </Text>
+                </View>
+              ) : null}
+            </>
+          ) : readOnlyOnline ? (
             <>
               <View style={[local.waitingPill, local.waitingPillCollapsed]}>
                 <Text style={local.waitingPillText}>
@@ -2215,7 +2212,7 @@ export default function GameScreen({
               </Text>
             </View>
           ) : null}
-          {!readOnlyOnline ? (
+          {!readOnlyOnline && !tradePhase && !gameplayLocked ? (
           <ActionBar
             selectedCount={selected.length}
             onPlay={handlePlayPress}
@@ -2269,16 +2266,21 @@ export default function GameScreen({
         playerIds={(ceremonyPrep?.players ?? state.players).map((p) => p.id)}
         layoutSeatIds={tableSeats.layoutSeatIds}
         localPlayerIds={localControlledIds}
-        dealerId={resolveDealerId(ceremonyPrep?.players ?? state.players, {
-          hostId: hostPlayerId,
-          lastRoundOrder: (
-            ceremonyPrep?.baseState as GameState & { lastRoundOrder?: string[] }
-          )?.lastRoundOrder,
-          finishedOrder: ceremonyPrep?.baseState.finishedOrder,
-          roles: (
-            ceremonyPrep?.baseState as GameState & { roles?: Record<string, string> }
-          )?.roles,
-        })}
+        dealerId={resolveDealerId(
+          ceremonyPrep?.players ?? state.players,
+          buildDealerContext({
+            hostId: resolvedHostId,
+            finishOrder: ceremonyPrep?.finishOrder,
+            lastRoundOrder:
+              ceremonyPrep?.finishOrder ??
+              ceremonyPrep?.baseState.lastRoundOrder,
+            roles: Object.fromEntries(
+              (ceremonyPrep?.players ?? state.players)
+                .filter((p) => !isDeadHandPlayer(p) && p.role !== "Neutral")
+                .map((p) => [p.id, p.role]),
+            ),
+          }),
+        )}
         deadHandId={tableSeats.deadHandId}
         layout={playAreaLayout}
         playAreaHeight={playAreaGameHeight}
@@ -2308,11 +2310,12 @@ export default function GameScreen({
             ?.hand ?? []
         }
         isWinner={!!myPlayerId && activeTrade?.winnerId === myPlayerId}
+        onSelectionChange={setTradeReturnPick}
         onConfirm={handleTradeConfirm}
       />
 
       <RoundCompleteModal
-        visible={roundOver}
+        visible={roundOver && !ceremonyPrep && !tradePhase}
         finishedOrder={state.finishedOrder.filter((id) =>
           state.players.some(
             (p) => p.id === id && !isDeadHandPlayer(p),

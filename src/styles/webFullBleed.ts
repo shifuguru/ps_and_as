@@ -4,6 +4,7 @@ import {
   DEFAULT_FELT_COLOR,
   FELT_WALLPAPER,
 } from "../services/wallpaper";
+import { APP_SHELL_HEIGHT_VAR } from "../utils/webViewport";
 
 /** Fixed layer that paints edge-to-edge on mobile Safari / standalone PWA. */
 export const WEB_FULL_BLEED_FIXED =
@@ -11,14 +12,13 @@ export const WEB_FULL_BLEED_FIXED =
     ? ({
         position: "fixed",
         zIndex: 0,
-        top: "calc(-1 * env(safe-area-inset-top, 0px))",
-        right: "calc(-1 * env(safe-area-inset-right, 0px))",
-        bottom: "calc(-1 * max(env(safe-area-inset-bottom, 0px), 0px))",
-        left: "calc(-1 * env(safe-area-inset-left, 0px))",
-        width: "auto",
-        height: "auto",
-        minHeight:
-          "max(100dvh, 100lvh, calc(100dvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)))",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: "100%",
+        height: `var(${APP_SHELL_HEIGHT_VAR}, 100dvh)`,
+        minHeight: `var(${APP_SHELL_HEIGHT_VAR}, 100dvh)`,
       } as object)
     : null;
 
@@ -27,14 +27,13 @@ export const WEB_SPLASH_OVERLAY =
     ? ({
         position: "fixed",
         zIndex: 10000,
-        top: "calc(-1 * env(safe-area-inset-top, 0px))",
-        right: "calc(-1 * env(safe-area-inset-right, 0px))",
-        bottom: "calc(-1 * env(safe-area-inset-bottom, 0px))",
-        left: "calc(-1 * env(safe-area-inset-left, 0px))",
-        width: "auto",
-        height: "auto",
-        minHeight:
-          "calc(100dvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px))",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: "100%",
+        height: `var(${APP_SHELL_HEIGHT_VAR}, 100dvh)`,
+        minHeight: `var(${APP_SHELL_HEIGHT_VAR}, 100dvh)`,
         backgroundColor: "#000000",
       } as object)
     : null;
@@ -68,6 +67,11 @@ export function ensureWebFeltBackdrop(tint = DEFAULT_FELT_COLOR): void {
       background-position: center center;
       background-repeat: no-repeat;
       background-attachment: fixed;
+    }
+    @supports (height: 100dvh) {
+      html, body {
+        min-height: var(${APP_SHELL_HEIGHT_VAR}, 100dvh);
+      }
     }
     #root {
       background-color: transparent !important;

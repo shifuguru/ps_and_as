@@ -21,6 +21,7 @@ import { hexToRgba } from "../utils/colorTheory";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
 import type { FeltPalette } from "../styles/feltPalette";
 import type { AppThemeColors } from "../styles/themeColors";
+import { normalizePlayerRole, roleEmoji as sharedRoleEmoji } from "../utils/roundRoles";
 
 function seatColor(playerId: string, seatColors: readonly string[]): string {
   let n = 0;
@@ -28,19 +29,8 @@ function seatColor(playerId: string, seatColors: readonly string[]): string {
   return seatColors[n % seatColors.length];
 }
 
-function roleEmoji(role: Player["role"]): string | null {
-  switch (role) {
-    case "President":
-      return "👑";
-    case "Vice President":
-      return "⭐";
-    case "Vice Asshole":
-      return "💩";
-    case "Asshole":
-      return "💩";
-    default:
-      return null;
-  }
+function roleEmoji(role: Player["role"] | string | undefined): string | null {
+  return sharedRoleEmoji(normalizePlayerRole(role));
 }
 
 export type OpponentSeatPlayer = {

@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
 import { Platform, ScaledSize, useWindowDimensions } from "react-native";
+import {
+  applyMobileWebShellHeight,
+  isMobileWeb,
+  readWebShellHeight,
+} from "../utils/webViewport";
 
 type WebWindow = {
   innerWidth?: number;
@@ -23,12 +28,11 @@ function readVisualViewport(win: WebWindow): ScaledSize {
     const layoutH = win.innerHeight ?? vv.height;
     const gap = layoutH - vv.height - (vv.offsetTop ?? 0);
     const keyboardLikelyOpen = gap > WEB_KEYBOARD_GAP_THRESHOLD;
-    // When Safari's layout viewport is taller than the visual viewport (URL bar
-    // collapse, home-indicator band), fill the layout height so felt is not
-    // letterboxed above a black strip. Shrink back while the keyboard is open.
     const height = keyboardLikelyOpen
       ? vv.height
-      : Math.max(vv.height, layoutH);
+      : isMobileWeb()
+        ? readWebShellHeight(win)
+        : Math.max(vv.height, layoutH);
     return {
       width: Math.round(vv.width),
       height: Math.round(height),
@@ -38,7 +42,11 @@ function readVisualViewport(win: WebWindow): ScaledSize {
   }
   return {
     width: Math.round(win.innerWidth ?? 0),
-    height: Math.round(win.innerHeight ?? 0),
+    height: Math.round(
+      isMobileWeb()
+        ? applyMobileWebShellHeight(win)
+        : win.innerHeight ?? 0,
+    ),
     scale: 1,
     fontScale: 1,
   };

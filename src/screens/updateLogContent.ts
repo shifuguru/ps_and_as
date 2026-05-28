@@ -18,6 +18,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     date: "May 2026",
     title: "Recent fixes",
     items: [
+      "Round flow — the Asshole from the previous round deals; the first player each round is one seat anticlockwise from the dealer (same seat that receives the first card)",
       "Run rules — two singles in a row (e.g. 3 then 4) is normal play until a third consecutive card starts a run; you must beat the pile, not play back to an adjacent rank",
       "Deal ceremony — riffle shuffle animation (split, bridge, merge) and faster card dealing so you get to play sooner",
       "Automatic update prompts when a newer web build is deployed — refresh to get the latest",

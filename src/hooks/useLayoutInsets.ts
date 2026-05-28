@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isStandaloneWebApp } from "../utils/safariChrome";
+import { isMobileWeb, readWebSafeAreaInsets } from "../utils/webViewport";
 
 type ChromeInsets = { top: number; bottom: number };
 
@@ -82,10 +83,15 @@ export function useLayoutInsets() {
     return insets;
   }
 
+  const cssSafe = isMobileWeb() ? readWebSafeAreaInsets() : { top: 0, bottom: 0, left: 0, right: 0 };
+
   // App root height tracks visualViewport — the bottom toolbar gap is already
-  // excluded. Only merge top chrome (URL bar) and CSS safe-area for padding.
+  // excluded. Merge top chrome (URL bar), CSS safe-area, and native insets.
   return {
     ...insets,
-    top: Math.max(insets.top, webChrome.top),
+    top: Math.max(insets.top, webChrome.top, cssSafe.top),
+    bottom: Math.max(insets.bottom, cssSafe.bottom),
+    left: Math.max(insets.left, cssSafe.left),
+    right: Math.max(insets.right, cssSafe.right),
   };
 }

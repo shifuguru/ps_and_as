@@ -52,6 +52,13 @@ export function buildTableSeatConfig(
   };
 }
 
+export type DealerContext = {
+  hostId?: string | null;
+  lastRoundOrder?: string[];
+  finishedOrder?: string[];
+  roles?: Record<string, string>;
+};
+
 /** Asshole from last round deals; round 1 is dealt by the lobby host. */
 export function resolveDealerId(
   players: Pick<Player, "id">[],
@@ -67,7 +74,9 @@ export function resolveDealerId(
 
   const order = options.lastRoundOrder?.length
     ? options.lastRoundOrder
-    : options.finishedOrder ?? [];
+    : options.finishedOrder?.length
+      ? options.finishedOrder
+      : [];
 
   if (order.length >= 2) {
     const assholeId = order[order.length - 1];
@@ -84,6 +93,50 @@ export function resolveDealerId(
   }
 
   return living[0] ?? null;
+}
+
+/** Dealer context for round ceremony — Asshole deals from round 2 onward. */
+export function buildDealerContext(options: {
+  hostId?: string | null;
+  finishOrder?: string[];
+  lastRoundOrder?: string[];
+  roles?: Record<string, string>;
+}): DealerContext {
+  const order =
+    options.finishOrder && options.finishOrder.length >= 2
+      ? options.finishOrder
+      : options.lastRoundOrder && options.lastRoundOrder.length >= 2
+        ? options.lastRoundOrder
+        : [];
+  const priorRound = order.length >= 2;
+  return {
+    hostId: priorRound ? null : (options.hostId ?? null),
+    lastRoundOrder: priorRound ? order : options.lastRoundOrder,
+    finishedOrder: options.finishOrder,
+    roles: options.roles,
+  };
+}
+
+/**
+ * First to act each round — one seat anticlockwise from the dealer
+ * (same seat that receives the first card in deal order).
+ */
+export function resolveOpeningPlayerIndex(
+  players: Pick<Player, "id">[],
+  options: DealerContext = {},
+): number {
+  if (players.length === 0) return 0;
+
+  const living = livingPlayerIds(players as Player[]);
+  const turnOrderIds = players.map((p) => p.id);
+  const dealerId = resolveDealerId(players, options);
+  const recipientOrder = dealRecipientOrder(turnOrderIds, dealerId);
+  const openerId =
+    recipientOrder.find((id) => living.includes(id)) ??
+    living[0] ??
+    turnOrderIds[0];
+  const idx = players.findIndex((p) => p.id === openerId);
+  return idx >= 0 ? idx : 0;
 }
 
 /** Clockwise recipient order starting with the player to the dealer's left. */

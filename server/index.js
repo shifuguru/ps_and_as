@@ -29,12 +29,17 @@ function isRoundComplete(state) {
   return living.every((p) => state.finishedOrder.includes(p.id));
 }
 
-function beginAuthoritativeRound(room, dealSeed) {
+function beginAuthoritativeRound(room, dealSeed, options = {}) {
   const lobbyPlayers = room.players
     .filter((p) => !p.disconnectedAt && !p.isSpectator)
     .map((p) => ({ id: p.id, name: p.name }));
   const useDeadHand = lobbyPlayers.length === 2;
-  const nextState = createGameFromLobby(lobbyPlayers, dealSeed, { deadHand: useDeadHand });
+  const lastRoundOrder = options.lastRoundOrder ?? room.gameState?.lastRoundOrder ?? [];
+  const nextState = createGameFromLobby(lobbyPlayers, dealSeed, {
+    deadHand: useDeadHand,
+    hostId: room.host,
+    lastRoundOrder: lastRoundOrder.length >= 2 ? lastRoundOrder : undefined,
+  });
   nextState.readyForNextRound = {};
   nextState.dealSeed = dealSeed;
   room.gameState = nextState;
@@ -82,10 +87,12 @@ function startNextRound(roomId) {
   if (!room) return;
   const promoted = promoteReadySpectator(room);
   const dealSeed = Math.floor(Math.random() * 2147483647);
-  const lastOrder = room.gameState?.lastRoundOrder;
-  beginAuthoritativeRound(room, dealSeed);
+  const lastOrder = room.gameState?.lastRoundOrder?.slice() ?? [];
 
-  if (lastOrder && lastOrder.length >= 2) {
+  beginAuthoritativeRound(room, dealSeed, { lastRoundOrder: lastOrder });
+
+  if (lastOrder.length >= 2) {
+    room.gameState.lastRoundOrder = lastOrder;
     assignRolesFromFinishOrder(room.gameState, lastOrder.length);
     const playerHands = {};
     for (const p of room.gameState.players) {
@@ -180,9 +187,8 @@ function sortCardsByRankDesc(cards) {
 }
 
 // Assign roles based on finish order. Mutates gameState object.
-function assignRolesFromFinishOrder(gameState, playersCount) {
-  // gameState.lastRoundOrder expected: [winnerId, ..., loserId]
-  const order = gameState.lastRoundOrder || [];
+function assignRolesFromFinishOrder(gameState, playersCount, finishOrder) {
+  const order = finishOrder ?? gameState.lastRoundOrder ?? [];
   const roles = {};
   // Defaults: everyone neutral
   for (const pid of (order.length ? order : [])) roles[pid] = 'neutral';

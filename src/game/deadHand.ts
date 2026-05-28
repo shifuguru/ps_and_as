@@ -1,4 +1,6 @@
 import type { Player } from "./ruleset";
+import type { DealerContext } from "../utils/tableSeats";
+import { resolveOpeningPlayerIndex } from "../utils/tableSeats";
 
 export const DEAD_HAND_ID = "__dead_hand__";
 export const DEAD_HAND_NAME = "Dead Hand";
@@ -38,12 +40,15 @@ export function isRoundCompleteForLiving(state: {
 }
 
 /** After deal, sideline the dead hand and fix the opening player if needed. */
-export function applyDeadHandAfterDeal(state: {
-  players: Player[];
-  finishedOrder: string[];
-  currentPlayerIndex: number;
-  mustPlay?: boolean;
-}): void {
+export function applyDeadHandAfterDeal(
+  state: {
+    players: Player[];
+    finishedOrder: string[];
+    currentPlayerIndex: number;
+    mustPlay?: boolean;
+  },
+  dealerOptions?: DealerContext,
+): void {
   const dead = state.players.find((p) => isDeadHandPlayer(p));
   if (!dead) return;
 
@@ -53,17 +58,9 @@ export function applyDeadHandAfterDeal(state: {
     state.finishedOrder.push(dead.id);
   }
 
-  const living = livingPlayers(state.players);
-  const openerIdx = living.findIndex((p) =>
-    p.hand.some((c) => c.suit === "clubs" && c.value === 3),
+  state.currentPlayerIndex = resolveOpeningPlayerIndex(
+    state.players,
+    dealerOptions ?? {},
   );
-  if (openerIdx >= 0) {
-    state.currentPlayerIndex = state.players.indexOf(living[openerIdx]);
-    state.mustPlay = true;
-    return;
-  }
-
-  const firstLivingIdx = state.players.findIndex((p) => !isDeadHandPlayer(p));
-  state.currentPlayerIndex = firstLivingIdx >= 0 ? firstLivingIdx : 0;
-  state.mustPlay = false;
+  state.mustPlay = true;
 }

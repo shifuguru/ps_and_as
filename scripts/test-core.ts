@@ -243,24 +243,23 @@ function makeEmptyGame(names: string[]): GameState {
   assert.strictEqual(s.passCount, 1, "passCount should remain 1 after a beat play");
 }
 
-// 2) A 2 clears the pile and starts a fresh trick; previous passes no longer block
+// 2) A 2 is a high card — others must pass before the trick ends (not an instant clear)
 {
   const g = makeEmptyGame(["P1","P2","P3"]);
   const fiveH: Card = { suit: "hearts", value: 5 };
-  const twoC: Card = { suit: "clubs", value: 2 };
+  const spare: Card = { suit: "spades", value: 3 };
+  const twoC: Card = { suit: "clubs", value: 15 };
   const sixH: Card = { suit: "hearts", value: 6 };
-  g.players[0].hand = [fiveH];
+  g.players[0].hand = [fiveH, spare];
   g.players[1].hand = [sixH];
   g.players[2].hand = [twoC];
   g.currentPlayerIndex = 0;
-  let s = playCards(g, g.players[0].id, [fiveH]); // P1 plays
-  s = passTurn(s, g.players[1].id); // P2 passes
-  s = playCards(s, g.players[2].id, [twoC]); // P3 plays 2 -> clears & starts fresh trick
-  assert.ok(s.currentTrick && s.currentTrick.actions.length === 0, "After 2, currentTrick should reset for fresh passes/plays");
-  // Now P2 should be eligible to play again (no pass recorded in the new trick)
-  s.currentPlayerIndex = 1;
-  const s2 = playCards(s, g.players[1].id, [sixH]);
-  assert.notStrictEqual(s2, s, "P2 should be able to play in the new trick after a 2 cleared");
+  let s = playCards(g, g.players[0].id, [fiveH]);
+  s = passTurn(s, g.players[1].id);
+  s = playCards(s, g.players[2].id, [twoC]);
+  assert.ok(s.pile.length === 1 && s.pile[0].value === 15, "2 stays on pile until others pass");
+  s = passTurn(s, g.players[0].id);
+  assert.ok(s.pile.length === 0, "Trick clears after all other active players pass on a 2");
 }
 
 // 3) 8-player trick resolution: leader wins when all others pass
@@ -316,6 +315,32 @@ function makeEmptyGame(names: string[]): GameState {
     "Turn should advance away from A after their last card",
   );
   assert.ok(isPlayerStillIn(after, g.players[0].id) === false, "A should no longer be active");
+}
+
+// Joker beats a pair on the pile even when the trick has an earlier run context
+{
+  const joker: Card = { suit: "joker", value: 16 };
+  const double7: Card[] = [
+    { suit: "hearts", value: 7 },
+    { suit: "diamonds", value: 7 },
+  ];
+  const pileHistory: Card[][] = [
+    [{ suit: "clubs", value: 5 }],
+    [{ suit: "spades", value: 6 }],
+    [{ suit: "hearts", value: 7 }],
+  ];
+  assert.ok(
+    isValidPlay(joker, double7, undefined, pileHistory),
+    "Single joker should beat double 7s despite run history in the trick",
+  );
+  const doubleJ: Card[] = [
+    { suit: "hearts", value: 11 },
+    { suit: "diamonds", value: 11 },
+  ];
+  assert.ok(
+    isValidPlay([joker], doubleJ, undefined, pileHistory),
+    "Single joker should beat double jacks despite run history in the trick",
+  );
 }
 
 console.log("Pass-lock and 8-player tests passed");

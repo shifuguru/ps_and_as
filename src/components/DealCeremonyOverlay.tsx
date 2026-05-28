@@ -44,6 +44,8 @@ const DEAL_STEP_GAP_MS = 55;
 /** Off-table seats still advance the deal order at a readable pace. */
 const HIDDEN_SEAT_DEAL_MS = 160;
 const MANDATORY_TRADE_MS = 720;
+/** Pill height estimate — used to nudge the status label below the top edge. */
+const STATUS_LABEL_HEIGHT = 34;
 
 export default function DealCeremonyOverlay({
   visible,
@@ -355,7 +357,12 @@ export default function DealCeremonyOverlay({
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">
-      <Animated.View style={[styles.labelWrap, { opacity: labelOpacity }]}>
+      <Animated.View
+        style={[
+          styles.labelWrap,
+          { opacity: labelOpacity, top: 12 + STATUS_LABEL_HEIGHT },
+        ]}
+      >
         <Text style={[styles.label, { color: colors.gold }]}>{statusText}</Text>
       </Animated.View>
 
@@ -455,7 +462,6 @@ const styles = StyleSheet.create({
   },
   labelWrap: {
     position: "absolute",
-    top: 12,
     left: 0,
     right: 0,
     alignItems: "center",

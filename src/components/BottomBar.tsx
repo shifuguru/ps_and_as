@@ -24,6 +24,7 @@ import BlurPanel from "./BlurPanel";
 import { ACTION_BAR_HEIGHT } from "./ActionBar";
 import { HAND_FAN_HEIGHT } from "./PlayerHand";
 import { LOCAL_SEAT_TABLE_LIFT } from "../utils/tableLayout";
+import { isMobileWeb, readWebSafeAreaInsets } from "../utils/webViewport";
 import { useAppTheme } from "../context/ThemeContext";
 
 
@@ -41,13 +42,21 @@ export const HAND_CONTROLS_GAP = 20;
 /** Extra height the bottom sheet extends past the bottom edge. */
 export const BOTTOM_SHEET_BLEED = 32;
 
+function bottomSheetBleed(safeBottom = 0): number {
+  if (Platform.OS === "web" && !isMobileWeb()) return BOTTOM_SHEET_BLEED;
+  const cssSafe = Platform.OS === "web" && isMobileWeb() ? readWebSafeAreaInsets().bottom : 0;
+  return BOTTOM_SHEET_BLEED + Math.max(safeBottom, cssSafe);
+}
+
 function bottomOuterPad(safeBottom = 0): number {
   const chrome = Math.max(0, safeBottom);
   const homeClearance =
     Platform.OS === "ios" ? Math.max(chrome, 20) + 14 : chrome + 16;
-  return Platform.OS === "web"
-    ? Math.max(12, chrome)
-    : homeClearance;
+  if (Platform.OS === "web") {
+    const cssSafe = isMobileWeb() ? readWebSafeAreaInsets().bottom : 0;
+    return Math.max(12, chrome, cssSafe);
+  }
+  return homeClearance;
 }
 
 /** Reserve scroll padding for a bottom panel with action track + leave (no hand). */
@@ -126,7 +135,7 @@ export default function BottomBar({
         style,
         minHeight ? { minHeight } : undefined,
 
-        { paddingBottom, bottom: Platform.OS === "web" ? 0 : -BOTTOM_SHEET_BLEED },
+        { paddingBottom, bottom: Platform.OS === "web" && !isMobileWeb() ? 0 : -bottomSheetBleed(bottomInset) },
 
       ]}
 

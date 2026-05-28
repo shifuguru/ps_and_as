@@ -7,7 +7,11 @@ import {
   shuffleDeck,
   shuffleDeckSeeded,
 } from "./ruleset";
-import { DEAD_HAND_ID, livingPlayers } from "./deadHand";
+import { DEAD_HAND_ID, livingPlayerIds, livingPlayers } from "./deadHand";
+import {
+  type DealerContext,
+  resolveOpeningPlayerIndex,
+} from "../utils/tableSeats";
 
 export type ClientPendingTrade = {
   key: "president" | "vicePresident";
@@ -19,6 +23,31 @@ export type ClientPendingTrade = {
   returnCount: number;
   completed?: boolean;
 };
+
+export function serverRoleToPlayerRole(role: string | undefined): Player["role"] {
+  switch (role) {
+    case "president":
+      return "President";
+    case "vice_president":
+      return "Vice President";
+    case "vice_asshole":
+      return "Vice Asshole";
+    case "asshole":
+      return "Asshole";
+    default:
+      return "Neutral";
+  }
+}
+
+export function applyServerRolesToPlayers(
+  players: Player[],
+  roles: Record<string, string> | undefined,
+): void {
+  if (!roles) return;
+  for (const player of players) {
+    player.role = serverRoleToPlayerRole(roles[player.id]);
+  }
+}
 
 export function assignPlayerRoles(
   players: Player[],
@@ -173,10 +202,23 @@ export function clonePlayersForRound(players: Player[]): Player[] {
 export function buildFreshRoundState(
   prev: GameState,
   players: Player[],
+  dealerOptions?: DealerContext,
 ): GameState {
-  const starterIdx = players.findIndex((p) =>
-    p.hand.some((c) => c.suit === "clubs" && c.value === 3),
-  );
+  const livingIds = livingPlayerIds(players);
+  const lastRoundOrder =
+    prev.finishedOrder.filter((id) => livingIds.includes(id)).length >= 2
+      ? prev.finishedOrder.filter((id) => livingIds.includes(id))
+      : prev.lastRoundOrder?.filter((id) => livingIds.includes(id)) ?? [];
+
+  const dealerContext: DealerContext = {
+    ...dealerOptions,
+    lastRoundOrder:
+      lastRoundOrder.length >= 2
+        ? lastRoundOrder
+        : dealerOptions?.lastRoundOrder ?? prev.lastRoundOrder,
+  };
+  const openerIdx = resolveOpeningPlayerIndex(players, dealerContext);
+
   return {
     ...prev,
     players,
@@ -187,16 +229,17 @@ export function buildFreshRoundState(
     tableStackOwners: [],
     passCount: 0,
     finishedOrder: [],
+    lastRoundOrder: lastRoundOrder.length >= 2 ? lastRoundOrder : prev.lastRoundOrder,
     started: true,
     lastPlayPlayerIndex: null,
-    mustPlay: starterIdx >= 0,
+    mustPlay: true,
     trickHistory: [],
     currentTrick: { trickNumber: 1, actions: [] },
     tenRule: { active: false, direction: null },
     tenRulePending: false,
     fourOfAKindChallenge: undefined,
     lastClear: undefined,
-    currentPlayerIndex: starterIdx >= 0 ? starterIdx : 0,
+    currentPlayerIndex: openerIdx,
   } as GameState;
 }
 

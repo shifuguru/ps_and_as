@@ -248,23 +248,23 @@ function buildShellColors(
     btnSecondaryText: isDark ? hexToRgba(frost, 0.9) : textPrimary,
     btnGhostBorder: hexToRgba(isDark ? frost : accent, isDark ? 0.12 : 0.14),
     btnGhostText: hexToRgba(textPrimary, isDark ? 0.65 : 0.72),
-    actionTrackBg: hexToRgba(frost, isDark ? 0.06 : 0.82),
+    actionTrackBg: hexToRgba(frost, isDark ? 0.06 : 0.52),
     actionTrackBorder: isDark
       ? hexToRgba(frost, 0.12)
-      : hexToRgba(accent, 0.1),
+      : hexToRgba(accent, 0.14),
     actionPrimaryBg: hexToRgba(accent, isDark ? 0.18 : 0.12),
     actionPrimaryBorder: hexToRgba(accent, isDark ? 0.32 : 0.22),
     actionPrimaryText: accent,
-    actionPrimaryDisabledBg: hexToRgba(frost, isDark ? 0.04 : 0.5),
+    actionPrimaryDisabledBg: hexToRgba(frost, isDark ? 0.04 : 0.38),
     actionPrimaryDisabledBorder: hexToRgba(
       isDark ? frost : accent,
-      isDark ? 0.1 : 0.08,
+      isDark ? 0.1 : 0.1,
     ),
     actionPrimaryDisabledText: hexToRgba(
       textPrimary,
-      isDark ? 0.35 : 0.38,
+      isDark ? 0.35 : 0.42,
     ),
-    actionSecondaryBg: hexToRgba(frost, isDark ? 0.06 : 0.76),
+    actionSecondaryBg: hexToRgba(frost, isDark ? 0.06 : 0.46),
     actionSecondaryBorder: isDark
       ? hexToRgba(frostLine, glassLine)
       : hexToRgba(accent, 0.12),
@@ -289,8 +289,8 @@ function buildShellColors(
     blur: {
       chrome: {
         intensity: isDark ? 40 : 40,
-        scrimOpacity: isDark ? 0.16 : 0.38,
-        webOpacity: isDark ? 0.05 : 0.84,
+        scrimOpacity: isDark ? 0.16 : 0.32,
+        webOpacity: isDark ? 0.05 : 0.68,
         tint: isDark ? "dark" : "light",
       },
       panel: {

@@ -12,6 +12,7 @@ import {
 import { triggerHaptic } from "../utils/haptics";
 import { useAppTheme } from "../context/ThemeContext";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
+import { hexToRgba } from "../utils/colorTheory";
 
 /** Fixed height budget for bottom-bar layout math (see GameScreen). */
 export const ACTION_BAR_HEIGHT = 108;
@@ -40,6 +41,7 @@ export default function ActionBar({
   noValidPlays = false,
 }: Props) {
   const { colors, ui } = useAppTheme();
+  const isLight = colors.mode === "light";
   const gold = colors.gold;
   const goldDim =
     colors.mode === "light"
@@ -49,6 +51,24 @@ export default function ActionBar({
     colors.mode === "light"
       ? "rgba(0, 122, 255, 0.18)"
       : "rgba(100, 210, 255, 0.2)";
+  const passIdleBg = colors.actionSecondaryBg;
+  const passIdleBorder = colors.actionSecondaryBorder;
+  const passIdleText = colors.actionSecondaryText;
+  const playIdleBg = colors.actionPrimaryDisabledBg;
+  const playIdleBorder = colors.actionPrimaryDisabledBorder;
+  const playIdleText = colors.actionPrimaryDisabledText;
+  const playTurnBgLow = isLight
+    ? hexToRgba(colors.gold, 0.08)
+    : "rgba(10,132,255,0.12)";
+  const playTurnBgHigh = isLight
+    ? hexToRgba(colors.gold, 0.14)
+    : "rgba(10,132,255,0.22)";
+  const passTurnBgLow = isLight
+    ? hexToRgba(colors.textPrimary, 0.04)
+    : "rgba(255,255,255,0.06)";
+  const passTurnBgHigh = isLight
+    ? hexToRgba(colors.textPrimary, 0.08)
+    : "rgba(255,255,255,0.11)";
   const { width } = useWindowDimensions();
   const barWidth = Math.min(width - 32, 440);
 
@@ -119,33 +139,36 @@ export default function ActionBar({
   const passBackground = showPassFlash
     ? passFlash.interpolate({
         inputRange: [0, 1],
-        outputRange: ["rgba(255,255,255,0.08)", "rgba(255,255,255,0.92)"],
+        outputRange: [
+          isLight ? passIdleBg : "rgba(255,255,255,0.08)",
+          isLight ? "rgba(255,255,255,0.96)" : "rgba(255,255,255,0.92)",
+        ],
       })
     : isPlayerTurn && !passDisabled
       ? turnGlow.interpolate({
           inputRange: [0, 1],
-          outputRange: ["rgba(255,255,255,0.06)", "rgba(255,255,255,0.11)"],
+          outputRange: [passTurnBgLow, passTurnBgHigh],
         })
-      : "rgba(255,255,255,0.05)";
+      : passIdleBg;
 
   const passBorder = showPassFlash
     ? passFlash.interpolate({
         inputRange: [0, 1],
-        outputRange: [goldDim, "rgba(255,255,255,0.95)"],
+        outputRange: [goldDim, isLight ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.95)"],
       })
     : isPlayerTurn && !passDisabled
       ? turnGlow.interpolate({
           inputRange: [0, 1],
           outputRange: [goldGlow, goldDim],
         })
-      : "rgba(255,255,255,0.1)";
+      : passIdleBorder;
 
   const passTextColor = showPassFlash
     ? passFlash.interpolate({
         inputRange: [0, 1],
-        outputRange: ["#f0f0f0", "#111111"],
+        outputRange: [isLight ? passIdleText : "#f0f0f0", "#111111"],
       })
-    : "#f0f0f0";
+    : passIdleText;
 
   const playBorderColor = playReady
     ? gold
@@ -154,20 +177,28 @@ export default function ActionBar({
           inputRange: [0, 1],
           outputRange: [goldGlow, goldDim],
         })
-      : "rgba(255,255,255,0.08)";
+      : playIdleBorder;
 
   const playBackground = playReady
     ? gold
     : isPlayerTurn && !playDisabled
       ? turnGlow.interpolate({
           inputRange: [0, 1],
-          outputRange: ["rgba(10,132,255,0.12)", "rgba(10,132,255,0.22)"],
+          outputRange: [playTurnBgLow, playTurnBgHigh],
         })
-      : "rgba(255,255,255,0.04)";
+      : playIdleBg;
 
   return (
     <View style={[styles.container, { width: barWidth, maxWidth: barWidth }]}>
-      <View style={styles.actionTrack}>
+      <View
+        style={[
+          styles.actionTrack,
+          {
+            backgroundColor: colors.actionTrackBg,
+            borderColor: colors.actionTrackBorder,
+          },
+        ]}
+      >
         <AnimatedTouchable
           style={[
             styles.passButton,
@@ -194,7 +225,13 @@ export default function ActionBar({
               Pass
             </Animated.Text>
           ) : (
-            <Text style={[styles.passText, passDisabled && styles.textMuted]}>
+            <Text
+              style={[
+                styles.passText,
+                { color: passIdleText },
+                passDisabled && styles.textMuted,
+              ]}
+            >
               Pass
             </Text>
           )}
@@ -248,8 +285,13 @@ export default function ActionBar({
           <Text
             style={[
               styles.playText,
+              { color: playIdleText },
               playReady && styles.playTextReady,
-              isPlayerTurn && !playDisabled && !playReady && styles.playTextTurn,
+              isPlayerTurn &&
+                !playDisabled &&
+                !playReady && {
+                  color: isLight ? colors.actionPrimaryText : "#f5f0e6",
+                },
               playDisabled && styles.textMuted,
             ]}
           >
@@ -285,9 +327,7 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 5,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
     minHeight: 58,
   },
   passButton: {
@@ -347,13 +387,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   }),
   playText: buttonLabel(15, {
-    color: "rgba(255,255,255,0.35)",
     fontWeight: "800",
     letterSpacing: 0.3,
   }),
-  playTextTurn: {
-    color: "#f5f0e6",
-  },
   playTextReady: {
     color: "#111",
   },

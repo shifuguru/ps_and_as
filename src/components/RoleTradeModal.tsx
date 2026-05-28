@@ -22,6 +22,7 @@ type Props = {
   hand: CardType[];
   isWinner: boolean;
   onConfirm: (selected: CardType[]) => void;
+  onSelectionChange?: (selected: CardType[]) => void;
 };
 
 export default function RoleTradeModal({
@@ -30,6 +31,7 @@ export default function RoleTradeModal({
   hand,
   isWinner,
   onConfirm,
+  onSelectionChange,
 }: Props) {
   const { colors, ui, blur } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -46,11 +48,13 @@ export default function RoleTradeModal({
   const toggle = (index: number) => {
     triggerHaptic("light");
     setSelected((prev) => {
-      if (prev.includes(index)) return prev.filter((i) => i !== index);
-      if (prev.length >= trade.returnCount) {
-        return [...prev.slice(1), index];
-      }
-      return [...prev, index];
+      let next: number[];
+      if (prev.includes(index)) next = prev.filter((i) => i !== index);
+      else if (prev.length >= trade.returnCount) {
+        next = [...prev.slice(1), index];
+      } else next = [...prev, index];
+      onSelectionChange?.(next.map((i) => sortedHand[i]));
+      return next;
     });
   };
 
@@ -133,8 +137,10 @@ export default function RoleTradeModal({
                   disabled={!canConfirm}
                   onPress={() => {
                     triggerHaptic("medium");
-                    onConfirm(selected.map((i) => sortedHand[i]));
+                    const picked = selected.map((i) => sortedHand[i]);
+                    onConfirm(picked);
                     setSelected([]);
+                    onSelectionChange?.([]);
                   }}
                 >
                   <Text

@@ -7,6 +7,13 @@ Empty your hand first. Next round, ranks: President, VP, ... Arsehole.
 - Players must beat the current top set or **pass**.
 - A "set" is {N of a kind} or a **run** (sequence) when allowed.
 
+## Dealing & opening
+- **Round 1:** the lobby host deals.
+- **Later rounds:** the previous round's Asshole deals.
+- Cards are dealt clockwise, starting with the player one seat anticlockwise from the dealer (to the dealer's left).
+- **First to play** each round is that same seat — one place anticlockwise from the dealer.
+- **Round 1 opening:** if the lead player holds 3♣, they must open with 3s including it. From round 2 onward, any legal lead is allowed.
+
 ## Sets
 - Singles: any rank. Jokers (if used) are highest.
 - Doubles/Triples/Quads: must match count to beat (e.g., double beats double).

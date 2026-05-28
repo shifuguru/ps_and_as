@@ -7,6 +7,10 @@ import {
   isDeadHandPlayer,
   isRoundCompleteForLiving,
 } from "./deadHand";
+import {
+  type DealerContext,
+  resolveOpeningPlayerIndex,
+} from "../utils/tableSeats";
 
 export {
   DEAD_HAND_ID,
@@ -74,6 +78,8 @@ export type GameState = {
     value?: number;
     playerIndex?: number;
   };
+  /** Finish order from the previous round — used for dealer rotation & roles. */
+  lastRoundOrder?: string[];
 };
 
 /** Keep passCount aligned with distinct pass actions in the current trick. */
@@ -105,26 +111,27 @@ export function isPlayerStillIn(state: GameState, playerId: string): boolean {
   return !state.finishedOrder.includes(playerId) && player.hand.length > 0;
 }
 
-function buildInitialGameState(players: Player[], dealSeed?: number): GameState {
+function buildInitialGameState(
+  players: Player[],
+  dealSeed?: number,
+  dealerOptions?: DealerContext,
+): GameState {
   const deck =
     dealSeed != null
       ? shuffleDeckSeeded(createDeck(), dealSeed)
       : shuffleDeck(createDeck());
   dealCards(deck, players);
-  const threeOfClubsIndex = players.findIndex((p) =>
-    p.hand.some((c) => c.suit === "clubs" && c.value === 3),
-  );
-  const startIndex = threeOfClubsIndex >= 0 ? threeOfClubsIndex : 0;
+  const openerIdx = resolveOpeningPlayerIndex(players, dealerOptions ?? {});
   return {
     id: "game-" + Date.now(),
     players,
-    currentPlayerIndex: startIndex,
+    currentPlayerIndex: openerIdx,
     pile: [],
     passCount: 0,
     finishedOrder: [],
     started: true,
     lastPlayPlayerIndex: null,
-    mustPlay: threeOfClubsIndex >= 0 ? true : false,
+    mustPlay: true,
     pileHistory: [],
     pileOwners: [],
     tableStacks: [],
@@ -149,7 +156,7 @@ export function createGame(playerNames: string[]): GameState {
 export function createGameFromLobby(
   lobbyPlayers: { id: string; name: string }[],
   dealSeed?: number,
-  options?: { deadHand?: boolean },
+  options?: { deadHand?: boolean; hostId?: string | null; lastRoundOrder?: string[] },
 ): GameState {
   const players: Player[] = lobbyPlayers.map((p) => ({
     id: p.id,
@@ -160,9 +167,13 @@ export function createGameFromLobby(
   if (options?.deadHand && players.length === 2) {
     players.push(createDeadHandPlayer());
   }
-  const state = buildInitialGameState(players, dealSeed);
+  const dealerOptions: DealerContext = {
+    hostId: options?.hostId ?? null,
+    lastRoundOrder: options?.lastRoundOrder,
+  };
+  const state = buildInitialGameState(players, dealSeed, dealerOptions);
   if (options?.deadHand) {
-    applyDeadHandAfterDeal(state);
+    applyDeadHandAfterDeal(state, dealerOptions);
   }
   return state;
 }
@@ -262,17 +273,14 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   // Enforce clear precedence: if this play is a 2 and the current trick already
   // contains a Joker or an active four-of-a-kind clear, reject it. We also use
   // state.lastClear to track the highest-clear type in the current trick.
+  // If the play is a 2, reject overriding an active Joker clear in this trick.
   if (containsTwo(cards)) {
-    // 2s should not be allowed to override a Joker clear, but allow them to
-    // beat/override an existing four-of-a-kind clear (so players holding
-    // four 2s can play on top of an earlier quads). This keeps 2 as a high
-    // non-automatic-clearing card while still respecting Joker precedence.
     if (state.lastClear?.type === "joker") {
-      return state; // 2 cannot override a Joker clear in the same trick
+      return state;
     }
   }
 
-  if (!isValidPlay(cards, state.pile, state.tenRule, state.pileHistory, state.trickHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder)) {
+  if (!isValidPlay(cards, state.pile, state.tenRule, state.pileHistory, state.trickHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder, state.lastRoundOrder, state.players[state.currentPlayerIndex]?.id)) {
     // If the attempted play is invalid and the player is required to play,
     // check whether the player truly has any valid alternative play. If no
     // valid plays exist, convert this attempted play into a pass to avoid
@@ -287,11 +295,14 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
         state.fourOfAKindChallenge,
         state.currentTrick,
         state.players,
-        state.finishedOrder
+        state.finishedOrder,
+        state.trickHistory,
+        state.lastRoundOrder,
+        player.id,
       );
       // If no possible play, or the best possible play is also invalid,
       // allow the player to pass so the game can progress.
-      if (possible === null || !isValidPlay(possible, state.pile, state.tenRule, state.pileHistory, state.trickHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder)) {
+      if (possible === null || !isValidPlay(possible, state.pile, state.tenRule, state.pileHistory, state.trickHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder, state.lastRoundOrder, state.players[state.currentPlayerIndex]?.id)) {
         return passTurn(state, playerId);
       }
     }
@@ -315,41 +326,6 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     cards: cards.slice(),
     timestamp: Date.now(),
   });
-
-  // If the play is a 2, immediately clear the pile and start a fresh trick.
-  if (containsTwo(cards)) {
-    console.log('[core DEBUG] playCards: immediate containsTwo handling');
-    state.lastClear = { type: "two", value: 15, playerIndex: pIndex };
-    state.pile = cards;
-    state.pileHistory = state.pileHistory || [];
-    state.pileHistory.push(cards.slice());
-    state.pileOwners = state.pileOwners || [];
-    state.pileOwners.push(player.id);
-    state.tableStacks = state.tableStacks || [];
-    state.tableStackOwners = state.tableStackOwners || [];
-    for (let i = 0; i < state.pileHistory.length; i++) {
-      state.tableStacks.push(state.pileHistory[i]);
-      state.tableStackOwners.push((state.pileOwners && state.pileOwners[i]) ? state.pileOwners[i] : null);
-    }
-    state.pile = [];
-    state.pileHistory = [];
-    state.pileOwners = [];
-    state.passCount = 0;
-    state.lastClear = undefined;
-    state.fourOfAKindChallenge = undefined;
-    state.tenRule = { active: false, direction: null };
-    state.tenRulePending = false;
-    state.currentTrick = { trickNumber: (state.trickHistory?.length || 0) + 1, actions: [] };
-    if (isPlayerStillIn(state, player.id)) {
-      state.currentPlayerIndex = pIndex;
-      state.mustPlay = true;
-    } else {
-      state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
-      state.mustPlay = false;
-    }
-    syncFinishedFromEmptyHands(state);
-    return { ...state };
-  }
 
   // Two and single Joker still immediately end/clear the pile. Four-of-a-kind
   // starts a special challenge: the next player must play another set of four
@@ -387,11 +363,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.tenRule = { active: false, direction: null };
   }
 
-  // Special rules first
-  // Four-of-a-kind handling and Joker handling remain; 2 is NOT treated as an
-  // automatic pile-clearing card here — it behaves as a high-ranked card that
-  // can participate in runs and normal comparisons. (Escalation logic for
-  // multiple 2s is handled in isValidPlay/findCPUPlay where needed.)
+  // Special rules first — 2s behave as high cards (not instant pile clears).
   if (isFourOfAKind(cards)) {
     // Four-of-a-kind: set as last clear, add to pile, and continue play
     state.lastClear = { type: "four", value: cards[0].value, playerIndex: pIndex };
@@ -445,41 +417,6 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     // Advance to next active player so others can pass
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
     state.mustPlay = false;
-  } else if (containsTwo(cards)) {
-    console.log('[core DEBUG] playCards: entering containsTwo branch for', player.id, cards.map(c=>c.value));
-    // 2s are high cards and CLEAR the pile, starting a fresh trick.
-    state.lastClear = { type: "two", value: 15, playerIndex: pIndex };
-    // Record on pileHistory briefly then collect it into table stacks
-    state.pile = cards;
-    state.pileHistory = state.pileHistory || [];
-    state.pileHistory.push(cards.slice());
-    state.pileOwners = state.pileOwners || [];
-    state.pileOwners.push(player.id);
-    // Move visible pile entries to table stacks (face-down) and reset pile/history
-    state.tableStacks = state.tableStacks || [];
-    state.tableStackOwners = state.tableStackOwners || [];
-    for (let i = 0; i < state.pileHistory.length; i++) {
-      state.tableStacks.push(state.pileHistory[i]);
-      state.tableStackOwners.push((state.pileOwners && state.pileOwners[i]) ? state.pileOwners[i] : null);
-    }
-    state.pile = [];
-    state.pileHistory = [];
-    state.pileOwners = [];
-    state.passCount = 0;
-    state.lastClear = undefined;
-    state.fourOfAKindChallenge = undefined;
-    state.tenRule = { active: false, direction: null };
-    state.tenRulePending = false;
-    // Start a fresh trick (new currentTrick actions)
-    state.currentTrick = { trickNumber: (state.trickHistory?.length || 0) + 1, actions: [] };
-    // Advance turn: winner (player who played 2) leads if still active, otherwise next active
-    if (isPlayerStillIn(state, player.id)) {
-      state.currentPlayerIndex = pIndex;
-      state.mustPlay = true;
-    } else {
-      state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
-      state.mustPlay = false;
-    }
   } else {
     // normal play replaces the pile
     state.pile = cards;
@@ -767,22 +704,30 @@ export function runFromCurrentTrick(currentTrick?: TrickHistory, players?: Playe
   return runFromCurrentTrickInfo(currentTrick, players, finishedOrder).repCards;
 }
 
-export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boolean; direction: "higher" | "lower" | null }, pileHistory?: Card[][], trickHistory?: TrickHistory[], fourOfAKindChallenge?: { active: boolean; value: number; starterIndex: number }, currentTrick?: TrickHistory, players?: Player[], finishedOrder?: string[]) {
+export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boolean; direction: "higher" | "lower" | null }, pileHistory?: Card[][], trickHistory?: TrickHistory[], fourOfAKindChallenge?: { active: boolean; value: number; starterIndex: number }, currentTrick?: TrickHistory, players?: Player[], finishedOrder?: string[], lastRoundOrder?: string[], currentPlayerId?: string) {
   // --- NZ Presidents & Arseholes Rules ---
   // 1. Empty play not allowed
   if (!cards || cards.length === 0) return false;
   const playCount = getPlayCount(cards);
   const pileCount = getPlayCount(pile);
-  // 2. First turn must include 3♣ and ONLY 3s
-  if (
+  // 2. First round opening: player anticlockwise from dealer leads; if they hold
+  // 3♣ they must open with 3s including it. Later rounds: any legal lead.
+  const isRoundOpening =
     pileCount === 0 &&
     (!pileHistory || pileHistory.length === 0) &&
     (!currentTrick || currentTrick.actions.length === 0) &&
-    (!trickHistory || trickHistory.length === 0) &&
-    // Only treat as the literal game-opening first play when players actually
-    // have been dealt cards and someone actually holds the 3 of clubs. Tests
-    // that construct synthetic games without the 3♣ should not be blocked
-    // by the opener rule.
+    (!trickHistory || trickHistory.length === 0);
+  const isFirstRoundOfSession = !lastRoundOrder || lastRoundOrder.length < 2;
+  const currentPlayer = currentPlayerId
+    ? players?.find((p) => p.id === currentPlayerId)
+    : undefined;
+  const openerHoldsThreeClubs = !!currentPlayer?.hand?.some(
+    (c) => c.value === 3 && c.suit === "clubs",
+  );
+  if (
+    isRoundOpening &&
+    isFirstRoundOfSession &&
+    openerHoldsThreeClubs &&
     (!!players && players.some(p => p.hand && p.hand.some(c => c.value === 3 && c.suit === 'clubs')))
   ) {
     const hasThreeClubs = cards.some((c) => c.value === 3 && c.suit === "clubs");
@@ -798,7 +743,6 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   // 4. Defensive: prevent joker-on-joker plays
   if (isSingleJoker(cards) && pileCount > 0 && pile.some(c => isJoker(c))) return false;
   // 5. Run detection (consecutive single-card plays)
-  let effPile: Card[] = effectivePile(pile, pileHistory);
   const trickRunInfo = runFromCurrentTrickInfo(currentTrick, players, finishedOrder || []);
   const seqInfo = consecutiveSequenceInfo(
     pile,
@@ -807,9 +751,6 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
     players,
     finishedOrder || [],
   );
-  if (trickRunInfo.repCards && trickRunInfo.repCards.length >= MIN_RUN_CONTEXT_LENGTH) {
-    effPile = trickRunInfo.repCards;
-  }
   const runSeq =
     seqInfo.repCards.length >= trickRunInfo.repCards.length
       ? seqInfo.repCards
@@ -821,7 +762,6 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
         : trickRunInfo.multiplicity || 1
       : trickRunInfo.multiplicity || 1;
   const inRunContext = isRunContextSequence(runSeq);
-  const isPileRun = effPile.length >= MIN_RUN_CONTEXT_LENGTH && isRunContextSequence(effPile);
   const pileIsUniform = allSameValue(pile);
   const closesToQuad =
     pileIsUniform &&
@@ -841,11 +781,13 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
     }
     return false;
   }
-  // 7. Joker rules
+  // 7. Joker rules — a single joker beats any set on the pile (pair, triple, etc.)
   if (isSingleJoker(cards) && pileCount > 0) {
-    if (isPileRun) return false; // Jokers not allowed in runs
-    if (pile.some(c => isJoker(c))) return false; // Joker can't beat Joker
-    if (tenRule?.active && tenRule.direction === 'lower') return false; // Joker can't beat 10-lower
+    const pileItselfIsRun =
+      pile.length >= MIN_RUN_CONTEXT_LENGTH && isRunContextSequence(pile);
+    if (pileItselfIsRun) return false;
+    if (pile.some((c) => isJoker(c))) return false;
+    if (tenRule?.active && tenRule.direction === "lower") return false;
     return true;
   }
   // 8. If pile is empty, any uniform play or run is allowed
@@ -865,9 +807,8 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
     }
   }
   // 10. Run logic: extend a consecutive sequence (3+ cards); 9 and J both valid after 10
-  if (inRunContext) {
+  if (inRunContext && !isJoker(cards[0])) {
     if (playCount !== runMultiplicity) return false;
-    if (isJoker(cards[0])) return false;
     const lastCard = runSeq[runSeq.length - 1];
     const lastRank = rankIndex(lastCard.value);
     const playRank = rankIndex(cards[0].value);
@@ -932,8 +873,7 @@ export function containsTen(cards: Card[]) {
 }
 
 export function isJoker(card: Card) {
-  // Accept either legacy (15) or new (16) joker encodings for robustness.
-  return (card.value === 16 || card.value === 15) && card.suit === "joker";
+  return card.suit === "joker" && card.value === 16;
 }
 
 export function isSingleJoker(cards: Card[]) {
@@ -1005,28 +945,129 @@ export function findValidSingleCard(hand: Card[], pile: Card[]) {
   return lowest;
 }
 
+type CpuPlayContext = {
+  pile: Card[];
+  tenRule?: { active: boolean; direction: "higher" | "lower" | null };
+  pileHistory?: Card[][];
+  trickHistory?: TrickHistory[];
+  fourOfAKindChallenge?: { active: boolean; value: number; starterIndex: number };
+  currentTrick?: TrickHistory;
+  players?: Player[];
+  finishedOrder?: string[];
+  lastRoundOrder?: string[];
+  currentPlayerId?: string;
+};
+
+function cpuPlayIsValid(hand: Card[], cards: Card[] | null, ctx: CpuPlayContext): boolean {
+  if (!cards || cards.length === 0) return false;
+  for (const c of cards) {
+    if (!hand.some((h) => h.suit === c.suit && h.value === c.value)) return false;
+  }
+  return isValidPlay(
+    cards,
+    ctx.pile,
+    ctx.tenRule,
+    ctx.pileHistory,
+    ctx.trickHistory,
+    ctx.fourOfAKindChallenge,
+    ctx.currentTrick,
+    ctx.players,
+    ctx.finishedOrder,
+    ctx.lastRoundOrder,
+    ctx.currentPlayerId,
+  );
+}
+
+/** Brute-force any legal play when heuristics miss (prevents CPU deadlocks). */
+function enumerateValidCpuPlay(hand: Card[], ctx: CpuPlayContext): Card[] | null {
+  if (!hand.length) return null;
+  const grouped: Record<number, Card[]> = {};
+  hand.forEach((card) => {
+    if (!grouped[card.value]) grouped[card.value] = [];
+    grouped[card.value].push(card);
+  });
+
+  const pileCount = ctx.pile.length;
+  const candidates: Card[][] = [];
+
+  if (pileCount === 0) {
+    const threeOfClubs = hand.find((c) => c.value === 3 && c.suit === "clubs");
+    if (threeOfClubs) candidates.push(grouped[3] ?? [threeOfClubs]);
+    const values = Object.keys(grouped)
+      .map(Number)
+      .sort((a, b) => rankIndex(a) - rankIndex(b));
+    for (const v of values) candidates.push(grouped[v]);
+  } else {
+    const joker = hand.find((c) => isJoker(c));
+    if (joker) candidates.push([joker]);
+    for (const value of Object.keys(grouped).map(Number)) {
+      const need = cardsNeededToPlay(ctx.pile, value);
+      const cards = grouped[value];
+      if (cards && cards.length >= need) {
+        candidates.push(cards.slice(0, need));
+      }
+    }
+  }
+
+  candidates.sort((a, b) => rankIndex(a[0].value) - rankIndex(b[0].value));
+  for (const play of candidates) {
+    if (cpuPlayIsValid(hand, play, ctx)) return play;
+  }
+  return null;
+}
+
 // AI function to find the best valid play for a CPU player
-export function findCPUPlay(hand: Card[], pile: Card[], tenRule?: { active: boolean; direction: "higher" | "lower" | null }, pileHistory?: Card[][], fourOfAKindChallenge?: { active: boolean; value: number; starterIndex: number }, currentTrick?: TrickHistory, players?: Player[], finishedOrder?: string[]): Card[] | null {
+export function findCPUPlay(
+  hand: Card[],
+  pile: Card[],
+  tenRule?: { active: boolean; direction: "higher" | "lower" | null },
+  pileHistory?: Card[][],
+  fourOfAKindChallenge?: { active: boolean; value: number; starterIndex: number },
+  currentTrick?: TrickHistory,
+  players?: Player[],
+  finishedOrder?: string[],
+  trickHistory?: TrickHistory[],
+  lastRoundOrder?: string[],
+  currentPlayerId?: string,
+): Card[] | null {
   if (!hand || hand.length === 0) return null;
 
+  const ctx: CpuPlayContext = {
+    pile,
+    tenRule,
+    pileHistory,
+    trickHistory,
+    fourOfAKindChallenge,
+    currentTrick,
+    players,
+    finishedOrder,
+    lastRoundOrder,
+    currentPlayerId,
+  };
+
   const pileCount = pile.length;
-  const jokerCard = hand.find(c => isJoker(c));
+  const jokerCard = hand.find((c) => isJoker(c));
 
   // Group cards by value
   const grouped: { [key: number]: Card[] } = {};
-  hand.forEach(card => {
+  hand.forEach((card) => {
     if (!grouped[card.value]) grouped[card.value] = [];
     grouped[card.value].push(card);
   });
 
   // If pile is empty, prefer 3♣ if present; else play the lowest rank index set (single-rank-per-turn)
   if (pileCount === 0) {
-    const threeOfClubs = hand.find(c => c.value === 3 && c.suit === "clubs");
-    if (threeOfClubs) return grouped[3] || [threeOfClubs];
-    // choose the lowest rank by rankIndex
-    const values = Object.keys(grouped).map(Number).sort((a, b) => rankIndex(a) - rankIndex(b));
-    const v = values[0];
-    return grouped[v];
+    const threeOfClubs = hand.find((c) => c.value === 3 && c.suit === "clubs");
+    const emptyCandidates: Card[][] = [];
+    if (threeOfClubs) emptyCandidates.push(grouped[3] || [threeOfClubs]);
+    const values = Object.keys(grouped)
+      .map(Number)
+      .sort((a, b) => rankIndex(a) - rankIndex(b));
+    for (const v of values) emptyCandidates.push(grouped[v]);
+    for (const candidate of emptyCandidates) {
+      if (cpuPlayIsValid(hand, candidate, ctx)) return candidate;
+    }
+    return enumerateValidCpuPlay(hand, ctx);
   }
 
   // Effective run context: extend with an adjacent card/group matching multiplicity
@@ -1056,23 +1097,28 @@ export function findCPUPlay(hand: Card[], pile: Card[], tenRule?: { active: bool
   if (inRunContext) {
     const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
     if (runMultiplicity === 1) {
-      const adjCard = hand.find(c => {
+      const adjCandidates = hand.filter((c) => {
         if (isJoker(c)) return false;
         const r = rankIndex(c.value);
         return Math.abs(r - lastRank) === 1;
       });
-      return adjCard ? [adjCard] : null;
+      adjCandidates.sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
+      for (const adjCard of adjCandidates) {
+        const candidate = [adjCard];
+        if (cpuPlayIsValid(hand, candidate, ctx)) return candidate;
+      }
     } else {
-      // look for groups of the required multiplicity whose rank is adjacent
       const values = Object.keys(grouped).map(Number).sort((a, b) => rankIndex(a) - rankIndex(b));
       for (const v of values) {
         const cards = grouped[v];
         if (cards.length >= runMultiplicity) {
           const r = rankIndex(v);
-          if (Math.abs(r - lastRank) === 1) return cards.slice(0, runMultiplicity);
+          if (Math.abs(r - lastRank) === 1) {
+            const candidate = cards.slice(0, runMultiplicity);
+            if (cpuPlayIsValid(hand, candidate, ctx)) return candidate;
+          }
         }
       }
-      return null;
     }
   }
 
@@ -1115,10 +1161,10 @@ export function findCPUPlay(hand: Card[], pile: Card[], tenRule?: { active: bool
 
   // Same-count higher-value plays (respect 10 rule if active)
   if (!pileIsTwos) {
-    Object.keys(grouped).forEach(valueStr => {
+    Object.keys(grouped).forEach((valueStr) => {
       const value = Number(valueStr);
       const cards = grouped[value];
-      if (value === 15) return; // skip jokers here
+      if (value === 16) return; // skip jokers here
       if (cards.length >= pileCount) {
         const valueRankIndex = rankIndex(value);
         if (tenRule?.active && tenRule.direction) {
@@ -1132,10 +1178,49 @@ export function findCPUPlay(hand: Card[], pile: Card[], tenRule?: { active: bool
     });
   }
 
-  if (validPlays.length === 0 && jokerCard && !pile.some(c => isJoker(c))) return [jokerCard];
-  if (validPlays.length === 0) return null;
+  if (validPlays.length === 0 && jokerCard && !pile.some((c) => isJoker(c))) {
+    validPlays.push([jokerCard]);
+  }
   validPlays.sort((a, b) => rankIndex(a[0].value) - rankIndex(b[0].value));
-  return validPlays[0];
+  for (const candidate of validPlays) {
+    if (cpuPlayIsValid(hand, candidate, ctx)) return candidate;
+  }
+  return enumerateValidCpuPlay(hand, ctx);
+}
+
+/** Apply one CPU turn: play (with 10-rule choice) or pass. Never no-ops unless truly stuck. */
+export function applyCpuTurn(state: GameState, playerId: string): GameState {
+  const pIndex = state.players.findIndex((p) => p.id === playerId);
+  if (pIndex === -1 || state.currentPlayerIndex !== pIndex) return state;
+  const player = state.players[pIndex];
+
+  const cpuPlay = findCPUPlay(
+    player.hand,
+    state.pile,
+    state.tenRule,
+    state.pileHistory,
+    state.fourOfAKindChallenge,
+    state.currentTrick,
+    state.players,
+    state.finishedOrder,
+    state.trickHistory,
+    state.lastRoundOrder,
+    player.id,
+  );
+
+  if (cpuPlay && cpuPlay.length > 0) {
+    const nextState = playCards(state, playerId, cpuPlay);
+    if (nextState !== state) {
+      if (nextState.tenRulePending) {
+        const direction = Math.random() < 0.5 ? "higher" : "lower";
+        return setTenRuleDirection(nextState, direction);
+      }
+      return nextState;
+    }
+  }
+
+  const passed = passTurn(state, playerId);
+  return passed;
 }
 
 export function passTurn(state: GameState, playerId: string): GameState {
@@ -1155,7 +1240,7 @@ export function passTurn(state: GameState, playerId: string): GameState {
   } catch (e) {}
 
   // Allow strategic passes even when a player has a valid play, with one exception:
-  // the very first move of the entire game (the player holding 3♣ must open).
+  // the round opener (one seat anticlockwise from the dealer) must lead first.
   if (state.mustPlay) {
     const isFirstPlay =
       state.pile.length === 0 &&
