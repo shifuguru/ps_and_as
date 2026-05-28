@@ -1,7 +1,15 @@
 import * as assert from "assert";
 import { createDeck, shuffleDeck } from "../src/game/ruleset";
-import type { Card } from "../src/game/ruleset";
+import type { Card, Player } from "../src/game/ruleset";
 import type { GameState } from "../src/game/core";
+import {
+  createDeadHandPlayer,
+  DEAD_HAND_ID,
+} from "../src/game/deadHand";
+import {
+  resolveFirstRoundLeadPlayerIndex,
+  resolveOpeningPlayerIndex,
+} from "../src/utils/tableSeats";
 import {
   createGame,
   playCards,
@@ -330,7 +338,7 @@ function makeEmptyGame(names: string[]): GameState {
     [{ suit: "hearts", value: 7 }],
   ];
   assert.ok(
-    isValidPlay(joker, double7, undefined, pileHistory),
+    isValidPlay([joker], double7, undefined, pileHistory),
     "Single joker should beat double 7s despite run history in the trick",
   );
   const doubleJ: Card[] = [
@@ -344,3 +352,122 @@ function makeEmptyGame(names: string[]): GameState {
 }
 
 console.log("Pass-lock and 8-player tests passed");
+
+// --- Dead hand round-1 opening ---
+
+function makeTwoPlayerDeadHandGame(
+  hands: Record<string, Card[]>,
+  sidelinedDead: Card[] = [],
+): Player[] {
+  const dead = createDeadHandPlayer();
+  dead.hand = hands[DEAD_HAND_ID] ?? [];
+  dead.sidelinedHand = sidelinedDead.length ? sidelinedDead : undefined;
+  return [
+    { id: "host", name: "Host", hand: hands.host ?? [], role: "Neutral" },
+    { id: "guest", name: "Guest", hand: hands.guest ?? [], role: "Neutral" },
+    dead,
+  ];
+}
+
+{
+  const players = makeTwoPlayerDeadHandGame(
+    {
+      host: [{ suit: "hearts", value: 5 }],
+      guest: [{ suit: "spades", value: 3 }],
+      [DEAD_HAND_ID]: [],
+    },
+    [{ suit: "clubs", value: 3 }],
+  );
+  const leadIdx = resolveFirstRoundLeadPlayerIndex(players, { hostId: "host" });
+  assert.strictEqual(
+    leadIdx,
+    1,
+    "Dead hand holds 3♣ — guest with 3♠ should lead",
+  );
+}
+
+{
+  const players = makeTwoPlayerDeadHandGame(
+    {
+      host: [{ suit: "hearts", value: 3 }],
+      guest: [{ suit: "diamonds", value: 3 }],
+      [DEAD_HAND_ID]: [],
+    },
+    [{ suit: "clubs", value: 3 }],
+  );
+  const leadIdx = resolveFirstRoundLeadPlayerIndex(players, { hostId: "host" });
+  assert.strictEqual(
+    leadIdx,
+    1,
+    "Dead hand holds 3♣ — guest is first in deal order with any 3",
+  );
+}
+
+{
+  const players = makeTwoPlayerDeadHandGame(
+    {
+      host: [{ suit: "hearts", value: 5 }],
+      guest: [{ suit: "diamonds", value: 4 }],
+      [DEAD_HAND_ID]: [{ suit: "clubs", value: 3 }, { suit: "spades", value: 3 }],
+    },
+  );
+  assert.strictEqual(
+    resolveFirstRoundLeadPlayerIndex(players, { hostId: "host" }),
+    -1,
+    "All 3s on dead hand — no living lead",
+  );
+  assert.strictEqual(
+    resolveOpeningPlayerIndex(players, { hostId: "host" }),
+    -1,
+    "Round 1 must not fall back to dealer's left when no living 3",
+  );
+}
+
+{
+  const threeSpades: Card[] = [{ suit: "spades", value: 3 }];
+  const fourHearts: Card[] = [{ suit: "hearts", value: 4 }];
+  const players = makeTwoPlayerDeadHandGame(
+    {
+      host: [{ suit: "hearts", value: 5 }],
+      guest: threeSpades,
+      [DEAD_HAND_ID]: [],
+    },
+    [{ suit: "clubs", value: 3 }],
+  );
+  assert.strictEqual(
+    isValidPlay(
+      threeSpades,
+      pileEmpty,
+      undefined,
+      [],
+      [],
+      undefined,
+      { trickNumber: 1, actions: [] },
+      players,
+      [DEAD_HAND_ID],
+      undefined,
+      "guest",
+    ),
+    true,
+    "Opener with 3♠ may open with 3s when dead hand holds 3♣",
+  );
+  assert.strictEqual(
+    isValidPlay(
+      fourHearts,
+      pileEmpty,
+      undefined,
+      [],
+      [],
+      undefined,
+      { trickNumber: 1, actions: [] },
+      players,
+      [DEAD_HAND_ID],
+      undefined,
+      "guest",
+    ),
+    false,
+    "Round-1 opener must lead 3s when any living player holds a 3",
+  );
+}
+
+console.log("Dead hand round-1 opening tests passed");

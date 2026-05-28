@@ -12,7 +12,7 @@ Empty your hand first. Next round, ranks: President, VP, ... Arsehole.
 - **Later rounds:** the previous round's Asshole deals.
 - Cards are dealt clockwise, starting with the player one seat anticlockwise from the dealer (to the dealer's left).
 - **First to play** each round is that same seat — one place anticlockwise from the dealer.
-- **Round 1 opening:** if the lead player holds 3♣, they must open with 3s including it. From round 2 onward, any legal lead is allowed.
+- **Round 1 opening:** walk deal order among living players — first with 3♣ opens with 3s including it; else first with any 3 opens with 3s. If no living player has a 3, reshuffle. **Dead hand exception:** when the dead hand holds 3♣, use 3♠ first, then any 3. From round 2 onward, any legal lead is allowed.
 
 ## Sets
 - Singles: any rank. Jokers (if used) are highest.

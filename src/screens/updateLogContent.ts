@@ -16,6 +16,18 @@ export const UPDATE_LOG_TAGLINE =
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
     date: "May 2026",
+    title: "Multiplayer & dead hand",
+    items: [
+      "Dead hand opening — when the dead hand holds 3♣, the next living player with 3♠ leads; otherwise any 3; if no living player has a 3, the deal reshuffles",
+      "Round 2+ online — deal ceremony and President/Asshole trades now run correctly each round (fixed ceremony tracking per deal)",
+      "Mid-game rejoin — reconnecting players pick up where the table left off without replaying the deal animation",
+      "Rejoin sync — room code re-entry includes the correct deal seed so hands stay in step with the server",
+      "Leave confirmation — Cancel or Yes, Leave before exiting an online game (including during the deal)",
+      "Multiplayer smoke test — `npm run test-multiplayer` verifies three-player deal sync and opening play against the server",
+    ],
+  },
+  {
+    date: "May 2026",
     title: "Recent fixes",
     items: [
       "Round flow — the Asshole from the previous round deals; the first player each round is one seat anticlockwise from the dealer (same seat that receives the first card)",
@@ -89,6 +101,11 @@ export const KNOWN_ISSUES: KnownIssue[] = [
     title: "Room name editing on mobile web",
     status: "Monitoring",
     note: "Tap the field, edit, then tap away or press Enter to save. Tell us if it still misbehaves.",
+  },
+  {
+    title: "Round 2 trades online",
+    status: "Fix shipped",
+    note: "President and Vice President card trades should appear after every round, not only the first. Tell us if trades fail to show after round 2.",
   },
   {
     title: "Mid-game disconnects",

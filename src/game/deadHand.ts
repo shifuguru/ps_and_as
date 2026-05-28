@@ -1,4 +1,4 @@
-import type { Player } from "./ruleset";
+import type { Card, Player } from "./ruleset";
 import type { DealerContext } from "../utils/tableSeats";
 import { resolveOpeningPlayerIndex } from "../utils/tableSeats";
 
@@ -28,6 +28,16 @@ export function livingPlayers<T extends Player>(players: T[]): T[] {
 
 export function livingPlayerIds(players: Player[]): string[] {
   return livingPlayers(players).map((p) => p.id);
+}
+
+/** True when the sidelined dead hand holds 3♣ (before or after sideline). */
+export function deadHandHoldsThreeClubs(
+  players: Pick<Player, "id" | "hand" | "isDeadHand" | "sidelinedHand">[],
+): boolean {
+  const dead = players.find((p) => isDeadHandPlayer(p));
+  if (!dead) return false;
+  const cards = [...(dead.hand ?? []), ...(dead.sidelinedHand ?? [])];
+  return cards.some((c) => c.value === 3 && c.suit === "clubs");
 }
 
 export function isRoundCompleteForLiving(state: {
@@ -63,4 +73,18 @@ export function applyDeadHandAfterDeal(
     dealerOptions ?? {},
   );
   state.mustPlay = true;
+}
+
+/** True when any living player holds the given rank. */
+export function livingPlayerHasRank(
+  players: Player[],
+  value: number,
+  suit?: Card["suit"],
+): boolean {
+  return livingPlayers(players).some((p) =>
+    p.hand.some(
+      (c) =>
+        c.value === value && (suit == null ? true : c.suit === suit),
+    ),
+  );
 }

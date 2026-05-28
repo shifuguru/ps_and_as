@@ -6,6 +6,7 @@ import {
   createDeadHandPlayer,
   isDeadHandPlayer,
   isRoundCompleteForLiving,
+  livingPlayerHasRank,
 } from "./deadHand";
 import {
   type DealerContext,
@@ -111,17 +112,38 @@ export function isPlayerStillIn(state: GameState, playerId: string): boolean {
   return !state.finishedOrder.includes(playerId) && player.hand.length > 0;
 }
 
+const MAX_FIRST_ROUND_DEAL_ATTEMPTS = 64;
+
 function buildInitialGameState(
   players: Player[],
   dealSeed?: number,
   dealerOptions?: DealerContext,
 ): GameState {
-  const deck =
-    dealSeed != null
-      ? shuffleDeckSeeded(createDeck(), dealSeed)
-      : shuffleDeck(createDeck());
-  dealCards(deck, players);
-  const openerIdx = resolveOpeningPlayerIndex(players, dealerOptions ?? {});
+  let openerIdx = -1;
+  for (let attempt = 0; attempt < MAX_FIRST_ROUND_DEAL_ATTEMPTS; attempt++) {
+    for (const p of players) {
+      p.hand = [];
+      if (isDeadHandPlayer(p)) {
+        p.sidelinedHand = undefined;
+      }
+    }
+    const attemptSeed =
+      dealSeed != null ? ((dealSeed + attempt) >>> 0) : undefined;
+    const deck =
+      attemptSeed != null
+        ? shuffleDeckSeeded(createDeck(), attemptSeed)
+        : shuffleDeck(createDeck());
+    dealCards(deck, players);
+    openerIdx = resolveOpeningPlayerIndex(players, dealerOptions ?? {});
+    if (openerIdx >= 0) break;
+  }
+  if (openerIdx < 0) {
+    throw new Error(
+      "Could not deal a valid round-1 opening after " +
+        MAX_FIRST_ROUND_DEAL_ATTEMPTS +
+        " attempts",
+    );
+  }
   return {
     id: "game-" + Date.now(),
     players,
@@ -727,13 +749,16 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   if (
     isRoundOpening &&
     isFirstRoundOfSession &&
-    openerHoldsThreeClubs &&
-    (!!players && players.some(p => p.hand && p.hand.some(c => c.value === 3 && c.suit === 'clubs')))
+    players &&
+    livingPlayerHasRank(players, 3)
   ) {
-    const hasThreeClubs = cards.some((c) => c.value === 3 && c.suit === "clubs");
-    if (!hasThreeClubs) return false;
     if (!allSameValue(cards) || cards[0].value !== 3) return false;
-    // Only 3s allowed to open
+    if (openerHoldsThreeClubs) {
+      const hasThreeClubs = cards.some(
+        (c) => c.value === 3 && c.suit === "clubs",
+      );
+      if (!hasThreeClubs) return false;
+    }
     return true;
   }
   // 3. Single-rank-per-turn: no multi-rank plays

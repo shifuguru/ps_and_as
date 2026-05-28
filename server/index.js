@@ -1017,6 +1017,7 @@ io.on('connection', (socket) => {
             id: p.id,
             name: p.name,
           })),
+          dealSeed: room.gameState.dealSeed,
           spectator,
         });
       }

@@ -1,5 +1,6 @@
 import {
   DEAD_HAND_ID,
+  deadHandHoldsThreeClubs,
   isDeadHandPlayer,
   livingPlayerIds,
 } from "../game/deadHand";
@@ -118,14 +119,73 @@ export function buildDealerContext(options: {
 }
 
 /**
+ * Living recipients anticlockwise from the dealer (same order cards are dealt).
+ */
+export function livingDealRecipientOrder(
+  players: Pick<Player, "id" | "hand" | "isDeadHand">[],
+  options: DealerContext = {},
+): string[] {
+  const living = new Set(livingPlayerIds(players as Player[]));
+  const turnOrderIds = players.map((p) => p.id);
+  const dealerId = resolveDealerId(players, options);
+  return dealRecipientOrder(turnOrderIds, dealerId).filter((id) =>
+    living.has(id),
+  );
+}
+
+/**
+ * Round 1 lead — walk deal order among living players.
+ * Normal: first with 3♣, else first with any 3, else -1 (reshuffle).
+ * When the dead hand holds 3♣: first with 3♠, else any 3, else -1.
+ */
+export function resolveFirstRoundLeadPlayerIndex(
+  players: Pick<Player, "id" | "hand" | "isDeadHand" | "sidelinedHand">[],
+  options: DealerContext = {},
+): number {
+  const order = livingDealRecipientOrder(players, options);
+  const deadHasThreeClubs = deadHandHoldsThreeClubs(players);
+
+  const findIdxWith = (predicate: (c: { value: number; suit: string }) => boolean) => {
+    for (const id of order) {
+      const p = players.find((x) => x.id === id);
+      if (p?.hand?.some(predicate)) {
+        const idx = players.findIndex((x) => x.id === id);
+        if (idx >= 0) return idx;
+      }
+    }
+    return -1;
+  };
+
+  if (deadHasThreeClubs) {
+    const spadesIdx = findIdxWith((c) => c.value === 3 && c.suit === "spades");
+    if (spadesIdx >= 0) return spadesIdx;
+  } else {
+    const clubsIdx = findIdxWith((c) => c.value === 3 && c.suit === "clubs");
+    if (clubsIdx >= 0) return clubsIdx;
+  }
+
+  return findIdxWith((c) => c.value === 3);
+}
+
+/**
  * First to act each round — one seat anticlockwise from the dealer
  * (same seat that receives the first card in deal order).
+ * Round 1 uses {@link resolveFirstRoundLeadPlayerIndex} when no prior round order.
  */
 export function resolveOpeningPlayerIndex(
-  players: Pick<Player, "id">[],
+  players: Pick<Player, "id" | "hand" | "isDeadHand">[],
   options: DealerContext = {},
 ): number {
   if (players.length === 0) return 0;
+
+  const priorRound =
+    (options.lastRoundOrder?.length ?? 0) >= 2 ||
+    (options.finishedOrder?.length ?? 0) >= 2;
+
+  if (!priorRound) {
+    const leadIdx = resolveFirstRoundLeadPlayerIndex(players, options);
+    return leadIdx >= 0 ? leadIdx : -1;
+  }
 
   const living = livingPlayerIds(players as Player[]);
   const turnOrderIds = players.map((p) => p.id);

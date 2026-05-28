@@ -99,6 +99,26 @@ import {
   resolveDealerId,
 } from "../utils/tableSeats";
 
+type GameStateWithDealSeed = GameState & { dealSeed?: number };
+
+/** Unique key per deal within a session (game id is reused across rounds). */
+function roundCeremonyKey(state: GameStateWithDealSeed): string {
+  const seed = state.dealSeed ?? "none";
+  return `${state.id}:${seed}`;
+}
+
+/** Mid-game rejoin should apply server state directly — no deal animation. */
+function shouldSkipDealCeremony(state: GameState): boolean {
+  if ((state.currentTrick?.actions?.length ?? 0) > 0) return true;
+  if (state.pile.length > 0) return true;
+  if ((state.pileHistory?.length ?? 0) > 0) return true;
+  if ((state.trickHistory?.length ?? 0) > 0) return true;
+  const livingFinished = state.finishedOrder.filter((id) =>
+    state.players.some((p) => p.id === id && !isDeadHandPlayer(p)),
+  );
+  return livingFinished.length > 0;
+}
+
 // Helper: pick `take` same-rank indices including the card the player tapped
 function selectSameRankNearTap(
   sameAll: number[],
@@ -672,7 +692,7 @@ export default function GameScreen({
       setActiveTrade(null);
       setTradeReturnPick([]);
       setGameplayLocked(false);
-      ceremonyDoneForRoundRef.current = next.id;
+      ceremonyDoneForRoundRef.current = roundCeremonyKey(next);
     },
     [resolvedHostId],
   );
@@ -855,10 +875,16 @@ export default function GameScreen({
 
       if (
         onlineMultiplayer &&
-        ceremonyDoneForRoundRef.current !== parsed.id &&
-        ceremonyStartedForRoundRef.current !== parsed.id
+        !shouldSkipDealCeremony(parsed)
       ) {
-        ceremonyStartedForRoundRef.current = parsed.id;
+        const roundKey = roundCeremonyKey(parsed);
+        const needsCeremony =
+          awaitingDealCeremonyRef.current ||
+          (ceremonyDoneForRoundRef.current !== roundKey &&
+            ceremonyStartedForRoundRef.current !== roundKey);
+
+        if (needsCeremony) {
+        ceremonyStartedForRoundRef.current = roundKey;
         awaitingDealCeremonyRef.current = false;
         const serverPending = (parsed as GameState & { pendingTrades?: Record<string, { fromId: string; count: number; incoming: CardType[]; selected?: CardType[] | null }> }).pendingTrades;
         const serverRoles = (parsed as GameState & { roles?: Record<string, string> }).roles;
@@ -953,6 +979,10 @@ export default function GameScreen({
           setSpectatorMode(spectator);
         }
         return;
+        }
+      } else if (onlineMultiplayer && shouldSkipDealCeremony(parsed)) {
+        ceremonyDoneForRoundRef.current = roundCeremonyKey(parsed);
+        awaitingDealCeremonyRef.current = false;
       }
 
       stateSyncedRef.current = true;
@@ -1156,6 +1186,7 @@ export default function GameScreen({
           }
           awaitingDealCeremonyRef.current = true;
           ceremonyStartedForRoundRef.current = null;
+          ceremonyDoneForRoundRef.current = null;
           if (typeof ev.state.dealSeed === "number") {
             pendingDealSeedRef.current = ev.state.dealSeed;
           }
