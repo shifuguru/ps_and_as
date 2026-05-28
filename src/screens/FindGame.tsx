@@ -318,12 +318,16 @@ export default function FindGame({
                 disabled={connectionStatus !== "connected"}
               >
                 <BlurPanel style={styles.actionTileInner} intensity={50}>
-                  <Text style={styles.actionTileTitle}>Host Open Game</Text>
-                  <Text style={styles.actionTileHint}>
-                    Create an open lobby for anyone to join.
-                  </Text>
-                  <View style={styles.actionTileIconHost}>
-                    <MenuIcon name="plus" size={28} color={colors.gold} />
+                  <View style={styles.actionTileHostLayout}>
+                    <View style={styles.actionTileHostCopy}>
+                      <Text style={styles.actionTileTitle}>Host Open Game</Text>
+                      <Text style={styles.actionTileHint}>
+                        Create an open lobby for anyone to join.
+                      </Text>
+                    </View>
+                    <View style={styles.actionTileIconHost}>
+                      <MenuIcon name="plus" size={28} color={colors.gold} />
+                    </View>
                   </View>
                 </BlurPanel>
               </TouchableOpacity>
@@ -352,16 +356,26 @@ export default function FindGame({
                       autoCapitalize="characters"
                       autoCorrect={false}
                       spellCheck={false}
-                      autoComplete="off"
-                      textContentType="none"
+                      textContentType={
+                        Platform.OS === "ios" ? "oneTimeCode" : "none"
+                      }
+                      autoComplete={
+                        Platform.OS === "web" ? "one-time-code" : "off"
+                      }
                       importantForAutofill="no"
-                      keyboardType="default"
+                      passwordRules={Platform.OS === "ios" ? "" : undefined}
+                      keyboardType={
+                        Platform.OS === "ios" ? "ascii-capable" : "default"
+                      }
                       {...(Platform.OS === "web"
                         ? ({
-                            name: "room-code",
-                            autoComplete: "off",
+                            name: "ps-and-as-room-join-code",
+                            id: "ps-and-as-room-join-code",
+                            autoComplete: "one-time-code",
                             "data-1p-ignore": true,
                             "data-lpignore": "true",
+                            "data-bwignore": "true",
+                            "data-form-type": "other",
                           } as object)
                         : null)}
                       style={styles.codeInput}
@@ -591,10 +605,17 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   actionTileInner: {
     borderRadius: 16,
     padding: 14,
-    alignItems: "center",
-    gap: 6,
     minHeight: 168,
     flex: 1,
+  },
+  actionTileHostLayout: {
+    flex: 1,
+    minHeight: 140,
+    alignItems: "stretch",
+  },
+  actionTileHostCopy: {
+    alignItems: "center",
+    gap: 6,
   },
   actionTileInnerJoin: {
     borderRadius: 16,
@@ -608,8 +629,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 40,
-    marginTop: 4,
   },
   joinTitleRow: {
     flexDirection: "row",

@@ -24,6 +24,7 @@ import BlurPanel from "./BlurPanel";
 import { ACTION_BAR_HEIGHT } from "./ActionBar";
 import { HAND_FAN_HEIGHT } from "./PlayerHand";
 import { LOCAL_SEAT_TABLE_LIFT } from "../utils/tableLayout";
+import { isStandaloneWebApp } from "../utils/safariChrome";
 import { isMobileWeb } from "../utils/webViewport";
 import { useAppTheme } from "../context/ThemeContext";
 
@@ -76,6 +77,10 @@ function bottomBarPositionStyle(
 export function bottomOuterPad(safeBottom = 0): number {
   const chrome = Math.max(0, safeBottom);
   if (Platform.OS === "web") {
+    if (isStandaloneWebApp()) {
+      // PWA: safeBottom already includes env(safe-area-inset-bottom) via useLayoutInsets.
+      return (chrome > 0 ? chrome : 20) + 14;
+    }
     if (isMobileWeb()) {
       return Math.max(chrome, 20) + 14;
     }

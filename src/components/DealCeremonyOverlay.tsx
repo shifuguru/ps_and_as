@@ -15,7 +15,10 @@ import {
 } from "./cardDimensions";
 import { avatarSizeForSeat } from "../utils/seatDimensions";
 import type { PlayAreaLayout } from "../utils/tableLayout";
-import { seatOriginInPlayArea } from "../utils/tablePlayFlight";
+import {
+  seatDealStackInPlayArea,
+  seatOriginInPlayArea,
+} from "../utils/tablePlayFlight";
 import type { ClientPendingTrade } from "../game/roundPrep";
 import { useAppTheme } from "../context/ThemeContext";
 import { FULL_DECK_SIZE } from "../game/ruleset";
@@ -318,7 +321,7 @@ export default function DealCeremonyOverlay({
     const visibleSeat = layoutSeatIds.includes(step.playerId);
     const target =
       layout && visibleSeat
-        ? seatOriginInPlayArea(
+        ? seatDealStackInPlayArea(
             layout,
             playAreaHeight,
             step.playerId,
@@ -523,7 +526,7 @@ export default function DealCeremonyOverlay({
         ? layoutSeatIds.map((id) => {
             const count = dealtCounts[id] ?? 0;
             if (count <= 0 || !layout) return null;
-            const pos = seatOriginInPlayArea(
+            const pos = seatDealStackInPlayArea(
               layout,
               playAreaHeight,
               id,

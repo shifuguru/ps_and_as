@@ -109,6 +109,25 @@ export function avatarSizeForSeat(
   return dims.avatar;
 }
 
+/** Distance from avatar center down to the bottom of OpponentSeat (name + status pill). */
+export function avatarBelowCenterOffset(
+  dims: SeatDimensions,
+  options: { compact?: boolean; isLocal?: boolean },
+): number {
+  const avatarSize = avatarSizeForSeat(dims, options);
+  const nameFont = options.compact ? dims.nameFontCompact : dims.nameFont;
+  // avatarWrap marginBottom 4, name row, status pill marginTop 2 (~11px).
+  return Math.round(avatarSize / 2 + 4 + nameFont + 2 + 11);
+}
+
+/** Distance from footprint / slot top to avatar center (OpponentSeat). */
+export function avatarCenterOffsetFromTop(
+  dims: SeatDimensions,
+  options: { compact?: boolean; isLocal?: boolean },
+): number {
+  return avatarSizeForSeat(dims, options) / 2 + 2;
+}
+
 export type SeatTableGap = {
   gap: number;
   minGap: number;

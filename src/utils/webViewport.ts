@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { isStandaloneWebApp } from "./safariChrome";
 
 type WebWindow = {
   innerWidth?: number;
@@ -120,6 +121,14 @@ export function readWebShellHeight(win: WebWindow): number {
 
   if (vv && keyboardLikelyOpen(win)) {
     return Math.round(vv.height);
+  }
+
+  // Standalone PWA has no Safari URL bar — match the visible viewport, not innerHeight.
+  if (isStandaloneWebApp()) {
+    if (vv) {
+      return Math.round(vv.height + (vv.offsetTop ?? 0));
+    }
+    return layoutH;
   }
 
   if (Platform.OS === "web" && cachedShellHeight > 0 && !keyboardLikelyOpen(win)) {

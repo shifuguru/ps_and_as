@@ -5,6 +5,7 @@ import { isStandaloneWebApp } from "../utils/safariChrome";
 import { isMobileWeb, readWebSafeAreaInsets } from "../utils/webViewport";
 
 type ChromeInsets = { top: number; bottom: number };
+type SafeAreaInsets = { top: number; bottom: number; left: number; right: number };
 
 /** Browser UI only — virtual keyboard shrink must not count as bottom inset. */
 const WEB_MAX_BOTTOM_CHROME = 80;
@@ -39,6 +40,12 @@ function readWebChromeInsets(win: {
 export function useLayoutInsets() {
   const insets = useSafeAreaInsets();
   const [webChrome, setWebChrome] = useState<ChromeInsets>({ top: 0, bottom: 0 });
+  const [cssSafe, setCssSafe] = useState<SafeAreaInsets>({
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+  });
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -62,6 +69,17 @@ export function useLayoutInsets() {
         const next = readWebChromeInsets(win.window!);
         return prev.top === next.top && prev.bottom === next.bottom ? prev : next;
       });
+      if (isMobileWeb()) {
+        setCssSafe((prev) => {
+          const next = readWebSafeAreaInsets();
+          return prev.top === next.top &&
+            prev.bottom === next.bottom &&
+            prev.left === next.left &&
+            prev.right === next.right
+            ? prev
+            : next;
+        });
+      }
     };
 
     read();
@@ -82,19 +100,27 @@ export function useLayoutInsets() {
     return insets;
   }
 
-  if (isStandaloneWebApp()) {
-    return insets;
-  }
+  const mergedCss = isMobileWeb() ? cssSafe : { top: 0, bottom: 0, left: 0, right: 0 };
 
-  const cssSafe = isMobileWeb() ? readWebSafeAreaInsets() : { top: 0, bottom: 0, left: 0, right: 0 };
+  if (isStandaloneWebApp()) {
+    // Home-screen PWA: react-native-safe-area-context often reports 0 on web.
+    // Merge CSS env(safe-area-inset-*) so bottom bars clear the home indicator.
+    return {
+      ...insets,
+      top: Math.max(insets.top, mergedCss.top),
+      bottom: Math.max(insets.bottom, mergedCss.bottom),
+      left: Math.max(insets.left, mergedCss.left),
+      right: Math.max(insets.right, mergedCss.right),
+    };
+  }
 
   // App root height tracks visualViewport — the bottom toolbar gap is already
   // excluded. Merge top chrome (URL bar), CSS safe-area, and native insets.
   return {
     ...insets,
-    top: Math.max(insets.top, webChrome.top, cssSafe.top),
-    bottom: Math.max(insets.bottom, cssSafe.bottom),
-    left: Math.max(insets.left, cssSafe.left),
-    right: Math.max(insets.right, cssSafe.right),
+    top: Math.max(insets.top, webChrome.top, mergedCss.top),
+    bottom: Math.max(insets.bottom, mergedCss.bottom),
+    left: Math.max(insets.left, mergedCss.left),
+    right: Math.max(insets.right, mergedCss.right),
   };
 }
