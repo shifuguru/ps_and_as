@@ -7,6 +7,8 @@ import {
   opponentRingAngles,
   opponentSeatPosition,
 } from "../utils/tableLayout";
+import { isDeadHandPlayer } from "../game/deadHand";
+import { DEAD_HAND_RING_ANGLE } from "../utils/tableSeats";
 
 type Props = {
   players: OpponentSeatPlayer[];
@@ -23,6 +25,9 @@ type Props = {
   sideAnchorMargin: number;
   lastPlayPlayerId?: string | null;
   trickWinnerPlayerId?: string | null;
+  layoutSeatIds?: string[];
+  deadHandId?: string | null;
+  deadHandGraveyard?: boolean;
 };
 
 /** Clockwise from the seat after the local player. */
@@ -64,15 +69,22 @@ export default function OpponentRing({
   sideAnchorMargin,
   lastPlayPlayerId,
   trickWinnerPlayerId,
+  layoutSeatIds,
+  deadHandId = null,
+  deadHandGraveyard = false,
 }: Props) {
-  const allPlayerIds = useMemo(
-    () => players.map((p) => p.id),
-    [players],
-  );
+  const seatIds = useMemo(() => {
+    if (layoutSeatIds && layoutSeatIds.length > 0) return layoutSeatIds;
+    const localSet = new Set(localPlayerIds);
+    return [
+      ...localPlayerIds,
+      ...players.filter((p) => !localSet.has(p.id)).map((p) => p.id),
+    ];
+  }, [layoutSeatIds, localPlayerIds, players]);
 
   const opponents = useMemo(
-    () => orderOpponents(players, localPlayerIds, allPlayerIds),
-    [players, localPlayerIds, allPlayerIds],
+    () => orderOpponents(players, localPlayerIds, seatIds),
+    [players, localPlayerIds, seatIds],
   );
 
   const passedSet = useMemo(
@@ -99,8 +111,10 @@ export default function OpponentRing({
   return (
     <View style={styles.arena} pointerEvents="box-none">
       {opponents.map((player, index) => {
-        const angle = angles[index];
-        if (angle === undefined) return null;
+        const ringAngle = angles[index];
+        if (ringAngle === undefined && !(deadHandId && player.id === deadHandId)) {
+          return null;
+        }
 
         const isOut = finishedSet.has(player.id);
         const isActive = !isOut && player.id === currentPlayerId;
@@ -110,6 +124,12 @@ export default function OpponentRing({
           !!lastPlayPlayerId && player.id === lastPlayPlayerId && !isOut;
         const celebrateTrickWin =
           !!trickWinnerPlayerId && player.id === trickWinnerPlayerId && !isOut;
+
+        const angle =
+          (deadHandId && player.id === deadHandId) || isDeadHandPlayer(player)
+            ? DEAD_HAND_RING_ANGLE
+            : angles[index];
+        if (angle === undefined) return null;
 
         const pos = opponentSeatPosition(angle, {
           cx: ringLayout.cx,
@@ -138,6 +158,7 @@ export default function OpponentRing({
               compact={compact}
               seatDims={seatDimensions}
               layoutWidth={arenaWidth}
+              graveyardMode={deadHandGraveyard && isDeadHandPlayer(player)}
             />
           </View>
         );

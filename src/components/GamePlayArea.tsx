@@ -36,6 +36,11 @@ type Props = RingProps & {
   skipPlayFlights?: boolean;
   flightDurationMs?: number;
   trickWinnerPlayerId?: string | null;
+  /** Ring geometry seat count (local + visible opponents). Defaults to players + locals. */
+  tableSeatCount?: number;
+  deadHandId?: string | null;
+  layoutSeatIds?: string[];
+  deadHandGraveyard?: boolean;
 };
 
 export default function GamePlayArea({
@@ -50,6 +55,10 @@ export default function GamePlayArea({
   skipPlayFlights = false,
   flightDurationMs = 480,
   trickWinnerPlayerId = null,
+  tableSeatCount,
+  deadHandId = null,
+  layoutSeatIds,
+  deadHandGraveyard = false,
   children,
 }: Props & { children: React.ReactNode }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -67,8 +76,11 @@ export default function GamePlayArea({
 
   const layout = useMemo(() => {
     if (size.width <= 0 || size.height <= 0) return null;
-    return computePlayAreaLayout(size.width, size.height, players.length);
-  }, [size.width, size.height, players.length]);
+    const seats =
+      tableSeatCount ??
+      Math.max(players.length + localPlayerIds.length, 1);
+    return computePlayAreaLayout(size.width, size.height, seats);
+  }, [size.width, size.height, players.length, localPlayerIds.length, tableSeatCount]);
 
   const stackLayoutState = useMemo(() => {
     if (!layout) {
@@ -102,7 +114,19 @@ export default function GamePlayArea({
     };
   }, [plays, layout]);
 
-  const allPlayerIds = useMemo(() => players.map((p) => p.id), [players]);
+  const seatIds = useMemo(() => {
+    if (layoutSeatIds && layoutSeatIds.length > 0) return layoutSeatIds;
+    const localSet = new Set(localPlayerIds);
+    return [
+      ...localPlayerIds,
+      ...players.filter((p) => !localSet.has(p.id)).map((p) => p.id),
+    ];
+  }, [layoutSeatIds, localPlayerIds, players]);
+
+  const seatOptions = useMemo(
+    () => ({ deadHandId }),
+    [deadHandId],
+  );
 
   useEffect(() => {
     const currentKeys = new Set(plays.map(playDisplayKey));
@@ -171,8 +195,9 @@ export default function GamePlayArea({
         layout,
         size.height,
         play.playerId,
-        allPlayerIds,
+        seatIds,
         localPlayerIds,
+        seatOptions,
       );
       if (!cardW || !cardH) {
         setLandedKeys((prev) => new Set(prev).add(key));
@@ -204,8 +229,9 @@ export default function GamePlayArea({
     plays,
     layout,
     size.height,
-    allPlayerIds,
+    seatIds,
     localPlayerIds,
+    seatOptions,
     skipPlayFlights,
     stackLayoutState,
   ]);
@@ -294,6 +320,9 @@ export default function GamePlayArea({
             sideAnchorMargin={layout.sideAnchorMargin}
             lastPlayPlayerId={lastPlayPlayerId}
             trickWinnerPlayerId={trickWinnerPlayerId}
+            layoutSeatIds={seatIds}
+            deadHandId={deadHandId}
+            deadHandGraveyard={deadHandGraveyard}
           />
         </View>
       )}

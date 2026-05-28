@@ -14,11 +14,18 @@ import type { PlayAreaLayout } from "../utils/tableLayout";
 import { seatOriginInPlayArea } from "../utils/tablePlayFlight";
 import type { ClientPendingTrade } from "../game/roundPrep";
 import { useAppTheme } from "../context/ThemeContext";
+import {
+  buildClockwiseDealSteps,
+  dealRecipientOrder,
+} from "../utils/tableSeats";
 
 type Props = {
   visible: boolean;
   playerIds: string[];
+  layoutSeatIds: string[];
   localPlayerIds: string[];
+  dealerId?: string | null;
+  deadHandId?: string | null;
   layout: PlayAreaLayout | null;
   playAreaHeight: number;
   cardsPerPlayer: number;
@@ -27,14 +34,18 @@ type Props = {
   onMandatoryTradesAnimated?: () => void;
 };
 
-const SHUFFLE_MS = 1400;
-const DEAL_ROUND_MS = 95;
-const MANDATORY_TRADE_MS = 520;
+const SHUFFLE_MS = 1600;
+const DEAL_ROUND_MS = 220;
+const DEAL_FLIGHT_MS = 380;
+const MANDATORY_TRADE_MS = 620;
 
 export default function DealCeremonyOverlay({
   visible,
   playerIds,
+  layoutSeatIds,
   localPlayerIds,
+  dealerId = null,
+  deadHandId = null,
   layout,
   playAreaHeight,
   cardsPerPlayer,
@@ -69,18 +80,39 @@ export default function DealCeremonyOverlay({
     onDealCompleteRef.current();
   };
 
+  const seatOptions = useMemo(
+    () => ({ deadHandId }),
+    [deadHandId],
+  );
+
   const deckCenter = useMemo(() => {
+    if (layout && dealerId) {
+      const dealerPos = seatOriginInPlayArea(
+        layout,
+        playAreaHeight,
+        dealerId,
+        layoutSeatIds,
+        localPlayerIds,
+        seatOptions,
+      );
+      if (dealerPos) return dealerPos;
+    }
     if (!layout) return { x: screenW / 2, y: playAreaHeight / 2 };
     return { x: layout.playAnchorX, y: layout.playAnchorY };
-  }, [layout, screenW, playAreaHeight]);
+  }, [
+    layout,
+    screenW,
+    playAreaHeight,
+    dealerId,
+    layoutSeatIds,
+    localPlayerIds,
+    seatOptions,
+  ]);
 
-  const dealSteps = useMemo(
-    () =>
-      Array.from({ length: cardsPerPlayer }, (_, round) =>
-        playerIds.map((id) => ({ playerId: id, round })),
-      ).flat(),
-    [cardsPerPlayer, playerIds],
-  );
+  const dealSteps = useMemo(() => {
+    const recipientOrder = dealRecipientOrder(playerIds, dealerId);
+    return buildClockwiseDealSteps(recipientOrder, cardsPerPlayer);
+  }, [cardsPerPlayer, playerIds, dealerId]);
 
   useEffect(() => {
     if (!visible) return;
@@ -155,29 +187,29 @@ export default function DealCeremonyOverlay({
     }
 
     const step = dealSteps[dealRound];
-    const target = layout
-      ? seatOriginInPlayArea(
-          layout,
-          playAreaHeight,
-          step.playerId,
-          playerIds,
-          localPlayerIds,
-        )
-      : { x: deckCenter.x, y: deckCenter.y };
+    const visibleSeat = layoutSeatIds.includes(step.playerId);
+    const target =
+      layout && visibleSeat
+        ? seatOriginInPlayArea(
+            layout,
+            playAreaHeight,
+            step.playerId,
+            layoutSeatIds,
+            localPlayerIds,
+            seatOptions,
+          )
+        : null;
 
-    if (!target) {
-      setDealRound((r) => r + 1);
-      return;
-    }
-
-    if (!layout) {
+    if (!layout || !visibleSeat || !target) {
       const timer = setTimeout(() => {
-        setDealtCounts((prev) => ({
-          ...prev,
-          [step.playerId]: (prev[step.playerId] ?? 0) + 1,
-        }));
+        if (visibleSeat) {
+          setDealtCounts((prev) => ({
+            ...prev,
+            [step.playerId]: (prev[step.playerId] ?? 0) + 1,
+          }));
+        }
         setDealRound((r) => r + 1);
-      }, 16);
+      }, layout ? (visibleSeat ? DEAL_ROUND_MS : Math.round(DEAL_ROUND_MS * 0.5)) : 16);
       return () => clearTimeout(timer);
     }
 
@@ -212,10 +244,12 @@ export default function DealCeremonyOverlay({
     layout,
     playAreaHeight,
     playerIds,
+    layoutSeatIds,
     localPlayerIds,
     deckCenter,
     dims,
     pendingTrades.length,
+    seatOptions,
   ]);
 
   useEffect(() => {
@@ -233,15 +267,17 @@ export default function DealCeremonyOverlay({
         layout,
         playAreaHeight,
         trade.loserId,
-        playerIds,
+        layoutSeatIds,
         localPlayerIds,
+        seatOptions,
       );
       const to = seatOriginInPlayArea(
         layout,
         playAreaHeight,
         trade.winnerId,
-        playerIds,
+        layoutSeatIds,
         localPlayerIds,
+        seatOptions,
       );
       if (!from || !to) return;
       flights.push({
@@ -278,8 +314,10 @@ export default function DealCeremonyOverlay({
     playAreaHeight,
     pendingTrades,
     playerIds,
+    layoutSeatIds,
     localPlayerIds,
     dims,
+    seatOptions,
   ]);
 
   if (!visible || phase === "done") return null;
@@ -342,7 +380,7 @@ export default function DealCeremonyOverlay({
         <TableCardFlight
           key={flight.id}
           flight={flight}
-          durationMs={phase === "trade" ? MANDATORY_TRADE_MS : 280}
+          durationMs={phase === "trade" ? MANDATORY_TRADE_MS : DEAL_FLIGHT_MS}
           onComplete={(id) => {
             setActiveFlights((prev) => prev.filter((f) => f.id !== id));
           }}
@@ -350,15 +388,16 @@ export default function DealCeremonyOverlay({
       ))}
 
       {phase === "deal"
-        ? playerIds.map((id) => {
+        ? layoutSeatIds.map((id) => {
             const count = dealtCounts[id] ?? 0;
             if (count <= 0 || !layout) return null;
             const pos = seatOriginInPlayArea(
               layout,
               playAreaHeight,
               id,
-              playerIds,
+              layoutSeatIds,
               localPlayerIds,
+              seatOptions,
             );
             if (!pos) return null;
             const miniW = dims.width * 0.36;

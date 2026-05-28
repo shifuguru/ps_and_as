@@ -914,6 +914,15 @@ io.on('connection', (socket) => {
       return;
     }
 
+    const guests = room.players.filter(
+      (p) => !p.disconnectedAt && !p.isSpectator && p.id !== room.host,
+    );
+    if (guests.length > 0 && !guests.some((p) => p.ready)) {
+      console.log('[Server] No guest ready yet');
+      socket.emit('error', { message: 'At least one guest must be ready before starting.' });
+      return;
+    }
+
     // Game already running — sync clients without redealing (late join / missed broadcast).
     if (room.inGame && room.gameState?.players) {
       console.log('[Server] startGame: room already in game, syncing clients');
@@ -935,6 +944,7 @@ io.on('connection', (socket) => {
         players: room.players
           .filter((p) => !p.isSpectator)
           .map(p => ({ id: p.id, name: p.name })),
+        hostId: room.host,
       });
       emitTradesCompleteIfReady(io, roomId, room.gameState);
       if (room.isPublic) broadcastAvailableRooms();

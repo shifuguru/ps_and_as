@@ -21,6 +21,7 @@ export class SocketAdapter implements NetworkAdapter {
   private cachedGameState: unknown = null;
   /** Room the client belongs to — used to rejoin after socket reconnect. */
   private activeRoomId: string | null = null;
+  private cachedHostId: string | null = null;
 
   constructor(
     private url: string | undefined,
@@ -37,6 +38,10 @@ export class SocketAdapter implements NetworkAdapter {
 
   getProfileId(): string {
     return this.profileId;
+  }
+
+  getHostId(): string | null {
+    return this.cachedHostId;
   }
 
   getActiveRoomId(): string | null {
@@ -191,6 +196,9 @@ export class SocketAdapter implements NetworkAdapter {
 
     this.socket.on("lobbyUpdate", (data: any) => {
       console.log("[SocketAdapter] Received lobbyUpdate:", data);
+      if (data?.host) {
+        this.cachedHostId = data.host;
+      }
       this.handlers.forEach((h) =>
         h({
           type: "state",
@@ -208,6 +216,9 @@ export class SocketAdapter implements NetworkAdapter {
 
     this.socket.on("startGame", (data: any) => {
       console.log("[SocketAdapter] Received startGame:", data);
+      if (data?.hostId) {
+        this.cachedHostId = data.hostId;
+      }
       const players = Array.isArray(data?.players)
         ? data.players.map((p: any) =>
             typeof p === "string" ? { id: p, name: p } : p,

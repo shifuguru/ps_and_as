@@ -89,6 +89,10 @@ import {
 import { styles } from "../styles/theme";
 import { responsive, isLandscape, adaptiveScale } from "../utils/responsive";
 import { useAppTheme } from "../context/ThemeContext";
+import {
+  buildTableSeatConfig,
+  resolveDealerId,
+} from "../utils/tableSeats";
 
 // Helper: pick `take` same-rank indices including the card the player tapped
 function selectSameRankNearTap(
@@ -716,6 +720,10 @@ export default function GameScreen({
         const players = clonePlayersForRound(parsed.players);
         let trades: ClientPendingTrade[] = [];
         if (serverPending && serverRoles) {
+          const roleValues = Object.values(serverRoles);
+          const hasPresident = roleValues.includes("president");
+          const hasAsshole = roleValues.includes("asshole");
+          if (hasPresident && hasAsshole) {
           if (serverPending.president) {
             const presId = Object.keys(serverRoles).find((k) => serverRoles[k] === "president");
             const trade = serverPending.president;
@@ -747,6 +755,7 @@ export default function GameScreen({
                 completed: !!trade.selected,
               });
             }
+          }
           }
         }
         setGameplayLocked(true);
@@ -1004,15 +1013,27 @@ export default function GameScreen({
     localPlayerId ??
     (isSocketAdapter(networkAdapter) ? networkAdapter.getProfileId() : null);
 
+  const hostPlayerId =
+    (isSocketAdapter(networkAdapter) ? networkAdapter.getHostId() : null) ??
+    initialLobbyPlayers?.[0]?.id ??
+    null;
+
+  const tableSeats = useMemo(
+    () => buildTableSeatConfig(state?.players ?? [], myPlayerId),
+    [state?.players, myPlayerId],
+  );
+
+  const deadHandGraveyard =
+    !gameplayLocked && !ceremonyPrep && !tradePhase;
+
   const playAreaLayout = useMemo(() => {
     if (playAreaSize.width <= 0 || playAreaSize.height <= 0 || !state) return null;
-    const tableSeats = state.players.length;
     return computePlayAreaLayout(
       playAreaSize.width,
       playAreaSize.height,
-      tableSeats,
+      tableSeats.layoutSeatCount,
     );
-  }, [playAreaSize.width, playAreaSize.height, state?.players]);
+  }, [playAreaSize.width, playAreaSize.height, state, tableSeats.layoutSeatCount]);
 
   const handleTradeConfirm = useCallback(
     (selected: CardType[]) => {
@@ -1942,6 +1963,10 @@ export default function GameScreen({
           playTypeLabel={
             playTypeLabel && !trickPauseActive ? playTypeLabel : null
           }
+          tableSeatCount={tableSeats.layoutSeatCount}
+          deadHandId={tableSeats.deadHandId}
+          layoutSeatIds={tableSeats.layoutSeatIds}
+          deadHandGraveyard={deadHandGraveyard}
         >
           <GameTable
             plays={displayPlays}
@@ -2080,7 +2105,19 @@ export default function GameScreen({
       <DealCeremonyOverlay
         visible={!!ceremonyPrep}
         playerIds={(ceremonyPrep?.players ?? state.players).map((p) => p.id)}
+        layoutSeatIds={tableSeats.layoutSeatIds}
         localPlayerIds={localControlledIds}
+        dealerId={resolveDealerId(ceremonyPrep?.players ?? state.players, {
+          hostId: hostPlayerId,
+          lastRoundOrder: (
+            ceremonyPrep?.baseState as GameState & { lastRoundOrder?: string[] }
+          )?.lastRoundOrder,
+          finishedOrder: ceremonyPrep?.baseState.finishedOrder,
+          roles: (
+            ceremonyPrep?.baseState as GameState & { roles?: Record<string, string> }
+          )?.roles,
+        })}
+        deadHandId={tableSeats.deadHandId}
         layout={playAreaLayout}
         playAreaHeight={playAreaSize.height}
         cardsPerPlayer={
