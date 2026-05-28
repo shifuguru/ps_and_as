@@ -603,6 +603,7 @@ function AppContent() {
             adapter={roomAdapter || undefined} 
             isJoining={!!roomAdapter && !!joinedRoomId}
             joinRoomId={joinedRoomId || undefined}
+            preferredPlayerName={localPlayerName ?? undefined}
             onRoomReady={(roomId, displayRoomName) => {
               setActiveRoomId(roomId);
               if (isSocketAdapter(roomAdapter)) {
@@ -658,6 +659,7 @@ function AppContent() {
           discoveryAdapter ? (
             <FindGame 
               adapter={discoveryAdapter} 
+              preferredPlayerName={localPlayerName ?? undefined}
               onBack={() => setScreen("menu")}
               onNavigateToSettings={openSettings}
             onNavigateToAchievements={openAchievements}
@@ -786,6 +788,18 @@ function AppContent() {
                 onWallpaperPreview={setFeltTint}
                 onWallpaperChange={() => reloadWallpaper()}
                 onBack={closeSettings}
+                onNameSaved={(name) => {
+                  setLocalPlayerName(name);
+                  const roomId = activeRoomIdRef.current ?? joinedRoomIdRef.current;
+                  if (
+                    roomAdapter &&
+                    isSocketAdapter(roomAdapter) &&
+                    roomId &&
+                    roomAdapter.isConnected()
+                  ) {
+                    roomAdapter.updatePlayerName(roomId, name);
+                  }
+                }}
               />
             </View>
           </View>

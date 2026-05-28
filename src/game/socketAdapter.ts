@@ -545,6 +545,15 @@ export class SocketAdapter implements NetworkAdapter {
     this.socket.emit("updateRoomName", { roomId, roomName: trimmed });
   }
 
+  updatePlayerName(roomId: string, name: string) {
+    if (!this.socket?.connected) return;
+    const code = roomId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const trimmed = name.trim();
+    if (!code || !trimmed) return;
+    this.name = trimmed;
+    this.socket.emit("updatePlayerName", { roomId: code, name: trimmed });
+  }
+
   async discoverRooms(): Promise<void> {
     if (this.socket?.connected) {
       console.log("[SocketAdapter] Emitting discoverRooms...");

@@ -23,6 +23,7 @@ import BottomBar, { BottomBarControls, BottomBarLeave } from "../components/Bott
 import BlurPanel from "../components/BlurPanel";
 import OpponentSeat from "../components/OpponentSeat";
 import LobbyPlayerModal from "../components/LobbyPlayerModal";
+import ShimmerText from "../components/ShimmerText";
 import { NetworkAdapter, MockAdapter, type LobbyMember } from "../game/network";
 import { isSocketAdapter } from "../game/socketAdapter";
 import { getOrCreatePlayerId } from "../services/gameCenter";
@@ -273,6 +274,7 @@ export default function CreateGame({
   joinRoomId,
   onRoomReady,
   onLobbyMembersChange,
+  preferredPlayerName,
 }: {
   onBack: () => void;
   onStart: (
@@ -288,6 +290,7 @@ export default function CreateGame({
   joinRoomId?: string;
   onRoomReady?: (roomId: string, roomName?: string) => void;
   onLobbyMembersChange?: (members: LobbyMember[]) => void;
+  preferredPlayerName?: string;
 }) {
   const { colors, ui, blur } = useAppTheme();
   const [names, setNames] = useState<string[]>([]);
@@ -529,6 +532,13 @@ export default function CreateGame({
   useEffect(() => {
     playerNameRef.current = playerName;
   }, [playerName]);
+
+  useEffect(() => {
+    const next = preferredPlayerName?.trim();
+    if (!next) return;
+    setPlayerName(next);
+    playerNameRef.current = next;
+  }, [preferredPlayerName]);
 
   useEffect(() => {
     playerIdRef.current = playerId;
@@ -1135,7 +1145,7 @@ export default function CreateGame({
                   style={[ui.actionSecondary, local.lobbySideBtn]}
                   onPress={onNavigateToAchievements}
                 >
-                  <Text style={ui.actionSecondaryText}>Stats</Text>
+                  <ShimmerText style={ui.actionSecondaryText}>Stats</ShimmerText>
                 </TouchableOpacity>
               ) : (
                 <View style={local.lobbySideBtn} />

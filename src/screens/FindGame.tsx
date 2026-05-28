@@ -22,6 +22,7 @@ import LobbyStatusBar, {
 } from "../components/LobbyStatusBar";
 import BlurPanel from "../components/BlurPanel";
 import MenuIcon from "../components/MenuIcon";
+import ShimmerText from "../components/ShimmerText";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { NetworkAdapter } from "../game/network";
 import { SocketAdapter } from "../game/socketAdapter";
@@ -75,6 +76,7 @@ export default function FindGame({
   adapter,
   onNavigateToSettings,
   onNavigateToAchievements,
+  preferredPlayerName,
 }: {
   onBack: () => void;
   onJoinRoom: (roomId: string, playerName: string) => void;
@@ -83,6 +85,7 @@ export default function FindGame({
   adapter: NetworkAdapter;
   onNavigateToSettings?: () => void;
   onNavigateToAchievements?: () => void;
+  preferredPlayerName?: string;
 }) {
   const { colors, ui } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -123,6 +126,11 @@ export default function FindGame({
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const next = preferredPlayerName?.trim();
+    if (next) setPlayerName(next);
+  }, [preferredPlayerName]);
 
   const refreshRooms = useCallback(async () => {
     if (!socket.discoverRooms) return;
@@ -285,7 +293,7 @@ export default function FindGame({
                       style={ui.btnSecondary}
                       onPress={onNavigateToAchievements}
                     >
-                      <Text style={ui.btnSecondaryText}>Stats</Text>
+                      <ShimmerText style={ui.btnSecondaryText}>Stats</ShimmerText>
                     </TouchableOpacity>
                   ) : null}
                   {onNavigateToSettings ? (

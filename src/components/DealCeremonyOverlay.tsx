@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -34,10 +34,13 @@ type Props = {
   onMandatoryTradesAnimated?: () => void;
 };
 
-const SHUFFLE_MS = 1600;
-const DEAL_ROUND_MS = 220;
-const DEAL_FLIGHT_MS = 380;
-const MANDATORY_TRADE_MS = 620;
+const SHUFFLE_MS = 3400;
+const DEAL_FLIGHT_MS = 580;
+/** Pause after each card lands before the next clockwise deal. */
+const DEAL_STEP_GAP_MS = 180;
+/** Off-table seats still advance the deal order at a readable pace. */
+const HIDDEN_SEAT_DEAL_MS = 320;
+const MANDATORY_TRADE_MS = 720;
 
 export default function DealCeremonyOverlay({
   visible,
@@ -72,6 +75,9 @@ export default function DealCeremonyOverlay({
   const onMandatoryTradesAnimatedRef = useRef(onMandatoryTradesAnimated);
   onMandatoryTradesAnimatedRef.current = onMandatoryTradesAnimated;
   const ceremonyFinishedRef = useRef(false);
+  const dealRoundRef = useRef(dealRound);
+  dealRoundRef.current = dealRound;
+  const dealStepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const finishCeremony = () => {
     if (ceremonyFinishedRef.current) return;
@@ -114,6 +120,35 @@ export default function DealCeremonyOverlay({
     return buildClockwiseDealSteps(recipientOrder, cardsPerPlayer);
   }, [cardsPerPlayer, playerIds, dealerId]);
 
+  const dealStepsRef = useRef(dealSteps);
+  dealStepsRef.current = dealSteps;
+
+  const advanceDealRound = useCallback((playerId: string) => {
+    setDealtCounts((prev) => ({
+      ...prev,
+      [playerId]: (prev[playerId] ?? 0) + 1,
+    }));
+    if (dealStepTimerRef.current) {
+      clearTimeout(dealStepTimerRef.current);
+    }
+    dealStepTimerRef.current = setTimeout(() => {
+      dealStepTimerRef.current = null;
+      setDealRound((r) => r + 1);
+    }, DEAL_STEP_GAP_MS);
+  }, []);
+
+  const handleDealFlightComplete = useCallback(
+    (flightId: string) => {
+      const round = dealRoundRef.current;
+      if (flightId !== `deal-${round}`) return;
+      const step = dealStepsRef.current[round];
+      if (!step) return;
+      setActiveFlights([]);
+      advanceDealRound(step.playerId);
+    },
+    [advanceDealRound],
+  );
+
   useEffect(() => {
     if (!visible) return;
     ceremonyFinishedRef.current = false;
@@ -129,18 +164,18 @@ export default function DealCeremonyOverlay({
         Animated.sequence([
           Animated.timing(shuffleSpin, {
             toValue: 1,
-            duration: 220,
+            duration: 280,
             easing: Easing.inOut(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(shuffleSpin, {
             toValue: -1,
-            duration: 220,
+            duration: 280,
             easing: Easing.inOut(Easing.quad),
             useNativeDriver: true,
           }),
         ]),
-        { iterations: 3 },
+        { iterations: 5 },
       ),
       Animated.sequence([
         Animated.timing(shuffleScale, {
@@ -164,14 +199,24 @@ export default function DealCeremonyOverlay({
     return () => shuffleAnim.stop();
   }, [visible, shuffleSpin, shuffleScale]);
 
+  useEffect(() => {
+    return () => {
+      if (dealStepTimerRef.current) {
+        clearTimeout(dealStepTimerRef.current);
+        dealStepTimerRef.current = null;
+      }
+    };
+  }, []);
+
   // Belt-and-suspenders: never leave the table locked if layout or timers stall.
   useEffect(() => {
     if (!visible) return;
+    const perCardMs = DEAL_FLIGHT_MS + DEAL_STEP_GAP_MS + 80;
     const maxMs =
       SHUFFLE_MS +
-      Math.max(dealSteps.length, 1) * DEAL_ROUND_MS +
-      (pendingTrades.length > 0 ? MANDATORY_TRADE_MS + 400 : 400);
-    const timer = setTimeout(() => finishCeremony(), maxMs + 800);
+      Math.max(dealSteps.length, 1) * perCardMs +
+      (pendingTrades.length > 0 ? MANDATORY_TRADE_MS + 600 : 600);
+    const timer = setTimeout(() => finishCeremony(), maxMs);
     return () => clearTimeout(timer);
   }, [visible, dealSteps.length, pendingTrades.length]);
 
@@ -201,15 +246,10 @@ export default function DealCeremonyOverlay({
         : null;
 
     if (!layout || !visibleSeat || !target) {
-      const timer = setTimeout(() => {
-        if (visibleSeat) {
-          setDealtCounts((prev) => ({
-            ...prev,
-            [step.playerId]: (prev[step.playerId] ?? 0) + 1,
-          }));
-        }
-        setDealRound((r) => r + 1);
-      }, layout ? (visibleSeat ? DEAL_ROUND_MS : Math.round(DEAL_ROUND_MS * 0.5)) : 16);
+      const timer = setTimeout(
+        () => advanceDealRound(step.playerId),
+        HIDDEN_SEAT_DEAL_MS,
+      );
       return () => clearTimeout(timer);
     }
 
@@ -226,16 +266,6 @@ export default function DealCeremonyOverlay({
     };
 
     setActiveFlights([flight]);
-
-    const timer = setTimeout(() => {
-      setDealtCounts((prev) => ({
-        ...prev,
-        [step.playerId]: (prev[step.playerId] ?? 0) + 1,
-      }));
-      setDealRound((r) => r + 1);
-    }, DEAL_ROUND_MS);
-
-    return () => clearTimeout(timer);
   }, [
     phase,
     dealRound,
@@ -243,13 +273,13 @@ export default function DealCeremonyOverlay({
     visible,
     layout,
     playAreaHeight,
-    playerIds,
     layoutSeatIds,
     localPlayerIds,
     deckCenter,
     dims,
     pendingTrades.length,
     seatOptions,
+    advanceDealRound,
   ]);
 
   useEffect(() => {
@@ -304,7 +334,7 @@ export default function DealCeremonyOverlay({
     const timer = setTimeout(() => {
       onMandatoryTradesAnimatedRef.current?.();
       finishCeremony();
-    }, MANDATORY_TRADE_MS + 120);
+    }, MANDATORY_TRADE_MS + 180);
 
     return () => clearTimeout(timer);
   }, [
@@ -313,7 +343,6 @@ export default function DealCeremonyOverlay({
     layout,
     playAreaHeight,
     pendingTrades,
-    playerIds,
     layoutSeatIds,
     localPlayerIds,
     dims,
@@ -382,6 +411,10 @@ export default function DealCeremonyOverlay({
           flight={flight}
           durationMs={phase === "trade" ? MANDATORY_TRADE_MS : DEAL_FLIGHT_MS}
           onComplete={(id) => {
+            if (phase === "deal" && id.startsWith("deal-")) {
+              handleDealFlightComplete(id);
+              return;
+            }
             setActiveFlights((prev) => prev.filter((f) => f.id !== id));
           }}
         />

@@ -92,6 +92,22 @@ export default function Card({
 
   // Table cards: static, fully opaque, no motion — avoids blur from nested transforms.
   if (isTable) {
+    if (faceDown) {
+      return (
+        <View style={[local.cardTableShell, local.cardTable, style]}>
+          <View style={local.inner}>
+            <View style={local.backFace}>
+              <View style={local.backFaceFrame}>
+                <View style={local.backFaceInner}>
+                  <Text style={local.backFaceOrnament}>♠</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
     const suitIsRed = card.suit === "hearts" || card.suit === "diamonds";
     const labelColor = "#1a1a1a";
     const suitColor = suitIsRed ? "#b71c1c" : "#1a1a1a";

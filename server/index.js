@@ -533,6 +533,34 @@ function attachPlayerSocket(player, socket, name) {
   }
 }
 
+function renamePlayerInGameState(gameState, playerId, newName) {
+  if (!gameState) return;
+  for (const p of gameState.players || []) {
+    if (p.id === playerId) p.name = newName;
+  }
+  const patchActions = (actions) => {
+    if (!Array.isArray(actions)) return;
+    for (const action of actions) {
+      if (action.playerId === playerId) action.playerName = newName;
+    }
+  };
+  patchActions(gameState.currentTrick?.actions);
+  for (const trick of gameState.trickHistory || []) {
+    patchActions(trick.actions);
+    if (trick.winnerId === playerId) trick.winnerName = newName;
+  }
+}
+
+function applyPlayerDisplayName(room, player, newName) {
+  if (!player || player.name === newName) return false;
+  player.name = newName;
+  if (room.host === player.id) {
+    room.hostName = newName;
+  }
+  renamePlayerInGameState(room.gameState, player.id, newName);
+  return true;
+}
+
 /** Drop a socket/profile from every room except keepRoomId; destroy abandoned host lobbies. */
 function removeSocketFromOtherRooms(socket, profileId, keepRoomId) {
   let listChanged = false;
@@ -755,6 +783,25 @@ io.on('connection', (socket) => {
     }
     room.roomName = roomNameCheck.value;
     io.to(code).emit('lobbyUpdate', buildLobbyUpdate(room));
+    if (room.isPublic) broadcastAvailableRooms();
+  });
+
+  socket.on('updatePlayerName', ({ roomId, name }) => {
+    const code = normalizeRoomCode(roomId);
+    const room = rooms[code];
+    if (!room) return;
+    const player = getPlayerBySocket(room, socket.id);
+    if (!player) return;
+    const nameCheck = validateDisplayText(name, 'Player name');
+    if (!nameCheck.ok) {
+      socket.emit('error', { message: nameCheck.reason });
+      return;
+    }
+    if (!applyPlayerDisplayName(room, player, nameCheck.value)) return;
+    io.to(code).emit('lobbyUpdate', buildLobbyUpdate(room));
+    if (room.inGame && room.gameState) {
+      broadcastGameState(io, room);
+    }
     if (room.isPublic) broadcastAvailableRooms();
   });
 

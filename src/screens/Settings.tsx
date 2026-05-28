@@ -47,10 +47,12 @@ export default function Settings({
   onWallpaperPreview,
   onWallpaperChange,
   onBack,
+  onNameSaved,
 }: {
   onWallpaperPreview?: (tint: string) => void;
   onWallpaperChange?: () => void;
   onBack?: () => void;
+  onNameSaved?: (name: string) => void | Promise<void>;
 }) {
   const {
     colors,
@@ -116,6 +118,7 @@ export default function Settings({
       if (playerInfo) {
         setPlayerInfo({ ...playerInfo, displayName: check.value });
       }
+      await onNameSaved?.(check.value);
       setSaveFlash(true);
       setTimeout(() => setSaveFlash(false), 2000);
     } catch (error) {
