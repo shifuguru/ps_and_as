@@ -380,7 +380,13 @@ export default function CreateGame({
   const lobbyFullEnough = seatCount >= MIN_PLAYERS;
   const localMember = seatMembers.find((m) => m.id === localId);
   const isLocalReady = !!localMember?.ready;
-  const showReadyAction = onlineLobby && !isHost && lobbyFullEnough;
+  const guestMembers = seatMembers.filter((m) => m.id !== hostId);
+  const anyGuestReady = guestMembers.some((m) => m.ready);
+  const hostWaitingForGuest =
+    onlineLobby && isHost && lobbyFullEnough && !anyGuestReady;
+  const showGuestReadyAction = onlineLobby && !isHost && lobbyFullEnough;
+  const showHostReadyAction = hostWaitingForGuest;
+  const showReadyAction = showGuestReadyAction || showHostReadyAction;
 
   const handleRoomNameCommit = useCallback(
     (name: string) => {
@@ -783,13 +789,19 @@ export default function CreateGame({
   const primaryDisabled = usingMock
     ? !canStart
     : isHost
-      ? !canStart
+      ? anyGuestReady
+        ? !lobbyFullEnough
+        : false
       : !lobbyFullEnough;
 
   const primaryLabel = usingMock
     ? "Start Game"
     : isHost
-      ? "Start Game"
+      ? anyGuestReady
+        ? "Start Game"
+        : isLocalReady
+          ? "Unready"
+          : "Ready"
       : lobbyFullEnough
         ? isLocalReady
           ? "Unready"
@@ -1111,6 +1123,12 @@ export default function CreateGame({
             </View>
             ) : null}
 
+            {hostWaitingForGuest ? (
+              <Text style={local.lobbyWaitHint}>
+                Waiting for a guest to ready up…
+              </Text>
+            ) : null}
+
             <View style={ui.actionTrack}>
               {onNavigateToAchievements ? (
                 <TouchableOpacity
@@ -1403,6 +1421,14 @@ const local = StyleSheet.create({
   },
   bottomControls: {
     paddingTop: BOTTOM_BAR_TOP_PAD,
+  },
+  lobbyWaitHint: {
+    textAlign: "center",
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 10,
+    letterSpacing: 0.2,
   },
   lobbySideBtn: {
     flex: 1,

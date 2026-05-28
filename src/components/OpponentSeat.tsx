@@ -73,6 +73,8 @@ type Props = {
   layoutWidth?: number;
   /** Lobby ready indicator — checkmark at bottom-left of avatar. */
   isReady?: boolean;
+  /** Dead hand seat dimmed like a graveyard during active play. */
+  graveyardMode?: boolean;
 };
 
 export default function OpponentSeat({
@@ -89,6 +91,7 @@ export default function OpponentSeat({
   seatDims: seatDimsProp,
   layoutWidth,
   isReady = false,
+  graveyardMode = false,
 }: Props) {
   const { colors, palette } = useAppTheme();
   const styles = useMemo(() => createStyles(colors, palette), [colors, palette]);
@@ -135,6 +138,7 @@ export default function OpponentSeat({
 
   const avatarSize = avatarSizeForSeat(dims, { compact, isLocal });
   const isDeadHand = !!player.isDeadHand;
+  const isGraveyard = isDeadHand && graveyardMode;
   const sidelinedCount = player.sidelinedCount ?? 0;
   const miniCardW = Math.max(18, avatarSize * 0.34);
   const miniCardH = Math.max(26, avatarSize * 0.48);
@@ -152,13 +156,18 @@ export default function OpponentSeat({
         styles.seat,
         seatStyle,
         isOut && !isDeadHand && styles.seatOut,
-        isDeadHand && styles.deadHandSeat,
+        isDeadHand && !isGraveyard && styles.deadHandSeat,
+        isGraveyard && styles.deadHandGraveyard,
       ]}
     >
       {isDeadHand ? (
         <View style={styles.deadHandHeader}>
-          <Text style={styles.deadHandIcon}>🃏</Text>
-          <Text style={styles.deadHandHint}>Open seat</Text>
+          <Text style={[styles.deadHandIcon, isGraveyard && styles.deadHandIconGraveyard]}>
+            {isGraveyard ? "⚰" : "🃏"}
+          </Text>
+          <Text style={[styles.deadHandHint, isGraveyard && styles.deadHandHintGraveyard]}>
+            {isGraveyard ? "Empty seat" : "Open seat"}
+          </Text>
         </View>
       ) : null}
       <View
@@ -214,7 +223,8 @@ export default function OpponentSeat({
             },
             isOut && !isDeadHand && styles.avatarOut,
             isLocal && styles.avatarLocal,
-            isDeadHand && styles.avatarDeadHand,
+            isDeadHand && !isGraveyard && styles.avatarDeadHand,
+            isGraveyard && styles.avatarGraveyard,
           ]}
         >
           <Text
@@ -223,16 +233,18 @@ export default function OpponentSeat({
               {
                 fontSize: compact ? dims.initialsFontCompact : dims.initialsFont,
               },
-              isDeadHand && styles.initialsDeadHand,
+              isDeadHand && !isGraveyard && styles.initialsDeadHand,
+              isGraveyard && styles.initialsGraveyard,
             ]}
           >
-            {isDeadHand ? "DH" : initials}
+            {isDeadHand ? (isGraveyard ? "—" : "DH") : initials}
           </Text>
         </View>
         {isDeadHand && sidelinedCount > 0 ? (
           <View
             style={[
               styles.sidelinedStack,
+              isGraveyard && styles.sidelinedStackGraveyard,
               {
                 left: avatarSize + 2,
                 top: avatarSize * 0.08,
@@ -347,7 +359,9 @@ export default function OpponentSeat({
       </Text>
 
       {isDeadHand ? (
-        <Text style={styles.deadHandLabel}>Dead Hand</Text>
+        <Text style={[styles.deadHandLabel, isGraveyard && styles.deadHandLabelGraveyard]}>
+          {isGraveyard ? "Graveyard" : "Dead Hand"}
+        </Text>
       ) : isOut ? (
         <Text style={styles.statusPill}>Out</Text>
       ) : hasPassed ? (
@@ -387,6 +401,15 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
     paddingVertical: 6,
     opacity: 0.72,
   },
+  deadHandGraveyard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
+    borderStyle: "dashed",
+    backgroundColor: "rgba(0,0,0,0.32)",
+    paddingVertical: 6,
+    opacity: 0.42,
+  },
   deadHandHeader: {
     alignItems: "center",
     marginBottom: 2,
@@ -394,11 +417,19 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   deadHandIcon: {
     fontSize: 14,
   },
+  deadHandIconGraveyard: {
+    fontSize: 13,
+    opacity: 0.65,
+  },
   deadHandHint: {
     color: "rgba(255,255,255,0.35)",
     fontSize: 8,
     fontWeight: "600",
     marginTop: 1,
+  },
+  deadHandHintGraveyard: {
+    color: "rgba(255,255,255,0.22)",
+    fontStyle: "italic",
   },
   deadHandLabel: {
     marginTop: 2,
@@ -407,13 +438,31 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
     letterSpacing: 0.2,
     color: "rgba(255,255,255,0.45)",
   },
+  deadHandLabelGraveyard: {
+    color: "rgba(255,255,255,0.28)",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
   avatarDeadHand: {
     borderStyle: "dashed",
     borderColor: "rgba(255,255,255,0.22)",
   },
+  avatarGraveyard: {
+    borderStyle: "dashed",
+    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
   initialsDeadHand: {
     color: "rgba(255,255,255,0.55)",
     fontSize: 11,
+  },
+  initialsGraveyard: {
+    color: "rgba(255,255,255,0.28)",
+    fontSize: 14,
+    fontWeight: "300",
+  },
+  sidelinedStackGraveyard: {
+    opacity: 0.35,
   },
   sidelinedStack: {
     position: "absolute",

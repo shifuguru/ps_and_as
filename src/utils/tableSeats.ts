@@ -11,20 +11,25 @@ export const DEAD_HAND_RING_ANGLE = 90;
 export type TableSeatConfig = {
   /** Server turn order (clockwise around the table). */
   turnOrderIds: string[];
-  /** Seat ids used for layout + deal animations (local first, then visible opponents). */
+  /** Seat ids for layout — local player first, then clockwise. */
   layoutSeatIds: string[];
   localPlayerIds: string[];
   visibleOpponentIds: string[];
-  /** Includes local + visible opponents for ring geometry. */
+  /** Total seats at the table (living + dead hand). */
   layoutSeatCount: number;
   deadHandId: string | null;
-  hideRemoteHumans: boolean;
 };
+
+function rotateIdsToFront(ids: string[], frontId: string | null): string[] {
+  if (!frontId) return [...ids];
+  const idx = ids.indexOf(frontId);
+  if (idx <= 0) return [...ids];
+  return [...ids.slice(idx), ...ids.slice(0, idx)];
+}
 
 export function buildTableSeatConfig(
   players: Pick<Player, "id" | "isDeadHand">[],
   localPlayerId: string | null | undefined,
-  onlineMultiplayer: boolean,
 ): TableSeatConfig {
   const turnOrderIds = players.map((p) => p.id);
   const deadHand = players.find(isDeadHandPlayer);
@@ -34,25 +39,16 @@ export function buildTableSeatConfig(
       ? localPlayerId
       : null;
 
-  const hideRemoteHumans = onlineMultiplayer;
-  const visibleOpponentIds = hideRemoteHumans
-    ? deadHandId
-      ? [deadHandId]
-      : []
-    : turnOrderIds.filter((id) => id !== localId);
-
-  const layoutSeatIds = localId
-    ? [localId, ...visibleOpponentIds]
-    : [...visibleOpponentIds];
+  const visibleOpponentIds = turnOrderIds.filter((id) => id !== localId);
+  const layoutSeatIds = rotateIdsToFront(turnOrderIds, localId);
 
   return {
     turnOrderIds,
     layoutSeatIds,
     localPlayerIds: localId ? [localId] : [],
     visibleOpponentIds,
-    layoutSeatCount: Math.max(layoutSeatIds.length, 1),
+    layoutSeatCount: Math.max(turnOrderIds.length, 1),
     deadHandId,
-    hideRemoteHumans,
   };
 }
 
