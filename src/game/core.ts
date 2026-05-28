@@ -365,12 +365,12 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   const playedTen = containsTen(cards);
   try {
     console.log(
-      `[core DEBUG] playCards context: playedTen=${playedTen}, runSeq=${(seqForTen.repCards || []).map((c) => c.value).join(",")}, isRunSequenceContext=${isRunSequenceContext}`,
+      `[core DEBUG] playCards context: playedTen=${playedTen}, runSeq=${(seqForTen.repCards || []).map((c) => c.value).join(",")}, isActiveRun=${isActiveRun}`,
     );
   } catch (e) {}
   // Do not activate the 10-rule when the active pile is a run. Tens are
   // explicitly excluded from influencing runs.
-  if (playedTen && !state.tenRule?.active && !isRunSequenceContext) {
+  if (playedTen && !state.tenRule?.active && !isActiveRun) {
     // 10 rule is being activated - add cards to pile but pause for player input
     state.pile = cards;
     state.pileHistory = state.pileHistory || [];
