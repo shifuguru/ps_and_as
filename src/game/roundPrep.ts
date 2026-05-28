@@ -7,7 +7,12 @@ import {
   shuffleDeck,
   shuffleDeckSeeded,
 } from "./ruleset";
-import { DEAD_HAND_ID, livingPlayerIds, livingPlayers } from "./deadHand";
+import {
+  DEAD_HAND_ID,
+  isDeadHandPlayer,
+  livingPlayerIds,
+  livingPlayers,
+} from "./deadHand";
 import {
   type DealerContext,
   resolveOpeningPlayerIndex,
@@ -203,6 +208,8 @@ export function buildFreshRoundState(
   prev: GameState,
   players: Player[],
   dealerOptions?: DealerContext,
+  /** Use when `players` have hidden/empty hands (deal ceremony UI state). */
+  openingPlayerIndex?: number,
 ): GameState {
   const livingIds = livingPlayerIds(players);
   const lastRoundOrder =
@@ -217,7 +224,13 @@ export function buildFreshRoundState(
         ? lastRoundOrder
         : dealerOptions?.lastRoundOrder ?? prev.lastRoundOrder,
   };
-  const openerIdx = resolveOpeningPlayerIndex(players, dealerContext);
+  let openerIdx =
+    openingPlayerIndex ??
+    resolveOpeningPlayerIndex(players, dealerContext);
+  if (openerIdx < 0 || openerIdx >= players.length) {
+    const fallback = players.findIndex((p) => !isDeadHandPlayer(p));
+    openerIdx = fallback >= 0 ? fallback : 0;
+  }
 
   return {
     ...prev,

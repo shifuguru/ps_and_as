@@ -35,6 +35,7 @@ import { isMobileWeb, applyMobileWebShellHeight, APP_SHELL_HEIGHT_VAR } from "./
 import { useAppFonts } from "./src/hooks/useAppFonts";
 import { useBuildUpdateCheck } from "./src/hooks/useBuildUpdateCheck";
 import UpdateRequiredOverlay from "./src/components/UpdateRequiredOverlay";
+import AppErrorBoundary from "./src/components/AppErrorBoundary";
 import { StatusBar } from "expo-status-bar";
 
 function AppContent() {
@@ -63,6 +64,7 @@ function AppContent() {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [isOnlineGame, setIsOnlineGame] = useState(false);
   const [isSpectator, setIsSpectator] = useState(false);
+  const [gameInstanceKey, setGameInstanceKey] = useState(0);
 
   const { updateAvailable, latestBuild } = useBuildUpdateCheck(
     menuVisible && !splashVisible,
@@ -171,6 +173,7 @@ function AppContent() {
       { id: "4", name: "CPU 3" },
     ]);
     setIsOnlineGame(false);
+    setGameInstanceKey((k) => k + 1);
     try {
       const m = new MockAdapter();
       setLocalAdapter(m);
@@ -405,6 +408,7 @@ function AppContent() {
       setDealSeed(undefined);
       setIsOnlineGame(true);
       setLocalAdapter(null);
+      setGameInstanceKey((k) => k + 1);
       setScreen("game");
     },
     [],
@@ -709,6 +713,7 @@ function AppContent() {
               if (localSocketId) setLocalPlayerId(localSocketId);
               setDealSeed(undefined);
               setIsOnlineGame(false);
+              setGameInstanceKey((k) => k + 1);
               disconnectRoom();
               try {
                 const m = new MockAdapter();
@@ -787,6 +792,7 @@ function AppContent() {
                   setJoinedRoomId(roomId);
                   setActiveRoomId(roomId);
                   setIsOnlineGame(true);
+                  setGameInstanceKey((k) => k + 1);
                   setScreen("game");
                   await adapter.connect();
                 })();
@@ -822,6 +828,7 @@ function AppContent() {
         )}
         {menuVisible && screen === "game" && (
           <GameScreen 
+            key={gameInstanceKey}
             initialLobbyPlayers={lobbyMembers ?? undefined}
             dealSeed={dealSeed}
             localPlayerName={localPlayerName ?? undefined}
@@ -915,7 +922,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AppContent />
+        <AppErrorBoundary>
+          <AppContent />
+        </AppErrorBoundary>
       </ThemeProvider>
     </SafeAreaProvider>
   );

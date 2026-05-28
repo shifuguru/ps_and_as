@@ -16,6 +16,16 @@ export const UPDATE_LOG_TAGLINE =
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
     date: "May 2026",
+    title: "Stability & Quick Game",
+    items: [
+      "Quick Game — fixed deal ceremony getting stuck on “Setting up table…”; opening player is resolved from the dealt hands before cards are hidden for the animation",
+      "GameScreen — stable hook order and a fresh mount each time you start a game (Quick Game, lobby, or online) so hot reload can’t leave the table in a broken state",
+      "Crash recovery — if something goes wrong, an in-app fallback explains we’re fixing it ASAP with an Attempt refresh button (full reload on web)",
+      "Round ceremony — deals reshuffle up to 64 times when round 1 needs a valid opener (same as solo game creation)",
+    ],
+  },
+  {
+    date: "May 2026",
     title: "Multiplayer & dead hand",
     items: [
       "Dead hand opening — when the dead hand holds 3♣, the next living player with 3♠ leads; otherwise any 3; if no living player has a 3, the deal reshuffles",
@@ -87,6 +97,11 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
 ];
 
 export const KNOWN_ISSUES: KnownIssue[] = [
+  {
+    title: "Quick Game blank screen",
+    status: "Fix shipped",
+    note: "Quick Game should show the deal animation, then play. If you still see a blank table, use Attempt refresh or hard-refresh the browser (Ctrl+Shift+R).",
+  },
   {
     title: "Achievement stats in lobbies",
     status: "Monitoring",

@@ -1,4 +1,12 @@
-import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform, LayoutChangeEvent } from "react-native";
 import {
   createGame,
@@ -97,6 +105,7 @@ import {
   buildTableSeatConfig,
   buildDealerContext,
   resolveDealerId,
+  resolveOpeningPlayerIndex,
 } from "../utils/tableSeats";
 
 type GameStateWithDealSeed = GameState & { dealSeed?: number };
@@ -340,7 +349,12 @@ type TrickPauseSnapshot = {
   winnerId: string;
 };
 
-export default function GameScreen({
+/** Render-only board — separate component so hook count never changes when state loads. */
+const GameScreenRuntimeContext = createContext<Record<string, unknown> | null>(
+  null,
+);
+
+function GameScreen({
   initialPlayers,
   initialLobbyPlayers,
   dealSeed: seedFromProps,
@@ -580,38 +594,63 @@ export default function GameScreen({
 
   const startRoundCeremony = useCallback(
     (baseState: GameState, finishedOrder: string[], nextDealSeed?: number) => {
-      const players = clonePlayersForRound(
+      let players = clonePlayersForRound(
         baseState.players.map((p) => ({ ...p, hand: [] })),
       );
-      dealFreshHands(players, nextDealSeed);
       let trades: ClientPendingTrade[] = [];
-      const rolesById: Record<string, string> = {};
-      if (finishedOrder.length >= 2) {
-        assignPlayerRoles(players, finishedOrder);
-        trades = applyMandatoryTrades(players);
-        for (const p of players) {
-          if (!isDeadHandPlayer(p) && p.role !== "Neutral") {
-            rolesById[p.id] = p.role;
-          }
-        }
-      }
-      const dealerContext = buildDealerContext({
+      let openingPlayerIndex = -1;
+      let dealerContext = buildDealerContext({
         hostId: resolvedHostId,
         finishOrder: finishedOrder,
         lastRoundOrder: baseState.lastRoundOrder,
-        roles: rolesById,
+        roles: {},
       });
-      if (players.some(isDeadHandPlayer)) {
-        applyDeadHandAfterDeal(
-          {
-            players,
-            finishedOrder: [],
-            currentPlayerIndex: 0,
-            mustPlay: false,
-          },
-          dealerContext,
+
+      for (let attempt = 0; attempt < 64 && openingPlayerIndex < 0; attempt++) {
+        players = clonePlayersForRound(
+          baseState.players.map((p) => ({ ...p, hand: [] })),
+        );
+        const seed =
+          nextDealSeed != null ? ((nextDealSeed + attempt) >>> 0) : undefined;
+        dealFreshHands(players, seed);
+        trades = [];
+        const rolesById: Record<string, string> = {};
+        if (finishedOrder.length >= 2) {
+          assignPlayerRoles(players, finishedOrder);
+          trades = applyMandatoryTrades(players);
+          for (const p of players) {
+            if (!isDeadHandPlayer(p) && p.role !== "Neutral") {
+              rolesById[p.id] = p.role;
+            }
+          }
+        }
+        dealerContext = buildDealerContext({
+          hostId: resolvedHostId,
+          finishOrder: finishedOrder,
+          lastRoundOrder: baseState.lastRoundOrder,
+          roles: rolesById,
+        });
+        if (players.some(isDeadHandPlayer)) {
+          applyDeadHandAfterDeal(
+            {
+              players,
+              finishedOrder: [],
+              currentPlayerIndex: 0,
+              mustPlay: false,
+            },
+            dealerContext,
+          );
+        }
+        openingPlayerIndex = resolveOpeningPlayerIndex(players, dealerContext);
+      }
+
+      if (openingPlayerIndex < 0) {
+        openingPlayerIndex = Math.max(
+          0,
+          players.findIndex((p) => !isDeadHandPlayer(p)),
         );
       }
+
       setRoundOver(false);
       setPlayerReadyStates({});
       roundStatsRecordedRef.current = false;
@@ -628,7 +667,14 @@ export default function GameScreen({
         finishOrder: finishedOrder,
       });
       const hiddenPlayers = players.map((p) => ({ ...p, hand: [] }));
-      setState(buildFreshRoundState(baseState, hiddenPlayers, dealerContext));
+      setState(
+        buildFreshRoundState(
+          baseState,
+          hiddenPlayers,
+          dealerContext,
+          openingPlayerIndex,
+        ),
+      );
     },
     [resolvedHostId],
   );
@@ -1026,8 +1072,17 @@ export default function GameScreen({
           finishOrder,
         });
         const hiddenPlayers = players.map((p) => ({ ...p, hand: [] }));
+        const openingPlayerIndex = resolveOpeningPlayerIndex(
+          players,
+          dealerContext,
+        );
         setState(
-          buildFreshRoundState(parsed, hiddenPlayers, dealerContext),
+          buildFreshRoundState(
+            parsed,
+            hiddenPlayers,
+            dealerContext,
+            openingPlayerIndex,
+          ),
         );
         stateSyncedRef.current = true;
         if (typeof spectator === "boolean") {
@@ -1415,37 +1470,42 @@ export default function GameScreen({
   }, [state, trickPauseActive, gameplayLocked, roundOver, humanPlayer?.id]);
 
   if (!state) {
-    if (onlineMultiplayer) {
-      return (
-        <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
-          <View
+    return (
+      <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 24,
+          }}
+        >
+          <Text
             style={{
-              flex: 1,
-              justifyContent: "center",
-              alignItems: "center",
-              padding: 24,
+              color: colors.onFelt.textPrimary,
+              fontSize: 16,
+              textAlign: "center",
             }}
           >
-            <Text style={{ color: colors.onFelt.textPrimary, fontSize: 16, textAlign: "center" }}>
-              {syncError ?? "Waiting for game state from server…"}
+            {onlineMultiplayer
+              ? (syncError ?? "Waiting for game state from server…")
+              : "Starting game…"}
+          </Text>
+          {onlineMultiplayer && syncError ? (
+            <Text
+              style={{
+                color: colors.onFelt.textMuted,
+                fontSize: 13,
+                marginTop: 12,
+                textAlign: "center",
+              }}
+            >
+              Restart the game server (`npm run server`) and start a new room.
             </Text>
-            {syncError ? (
-              <Text
-                style={{
-                  color: colors.onFelt.textMuted,
-                  fontSize: 13,
-                  marginTop: 12,
-                  textAlign: "center",
-                }}
-              >
-                Restart the game server (`npm run server`) and start a new room.
-              </Text>
-            ) : null}
-          </View>
-        </ScreenContainer>
-      );
-    }
-    return null;
+          ) : null}
+        </View>
+      </ScreenContainer>
+    );
   }
 
   const roleById: Record<string, GameState["players"][number]["role"]> = {};
@@ -1473,12 +1533,236 @@ export default function GameScreen({
   const deadHandGraveyard =
     !gameplayLocked && !ceremonyPrep && !tradePhase;
 
+  return (
+    <GameScreenRuntimeContext.Provider
+      value={{
+        state,
+        setState,
+        tradePhase,
+        ceremonyPrep,
+        gameplayLocked,
+        playAreaSize,
+        humanPlayer,
+        myPlayerId,
+        insets,
+        colors,
+        selected,
+        setSelected,
+        focused,
+        setFocused,
+        roundOver,
+        trickPauseActive,
+        trickPauseSnapshot,
+        showWinnerBanner,
+        stackCollecting,
+        playerReadyStates,
+        setPlayerReadyStates,
+        leaveConfirmVisible,
+        showDebugOverlay,
+        showGameLog,
+        debugLogs,
+        revealedHands,
+        setRevealedHands,
+        onlineMultiplayer,
+        networkAdapter,
+        roomId,
+        localPlayerId,
+        readOnlyGame,
+        bannerNotice,
+        disconnectedPlayerIds,
+        resolvedHostId,
+        handRef,
+        handleDealComplete,
+        handleTradeConfirm,
+        requestLeaveGame,
+        cancelLeaveGame,
+        confirmLeaveGame,
+        setTradeReturnPick,
+        setShowDebugOverlay,
+        setShowGameLog,
+        setPlayAreaSize,
+        activeTrade,
+        spectatorMode,
+        onNavigateToAchievements,
+        emitDebug,
+        roleById,
+        tableSeats,
+        playAreaLayout,
+        playAreaGameHeight,
+        localControlledIds,
+        deadHandGraveyard,
+        snapshotState,
+        broadcastGameAction,
+        trickStackCollectMs: TRICK_STACK_COLLECT_MS,
+        tradeReturnPick,
+        readOnlyOnline,
+        onBack,
+      }}
+    >
+      <GameScreenBoard />
+    </GameScreenRuntimeContext.Provider>
+  );
+}
+
+function GameScreenBoard() {
+  const {
+    state,
+    setState,
+    tradePhase,
+    ceremonyPrep,
+    gameplayLocked,
+    playAreaSize,
+    humanPlayer,
+    myPlayerId,
+    insets,
+    colors,
+    selected,
+    setSelected,
+    focused,
+    setFocused,
+    roundOver,
+    trickPauseActive,
+    trickPauseSnapshot,
+    showWinnerBanner,
+    stackCollecting,
+    playerReadyStates,
+    setPlayerReadyStates,
+    leaveConfirmVisible,
+    showDebugOverlay,
+    showGameLog,
+    debugLogs,
+    revealedHands,
+    setRevealedHands,
+    onlineMultiplayer,
+    networkAdapter,
+    roomId,
+    localPlayerId,
+    readOnlyGame,
+    bannerNotice,
+    disconnectedPlayerIds,
+    resolvedHostId,
+    handRef,
+    handleDealComplete,
+    handleTradeConfirm,
+    requestLeaveGame,
+    cancelLeaveGame,
+    confirmLeaveGame,
+    setTradeReturnPick,
+    setShowDebugOverlay,
+    setShowGameLog,
+    setPlayAreaSize,
+    activeTrade,
+    spectatorMode,
+    onNavigateToAchievements,
+    emitDebug,
+    roleById,
+    tableSeats,
+    playAreaLayout,
+    playAreaGameHeight,
+    localControlledIds,
+    deadHandGraveyard,
+    snapshotState,
+    broadcastGameAction,
+    trickStackCollectMs,
+    tradeReturnPick,
+    readOnlyOnline,
+    onBack,
+  } = useContext(GameScreenRuntimeContext)! as {
+    state: GameState;
+    setState: React.Dispatch<React.SetStateAction<GameState | null>>;
+    tradePhase: {
+      baseState: GameState;
+      players: GameState["players"];
+      trades: ClientPendingTrade[];
+    } | null;
+    ceremonyPrep: {
+      baseState: GameState;
+      players: GameState["players"];
+      trades: ClientPendingTrade[];
+      dealSeed?: number;
+      finishOrder: string[];
+    } | null;
+    gameplayLocked: boolean;
+    playAreaSize: { width: number; height: number };
+    humanPlayer: ReturnType<typeof resolveLocalHumanPlayer>;
+    myPlayerId: string | null;
+    insets: ReturnType<typeof useLayoutInsets>;
+    colors: ReturnType<typeof useAppTheme>["colors"];
+    selected: number[];
+    setSelected: React.Dispatch<React.SetStateAction<number[]>>;
+    focused: number | null;
+    setFocused: React.Dispatch<React.SetStateAction<number | null>>;
+    roundOver: boolean;
+    trickPauseActive: boolean;
+    trickPauseSnapshot: TrickPauseSnapshot | null;
+    showWinnerBanner: boolean;
+    stackCollecting: boolean;
+    playerReadyStates: { [playerId: string]: boolean };
+    setPlayerReadyStates: React.Dispatch<
+      React.SetStateAction<{ [playerId: string]: boolean }>
+    >;
+    leaveConfirmVisible: boolean;
+    showDebugOverlay: boolean;
+    showGameLog: boolean;
+    debugLogs: any[];
+    revealedHands: { [playerId: string]: boolean };
+    setRevealedHands: React.Dispatch<
+      React.SetStateAction<{ [playerId: string]: boolean }>
+    >;
+    onlineMultiplayer: boolean;
+    networkAdapter: NetworkAdapter | MockAdapter | SocketAdapter | undefined;
+    roomId: string | undefined;
+    localPlayerId: string | undefined;
+    readOnlyGame: boolean;
+    bannerNotice: string | null;
+    disconnectedPlayerIds: string[];
+    resolvedHostId: string | null;
+    handRef: React.RefObject<PlayerHandHandle>;
+    handleDealComplete: () => void;
+    handleTradeConfirm: (selected: CardType[]) => void;
+    requestLeaveGame: () => void;
+    cancelLeaveGame: () => void;
+    confirmLeaveGame: () => void;
+    setTradeReturnPick: React.Dispatch<React.SetStateAction<CardType[]>>;
+    setShowDebugOverlay: React.Dispatch<React.SetStateAction<boolean>>;
+    setShowGameLog: React.Dispatch<React.SetStateAction<boolean>>;
+    setPlayAreaSize: React.Dispatch<
+      React.SetStateAction<{ width: number; height: number }>
+    >;
+    activeTrade: ClientPendingTrade | null;
+    spectatorMode: boolean;
+    onNavigateToAchievements: (() => void) | undefined;
+    emitDebug: (event: string, details: any) => void;
+    roleById: Record<string, GameState["players"][number]["role"]>;
+    tableSeats: ReturnType<typeof buildTableSeatConfig>;
+    playAreaLayout: ReturnType<typeof computePlayAreaLayout> | null;
+    playAreaGameHeight: number;
+    localControlledIds: string[];
+    deadHandGraveyard: boolean;
+    snapshotState: (s: GameState | null) => Record<string, unknown> | null;
+    broadcastGameAction: (action: Record<string, unknown>) => void;
+    trickStackCollectMs: number;
+    tradeReturnPick: CardType[];
+    readOnlyOnline: boolean;
+    onBack: (() => void) | undefined;
+  };
+
   // const windowDimensions = useWindowDimensions();
   // const width = windowDimensions.width;
   // const height = windowDimensions.height;
   // const landscape = isLandscape(width, height);
   
-  const current = state.players[state.currentPlayerIndex];
+  const inCeremony = !!ceremonyPrep || !!tradePhase || gameplayLocked;
+  let current = state.players[state.currentPlayerIndex];
+  if (!current && inCeremony) {
+    current =
+      state.players.find((p) => !isDeadHandPlayer(p)) ?? state.players[0];
+  }
+  if (!current) {
+    throw new Error(
+      "Game table could not be set up (invalid current player index).",
+    );
+  }
 
   const currentIsLocalHuman = !!myPlayerId && current.id === myPlayerId;
   const currentIsOut =
@@ -2146,7 +2430,7 @@ export default function GameScreen({
             collectToStack={
               trickPauseActive && stackCollecting && !showWinnerBanner
             }
-            collectDurationMs={TRICK_STACK_COLLECT_MS}
+            collectDurationMs={trickStackCollectMs}
           />
         </GamePlayArea>
       </View>
@@ -2401,6 +2685,8 @@ export default function GameScreen({
     </ScreenContainer>
   );
 }
+
+export default GameScreen;
 
 const local = StyleSheet.create({
   container: { flex: 1 },
