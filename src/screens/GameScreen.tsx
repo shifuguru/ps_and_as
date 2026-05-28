@@ -59,6 +59,7 @@ import ScreenContainer from "../components/ScreenContainer";
 import EndGamePanel from "../components/EndGamePanel";
 import BottomBar, {
   BottomBarControls,
+  BottomBarHand,
   BottomBarLeave,
   localSeatBottomOffset,
   reservedBottomHeight,
@@ -1111,7 +1112,10 @@ export default function GameScreen({
   const playAreaGameHeight = Math.max(
     0,
     playAreaSize.height -
-      reservedBottomHeight(insets.bottom || 0, false),
+      reservedBottomHeight(
+        insets.bottom || 0,
+        (humanPlayer?.hand.length ?? 0) > 0 && !gameplayLocked,
+      ),
   );
 
   const playAreaLayout = useMemo(() => {
@@ -1121,7 +1125,7 @@ export default function GameScreen({
       playAreaGameHeight,
       tableSeats.layoutSeatCount,
     );
-  }, [playAreaSize.width, playAreaGameHeight, state, tableSeats.layoutSeatCount]);
+  }, [playAreaSize.width, playAreaGameHeight, state, tableSeats.layoutSeatCount, insets.bottom, gameplayLocked, humanPlayer?.hand.length]);
 
   const handleTradeConfirm = useCallback(
     (selected: CardType[]) => {
@@ -1647,14 +1651,9 @@ export default function GameScreen({
   };
 
   const handVisible = hand.length > 0;
-  const bottomBarHeight = reservedBottomHeight(insets.bottom || 0, false);
-  const localSeatBottom = localSeatBottomOffset(
-    insets.bottom || 0,
-    handVisible && !gameplayLocked,
-    HAND_FAN_HEIGHT,
-  );
-  const localSeatStackHeight =
-    handVisible && !gameplayLocked ? HAND_FAN_HEIGHT + LOCAL_SEAT_BAND + 8 : LOCAL_SEAT_BAND;
+  const handInBottomBar = handVisible && !gameplayLocked;
+  const bottomBarHeight = reservedBottomHeight(insets.bottom || 0, handInBottomBar);
+  const localSeatBottom = localSeatBottomOffset(insets.bottom || 0, handInBottomBar);
   const contentTopPadding = insets.top + 8;
   const trickPlays = buildTrickPlayDisplays(state);
   const activeLastPlayId = lastPlayPlayerId(state);
@@ -2076,30 +2075,10 @@ export default function GameScreen({
         <View
           style={[
             local.localSeatOverlay,
-            { bottom: localSeatBottom, minHeight: localSeatStackHeight },
+            { bottom: localSeatBottom, height: LOCAL_SEAT_BAND },
           ]}
           pointerEvents="box-none"
         >
-          {handVisible && !gameplayLocked ? (
-            <View style={local.localHandAboveSeat} pointerEvents="box-none">
-              {!isHumanTurn ? (
-                <View style={local.waitingPill}>
-                  <Text style={local.waitingPillText}>
-                    Waiting for {current.name}…
-                  </Text>
-                </View>
-              ) : null}
-              <PlayerHand
-                ref={handRef}
-                cards={hand}
-                selectedIndices={selected}
-                playableIndices={playableIndices}
-                startingCardIndex={startingCardIndex}
-                disabled={!isHumanTurn}
-                onCardPress={handleCardPress}
-              />
-            </View>
-          ) : null}
           <OpponentSeat
             player={localSeatPlayer}
             isActive={
@@ -2120,8 +2099,30 @@ export default function GameScreen({
         </View>
       ) : null}
 
-      {/* Action bar — sticky bottom sheet (hand sits above local avatar) */}
+      {/* Player hand + actions — sticky bottom sheet */}
       <BottomBar>
+        {handInBottomBar ? (
+          <BottomBarHand height={HAND_FAN_HEIGHT}>
+            {!isHumanTurn ? (
+              <View style={local.waitingPill}>
+                <Text style={local.waitingPillText}>
+                  Waiting for {current.name}…
+                </Text>
+              </View>
+            ) : null}
+
+            <PlayerHand
+              ref={handRef}
+              cards={hand}
+              selectedIndices={selected}
+              playableIndices={playableIndices}
+              startingCardIndex={startingCardIndex}
+              disabled={!isHumanTurn}
+              onCardPress={handleCardPress}
+            />
+          </BottomBarHand>
+        ) : null}
+
         <BottomBarControls>
           {readOnlyOnline ? (
             <>
@@ -2320,12 +2321,6 @@ const local = StyleSheet.create({
     zIndex: 44,
     alignItems: "center",
     justifyContent: "flex-end",
-    overflow: "visible",
-  },
-  localHandAboveSeat: {
-    width: "100%",
-    alignItems: "center",
-    marginBottom: 4,
     overflow: "visible",
   },
   playTypeOverlay: {
