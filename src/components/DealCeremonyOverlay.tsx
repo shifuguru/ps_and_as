@@ -322,15 +322,45 @@ export default function DealCeremonyOverlay({
               localPlayerIds,
             );
             if (!pos) return null;
+            const miniW = dims.width * 0.36;
+            const miniH = dims.height * 0.36;
+            const stackCount = Math.min(3, count);
             return (
               <View
-                key={`count-${id}`}
+                key={`stack-${id}`}
                 style={[
-                  styles.dealtBadge,
-                  { left: pos.x - 14, top: pos.y - 28 },
+                  styles.dealtStack,
+                  {
+                    left: pos.x - miniW / 2,
+                    top: pos.y - miniH / 2,
+                    width: miniW + (stackCount - 1) * 4,
+                    height: miniH + (stackCount - 1) * 2,
+                  },
                 ]}
               >
-                <Text style={styles.dealtBadgeText}>{count}</Text>
+                {Array.from({ length: stackCount }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.dealtStackCard,
+                      {
+                        left: i * 4,
+                        top: i * 2,
+                        width: miniW,
+                        height: miniH,
+                      },
+                    ]}
+                  >
+                    <Card
+                      card={{ suit: "spades", value: 0, hidden: true }}
+                      selected={false}
+                      faceDown
+                      variant="table"
+                      onPress={() => {}}
+                      style={{ width: miniW, height: miniH }}
+                    />
+                  </View>
+                ))}
               </View>
             );
           })
@@ -369,19 +399,11 @@ const styles = StyleSheet.create({
   stackCard: {
     position: "absolute",
   },
-  dealtBadge: {
+  dealtStack: {
     position: "absolute",
-    minWidth: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(212, 175, 55, 0.9)",
-    alignItems: "center",
-    justifyContent: "center",
     zIndex: 81,
   },
-  dealtBadgeText: {
-    color: "#111",
-    fontWeight: "800",
-    fontSize: 12,
+  dealtStackCard: {
+    position: "absolute",
   },
 });

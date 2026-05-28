@@ -336,6 +336,7 @@ export default function GameScreen({
   const [activeTrade, setActiveTrade] = useState<ClientPendingTrade | null>(null);
   const awaitingDealCeremonyRef = useRef(false);
   const ceremonyDoneForRoundRef = useRef<string | null>(null);
+  const ceremonyStartedForRoundRef = useRef<string | null>(null);
   const [roomNotice, setRoomNotice] = useState<string | null>(null);
   const roomNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
@@ -353,8 +354,7 @@ export default function GameScreen({
   }
   const adapter = networkAdapter ?? fallbackAdapterRef.current!;
   const onlineMultiplayer = isSocketAdapter(networkAdapter) && !!roomId;
-  const readOnlyOnline =
-    onlineMultiplayer && (spectatorMode || gameplayLocked);
+  const readOnlyOnline = onlineMultiplayer && spectatorMode;
   const readOnlyGame = gameplayLocked || readOnlyOnline;
 
   useEffect(() => {
@@ -696,9 +696,10 @@ export default function GameScreen({
 
       if (
         onlineMultiplayer &&
-        (awaitingDealCeremonyRef.current ||
-          ceremonyDoneForRoundRef.current !== parsed.id)
+        ceremonyDoneForRoundRef.current !== parsed.id &&
+        ceremonyStartedForRoundRef.current !== parsed.id
       ) {
+        ceremonyStartedForRoundRef.current = parsed.id;
         awaitingDealCeremonyRef.current = false;
         const serverPending = (parsed as GameState & { pendingTrades?: Record<string, { fromId: string; count: number; incoming: CardType[]; selected?: CardType[] | null }> }).pendingTrades;
         const serverRoles = (parsed as GameState & { roles?: Record<string, string> }).roles;
@@ -930,6 +931,7 @@ export default function GameScreen({
             setSpectatorMode(false);
           }
           awaitingDealCeremonyRef.current = true;
+          ceremonyStartedForRoundRef.current = null;
           if (isSocketAdapter(networkAdapter) && roomId) {
             networkAdapter.requestGameState(roomId);
           }
@@ -992,7 +994,7 @@ export default function GameScreen({
 
   const playAreaLayout = useMemo(() => {
     if (playAreaSize.width <= 0 || playAreaSize.height <= 0 || !state) return null;
-    const tableSeats = state.players.filter((p) => !isDeadHandPlayer(p)).length;
+    const tableSeats = state.players.length;
     return computePlayAreaLayout(
       playAreaSize.width,
       playAreaSize.height,
@@ -1538,12 +1540,16 @@ export default function GameScreen({
       : trickPlays;
 
   const opponentPlayers = state.players
-    .filter((p) => !isDeadHandPlayer(p))
+    .filter((p) => p.id !== humanPlayer?.id)
     .map((p) => ({
       id: p.id,
       name: p.name,
       handCount: p.hand.length,
       role: p.role,
+      isDeadHand: isDeadHandPlayer(p),
+      sidelinedCount: isDeadHandPlayer(p)
+        ? (p.sidelinedHand?.length ?? 0)
+        : 0,
     }));
 
   const passedPlayerIds =
@@ -1999,6 +2005,10 @@ export default function GameScreen({
                 <BottomBarLeave onPress={onBack} label="Leave" />
               ) : null}
             </>
+          ) : gameplayLocked ? (
+            <View style={[local.waitingPill, local.waitingPillCollapsed]}>
+              <Text style={local.waitingPillText}>Dealing cards…</Text>
+            </View>
           ) : !handVisible && !isHumanTurn ? (
             <View style={[local.waitingPill, local.waitingPillCollapsed]}>
               <Text style={local.waitingPillText}>
@@ -2057,18 +2067,18 @@ export default function GameScreen({
 
       <DealCeremonyOverlay
         visible={!!ceremonyPrep}
-        playerIds={
-          (ceremonyPrep?.players ?? state.players)
-            .filter((p) => !isDeadHandPlayer(p))
-            .map((p) => p.id)
-        }
+        playerIds={(ceremonyPrep?.players ?? state.players).map((p) => p.id)}
         localPlayerIds={localControlledIds}
         layout={playAreaLayout}
         playAreaHeight={playAreaSize.height}
         cardsPerPlayer={
           ceremonyPrep
             ? Math.max(
-                ...ceremonyPrep.players.map((p) => p.hand.length),
+                ...ceremonyPrep.players.map((p) =>
+                  isDeadHandPlayer(p)
+                    ? (p.sidelinedHand?.length ?? p.hand.length)
+                    : p.hand.length,
+                ),
                 1,
               )
             : 13

@@ -15,6 +15,8 @@ export type FeltTextColors = {
   accent: string;
   leaveText: string;
   textShadow: string;
+  textShadowOffset: { width: number; height: number };
+  textShadowRadius: number;
 };
 
 export type AppThemeColors = {

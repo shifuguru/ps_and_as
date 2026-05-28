@@ -12,6 +12,8 @@ import {
 import ScreenContainer from "../components/ScreenContainer";
 import BlurPanel from "../components/BlurPanel";
 import ScreenTopBar from "../components/ScreenTopBar";
+import FeltColorPicker from "../components/FeltColorPicker";
+import MenuIcon from "../components/MenuIcon";
 import BottomBar, {
   BottomBarControls,
   BottomBarLeave,
@@ -38,6 +40,8 @@ import {
   type PlayerInfo,
 } from "../services/gameCenter";
 import { validateDisplayText, displayTextError, isValidDisplayText } from "../utils/profanityFilter";
+import { onFeltTextStyle } from "../utils/onFeltTypography";
+import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 
 export default function Settings({
   onWallpaperPreview,
@@ -73,6 +77,7 @@ export default function Settings({
   const [savedTint, setSavedTint] = useState(DEFAULT_FELT_COLOR);
   const [previewTint, setPreviewTint] = useState(DEFAULT_FELT_COLOR);
   const [hexInput, setHexInput] = useState("");
+  const [feltPickerOpen, setFeltPickerOpen] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -318,7 +323,11 @@ export default function Settings({
               <Text
                 style={[
                   styles.textPreviewTitle,
-                  { color: colors.onFelt.textPrimary },
+                  onFeltTextStyle(colors.onFelt, "primary", {
+                    fontSize: 22,
+                    fontWeight: "800",
+                    marginBottom: 4,
+                  }),
                 ]}
               >
                 P&apos;s & A&apos;s
@@ -326,7 +335,11 @@ export default function Settings({
               <Text
                 style={[
                   styles.textPreviewSubtitle,
-                  { color: colors.onFelt.accent },
+                  onFeltTextStyle(colors.onFelt, "accent", {
+                    fontSize: 13,
+                    fontWeight: "700",
+                    marginBottom: 6,
+                  }),
                 ]}
               >
                 Accent highlight
@@ -334,7 +347,10 @@ export default function Settings({
               <Text
                 style={[
                   styles.textPreviewBody,
-                  { color: colors.onFelt.textMuted },
+                  onFeltTextStyle(colors.onFelt, "muted", {
+                    fontSize: 12,
+                    fontWeight: "600",
+                  }),
                 ]}
               >
                 Muted body text preview
@@ -361,20 +377,51 @@ export default function Settings({
                 />
               ))}
             </View>
-            <View style={styles.hexInputWrap}>
-              <Text style={styles.hexPrefix}>#</Text>
-              <TextInput
-                placeholder="rrggbb"
-                placeholderTextColor={colors.textMuted}
-                value={hexInput}
-                onChangeText={handleHexInputChange}
-                style={[ui.input, styles.hexInputField]}
-                autoCapitalize="none"
-                autoCorrect={false}
-                maxLength={6}
-                keyboardType="default"
-              />
+            <View style={styles.hexInputRow}>
+              <View style={styles.hexInputWrap}>
+                <Text style={styles.hexPrefix}>#</Text>
+                <TextInput
+                  placeholder="rrggbb"
+                  placeholderTextColor={colors.textMuted}
+                  value={hexInput}
+                  onChangeText={handleHexInputChange}
+                  style={[ui.input, styles.hexInputField]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  maxLength={6}
+                  keyboardType="default"
+                />
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.pickerToggle,
+                  feltPickerOpen && styles.pickerToggleActive,
+                ]}
+                onPress={() => setFeltPickerOpen((open) => !open)}
+                accessibilityRole="button"
+                accessibilityLabel="Open felt color picker"
+                activeOpacity={0.85}
+              >
+                <View
+                  style={[
+                    styles.pickerToggleSwatch,
+                    { backgroundColor: previewTintNormalized },
+                  ]}
+                />
+                <MenuIcon
+                  name="palette"
+                  size={18}
+                  color={feltPickerOpen ? colors.textOnGold : colors.gold}
+                />
+              </TouchableOpacity>
             </View>
+            {feltPickerOpen ? (
+              <FeltColorPicker
+                value={previewTint}
+                onChange={updatePreview}
+                colors={colors}
+              />
+            ) : null}
             <TouchableOpacity
               style={[
                 styles.saveBtn,
@@ -486,21 +533,20 @@ function createSegmentStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     segment: {
       flex: 1,
       borderRadius: 12,
-      paddingVertical: 11,
-      alignItems: "center",
+      minHeight: 42,
       backgroundColor: colors.btnSecondaryBg,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.panelBorder,
+      ...BUTTON_CENTER,
     },
     segmentSelected: {
       backgroundColor: colors.btnGoldBg,
       borderColor: colors.btnGoldBorder,
     },
-    segmentText: {
+    segmentText: buttonLabel(13, {
       color: colors.textMuted,
       fontWeight: "700",
-      fontSize: 13,
-    },
+    }),
     segmentTextSelected: {
       color: colors.btnGoldText,
     },
@@ -556,11 +602,11 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   },
   saveBtn: {
     borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
+    minHeight: 44,
     backgroundColor: colors.btnSecondaryBg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.panelBorder,
+    ...BUTTON_CENTER,
   },
   saveBtnActive: {
     backgroundColor: colors.gold,
@@ -570,12 +616,11 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     backgroundColor: "rgba(76,175,80,0.35)",
     borderColor: "rgba(76,175,80,0.6)",
   },
-  saveBtnText: {
+  saveBtnText: buttonLabel(14, {
     color: colors.textMuted,
     fontWeight: "800",
-    fontSize: 14,
     letterSpacing: 0.2,
-  },
+  }),
   saveBtnTextActive: {
     color: colors.textOnGold,
   },
@@ -593,20 +638,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.panelBorder,
   },
-  textPreviewTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  textPreviewSubtitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 6,
-  },
-  textPreviewBody: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
+  textPreviewTitle: {},
+  textPreviewSubtitle: {},
+  textPreviewBody: {},
   paletteRow: {
     flexDirection: "row",
     gap: 10,
@@ -647,7 +681,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   swatchSelected: {
     borderColor: colors.textPrimary,
   },
+  hexInputRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 10,
+  },
   hexInputWrap: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.inputBg,
@@ -656,6 +696,28 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     borderRadius: 12,
     paddingLeft: 14,
     paddingRight: 10,
+  },
+  pickerToggle: {
+    width: 52,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.panelBorder,
+    backgroundColor: colors.btnSecondaryBg,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 6,
+  },
+  pickerToggleActive: {
+    backgroundColor: colors.gold,
+    borderColor: colors.gold,
+  },
+  pickerToggleSwatch: {
+    width: 22,
+    height: 14,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.35)",
   },
   hexPrefix: {
     color: colors.gold,

@@ -14,6 +14,7 @@ import MenuIcon from "../components/MenuIcon";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import { gameTitleFaceStyle } from "../utils/gameTitleFont";
+import { onFeltTextStyle } from "../utils/onFeltTypography";
 import { useAppTheme } from "../context/ThemeContext";
 
 export type MainMenuButton = {
@@ -118,22 +119,19 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       width: "100%",
     },
     title: {
-      color: colors.onFelt.textPrimary,
       fontSize: 48,
       fontWeight: "700",
       textAlign: "center",
       marginBottom: 6,
-      textShadowColor: colors.onFelt.textShadow,
-      textShadowOffset: { width: 0, height: 2 },
-      textShadowRadius: 10,
+      ...onFeltTextStyle(colors.onFelt, "primary"),
     },
     subtitle: {
-      color: colors.onFelt.accent,
       fontSize: 15,
       textAlign: "center",
       letterSpacing: 1.4,
       marginBottom: 28,
       fontWeight: "600",
+      ...onFeltTextStyle(colors.onFelt, "accent"),
     },
     buttonStack: {
       gap: 10,

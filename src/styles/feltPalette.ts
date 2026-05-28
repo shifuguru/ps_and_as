@@ -164,6 +164,8 @@ export function computeOnFeltColors(
       accent,
       leaveText: accent,
       textShadow: "rgba(0, 0, 0, 0.42)",
+      textShadowOffset: { width: 0, height: 2 },
+      textShadowRadius: 10,
     };
   }
 
@@ -173,7 +175,10 @@ export function computeOnFeltColors(
     textMuted: tintedNeutral(palette.feltHue, "dark", 0.55),
     accent,
     leaveText: accent,
-    textShadow: "rgba(255, 255, 255, 0.28)",
+    // Halo shadow keeps ink color but reads darker / bolder on light felts.
+    textShadow: "rgba(0, 0, 0, 0.62)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 5,
   };
 }
 

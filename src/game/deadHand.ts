@@ -47,6 +47,7 @@ export function applyDeadHandAfterDeal(state: {
   const dead = state.players.find((p) => isDeadHandPlayer(p));
   if (!dead) return;
 
+  dead.sidelinedHand = [...dead.hand];
   dead.hand = [];
   if (!state.finishedOrder.includes(dead.id)) {
     state.finishedOrder.push(dead.id);

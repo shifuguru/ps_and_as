@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { triggerHaptic } from "../utils/haptics";
 import { useAppTheme } from "../context/ThemeContext";
+import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 
 /** Fixed height budget for bottom-bar layout math (see GameScreen). */
 export const ACTION_BAR_HEIGHT = 108;
@@ -293,10 +294,9 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 14,
     borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
     paddingHorizontal: 10,
-    paddingVertical: 10,
+    minHeight: 48,
+    ...BUTTON_CENTER,
   },
   passButtonFlash: {
     ...Platform.select({
@@ -313,10 +313,9 @@ const styles = StyleSheet.create({
     flex: 1.45,
     borderRadius: 14,
     borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
     paddingHorizontal: 10,
-    paddingVertical: 10,
+    minHeight: 48,
+    ...BUTTON_CENTER,
   },
   playButtonTurn: {
     ...Platform.select({
@@ -338,36 +337,32 @@ const styles = StyleSheet.create({
       android: { elevation: 6 },
     }),
   },
-  passText: {
+  passText: buttonLabel(15, {
     fontWeight: "700",
-    fontSize: 15,
     letterSpacing: 0.3,
-  },
-  passHint: {
-    fontSize: 9,
+  }),
+  passHint: buttonLabel(9, {
     fontWeight: "600",
     marginTop: 3,
     letterSpacing: 0.2,
-  },
-  playText: {
+  }),
+  playText: buttonLabel(15, {
     color: "rgba(255,255,255,0.35)",
     fontWeight: "800",
-    fontSize: 15,
     letterSpacing: 0.3,
-  },
+  }),
   playTextTurn: {
     color: "#f5f0e6",
   },
   playTextReady: {
     color: "#111",
   },
-  playSubtext: {
+  playSubtext: buttonLabel(10, {
     color: "rgba(212,175,55,0.65)",
-    fontSize: 10,
     fontWeight: "600",
     marginTop: 3,
     letterSpacing: 0.2,
-  },
+  }),
   buttonMuted: {
     opacity: 0.4,
   },

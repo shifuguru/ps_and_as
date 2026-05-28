@@ -9,7 +9,7 @@ const {
   passTurn,
   setTenRuleDirection,
 } = require('./gameBridge');
-const { viewForPlayer, broadcastGameState } = require('./gameStateView');
+const { viewForPlayer, viewForMember, broadcastGameState } = require('./gameStateView');
 const {
   validateDisplayText,
   normalizeRoomCode,
@@ -817,24 +817,14 @@ io.on('connection', (socket) => {
     
     if (room.inGame && room.gameState?.players) {
       if (joined) {
-        const inRound = joined.isSpectator || !room.gameState.players.some(
-          (p) => p.id === joined.id,
-        );
-        const viewId = inRound
-          ? room.gameState.players[0]?.id
-          : joined.id;
-        if (viewId) {
-          socket.emit('gameStateSync', {
-            gameState: viewForPlayer(room.gameState, viewId),
-            spectator: inRound,
-          });
-        }
+        const { gameState, spectator } = viewForMember(room.gameState, joined);
+        socket.emit('gameStateSync', { gameState, spectator });
         socket.emit('startGame', {
           players: room.gameState.players.map((p) => ({
             id: p.id,
             name: p.name,
           })),
-          spectator: inRound,
+          spectator,
         });
       }
     }
@@ -1019,9 +1009,8 @@ io.on('connection', (socket) => {
       console.warn('[Server] requestGameState: socket not in room', roomId, socket.id);
       return;
     }
-    socket.emit('gameStateSync', {
-      gameState: viewForPlayer(room.gameState, player.id),
-    });
+    const { gameState, spectator } = viewForMember(room.gameState, player);
+    socket.emit('gameStateSync', { gameState, spectator });
   });
 
   socket.on('roundFinished', ({ roomId, finishOrder, hands }) => {

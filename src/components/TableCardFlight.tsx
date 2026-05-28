@@ -153,6 +153,7 @@ export default function TableCardFlight({
               card={card}
               selected={false}
               variant="table"
+              faceDown={!!card.hidden}
               style={{ width: flight.cardW, height: flight.cardH }}
               onPress={() => {}}
             />

@@ -1,5 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { BUTTON_CENTER, buttonLabel } from '../../styles/buttonStyles';
 
 interface ButtonProps {
   label: string;
@@ -21,20 +22,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 10,
     marginVertical: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
+    minHeight: 48,
+    paddingHorizontal: 16,
+    ...BUTTON_CENTER,
     shadowColor: 'black',
     shadowOpacity: 0.8,
     shadowRadius: 5,
     shadowOffset: { width: 2, height: 2 },
   },
-  buttonText: {
+  buttonText: buttonLabel(18, {
     color: 'white',
-    fontSize: 18,
     fontWeight: '500',
     textTransform: 'uppercase',
     letterSpacing: 1.5,
-  },
+  }),
 });
 
 export default Button;

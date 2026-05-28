@@ -3,12 +3,27 @@ function hiddenCard() {
   return { suit: "spades", value: 0, hidden: true };
 }
 
+function isDeadHand(p) {
+  return !!p?.isDeadHand || p?.id === "__dead_hand__";
+}
+
+function livingGamePlayers(state) {
+  if (!state?.players) return [];
+  return state.players.filter((p) => !isDeadHand(p));
+}
+
 function viewForPlayer(fullState, playerId) {
   if (!fullState || !Array.isArray(fullState.players)) return fullState;
   return {
     ...fullState,
     players: fullState.players.map((p) => ({
       ...p,
+      sidelinedHand: isDeadHand(p)
+        ? Array.from(
+            { length: p.sidelinedHand?.length ?? 0 },
+            () => hiddenCard(),
+          )
+        : p.sidelinedHand,
       hand:
         p.id === playerId
           ? p.hand
@@ -17,21 +32,35 @@ function viewForPlayer(fullState, playerId) {
   };
 }
 
+/** Whether a lobby member is an active player in the current round (not spectating). */
+function memberInRound(state, member) {
+  if (!member || member.isSpectator) return false;
+  return livingGamePlayers(state).some((p) => p.id === member.id);
+}
+
+function viewForMember(state, member) {
+  const inRound = memberInRound(state, member);
+  const living = livingGamePlayers(state);
+  const viewId = inRound ? member.id : living[0]?.id;
+  return {
+    gameState: viewId ? viewForPlayer(state, viewId) : state,
+    spectator: !inRound,
+  };
+}
+
 function broadcastGameState(io, room) {
   const state = room.gameState;
   if (!state || !Array.isArray(state.players)) return;
   for (const member of room.players) {
     if (!member.socketId || member.disconnectedAt) continue;
-    const inRound = state.players.some((p) => p.id === member.id);
-    const viewId = inRound && !member.isSpectator
-      ? member.id
-      : state.players[0]?.id;
-    if (!viewId) continue;
-    io.to(member.socketId).emit("gameStateSync", {
-      gameState: viewForPlayer(state, viewId),
-      spectator: member.isSpectator || !inRound,
-    });
+    const { gameState, spectator } = viewForMember(state, member);
+    io.to(member.socketId).emit("gameStateSync", { gameState, spectator });
   }
 }
 
-module.exports = { viewForPlayer, broadcastGameState };
+module.exports = {
+  viewForPlayer,
+  viewForMember,
+  memberInRound,
+  broadcastGameState,
+};

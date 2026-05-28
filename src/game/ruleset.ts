@@ -27,6 +27,8 @@ export type Player = {
   role: "President" | "Vice President" | "Neutral" | "Vice Asshole" | "Asshole";
   /** Imaginary third seat — dealt in but never plays (two-player mode). */
   isDeadHand?: boolean;
+  /** Cards dealt to the dead hand before sidelining (shown face-down in UI). */
+  sidelinedHand?: Card[];
 };
 
 // Create a standard 52-card deck

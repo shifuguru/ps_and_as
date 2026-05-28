@@ -1,5 +1,7 @@
 import { StyleSheet } from "react-native";
 import type { AppThemeColors } from "./themeColors";
+import { onFeltTextStyle } from "../utils/onFeltTypography";
+import { BUTTON_CENTER, buttonLabel } from "./buttonStyles";
 
 export function createUiStyles(c: AppThemeColors) {
   return StyleSheet.create({
@@ -12,38 +14,33 @@ export function createUiStyles(c: AppThemeColors) {
       minWidth: 52,
     },
     leaveText: {
-      color: c.onFelt.leaveText,
       fontSize: 15,
       fontWeight: "700",
+      ...onFeltTextStyle(c.onFelt, "leave"),
     },
     leaveButton: {
       alignSelf: "center",
       marginTop: 10,
-      paddingVertical: 0,
       paddingHorizontal: 22,
       minHeight: 44,
       borderRadius: 999,
       backgroundColor: c.leaveButtonBg,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.leaveButtonBorder,
-      justifyContent: "center",
-      alignItems: "center",
+      ...BUTTON_CENTER,
     },
-    leaveButtonText: {
+    leaveButtonText: buttonLabel(14, {
       color: c.leaveButtonText,
       fontWeight: "700",
-      fontSize: 14,
       letterSpacing: 0.2,
-      lineHeight: 18,
-      textAlign: "center",
-    },
+    }),
     screenTitle: {
       flex: 1,
       textAlign: "center",
-      color: c.onFelt.textPrimary,
       fontSize: 18,
       fontWeight: "700",
       letterSpacing: 0.3,
+      ...onFeltTextStyle(c.onFelt, "primary"),
     },
     scrollContent: {
       flexGrow: 1,
@@ -84,59 +81,54 @@ export function createUiStyles(c: AppThemeColors) {
     },
     btnGold: {
       borderRadius: 12,
-      paddingVertical: 13,
       paddingHorizontal: 14,
+      minHeight: 44,
       backgroundColor: c.btnGoldBg,
       borderWidth: 1,
       borderColor: c.btnGoldBorder,
-      alignItems: "center",
+      ...BUTTON_CENTER,
     },
-    btnGoldText: {
+    btnGoldText: buttonLabel(14, {
       color: c.btnGoldText,
-      fontSize: 14,
       fontWeight: "700",
-    },
+    }),
     btnGoldFill: {
       borderRadius: 12,
-      paddingVertical: 13,
       paddingHorizontal: 14,
+      minHeight: 44,
       backgroundColor: c.gold,
-      alignItems: "center",
+      ...BUTTON_CENTER,
     },
-    btnGoldFillText: {
+    btnGoldFillText: buttonLabel(14, {
       color: c.textOnGold,
-      fontSize: 14,
       fontWeight: "800",
-    },
+    }),
     btnSecondary: {
       borderRadius: 14,
-      paddingVertical: 12,
       paddingHorizontal: 14,
+      minHeight: 44,
       backgroundColor: c.btnSecondaryBg,
       borderWidth: 1,
       borderColor: c.btnSecondaryBorder,
-      alignItems: "center",
-      justifyContent: "center",
+      ...BUTTON_CENTER,
     },
-    btnSecondaryText: {
+    btnSecondaryText: buttonLabel(14, {
       color: c.btnSecondaryText,
       fontWeight: "700",
-      fontSize: 14,
-    },
+    }),
     btnGhost: {
       borderRadius: 12,
-      paddingVertical: 13,
       paddingHorizontal: 14,
+      minHeight: 44,
       backgroundColor: "transparent",
       borderWidth: 1,
       borderColor: c.btnGhostBorder,
-      alignItems: "center",
+      ...BUTTON_CENTER,
     },
-    btnGhostText: {
+    btnGhostText: buttonLabel(14, {
       color: c.btnGhostText,
-      fontSize: 14,
       fontWeight: "600",
-    },
+    }),
     actionTrack: {
       flexDirection: "row",
       alignItems: "stretch",
@@ -154,16 +146,14 @@ export function createUiStyles(c: AppThemeColors) {
       borderWidth: 1,
       borderColor: c.actionPrimaryBorder,
       backgroundColor: c.actionPrimaryBg,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingVertical: 12,
       paddingHorizontal: 14,
+      minHeight: 48,
+      ...BUTTON_CENTER,
     },
-    actionPrimaryText: {
+    actionPrimaryText: buttonLabel(15, {
       color: c.actionPrimaryText,
       fontWeight: "800",
-      fontSize: 15,
-    },
+    }),
     actionPrimaryDisabled: {
       borderColor: c.actionPrimaryDisabledBorder,
       backgroundColor: c.actionPrimaryDisabledBg,
@@ -177,16 +167,14 @@ export function createUiStyles(c: AppThemeColors) {
       borderWidth: 1,
       borderColor: c.actionSecondaryBorder,
       backgroundColor: c.actionSecondaryBg,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingVertical: 12,
       paddingHorizontal: 14,
+      minHeight: 48,
+      ...BUTTON_CENTER,
     },
-    actionSecondaryText: {
+    actionSecondaryText: buttonLabel(15, {
       color: c.actionSecondaryText,
       fontWeight: "700",
-      fontSize: 15,
-    },
+    }),
     modalOverlay: {
       flex: 1,
       backgroundColor: c.modalOverlay,

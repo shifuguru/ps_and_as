@@ -6,7 +6,6 @@ import {
   TextInput,
   Alert,
   useWindowDimensions,
-  Modal,
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
@@ -23,6 +22,7 @@ import LobbyStatusBar, {
 import BottomBar, { BottomBarControls, BottomBarLeave } from "../components/BottomBar";
 import BlurPanel from "../components/BlurPanel";
 import OpponentSeat from "../components/OpponentSeat";
+import LobbyPlayerModal from "../components/LobbyPlayerModal";
 import { NetworkAdapter, MockAdapter, type LobbyMember } from "../game/network";
 import { isSocketAdapter } from "../game/socketAdapter";
 import { getOrCreatePlayerId } from "../services/gameCenter";
@@ -33,6 +33,7 @@ import { DEAD_HAND_ID, DEAD_HAND_NAME } from "../game/deadHand";
 import { ACTION_BAR_HEIGHT } from "../components/ActionBar";
 import { useAppTheme } from "../context/ThemeContext";
 import { copyToClipboard } from "../utils/clipboard";
+import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import { polarSeatPosition, ringAngleForSeat, sideAnchorMarginForWidth } from "../utils/tableLayout";
 const MIN_PLAYERS = 2;
 const MIN_PLAYERS_FULL_TABLE = 3;
@@ -375,6 +376,12 @@ export default function CreateGame({
     isHost &&
     (usingMock ? seatCount >= MIN_PLAYERS_FULL_TABLE : seatCount >= MIN_PLAYERS);
 
+  const playersNeeded = Math.max(0, MIN_PLAYERS - seatCount);
+  const lobbyFullEnough = seatCount >= MIN_PLAYERS;
+  const localMember = seatMembers.find((m) => m.id === localId);
+  const isLocalReady = !!localMember?.ready;
+  const showReadyAction = onlineLobby && !isHost && lobbyFullEnough;
+
   const handleRoomNameCommit = useCallback(
     (name: string) => {
       const check = validateDisplayText(name, "Room name");
@@ -465,6 +472,10 @@ export default function CreateGame({
           (usingMock
             ? index === 0
             : hostId != null && member.id === hostId);
+        const memberReady =
+          !isDeadHandSeat &&
+          !usingMock &&
+          !!seatMembers.find((m) => m.id === member.id)?.ready;
         return {
           id: member.id,
           name: member.name,
@@ -474,10 +485,16 @@ export default function CreateGame({
           isHostSeat,
           isLocalPlayer,
           isDeadHandSeat,
+          ready: memberReady,
         };
       }),
-    [displaySeatMembers, usingMock, localId, hostId],
+    [displaySeatMembers, seatMembers, usingMock, localId, hostId],
   );
+
+  const selectedPlayer =
+    typeof selectedLobbyIndex === "number"
+      ? lobbyPlayers[selectedLobbyIndex] ?? null
+      : null;
 
   useEffect(() => {
     let mounted = true;
@@ -744,13 +761,40 @@ export default function CreateGame({
     }
   };
 
-  const startLabel = usingMock
+  const handleToggleReady = () => {
+    if (!actualRoomId || !localId) return;
+    triggerHaptic("light");
+    const nextReady = !isLocalReady;
+    if (adapter && isSocketAdapter(adapter)) {
+      adapter.toggleReady(actualRoomId, localId, nextReady);
+    } else if (usingMock) {
+      (net as MockAdapter).toggleReady(actualRoomId, localId, nextReady);
+    }
+  };
+
+  const handlePrimaryAction = () => {
+    if (showReadyAction) {
+      handleToggleReady();
+      return;
+    }
+    handleStart();
+  };
+
+  const primaryDisabled = usingMock
+    ? !canStart
+    : isHost
+      ? !canStart
+      : !lobbyFullEnough;
+
+  const primaryLabel = usingMock
     ? "Start Game"
-    : !canStart
-      ? `Need ${MIN_PLAYERS - seatCount} More`
-      : isHost
-        ? "Start Game"
-        : "Waiting For Host…";
+    : isHost
+      ? "Start Game"
+      : lobbyFullEnough
+        ? isLocalReady
+          ? "Unready"
+          : "Ready"
+        : `Need ${playersNeeded} More`;
 
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
@@ -956,6 +1000,7 @@ export default function CreateGame({
                           <TouchableOpacity
                             activeOpacity={0.85}
                             onPress={() => {
+                              if (isDeadHandSeat) return;
                               setSelectedLobbyIndex(index);
                               setShowPlayerModal(true);
                             }}
@@ -998,6 +1043,7 @@ export default function CreateGame({
                               isOut={false}
                               hasPassed={false}
                               isThinking={isCPU}
+                              isReady={seat.ready}
                               compact={ringLayout.compactSeats}
                               layoutWidth={ringLayout.width}
                             />
@@ -1068,38 +1114,50 @@ export default function CreateGame({
             <View style={ui.actionTrack}>
               {onNavigateToAchievements ? (
                 <TouchableOpacity
-                  style={ui.actionSecondary}
+                  style={[ui.actionSecondary, local.lobbySideBtn]}
                   onPress={onNavigateToAchievements}
                 >
                   <Text style={ui.actionSecondaryText}>Stats</Text>
                 </TouchableOpacity>
-              ) : null}
+              ) : (
+                <View style={local.lobbySideBtn} />
+              )}
+              <TouchableOpacity
+                style={[
+                  ui.btnGoldFill,
+                  local.lobbyPrimaryBtn,
+                  primaryDisabled && local.lobbyPrimaryDisabled,
+                  showReadyAction &&
+                    isLocalReady &&
+                    local.lobbyPrimaryReady,
+                ]}
+                onPress={handlePrimaryAction}
+                disabled={primaryDisabled}
+                activeOpacity={0.88}
+              >
+                <Text
+                  style={[
+                    ui.btnGoldFillText,
+                    local.lobbyPrimaryBtnText,
+                    primaryDisabled && local.lobbyPrimaryTextDisabled,
+                    showReadyAction &&
+                      isLocalReady &&
+                      local.lobbyPrimaryReadyText,
+                  ]}
+                >
+                  {primaryLabel}
+                </Text>
+              </TouchableOpacity>
               {onNavigateToSettings ? (
                 <TouchableOpacity
-                  style={ui.actionSecondary}
+                  style={[ui.actionSecondary, local.lobbySideBtn]}
                   onPress={onNavigateToSettings}
                 >
                   <Text style={ui.actionSecondaryText}>Settings</Text>
                 </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity
-                style={[
-                  ui.actionPrimary,
-                  !canStart && ui.actionPrimaryDisabled,
-                  !onNavigateToSettings && !onNavigateToAchievements && { flex: 1 },
-                ]}
-                onPress={handleStart}
-                disabled={!canStart}
-              >
-                <Text
-                  style={[
-                    ui.actionPrimaryText,
-                    !canStart && ui.actionPrimaryTextDisabled,
-                  ]}
-                >
-                  {startLabel}
-                </Text>
-              </TouchableOpacity>
+              ) : (
+                <View style={local.lobbySideBtn} />
+              )}
             </View>
 
             <BottomBarLeave onPress={handleLeave} />
@@ -1107,31 +1165,14 @@ export default function CreateGame({
         </BottomBarControls>
       </BottomBar>
 
-      <Modal
+      <LobbyPlayerModal
         visible={showPlayerModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowPlayerModal(false)}
-      >
-        <View style={ui.modalOverlay}>
-          <BlurPanel style={ui.modalCard} preset={blur.modal}>
-            <Text style={ui.modalTitle}>Player</Text>
-            <Text style={ui.modalBody}>
-              {typeof selectedLobbyIndex === "number"
-                ? names[selectedLobbyIndex]
-                : ""}
-            </Text>
-            <View style={ui.actionTrack}>
-              <TouchableOpacity
-                style={[ui.actionSecondary, { flex: 1 }]}
-                onPress={() => setShowPlayerModal(false)}
-              >
-                <Text style={ui.actionSecondaryText}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </BlurPanel>
-        </View>
-      </Modal>
+        player={selectedPlayer}
+        colors={colors}
+        ui={ui}
+        blur={blur}
+        onClose={() => setShowPlayerModal(false)}
+      />
     </ScreenContainer>
   );
 }
@@ -1261,26 +1302,23 @@ const local = StyleSheet.create({
     marginLeft: "auto",
     minWidth: 96,
     maxWidth: "56%",
-    paddingVertical: 8,
+    minHeight: 36,
     paddingHorizontal: 12,
     backgroundColor: "rgba(0,0,0,0.28)",
     borderWidth: 1,
     borderColor: "rgba(212,175,55,0.35)",
     borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
+    ...BUTTON_CENTER,
   },
   roomCodeButtonCopied: {
     borderColor: "rgba(120,220,140,0.55)",
     backgroundColor: "rgba(20,48,28,0.45)",
   },
-  roomCodeButtonText: {
+  roomCodeButtonText: buttonLabel(15, {
     color: "#fff",
-    fontSize: 15,
     fontWeight: "700",
     letterSpacing: 1.2,
-    textAlign: "center",
-  },
+  }),
   tableArea: {
     flex: 1,
     minHeight: 0,
@@ -1366,6 +1404,48 @@ const local = StyleSheet.create({
   bottomControls: {
     paddingTop: BOTTOM_BAR_TOP_PAD,
   },
+  lobbySideBtn: {
+    flex: 1,
+  },
+  lobbyPrimaryBtn: {
+    flex: 1.45,
+    minHeight: 48,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    ...BUTTON_CENTER,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.22,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+      },
+      android: { elevation: 4 },
+      default: {},
+    }),
+  },
+  lobbyPrimaryBtnText: buttonLabel(16, {
+    letterSpacing: 0.35,
+    textTransform: "uppercase",
+  }),
+  lobbyPrimaryDisabled: {
+    backgroundColor: "rgba(120,120,120,0.35)",
+    opacity: 0.72,
+    ...Platform.select({
+      ios: { shadowOpacity: 0 },
+      android: { elevation: 0 },
+      default: {},
+    }),
+  },
+  lobbyPrimaryTextDisabled: {
+    color: "rgba(255,255,255,0.45)",
+  },
+  lobbyPrimaryReady: {
+    backgroundColor: "#2e7d32",
+  },
+  lobbyPrimaryReadyText: {
+    color: "#ffffff",
+  },
   bottomInner: {
     width: "100%",
     alignSelf: "center",
@@ -1388,11 +1468,9 @@ const local = StyleSheet.create({
   stepBtnDisabled: {
     opacity: 0.35,
   },
-  stepBtnText: {
-    fontSize: 20,
+  stepBtnText: buttonLabel(20, {
     fontWeight: "700",
-    lineHeight: 22,
-  },
+  }),
   cpuCount: {
     color: "#fff",
     fontSize: 16,

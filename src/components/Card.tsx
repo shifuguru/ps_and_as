@@ -224,7 +224,13 @@ export default function Card({
             )
           )}
           {faceDown ? (
-            <View style={local.backFace} />
+            <View style={local.backFace}>
+              <View style={local.backFaceFrame}>
+                <View style={local.backFaceInner}>
+                  <Text style={local.backFaceOrnament}>♠</Text>
+                </View>
+              </View>
+            </View>
           ) : compact ? (
             <>
               <View style={local.cornerTopLeft} pointerEvents="none">
@@ -358,7 +364,40 @@ const local = StyleSheet.create({
     alignItems: "flex-end",
     transform: [{ rotate: "180deg" }],
   },
-  backFace: { width: "80%", height: "60%", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 6 },
+  backFace: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 13,
+    backgroundColor: "#b71234",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.28)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 7,
+  },
+  backFaceFrame: {
+    flex: 1,
+    width: "100%",
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.42)",
+    padding: 4,
+    backgroundColor: "#a10f2d",
+  },
+  backFaceInner: {
+    flex: 1,
+    width: "100%",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    backgroundColor: "#c41e3a",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backFaceOrnament: {
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 22,
+    fontWeight: "800",
+  },
   cornerText: {
     color: "#1a1a1a",
     fontWeight: "700",

@@ -10,6 +10,7 @@ import {
 import { Player } from "../game/ruleset";
 import { playerInitials } from "../utils/playerDisplay";
 import TrickWinCelebration from "./TrickWinCelebration";
+import Card from "./Card";
 import {
   avatarSizeForSeat,
   useSeatDimensions,
@@ -17,6 +18,7 @@ import {
 } from "../utils/seatDimensions";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
+import { onFeltTextStyle } from "../utils/onFeltTypography";
 import type { FeltPalette } from "../styles/feltPalette";
 import type { AppThemeColors } from "../styles/themeColors";
 
@@ -46,6 +48,8 @@ export type OpponentSeatPlayer = {
   name: string;
   handCount: number;
   role: Player["role"];
+  isDeadHand?: boolean;
+  sidelinedCount?: number;
 };
 
 type Props = {
@@ -67,6 +71,8 @@ type Props = {
   seatDims?: SeatDimensions;
   /** Width basis when seatDims is not supplied. */
   layoutWidth?: number;
+  /** Lobby ready indicator — checkmark at bottom-left of avatar. */
+  isReady?: boolean;
 };
 
 export default function OpponentSeat({
@@ -82,6 +88,7 @@ export default function OpponentSeat({
   showTrickXp = false,
   seatDims: seatDimsProp,
   layoutWidth,
+  isReady = false,
 }: Props) {
   const { colors, palette } = useAppTheme();
   const styles = useMemo(() => createStyles(colors, palette), [colors, palette]);
@@ -127,6 +134,11 @@ export default function OpponentSeat({
   });
 
   const avatarSize = avatarSizeForSeat(dims, { compact, isLocal });
+  const isDeadHand = !!player.isDeadHand;
+  const sidelinedCount = player.sidelinedCount ?? 0;
+  const miniCardW = Math.max(18, avatarSize * 0.34);
+  const miniCardH = Math.max(26, avatarSize * 0.48);
+  const readyBadgeSize = Math.max(16, Math.round(avatarSize * 0.34));
 
   const seatStyle = compact
     ? { minWidth: dims.seatMinWCompact, maxWidth: dims.seatMaxWCompact }
@@ -139,9 +151,16 @@ export default function OpponentSeat({
       style={[
         styles.seat,
         seatStyle,
-        isOut && styles.seatOut,
+        isOut && !isDeadHand && styles.seatOut,
+        isDeadHand && styles.deadHandSeat,
       ]}
     >
+      {isDeadHand ? (
+        <View style={styles.deadHandHeader}>
+          <Text style={styles.deadHandIcon}>🃏</Text>
+          <Text style={styles.deadHandHint}>Open seat</Text>
+        </View>
+      ) : null}
       <View
         style={[
           styles.avatarWrap,
@@ -189,10 +208,13 @@ export default function OpponentSeat({
               width: avatarSize,
               height: avatarSize,
               borderRadius: avatarSize / 2,
-              backgroundColor: seatColor(player.id, palette.seatColors),
+              backgroundColor: isDeadHand
+                ? "rgba(255,255,255,0.08)"
+                : seatColor(player.id, palette.seatColors),
             },
-            isOut && styles.avatarOut,
+            isOut && !isDeadHand && styles.avatarOut,
             isLocal && styles.avatarLocal,
+            isDeadHand && styles.avatarDeadHand,
           ]}
         >
           <Text
@@ -201,11 +223,49 @@ export default function OpponentSeat({
               {
                 fontSize: compact ? dims.initialsFontCompact : dims.initialsFont,
               },
+              isDeadHand && styles.initialsDeadHand,
             ]}
           >
-            {initials}
+            {isDeadHand ? "DH" : initials}
           </Text>
         </View>
+        {isDeadHand && sidelinedCount > 0 ? (
+          <View
+            style={[
+              styles.sidelinedStack,
+              {
+                left: avatarSize + 2,
+                top: avatarSize * 0.08,
+              },
+            ]}
+            pointerEvents="none"
+          >
+            {Array.from({ length: Math.min(3, sidelinedCount) }).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.sidelinedCard,
+                  {
+                    left: i * 4,
+                    top: i * 2,
+                    width: miniCardW,
+                    height: miniCardH,
+                  },
+                ]}
+              >
+                <Card
+                  card={{ suit: "spades", value: 0, hidden: true }}
+                  selected={false}
+                  faceDown
+                  disabled
+                  variant="table"
+                  onPress={() => {}}
+                  style={{ width: miniCardW, height: miniCardH }}
+                />
+              </View>
+            ))}
+          </View>
+        ) : null}
         {role ? (
           <Text
             style={[styles.roleBadge, { fontSize: dims.roleFont }]}
@@ -214,7 +274,31 @@ export default function OpponentSeat({
             {role}
           </Text>
         ) : null}
-        {!isOut && (
+        {isReady && !isDeadHand ? (
+          <View
+            style={[
+              styles.readyBadge,
+              {
+                width: readyBadgeSize,
+                height: readyBadgeSize,
+                borderRadius: readyBadgeSize / 2,
+                left: -Math.round(readyBadgeSize * 0.18),
+                bottom: -Math.round(readyBadgeSize * 0.12),
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <Text
+              style={[
+                styles.readyBadgeCheck,
+                { fontSize: Math.max(9, readyBadgeSize * 0.58) },
+              ]}
+            >
+              ✓
+            </Text>
+          </View>
+        ) : null}
+        {!isOut && !isDeadHand && (
           <View
             style={[
               styles.countBadge,
@@ -230,6 +314,22 @@ export default function OpponentSeat({
             </Text>
           </View>
         )}
+        {isDeadHand && sidelinedCount > 0 ? (
+          <View
+            style={[
+              styles.countBadge,
+              {
+                minWidth: dims.countBadgeSize,
+                height: dims.countBadgeSize,
+                borderRadius: dims.countBadgeSize / 2,
+              },
+            ]}
+          >
+            <Text style={[styles.countText, { fontSize: dims.countFont }]}>
+              {sidelinedCount}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <Text
@@ -246,7 +346,9 @@ export default function OpponentSeat({
         {player.name}
       </Text>
 
-      {isOut ? (
+      {isDeadHand ? (
+        <Text style={styles.deadHandLabel}>Dead Hand</Text>
+      ) : isOut ? (
         <Text style={styles.statusPill}>Out</Text>
       ) : hasPassed ? (
         <Text style={[styles.statusPill, styles.passPill]}>Pass</Text>
@@ -275,6 +377,50 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   },
   seatOut: {
     opacity: 0.45,
+  },
+  deadHandSeat: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    borderStyle: "dashed",
+    backgroundColor: "rgba(255,255,255,0.03)",
+    paddingVertical: 6,
+    opacity: 0.72,
+  },
+  deadHandHeader: {
+    alignItems: "center",
+    marginBottom: 2,
+  },
+  deadHandIcon: {
+    fontSize: 14,
+  },
+  deadHandHint: {
+    color: "rgba(255,255,255,0.35)",
+    fontSize: 8,
+    fontWeight: "600",
+    marginTop: 1,
+  },
+  deadHandLabel: {
+    marginTop: 2,
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+    color: "rgba(255,255,255,0.45)",
+  },
+  avatarDeadHand: {
+    borderStyle: "dashed",
+    borderColor: "rgba(255,255,255,0.22)",
+  },
+  initialsDeadHand: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 11,
+  },
+  sidelinedStack: {
+    position: "absolute",
+    overflow: "visible",
+  },
+  sidelinedCard: {
+    position: "absolute",
   },
   avatarWrap: {
     alignItems: "center",
@@ -319,13 +465,38 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
     borderColor: accentLocal,
   },
   initials: {
-    color: onFelt.textPrimary,
     fontWeight: "800",
+    ...onFeltTextStyle(onFelt, "primary"),
   },
   roleBadge: {
     position: "absolute",
     top: -6,
     left: -4,
+  },
+  readyBadge: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2e7d32",
+    borderWidth: 2,
+    borderColor: "#ffffff",
+    zIndex: 14,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.28,
+        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 1 },
+      },
+      android: { elevation: 4 },
+      default: {},
+    }),
+  },
+  readyBadgeCheck: {
+    color: "#ffffff",
+    fontWeight: "900",
+    lineHeight: 12,
+    marginTop: -1,
   },
   countBadge: {
     position: "absolute",
@@ -339,33 +510,35 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
     borderColor: accentBadge,
   },
   countText: {
-    color: onFelt.textPrimary,
     fontWeight: "800",
+    ...onFeltTextStyle(onFelt, "primary"),
   },
   name: {
-    color: onFelt.textPrimary,
     fontWeight: "700",
     textAlign: "center",
+    ...onFeltTextStyle(onFelt, "primary"),
   },
   nameOut: {
-    color: onFelt.textMuted,
+    ...onFeltTextStyle(onFelt, "muted"),
   },
   statusPill: {
     marginTop: 2,
     fontSize: 9,
     fontWeight: "800",
     letterSpacing: 0.2,
-    color: onFelt.textMuted,
+    ...onFeltTextStyle(onFelt, "muted"),
   },
   passPill: {
-    color: hexToRgba(onFelt.accent, 0.82),
+    ...onFeltTextStyle(onFelt, "accent", {
+      color: hexToRgba(onFelt.accent, 0.82),
+    }),
   },
   thinkPill: {
-    color: onFelt.accent,
     fontSize: 12,
+    ...onFeltTextStyle(onFelt, "accent"),
   },
   youPill: {
-    color: onFelt.accent,
+    ...onFeltTextStyle(onFelt, "accent"),
   },
   });
 }

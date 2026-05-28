@@ -11,7 +11,8 @@ type IconName =
   | "trophy"
   | "gear"
   | "ellipsis"
-  | "list";
+  | "list"
+  | "palette";
 
 type Props = {
   name: IconName;
@@ -125,6 +126,21 @@ export default function MenuIcon({ name, size = 20, color = "#d4af37" }: Props) 
           <Circle cx="4" cy="6" r="1.2" fill={c} />
           <Circle cx="4" cy="12" r="1.2" fill={c} />
           <Circle cx="4" cy="18" r="1.2" fill={c} />
+        </Svg>
+      );
+    case "palette":
+      return (
+        <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M12 3a9 9 0 00-1.2 17.9c.6.1 1.1-.4 1.1-1v-1.2c0-.5.3-1 .8-1.2.8-.3 1.3-1.1 1.3-2 0-1.2-1-2.2-2.2-2.2H11c-2.2 0-4-1.8-4-4 0-3.3 2.7-6 6-6z"
+            stroke={c}
+            strokeWidth={sw}
+            strokeLinejoin="round"
+          />
+          <Circle cx="8.5" cy="10" r="1" fill={c} />
+          <Circle cx="12" cy="8" r="1" fill={c} />
+          <Circle cx="15.5" cy="10" r="1" fill={c} />
+          <Circle cx="10" cy="13.5" r="1" fill={c} />
         </Svg>
       );
     default:

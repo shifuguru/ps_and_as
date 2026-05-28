@@ -1,5 +1,6 @@
 import type { Player } from "../game/ruleset";
 import type { GameState } from "../game/core";
+import { isDeadHandPlayer } from "../game/deadHand";
 import { isMockAdapter, type NetworkAdapter } from "../game/network";
 
 const PLACEHOLDER_NAMES = new Set(["You", "You (Host)", "Player"]);
@@ -11,7 +12,8 @@ export function resolveLocalHumanPlayer(
   localPlayerId?: string,
   adapter?: NetworkAdapter | null,
 ): Player | null {
-  if (players.length === 0) return null;
+  const candidates = players.filter((p) => !isDeadHandPlayer(p));
+  if (candidates.length === 0) return null;
 
   const usingMock = isMockAdapter(adapter);
   const profileId =
@@ -23,22 +25,22 @@ export function resolveLocalHumanPlayer(
       : null;
 
   if (profileId) {
-    const byProfile = players.find((p) => p.id === profileId);
+    const byProfile = candidates.find((p) => p.id === profileId);
     if (byProfile) return byProfile;
   }
 
   if (localPlayerId) {
-    const byId = players.find((p) => p.id === localPlayerId);
+    const byId = candidates.find((p) => p.id === localPlayerId);
     if (byId) return byId;
   }
 
   if (localPlayerName) {
-    const byName = players.find((p) => p.name === localPlayerName);
+    const byName = candidates.find((p) => p.name === localPlayerName);
     if (byName) return byName;
   }
 
   if (usingMock) {
-    const humans = players.filter(
+    const humans = candidates.filter(
       (p) =>
         !(p.name && typeof p.name === "string" && p.name.startsWith("CPU")),
     );
@@ -51,7 +53,7 @@ export function resolveLocalHumanPlayer(
   }
 
   return (
-    players.find((p) => p.name === "You" || p.name === "You (Host)") ?? null
+    candidates.find((p) => p.name === "You" || p.name === "You (Host)") ?? null
   );
 }
 
