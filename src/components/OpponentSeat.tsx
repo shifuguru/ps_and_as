@@ -75,6 +75,8 @@ type Props = {
   isReady?: boolean;
   /** Dead hand seat dimmed like a graveyard during active play. */
   graveyardMode?: boolean;
+  /** Temporarily away — seat reserved while waiting to reconnect. */
+  isDisconnected?: boolean;
 };
 
 export default function OpponentSeat({
@@ -92,6 +94,7 @@ export default function OpponentSeat({
   layoutWidth,
   isReady = false,
   graveyardMode = false,
+  isDisconnected = false,
 }: Props) {
   const { colors, palette } = useAppTheme();
   const styles = useMemo(() => createStyles(colors, palette), [colors, palette]);
@@ -158,6 +161,7 @@ export default function OpponentSeat({
         isOut && !isDeadHand && styles.seatOut,
         isDeadHand && !isGraveyard && styles.deadHandSeat,
         isGraveyard && styles.deadHandGraveyard,
+        isDisconnected && !isOut && styles.seatDisconnected,
       ]}
     >
       {isDeadHand ? (
@@ -222,6 +226,7 @@ export default function OpponentSeat({
                 : seatColor(player.id, palette.seatColors),
             },
             isOut && !isDeadHand && styles.avatarOut,
+            isDisconnected && !isOut && !isDeadHand && styles.avatarDisconnected,
             isLocal && styles.avatarLocal,
             isDeadHand && !isGraveyard && styles.avatarDeadHand,
             isGraveyard && styles.avatarGraveyard,
@@ -364,6 +369,8 @@ export default function OpponentSeat({
         </Text>
       ) : isOut ? (
         <Text style={styles.statusPill}>Out</Text>
+      ) : isDisconnected ? (
+        <Text style={[styles.statusPill, styles.awayPill]}>Away</Text>
       ) : hasPassed ? (
         <Text style={[styles.statusPill, styles.passPill]}>Pass</Text>
       ) : isThinking ? (
@@ -391,6 +398,9 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   },
   seatOut: {
     opacity: 0.45,
+  },
+  seatDisconnected: {
+    opacity: 0.82,
   },
   deadHandSeat: {
     borderRadius: 14,
@@ -509,6 +519,9 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   avatarOut: {
     backgroundColor: "rgba(80,80,80,0.5)",
   },
+  avatarDisconnected: {
+    opacity: 0.55,
+  },
   avatarLocal: {
     borderWidth: 2,
     borderColor: accentLocal,
@@ -580,6 +593,11 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   passPill: {
     ...onFeltTextStyle(onFelt, "accent", {
       color: hexToRgba(onFelt.accent, 0.82),
+    }),
+  },
+  awayPill: {
+    ...onFeltTextStyle(onFelt, "accent", {
+      color: "#ffc96b",
     }),
   },
   thinkPill: {

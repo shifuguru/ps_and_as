@@ -16,6 +16,19 @@ export const UPDATE_LOG_TAGLINE =
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
     date: "May 2026",
+    title: "Recent fixes",
+    items: [
+      "Automatic update prompts when a newer web build is deployed — refresh to get the latest",
+      "First-round deal ceremony online — everyone sees the shuffle and cards dealt to each seat before play starts",
+      "Disconnect grace period — if someone drops, their seat stays open ~20–30 seconds with a countdown; they can rejoin or the game ends cleanly",
+      "Mobile web zoom locked — tapping name or room fields no longer zooms the page; color picker drag won't scroll Settings behind it",
+      "iOS Safari layout — felt wallpaper fills the screen without a black strip below the table",
+      "Dead hand uses the natural third seat on the ring instead of a pinned side slot",
+      "Deal sync fixes — guests no longer stuck on “Dealing cards…” when the host starts a game",
+    ],
+  },
+  {
+    date: "May 2026",
     title: "Lobby & table",
     items: [
       "Ready button when the lobby is full — tap Ready and show a checkmark on your avatar",
@@ -76,7 +89,7 @@ export const KNOWN_ISSUES: KnownIssue[] = [
   },
   {
     title: "Mid-game disconnects",
-    status: "Looking into it",
-    note: "If someone leaves during a round, the game ends for everyone so no one plays short-handed.",
+    status: "Fix shipped",
+    note: "If someone disconnects or leaves mid-game, others see a countdown while their seat is held. Rejoin in time to keep playing; otherwise the game ends for everyone.",
   },
 ];

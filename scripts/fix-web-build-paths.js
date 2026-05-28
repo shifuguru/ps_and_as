@@ -31,7 +31,7 @@ function rewriteHtmlPaths(html) {
 
 function patchViewport(html) {
   const viewport =
-    "width=device-width, initial-scale=1, viewport-fit=cover, shrink-to-fit=no";
+    "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, viewport-fit=cover, user-scalable=no, shrink-to-fit=no";
   if (/name="viewport"/i.test(html)) {
     html = html.replace(
       /name="viewport" content="[^"]*"/i,
@@ -125,12 +125,57 @@ function injectServerUrl(html) {
   return html.replace("<head>", `<head>\n    ${script}`);
 }
 
+function readPackageVersion() {
+  try {
+    const pkg = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, "..", "package.json"), "utf8"),
+    );
+    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+function resolveBuildMeta() {
+  const version =
+    process.env.EXPO_PUBLIC_APP_VERSION?.trim() || readPackageVersion();
+  const buildId =
+    process.env.EXPO_PUBLIC_BUILD_ID?.trim() ||
+    process.env.GITHUB_SHA?.trim()?.slice(0, 12) ||
+    `local-${Date.now()}`;
+  const builtAt = new Date().toISOString();
+  return { version, buildId, builtAt };
+}
+
+function writeVersionJson(meta) {
+  const payload = {
+    version: meta.version,
+    buildId: meta.buildId,
+    builtAt: meta.builtAt,
+  };
+  fs.writeFileSync(
+    path.join(buildDir, "version.json"),
+    `${JSON.stringify(payload, null, 2)}\n`,
+    "utf8",
+  );
+  console.log(`Wrote version.json (${meta.version}, ${meta.buildId})`);
+}
+
+function injectBuildMeta(html, meta) {
+  const script = `<script>window.__PS_AND_AS_BUILD__=${JSON.stringify(meta)};</script>`;
+  if (html.includes("__PS_AND_AS_BUILD__")) return html;
+  return html.replace("<head>", `<head>\n    ${script}`);
+}
+
 let html = fs.readFileSync(buildIndex, "utf8");
+const buildMeta = resolveBuildMeta();
 html = injectServerUrl(html);
+html = injectBuildMeta(html, buildMeta);
 html = rewriteHtmlPaths(html);
 html = patchViewport(html);
 fs.writeFileSync(buildIndex, html, "utf8");
 writeWebManifest();
+writeVersionJson(buildMeta);
 
 // GitHub Pages serves 404.html for unknown routes — copy for SPA deep links.
 fs.copyFileSync(buildIndex, path.join(buildDir, '404.html'));

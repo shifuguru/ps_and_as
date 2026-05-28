@@ -36,6 +36,7 @@ function beginAuthoritativeRound(room, dealSeed) {
   const useDeadHand = lobbyPlayers.length === 2;
   const nextState = createGameFromLobby(lobbyPlayers, dealSeed, { deadHand: useDeadHand });
   nextState.readyForNextRound = {};
+  nextState.dealSeed = dealSeed;
   room.gameState = nextState;
   room.deadHand = useDeadHand;
 }
@@ -113,6 +114,26 @@ app.use(cors({ origin: true, credentials: false }));
 
 // Simple health endpoint
 app.get('/', (req, res) => res.send('Server is running...\n'));
+
+const pkg = require('../package.json');
+const SERVER_APP_VERSION =
+  process.env.CLIENT_APP_VERSION?.trim() ||
+  process.env.EXPO_PUBLIC_APP_VERSION?.trim() ||
+  pkg.version ||
+  '0.0.0';
+const SERVER_BUILD_ID =
+  process.env.CLIENT_BUILD_ID?.trim() ||
+  process.env.EXPO_PUBLIC_BUILD_ID?.trim() ||
+  'dev';
+
+app.get('/version', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    version: SERVER_APP_VERSION,
+    buildId: SERVER_BUILD_ID,
+    builtAt: process.env.CLIENT_BUILT_AT || null,
+  });
+});
 
 const server = http.createServer(app);
 
@@ -371,11 +392,119 @@ function tryStartNextRoundIfReady(roomId) {
 }
 
 // Testing timeouts — raise these for production (e.g. 60s in-game, 2m lobby, 10m empty shell).
-const DISCONNECT_GRACE_PERIOD = 15 * 1000;
+const IN_GAME_AWAY_GRACE_MIN_MS = 20 * 1000;
+const IN_GAME_AWAY_GRACE_MAX_MS = 30 * 1000;
 const LOBBY_DISCONNECT_GRACE = 15 * 1000;
 /** How long an empty room shell stays joinable by code before auto-delete. */
 const EMPTY_ROOM_REJOIN_MS = 15 * 1000;
 const emptyRoomTimers = {};
+/** `${roomId}:${playerId}` → removal timer after disconnect / leave. */
+const awayRemovalTimers = new Map();
+
+function inGameAwayGraceMs() {
+  const span = IN_GAME_AWAY_GRACE_MAX_MS - IN_GAME_AWAY_GRACE_MIN_MS;
+  return IN_GAME_AWAY_GRACE_MIN_MS + Math.floor(Math.random() * (span + 1));
+}
+
+function cancelAwayRemoval(roomId, playerId) {
+  const key = `${roomId}:${playerId}`;
+  const timer = awayRemovalTimers.get(key);
+  if (timer) {
+    clearTimeout(timer);
+    awayRemovalTimers.delete(key);
+  }
+}
+
+function advancePastDisconnectedPlayers(room) {
+  const gs = room?.gameState;
+  if (!gs?.players) return;
+  let working = cloneGameState(gs);
+  let safety = gs.players.length + 2;
+  while (safety-- > 0) {
+    const current = working.players[working.currentPlayerIndex];
+    if (!current) break;
+    const member = room.players.find((p) => p.id === current.id);
+    if (!member?.disconnectedAt) break;
+    const next = passTurn(working, current.id);
+    if (next === working) break;
+    working = next;
+  }
+  room.gameState = cloneGameState(working);
+}
+
+function finalizeAwayPlayerRemoval(roomId, playerId) {
+  const room = rooms[roomId];
+  if (!room) return;
+
+  const player = room.players.find((p) => p.id === playerId);
+  if (!player || !player.disconnectedAt) return;
+
+  console.log(`[Server] Grace period expired for ${player.name}, removing from room ${roomId}`);
+
+  if (room.inGame && !player.isSpectator) {
+    room.players = room.players.filter((p) => p.id !== playerId);
+    const msg =
+      player.awayReason === 'left'
+        ? `${player.name} left and did not return. The game has ended.`
+        : `${player.name} did not reconnect in time. The game has ended.`;
+    abortOnlineGame(roomId, msg);
+    return;
+  }
+
+  room.players = room.players.filter((p) => p.id !== playerId);
+
+  if (room.host === playerId) {
+    migrateHost(roomId);
+  }
+
+  io.to(roomId).emit('playerRemoved', {
+    playerId,
+    playerName: player.name,
+    reason: player.awayReason || 'disconnected',
+  });
+
+  afterPlayerLeftRoom(roomId);
+}
+
+function scheduleAwayRemoval(roomId, playerId, graceMs) {
+  cancelAwayRemoval(roomId, playerId);
+  const key = `${roomId}:${playerId}`;
+  const timer = setTimeout(() => {
+    awayRemovalTimers.delete(key);
+    finalizeAwayPlayerRemoval(roomId, playerId);
+  }, graceMs);
+  awayRemovalTimers.set(key, timer);
+}
+
+function markPlayerAway(roomId, player, reason = 'disconnected') {
+  const room = rooms[roomId];
+  if (!room || !player) return;
+  if (player.disconnectedAt) return;
+
+  const graceMs = room.inGame && !player.isSpectator
+    ? inGameAwayGraceMs()
+    : LOBBY_DISCONNECT_GRACE;
+
+  player.disconnectedAt = Date.now();
+  player.awayReason = reason;
+
+  if (room.inGame && !player.isSpectator && room.gameState) {
+    advancePastDisconnectedPlayers(room);
+    broadcastGameState(io, room);
+    io.to(roomId).emit('playerDisconnected', {
+      playerId: player.id,
+      playerName: player.name,
+      gracePeriod: graceMs,
+      reason,
+      reconnectUntil: Date.now() + graceMs,
+    });
+  }
+
+  io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
+  scheduleAwayRemoval(roomId, player.id, graceMs);
+
+  if (room.isPublic) broadcastAvailableRooms();
+}
 
 function activePlayerCount(room) {
   return room.players.filter((p) => !p.disconnectedAt && !p.isSpectator).length;
@@ -645,6 +774,9 @@ function abortOnlineGame(roomId, message) {
   const room = rooms[roomId];
   if (!room) return;
   console.log(`[Server] Aborting online game in ${roomId}: ${message}`);
+  for (const p of room.players) {
+    cancelAwayRemoval(roomId, p.id);
+  }
   room.inGame = false;
   room.gameState = null;
   io.to(roomId).emit('gameAborted', { roomId, message });
@@ -652,40 +784,9 @@ function abortOnlineGame(roomId, message) {
   broadcastAvailableRooms();
 }
 
-// Remove player after grace period expires
-function schedulePlayerRemoval(roomId, playerId, _socketId, graceMs = DISCONNECT_GRACE_PERIOD) {
-  setTimeout(() => {
-    const room = rooms[roomId];
-    if (!room) return;
-
-    const player = room.players.find(p => p.id === playerId);
-    if (!player || !player.disconnectedAt) return;
-
-    console.log(`[Server] Grace period expired for ${player.name}, removing from room ${roomId}`);
-
-    if (room.inGame && !player.isSpectator) {
-      room.players = room.players.filter(p => p.id !== playerId);
-      abortOnlineGame(
-        roomId,
-        `${player.name} disconnected. The game has ended.`,
-      );
-      return;
-    }
-
-    room.players = room.players.filter(p => p.id !== playerId);
-
-    if (room.host === playerId) {
-      migrateHost(roomId);
-    }
-
-    io.to(roomId).emit('playerRemoved', {
-      playerId,
-      playerName: player.name,
-      reason: 'disconnected',
-    });
-
-    afterPlayerLeftRoom(roomId);
-  }, graceMs);
+// Legacy alias — lobby-only removal after grace (in-game uses markPlayerAway).
+function schedulePlayerRemoval(roomId, playerId, _socketId, graceMs = LOBBY_DISCONNECT_GRACE) {
+  scheduleAwayRemoval(roomId, playerId, graceMs);
 }
 
 // Broadcast available public rooms to all searching clients
@@ -805,11 +906,21 @@ io.on('connection', (socket) => {
     if (room.isPublic) broadcastAvailableRooms();
   });
 
-  socket.on('joinRoom', ({ roomId, name, profileId }) => {
+  socket.on('joinRoom', ({ roomId, name, profileId, clientBuildId }) => {
     const code = normalizeRoomCode(roomId);
     if (!rooms[code]) {
       socket.emit('error', { message: 'Room not found' });
       return;
+    }
+    if (
+      clientBuildId &&
+      SERVER_BUILD_ID !== 'dev' &&
+      clientBuildId !== SERVER_BUILD_ID
+    ) {
+      socket.emit('clientOutdated', {
+        version: SERVER_APP_VERSION,
+        buildId: SERVER_BUILD_ID,
+      });
     }
     const nameCheck = validateDisplayText(name, 'Player name');
     if (!nameCheck.ok) {
@@ -824,10 +935,14 @@ io.on('connection', (socket) => {
     room.emptyAt = null;
 
     const existingPlayer = findReconnectPlayer(room, pid, nameCheck.value);
+    let wasAway = false;
     
     if (existingPlayer) {
       console.log(`[Server] Player ${nameCheck.value} (${pid}) reconnecting to room ${code}`);
+      wasAway = !!existingPlayer.disconnectedAt;
+      cancelAwayRemoval(code, existingPlayer.id);
       attachPlayerSocket(existingPlayer, socket, nameCheck.value);
+      delete existingPlayer.awayReason;
       if (existingPlayer.id !== pid) {
         existingPlayer.id = pid;
         existingPlayer.profileId = pid;
@@ -872,6 +987,13 @@ io.on('connection', (socket) => {
     socket.join(code);
     const joined = room.players.find((p) => p.socketId === socket.id);
     io.to(code).emit('lobbyUpdate', buildLobbyUpdate(room));
+    if (wasAway && room.inGame && joined && !joined.isSpectator) {
+      io.to(code).emit('playerReconnected', {
+        playerId: joined.id,
+        playerName: joined.name,
+      });
+      broadcastGameState(io, room);
+    }
     socket.emit('connected', {
       id: pid,
       profileId: pid,
@@ -905,12 +1027,9 @@ io.on('connection', (socket) => {
     const wasHost = room.host === leaving.id;
 
     if (room.inGame && !leaving.isSpectator) {
-      const message = wasHost
-        ? `${leaving.name} (host) left. The game has ended.`
-        : `${leaving.name} left. The game has ended.`;
-      room.players = room.players.filter((p) => p.socketId !== socket.id);
+      leaving.socketId = null;
       socket.leave(roomId);
-      abortOnlineGame(roomId, message);
+      markPlayerAway(roomId, leaving, 'left');
       return;
     }
 
@@ -976,6 +1095,7 @@ io.on('connection', (socket) => {
       broadcastGameState(io, room);
       io.to(roomId).emit('startGame', {
         players: room.players.map((p) => ({ id: p.id, name: p.name })),
+        dealSeed: room.gameState?.dealSeed,
       });
       return;
     }
@@ -992,6 +1112,7 @@ io.on('connection', (socket) => {
           .filter((p) => !p.isSpectator)
           .map(p => ({ id: p.id, name: p.name })),
         hostId: room.host,
+        dealSeed,
       });
       emitTradesCompleteIfReady(io, roomId, room.gameState);
       if (room.isPublic) broadcastAvailableRooms();
@@ -1016,6 +1137,10 @@ io.on('connection', (socket) => {
     
     const player = room.players.find(p => p.socketId === socket.id);
     if (!player) return;
+    if (player.disconnectedAt) {
+      socket.emit('error', { message: 'Reconnect to continue playing' });
+      return;
+    }
 
     const working = cloneGameState(room.gameState);
     const currentId = working.players[working.currentPlayerIndex]?.id;
@@ -1222,40 +1347,13 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`[Server] Socket ${socket.id} disconnected`);
     
-    // Find all rooms this socket was in and mark as disconnected
     for (const [roomId, room] of Object.entries(rooms)) {
       const player = room.players.find(p => p.socketId === socket.id);
       
       if (player) {
         console.log(`[Server] Player ${player.name} disconnected from room ${roomId}`);
-        
-        // Mark as disconnected with timestamp
-        player.disconnectedAt = Date.now();
-        
-        const wasPublic = room.isPublic;
-        const graceMs = room.inGame ? DISCONNECT_GRACE_PERIOD : LOBBY_DISCONNECT_GRACE;
-        
-        if (room.inGame) {
-          console.log(`[Server] Game in progress, giving ${player.name} grace period to reconnect`);
-          
-          io.to(roomId).emit('playerDisconnected', { 
-            playerId: player.id,
-            playerName: player.name,
-            gracePeriod: graceMs
-          });
-          
-          io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
-          
-          schedulePlayerRemoval(roomId, player.id, socket.id, graceMs);
-        } else {
-          console.log(`[Server] Lobby disconnect for ${player.name}, grace period before removal`);
-          
-          io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
-          
-          schedulePlayerRemoval(roomId, player.id, socket.id, graceMs);
-        }
-        
-        if (wasPublic) broadcastAvailableRooms();
+        player.socketId = null;
+        markPlayerAway(roomId, player, 'disconnected');
       }
     }
   });

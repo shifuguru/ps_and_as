@@ -646,7 +646,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   },
   codeInput: {
     color: colors.inputText,
-    fontSize: 13,
+    fontSize: 16,
     textAlign: "center",
   },
   codeJoinBtn: {

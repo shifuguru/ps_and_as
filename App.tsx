@@ -14,8 +14,8 @@ import { ThemeProvider, useAppTheme } from "./src/context/ThemeContext";
 import { useMenuAudio } from "./src/hooks/useMenuAudio";
 import AnimatedBackground from "./src/components/AnimatedBackground";
 import { SocketAdapter } from "./src/game/socketAdapter";
-import { MockAdapter } from "./src/game/network";
 import type { LobbyMember } from "./src/game/network";
+import { MockAdapter } from "./src/game/network";
 import { isSocketAdapter } from "./src/game/socketAdapter";
 import { getOrCreatePlayerId } from "./src/services/gameCenter";
 import {
@@ -32,6 +32,8 @@ import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
 import { tryCollapseSafariChrome } from "./src/utils/safariChrome";
 import { useVisualViewportSize } from "./src/hooks/useVisualViewportSize";
 import { useAppFonts } from "./src/hooks/useAppFonts";
+import { useBuildUpdateCheck } from "./src/hooks/useBuildUpdateCheck";
+import UpdateRequiredOverlay from "./src/components/UpdateRequiredOverlay";
 import { StatusBar } from "expo-status-bar";
 
 function AppContent() {
@@ -60,6 +62,11 @@ function AppContent() {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [isOnlineGame, setIsOnlineGame] = useState(false);
   const [isSpectator, setIsSpectator] = useState(false);
+
+  const { updateAvailable, latestBuild } = useBuildUpdateCheck(
+    menuVisible && !splashVisible,
+    roomAdapter,
+  );
 
   const disconnectRoom = () => {
     try {
@@ -255,14 +262,18 @@ function AppContent() {
         width: 100%;
         margin: 0;
         padding: 0;
-        background-color: ${colors.surface};
         overflow: hidden;
         overscroll-behavior: none;
         touch-action: manipulation;
       }
+      html, body {
+        background-color: ${feltTint};
+      }
+      #root {
+        background-color: transparent;
+      }
       @supports (height: 100dvh) {
         html, body, #root {
-          height: 100dvh;
           min-height: 100dvh;
         }
       }
@@ -272,16 +283,37 @@ function AppContent() {
         -moz-user-select: none !important;
         -ms-user-select: none !important;
       }
-      input, textarea {
+      input, textarea, select {
         user-select: text !important;
         -webkit-user-select: text !important;
+        font-size: 16px !important;
+      }
+      #felt-color-picker, #felt-color-picker * {
+        touch-action: none;
+        overscroll-behavior: contain;
       }
     `;
     doc.head.appendChild(style);
     return () => {
       doc.head.removeChild(style);
     };
-  }, [colors.surface]);
+  }, [feltTint]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const doc: any = (globalThis as { document?: any }).document;
+    if (!doc) return;
+    const px = `${viewport.height}px`;
+    doc.documentElement.style.height = px;
+    doc.documentElement.style.minHeight = px;
+    doc.body.style.height = px;
+    doc.body.style.minHeight = px;
+    const root = doc.getElementById("root");
+    if (root) {
+      root.style.height = px;
+      root.style.minHeight = px;
+    }
+  }, [viewport.height]);
 
   useEffect(() => {
     (async () => {
@@ -422,10 +454,15 @@ function AppContent() {
         type?: string;
         players?: unknown;
         spectator?: boolean;
+        dealSeed?: number;
       };
     }) => {
       if (ev.type !== "state" || ev.state?.type !== "startGame") return;
       if (screenRef.current === "game") return;
+
+      if (typeof ev.state.dealSeed === "number") {
+        setDealSeed(ev.state.dealSeed);
+      }
 
       const asSpectator = !!ev.state.spectator;
       const rawPlayers = ev.state.players;
@@ -499,10 +536,12 @@ function AppContent() {
     <View
       style={[
         { flex: 1 },
-        Platform.OS === "web" && [
-          appStyles.webRoot,
-          { height: viewport.height, maxHeight: viewport.height },
-        ],
+        Platform.OS === "web" && {
+          width: "100%",
+          height: viewport.height,
+          minHeight: viewport.height,
+          maxHeight: viewport.height,
+        },
       ]}
     >
         {/* Persistent felt wallpaper — one instance for the whole app */}
@@ -826,6 +865,9 @@ function AppContent() {
             </View>
           </View>
         )}
+        {updateAvailable ? (
+          <UpdateRequiredOverlay latestBuild={latestBuild} />
+        ) : null}
         </View>
     </View>
     </>

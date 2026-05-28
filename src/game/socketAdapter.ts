@@ -2,6 +2,7 @@ import { NetworkAdapter, NetworkEvent } from "./network";
 import { io as socketIo } from "socket.io-client";
 import { Platform } from "react-native";
 import { getServerUrl } from "../config/server";
+import { CLIENT_BUILD_ID } from "../config/buildVersion";
 
 export function isSocketAdapter(adapter: unknown): adapter is SocketAdapter {
   return (
@@ -20,6 +21,7 @@ export class SocketAdapter implements NetworkAdapter {
   private discoverQueued = false;
   private cachedGameState: unknown = null;
   private cachedTradesComplete: Record<string, unknown> | null = null;
+  private cachedDealSeed: number | undefined;
   /** Room the client belongs to — used to rejoin after socket reconnect. */
   private activeRoomId: string | null = null;
   private cachedHostId: string | null = null;
@@ -70,6 +72,7 @@ export class SocketAdapter implements NetworkAdapter {
       roomId: targetRoomId,
       name: this.name,
       profileId: this.profileId,
+      clientBuildId: CLIENT_BUILD_ID,
     });
   }
 
@@ -86,12 +89,20 @@ export class SocketAdapter implements NetworkAdapter {
     return this.cachedTradesComplete;
   }
 
+  getCachedDealSeed(): number | undefined {
+    return this.cachedDealSeed;
+  }
+
   clearCachedGameState() {
     this.cachedGameState = null;
   }
 
   clearCachedTradesComplete() {
     this.cachedTradesComplete = null;
+  }
+
+  clearCachedDealSeed() {
+    this.cachedDealSeed = undefined;
   }
 
   private waitForConnect(timeoutMs = 15000): Promise<void> {
@@ -228,6 +239,9 @@ export class SocketAdapter implements NetworkAdapter {
       if (data?.hostId) {
         this.cachedHostId = data.hostId;
       }
+      if (typeof data?.dealSeed === "number") {
+        this.cachedDealSeed = data.dealSeed;
+      }
       const players = Array.isArray(data?.players)
         ? data.players.map((p: any) =>
             typeof p === "string" ? { id: p, name: p } : p,
@@ -277,6 +291,19 @@ export class SocketAdapter implements NetworkAdapter {
         h({
           type: "state",
           state: { type: "error", message: data.message },
+        }),
+      );
+    });
+
+    this.socket.on("clientOutdated", (data: any) => {
+      this.handlers.forEach((h) =>
+        h({
+          type: "state",
+          state: {
+            type: "clientOutdated",
+            version: data?.version,
+            buildId: data?.buildId,
+          },
         }),
       );
     });
@@ -360,6 +387,21 @@ export class SocketAdapter implements NetworkAdapter {
             playerId: data.playerId,
             playerName: data.playerName,
             gracePeriod: data.gracePeriod,
+            reason: data.reason,
+            reconnectUntil: data.reconnectUntil,
+          },
+        }),
+      );
+    });
+
+    this.socket.on("playerReconnected", (data: any) => {
+      this.handlers.forEach((h) =>
+        h({
+          type: "state",
+          state: {
+            type: "playerReconnected",
+            playerId: data.playerId,
+            playerName: data.playerName,
           },
         }),
       );
@@ -487,6 +529,9 @@ export class SocketAdapter implements NetworkAdapter {
 
     this.socket.on("nextRoundStarting", (data: any) => {
       this.cachedTradesComplete = null;
+      if (typeof data?.dealSeed === "number") {
+        this.cachedDealSeed = data.dealSeed;
+      }
       this.handlers.forEach((h) =>
         h({
           type: "state",
@@ -596,7 +641,12 @@ export class SocketAdapter implements NetworkAdapter {
     const code = roomId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
     this.setActiveRoomId(code);
     this.name = name;
-    this.socket.emit("joinRoom", { roomId: code, name, profileId: this.profileId });
+    this.socket.emit("joinRoom", {
+      roomId: code,
+      name,
+      profileId: this.profileId,
+      clientBuildId: CLIENT_BUILD_ID,
+    });
   }
 
   leaveRoom(roomId: string) {

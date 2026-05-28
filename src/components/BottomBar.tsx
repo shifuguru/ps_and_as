@@ -46,7 +46,7 @@ function bottomOuterPad(safeBottom = 0): number {
   const homeClearance =
     Platform.OS === "ios" ? Math.max(chrome, 20) + 14 : chrome + 16;
   return Platform.OS === "web"
-    ? 12 + BOTTOM_SHEET_BLEED + chrome
+    ? Math.max(12, chrome)
     : homeClearance;
 }
 
@@ -60,8 +60,7 @@ export function reservedBottomHeight(
   safeBottom = 0,
   handVisible = true,
 ): number {
-  const outerPad =
-    Platform.OS === "web" ? 12 + BOTTOM_SHEET_BLEED : bottomOuterPad(safeBottom);
+  const outerPad = bottomOuterPad(safeBottom);
   const handSection = handVisible
     ? HAND_FAN_HEIGHT + HAND_CONTROLS_GAP + 2
     : 0;
@@ -127,7 +126,7 @@ export default function BottomBar({
         style,
         minHeight ? { minHeight } : undefined,
 
-        { paddingBottom, bottom: -BOTTOM_SHEET_BLEED },
+        { paddingBottom, bottom: Platform.OS === "web" ? 0 : -BOTTOM_SHEET_BLEED },
 
       ]}
 

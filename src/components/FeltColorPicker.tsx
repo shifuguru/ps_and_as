@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   LayoutChangeEvent,
+  Platform,
   type GestureResponderEvent,
 } from "react-native";
 import Svg, {
@@ -21,6 +22,7 @@ import {
 } from "../utils/colorTheory";
 import { normalizeHexColor } from "../services/wallpaper";
 import type { AppThemeColors } from "../styles/themeColors";
+import { useWebTouchScrollLock } from "../utils/webNoZoom";
 
 type Props = {
   value: string;
@@ -31,15 +33,27 @@ type Props = {
 const SL_HEIGHT = 168;
 const HUE_HEIGHT = 22;
 const MARKER = 12;
+const PICKER_NATIVE_ID = "felt-color-picker";
+
+const captureTouch = {
+  onStartShouldSetResponder: () => true,
+  onMoveShouldSetResponder: () => true,
+  onStartShouldSetResponderCapture: () => true,
+  onMoveShouldSetResponderCapture: () => true,
+  onResponderTerminationRequest: () => false,
+};
 
 function clampChannel(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
 export default function FeltColorPicker({ value, onChange, colors }: Props) {
+  const rootRef = useRef<View>(null);
   const [slWidth, setSlWidth] = useState(0);
   const [hueWidth, setHueWidth] = useState(0);
   const hslRef = useRef<{ h: number; s: number; l: number } | null>(null);
+
+  useWebTouchScrollLock(rootRef);
 
   const hsl = useMemo(() => {
     const rgb = hexToRgb(value);
@@ -103,13 +117,16 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <View style={styles.root}>
+    <View
+      ref={rootRef}
+      nativeID={PICKER_NATIVE_ID}
+      style={[styles.root, Platform.OS === "web" && styles.rootWeb]}
+    >
       <Text style={styles.label}>Saturation & lightness</Text>
       <View
-        style={styles.slWrap}
+        style={[styles.slWrap, Platform.OS === "web" && styles.touchPadWeb]}
         onLayout={handleSlLayout}
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => true}
+        {...captureTouch}
         onResponderGrant={onSlTouch}
         onResponderMove={onSlTouch}
       >
@@ -156,10 +173,9 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
 
       <Text style={styles.label}>Hue</Text>
       <View
-        style={styles.hueWrap}
+        style={[styles.hueWrap, Platform.OS === "web" && styles.touchPadWeb]}
         onLayout={handleHueLayout}
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => true}
+        {...captureTouch}
         onResponderGrant={onHueTouch}
         onResponderMove={onHueTouch}
       >
@@ -207,6 +223,13 @@ function createStyles(colors: AppThemeColors) {
       marginTop: 12,
       gap: 8,
     },
+    rootWeb: {
+      touchAction: "none",
+    } as object,
+    touchPadWeb: {
+      touchAction: "none",
+      cursor: "crosshair",
+    } as object,
     label: {
       color: colors.textMuted,
       fontSize: 11,

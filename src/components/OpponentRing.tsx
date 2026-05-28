@@ -27,6 +27,7 @@ type Props = {
   layoutSeatIds?: string[];
   deadHandId?: string | null;
   deadHandGraveyard?: boolean;
+  disconnectedPlayerIds?: string[];
 };
 
 /** Clockwise from the seat after the local player. */
@@ -71,7 +72,12 @@ export default function OpponentRing({
   layoutSeatIds,
   deadHandId = null,
   deadHandGraveyard = false,
+  disconnectedPlayerIds = [],
 }: Props) {
+  const disconnectedSet = useMemo(
+    () => new Set(disconnectedPlayerIds),
+    [disconnectedPlayerIds],
+  );
   const seatIds = useMemo(() => {
     if (layoutSeatIds && layoutSeatIds.length > 0) return layoutSeatIds;
     const localSet = new Set(localPlayerIds);
@@ -150,6 +156,7 @@ export default function OpponentRing({
               seatDims={seatDimensions}
               layoutWidth={arenaWidth}
               graveyardMode={deadHandGraveyard && isDeadHandPlayer(player)}
+              isDisconnected={disconnectedSet.has(player.id)}
             />
           </View>
         );

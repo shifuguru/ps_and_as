@@ -302,6 +302,12 @@ function canCardBePlayedAtAll(
   );
 }
 
+type AwayPlayer = {
+  name: string;
+  until: number;
+  reason?: string;
+};
+
 type TrickPauseSnapshot = {
   plays: TrickPlayDisplay[];
   passedPlayerIds: string[];
@@ -312,7 +318,7 @@ type TrickPauseSnapshot = {
 export default function GameScreen({
   initialPlayers,
   initialLobbyPlayers,
-  dealSeed,
+  dealSeed: seedFromProps,
   localPlayerName,
   localPlayerId,
   adapter: networkAdapter,
@@ -357,9 +363,12 @@ export default function GameScreen({
   const tradePhaseRef = useRef(tradePhase);
   tradePhaseRef.current = tradePhase;
   const pendingTradesCompleteRef = useRef<Record<string, CardType[]> | null>(null);
+  const pendingDealSeedRef = useRef<number | undefined>(undefined);
   const myPlayerIdRef = useRef<string | null>(null);
   const [roomNotice, setRoomNotice] = useState<string | null>(null);
   const roomNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [awayPlayers, setAwayPlayers] = useState<Record<string, AwayPlayer>>({});
+  const [awayTick, setAwayTick] = useState(0);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
   const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
   const [showGameLog, setShowGameLog] = useState<boolean>(false);
@@ -381,6 +390,46 @@ export default function GameScreen({
   useEffect(() => {
     setSpectatorMode(isSpectator);
   }, [isSpectator]);
+
+  useEffect(() => {
+    if (Object.keys(awayPlayers).length === 0) return;
+    const id = setInterval(() => {
+      setAwayTick((t) => t + 1);
+      setAwayPlayers((prev) => {
+        const now = Date.now();
+        let changed = false;
+        const next: Record<string, AwayPlayer> = { ...prev };
+        for (const [pid, info] of Object.entries(prev)) {
+          if (info.until <= now) {
+            delete next[pid];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [awayPlayers]);
+
+  const awayNotice = useMemo(() => {
+    void awayTick;
+    const entries = Object.entries(awayPlayers);
+    if (entries.length === 0) return null;
+    return entries
+      .map(([, info]) => {
+        const secs = Math.max(0, Math.ceil((info.until - Date.now()) / 1000));
+        const verb = info.reason === "left" ? "left" : "disconnected";
+        return `${info.name} ${verb} — seat held ${secs}s`;
+      })
+      .join(" · ");
+  }, [awayPlayers, awayTick]);
+
+  const disconnectedPlayerIds = useMemo(
+    () => Object.keys(awayPlayers),
+    [awayPlayers],
+  );
+
+  const bannerNotice = awayNotice ?? roomNotice;
 
   function showRoomNotice(message: string) {
     setRoomNotice(message);
@@ -733,21 +782,24 @@ export default function GameScreen({
   useEffect(() => {
     if (!onlineMultiplayer) {
       const g = initialLobbyPlayers?.length
-        ? createGameFromLobby(initialLobbyPlayers, dealSeed)
+        ? createGameFromLobby(initialLobbyPlayers, seedFromProps)
         : createGame(normalizeLobbyNames(initialPlayers, localPlayerName));
       startRoundCeremony(g, []);
     } else if (isSocketAdapter(networkAdapter)) {
-      const cached = parseServerGameState(networkAdapter.getCachedGameState());
-      if (cached) {
-        stateSyncedRef.current = true;
-        setState(cached);
+      const cachedSeed = networkAdapter.getCachedDealSeed();
+      if (seedFromProps != null) {
+        pendingDealSeedRef.current = seedFromProps;
+      } else if (cachedSeed != null) {
+        pendingDealSeedRef.current = cachedSeed;
       }
+      const cached = parseServerGameState(networkAdapter.getCachedGameState());
       const cachedHands = networkAdapter.getCachedTradesComplete() as
         | Record<string, CardType[]>
         | null;
       if (cachedHands) {
         pendingTradesCompleteRef.current = cachedHands;
       }
+      // Defer applying cached state until the deal ceremony runs (applyServerSync).
     }
 
     const applyServerSync = (raw: unknown, spectator?: boolean) => {
@@ -766,7 +818,24 @@ export default function GameScreen({
         awaitingDealCeremonyRef.current = false;
         const serverPending = (parsed as GameState & { pendingTrades?: Record<string, { fromId: string; count: number; incoming: CardType[]; selected?: CardType[] | null }> }).pendingTrades;
         const serverRoles = (parsed as GameState & { roles?: Record<string, string> }).roles;
-        const players = clonePlayersForRound(parsed.players);
+        const roundDealSeed =
+          (parsed as GameState & { dealSeed?: number }).dealSeed ??
+          pendingDealSeedRef.current ??
+          seedFromProps;
+        pendingDealSeedRef.current = undefined;
+
+        const players = clonePlayersForRound(
+          parsed.players.map((p) => ({ ...p, hand: [] })),
+        );
+        dealFreshHands(players, roundDealSeed);
+        if (players.some(isDeadHandPlayer)) {
+          applyDeadHandAfterDeal({
+            players,
+            finishedOrder: [],
+            currentPlayerIndex: 0,
+            mustPlay: false,
+          });
+        }
         let trades: ClientPendingTrade[] = [];
         if (serverPending && serverRoles) {
           const roleValues = Object.values(serverRoles);
@@ -808,32 +877,12 @@ export default function GameScreen({
           }
         }
 
-        const pendingHands = pendingTradesCompleteRef.current;
-        const unlockId =
-          localPlayerId ??
-          (isSocketAdapter(networkAdapter)
-            ? networkAdapter.getProfileId()
-            : null);
-        if (pendingHands) {
-          ceremonyDoneForRoundRef.current = parsed.id;
-          finalizeCeremonyRoundRef.current(
-            mergeLocalHandFromServer(players, pendingHands, unlockId),
-            parsed,
-            pendingHands,
-          );
-          stateSyncedRef.current = true;
-          if (typeof spectator === "boolean") {
-            setSpectatorMode(spectator);
-          }
-          return;
-        }
-
         setGameplayLocked(true);
         setCeremonyPrep({
           baseState: parsed,
           players,
           trades,
-          dealSeed: undefined,
+          dealSeed: roundDealSeed,
         });
         const hiddenPlayers = players.map((p) => ({ ...p, hand: [] }));
         setState(buildFreshRoundState(parsed, hiddenPlayers));
@@ -896,9 +945,38 @@ export default function GameScreen({
         applyServerSync(ev.state.gameState, ev.state.spectator);
       } else if (
         ev.type === "state" &&
+        ev.state?.type === "playerDisconnected"
+      ) {
+        const grace = ev.state.gracePeriod ?? 25000;
+        const reconnectUntil =
+          ev.state.reconnectUntil ?? Date.now() + grace;
+        setAwayPlayers((prev) => ({
+          ...prev,
+          [ev.state.playerId]: {
+            name: ev.state.playerName ?? "Player",
+            until: reconnectUntil,
+            reason: ev.state.reason,
+          },
+        }));
+      } else if (
+        ev.type === "state" &&
+        ev.state?.type === "playerReconnected"
+      ) {
+        setAwayPlayers((prev) => {
+          const next = { ...prev };
+          delete next[ev.state.playerId];
+          return next;
+        });
+        if (ev.state.playerName) {
+          showRoomNotice(`${ev.state.playerName} rejoined`);
+        }
+        if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
+          networkAdapter.requestGameState(roomId);
+        }
+      } else if (
+        ev.type === "state" &&
         (ev.state?.type === "playerLeft" ||
-          ev.state?.type === "playerRemoved" ||
-          ev.state?.type === "playerDisconnected")
+          ev.state?.type === "playerRemoved")
       ) {
         const notice = roomEventMessage(
           ev.state.playerName,
@@ -908,12 +986,7 @@ export default function GameScreen({
         if (notice) {
           showRoomNotice(notice);
         }
-        if (
-          onlineMultiplayer &&
-          isSocketAdapter(networkAdapter) &&
-          roomId &&
-          ev.state?.type !== "playerDisconnected"
-        ) {
+        if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
           networkAdapter.requestGameState(roomId);
         }
       } else if (ev.type === "state" && ev.state?.type === "error") {
@@ -1021,6 +1094,9 @@ export default function GameScreen({
           }
           awaitingDealCeremonyRef.current = true;
           ceremonyStartedForRoundRef.current = null;
+          if (typeof ev.state.dealSeed === "number") {
+            pendingDealSeedRef.current = ev.state.dealSeed;
+          }
           if (isSocketAdapter(networkAdapter) && roomId) {
             networkAdapter.requestGameState(roomId);
           }
@@ -1036,23 +1112,15 @@ export default function GameScreen({
         if (hands) {
           pendingTradesCompleteRef.current = hands;
         }
+        if (ceremonyPrepRef.current) {
+          return;
+        }
         const tp = tradePhaseRef.current;
-        const prep = ceremonyPrepRef.current;
         if (tp && hands) {
           for (const p of tp.players) {
             if (hands[p.id]) p.hand = hands[p.id];
           }
           finalizeCeremonyRoundRef.current(tp.players, tp.baseState, hands);
-        } else if (prep && hands) {
-          finalizeCeremonyRoundRef.current(
-            mergeLocalHandFromServer(
-              prep.players,
-              hands,
-              myPlayerIdRef.current,
-            ),
-            prep.baseState,
-            hands,
-          );
         }
       }
       // Legacy support for MockAdapter — only apply full game snapshots.
@@ -1935,7 +2003,7 @@ export default function GameScreen({
   // Note: no appear animation here to avoid flashing on re-renders
   return (
     <ScreenContainer ignoreHeaderOffset={true} style={{ flex: 1 }}>
-      {roomNotice ? (
+      {bannerNotice ? (
         <View
           style={[
             local.roomNoticeBanner,
@@ -1943,7 +2011,7 @@ export default function GameScreen({
           ]}
           pointerEvents="none"
         >
-          <Text style={local.roomNoticeText}>{roomNotice}</Text>
+          <Text style={local.roomNoticeText}>{bannerNotice}</Text>
         </View>
       ) : null}
       {onNavigateToAchievements ? (
@@ -2060,6 +2128,7 @@ export default function GameScreen({
           deadHandId={tableSeats.deadHandId}
           layoutSeatIds={tableSeats.layoutSeatIds}
           deadHandGraveyard={deadHandGraveyard}
+          disconnectedPlayerIds={disconnectedPlayerIds}
         >
           <GameTable
             plays={displayPlays}

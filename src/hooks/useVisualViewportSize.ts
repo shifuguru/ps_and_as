@@ -15,12 +15,23 @@ type WebWindow = {
   removeEventListener: (type: string, fn: () => void) => void;
 };
 
+const WEB_KEYBOARD_GAP_THRESHOLD = 120;
+
 function readVisualViewport(win: WebWindow): ScaledSize {
   const vv = win.visualViewport;
   if (vv) {
+    const layoutH = win.innerHeight ?? vv.height;
+    const gap = layoutH - vv.height - (vv.offsetTop ?? 0);
+    const keyboardLikelyOpen = gap > WEB_KEYBOARD_GAP_THRESHOLD;
+    // When Safari's layout viewport is taller than the visual viewport (URL bar
+    // collapse, home-indicator band), fill the layout height so felt is not
+    // letterboxed above a black strip. Shrink back while the keyboard is open.
+    const height = keyboardLikelyOpen
+      ? vv.height
+      : Math.max(vv.height, layoutH);
     return {
       width: Math.round(vv.width),
-      height: Math.round(vv.height),
+      height: Math.round(height),
       scale: 1,
       fontScale: 1,
     };

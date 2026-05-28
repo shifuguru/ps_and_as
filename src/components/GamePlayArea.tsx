@@ -59,6 +59,7 @@ export default function GamePlayArea({
   deadHandId = null,
   layoutSeatIds,
   deadHandGraveyard = false,
+  disconnectedPlayerIds = [],
   children,
 }: Props & { children: React.ReactNode }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -323,6 +324,7 @@ export default function GamePlayArea({
             layoutSeatIds={seatIds}
             deadHandId={deadHandId}
             deadHandGraveyard={deadHandGraveyard}
+            disconnectedPlayerIds={disconnectedPlayerIds}
           />
         </View>
       )}

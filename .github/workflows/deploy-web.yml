@@ -40,11 +40,18 @@ jobs:
         env:
           EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
 
+      - name: Read app version
+        id: pkg
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Build Expo web app
         run: npm run build:web
         env:
           GITHUB_PAGES_BASE: /ps_and_as
           EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
+          EXPO_PUBLIC_BUILD_ID: ${{ github.sha }}
+          EXPO_PUBLIC_APP_VERSION: ${{ steps.pkg.outputs.version }}
+          EXPO_PUBLIC_BASE_PATH: /ps_and_as
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
