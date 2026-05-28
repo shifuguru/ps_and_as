@@ -23,11 +23,12 @@ import BottomBar, { BottomBarControls, BottomBarLeave } from "../components/Bott
 import BlurPanel from "../components/BlurPanel";
 import OpponentSeat from "../components/OpponentSeat";
 import { NetworkAdapter, MockAdapter, type LobbyMember } from "../game/network";
+import { isSocketAdapter } from "../game/socketAdapter";
 import { getOrCreatePlayerId } from "../services/gameCenter";
 import { triggerHaptic } from "../utils/haptics";
 import { ACTION_BAR_HEIGHT } from "../components/ActionBar";
-import { GOLD, ui, BLUR_MODAL } from "../styles/uiStandards";
-import { polarSeatPosition, ringAngleForSeat } from "../utils/tableLayout";
+import { useAppTheme } from "../context/ThemeContext";
+import { polarSeatPosition, ringAngleForSeat, sideAnchorMarginForWidth } from "../utils/tableLayout";
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 8;
 const LOBBY_SEAT_W = 88;
@@ -52,6 +53,8 @@ function lobbyRingSlotPositions(
     containerH / 2 - LOBBY_SEAT_H / 2 - margin,
   );
 
+  const sideMargin = sideAnchorMarginForWidth(containerW, containerW >= 640);
+
   return Array.from({ length: totalPlayers }, (_, index) => {
     const angle = ringAngleForSeat(index, totalPlayers);
     return polarSeatPosition(
@@ -64,6 +67,7 @@ function lobbyRingSlotPositions(
       containerH,
       LOBBY_SEAT_W,
       LOBBY_SEAT_H,
+      { sideAnchorMargin: sideMargin, anchorSides: true },
     );
   });
 }
@@ -96,6 +100,7 @@ export default function CreateGame({
   adapter,
   isJoining = false,
   onNavigateToSettings,
+  onNavigateToAchievements,
   joinRoomId,
   onRoomReady,
 }: {
@@ -104,16 +109,22 @@ export default function CreateGame({
     lobby: LobbyMember[],
     localPlayerName: string,
     localSocketId?: string,
+    dealSeed?: number,
   ) => void;
   adapter?: NetworkAdapter;
   isJoining?: boolean;
   onNavigateToSettings?: () => void;
+  onNavigateToAchievements?: () => void;
   joinRoomId?: string;
   onRoomReady?: (roomId: string) => void;
 }) {
+  const { colors, ui, blur } = useAppTheme();
   const [names, setNames] = useState<string[]>([]);
   const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[]>([]);
   const lobbyMembersRef = useRef<LobbyMember[]>([]);
+  const playerNameRef = useRef("");
+  const playerIdRef = useRef<string | null>(null);
+  const localIdRef = useRef<string | null>(null);
   const [roomName, setRoomName] = useState<string>("My Room");
   const [playerName, setPlayerName] = useState<string>("");
   const [playerId, setPlayerId] = useState<string | null>(null);
@@ -137,9 +148,10 @@ export default function CreateGame({
   const topBarHeight = insets.top + LOBBY_STATUS_BAR_HEIGHT;
   const bottomBarHeight = lobbyBottomReserve(insets.bottom || 0);
 
-  const usingMock =
-    adapter == null || (net as any)?.constructor?.name === "MockAdapter";
+  const usingMock = !adapter || !isSocketAdapter(adapter);
+  const onlineLobby = isSocketAdapter(adapter);
   const isHost = usingMock || (localId != null && hostId != null && localId === hostId);
+  const canEditRoom = isHost;
   const canStart = names.length >= MIN_PLAYERS && isHost;
 
   const statusLabel = usingMock ? "Local" : isHost ? "You" : "Lobby";
@@ -213,6 +225,22 @@ export default function CreateGame({
   }, []);
 
   useEffect(() => {
+    playerNameRef.current = playerName;
+  }, [playerName]);
+
+  useEffect(() => {
+    playerIdRef.current = playerId;
+  }, [playerId]);
+
+  useEffect(() => {
+    localIdRef.current = localId;
+  }, [localId]);
+
+  useEffect(() => {
+    lobbyMembersRef.current = lobbyMembers;
+  }, [lobbyMembers]);
+
+  useEffect(() => {
     let mounted = true;
     net.on("message", (ev) => {
       if (!mounted) return;
@@ -221,25 +249,46 @@ export default function CreateGame({
         if (adapter) {
           const members = ev.state.players as LobbyMember[];
           setLobbyMembers(members);
+          lobbyMembersRef.current = members;
           setNames(members.map((p) => p.name));
           setHostId(ev.state.host ?? null);
           setConnectionStatus("connected");
         }
       }
       if (ev.type === "state" && ev.state?.type === "startGame") {
-        const members = lobbyMembersRef.current;
-        const fallback: LobbyMember[] = (ev.state.players as string[]).map(
-          (name, i) => ({ id: String(i + 1), name }),
-        );
+        const fromEvent: LobbyMember[] = Array.isArray(ev.state.players)
+          ? ev.state.players.map((p: string | LobbyMember, i: number) =>
+              typeof p === "string"
+                ? { id: String(i + 1), name: p }
+                : { id: p.id, name: p.name, ready: p.ready },
+            )
+          : [];
+        const members =
+          lobbyMembersRef.current.length > 0
+            ? lobbyMembersRef.current
+            : fromEvent;
+        if (adapter && isSocketAdapter(adapter) && actualRoomId) {
+          adapter.requestGameState(actualRoomId);
+        }
         onStart(
-          members.length > 0 ? members : fallback,
-          playerName,
-          usingMock ? undefined : localId ?? undefined,
+          members,
+          playerNameRef.current,
+          usingMock
+            ? undefined
+            : localIdRef.current ?? playerIdRef.current ?? undefined,
+          typeof ev.state.dealSeed === "number" ? ev.state.dealSeed : undefined,
         );
       }
       if (ev.type === "state" && ev.state?.type === "connected") {
-        if (ev.state.name === playerName || ev.state.name === playerName.trim()) {
+        const myProfileId = playerIdRef.current;
+        const myName = playerNameRef.current.trim();
+        const isSelf =
+          (myProfileId && ev.state.id === myProfileId) ||
+          ev.state.name === myName ||
+          ev.state.name === playerNameRef.current;
+        if (isSelf) {
           setLocalId(ev.state.id);
+          localIdRef.current = ev.state.id;
           if (usingMock) setHostId(ev.state.id);
           setConnectionStatus("connected");
         } else if (
@@ -258,11 +307,14 @@ export default function CreateGame({
           [{ text: "OK", onPress: () => onBack() }],
         );
       }
+      if (ev.type === "state" && ev.state?.type === "hostMigrated") {
+        setHostId(ev.state.newHost ?? null);
+      }
     });
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [adapter, net, usingMock, onStart, onBack, actualRoomId]);
 
   useEffect(() => {
     if (!playerNameReady) return;
@@ -301,6 +353,7 @@ export default function CreateGame({
   }, [playerNameReady]);
 
   const addCpu = () => {
+    if (!usingMock) return;
     if (names.length >= MAX_PLAYERS) return;
     const usedNums = new Set<number>();
     for (const n of names) {
@@ -325,7 +378,7 @@ export default function CreateGame({
   };
 
   const canRemovePlayer = (index: number, isCPU: boolean) =>
-    isCPU ? usingMock || isHost : isHost && index !== 0;
+    isCPU ? usingMock : isHost && index !== 0;
 
   const removePlayerAt = (index: number) => {
     const seat = names[index];
@@ -337,8 +390,8 @@ export default function CreateGame({
     triggerHaptic("light");
     if (isCPU) {
       setNames((s) => s.filter((_, i) => i !== index));
-    } else if (adapter && (adapter as any).kickPlayer) {
-      (adapter as any).kickPlayer(roomName, seat);
+    } else if (adapter && isSocketAdapter(adapter) && actualRoomId) {
+      adapter.kickPlayer(actualRoomId, seat);
     } else {
       setNames((s) => s.filter((_, i) => i !== index));
     }
@@ -422,34 +475,52 @@ export default function CreateGame({
                 <BlurPanel style={local.roomPanel} intensity={48}>
                   <Text style={[local.fieldLabel, local.fieldLabelSpaced]}>
                     Room Name
+                    {!canEditRoom ? (
+                      <Text style={local.hostOnlyHint}> · Host only</Text>
+                    ) : null}
                   </Text>
-                  <View
-                    style={[
-                      local.roomInputWrap,
-                      roomInputFocused && local.roomInputWrapFocused,
-                    ]}
-                  >
-                    <TextInput
-                      placeholder="Enter Room Name"
-                      placeholderTextColor="rgba(255,255,255,0.4)"
-                      value={roomName}
-                      onChangeText={setRoomName}
-                      onFocus={() => setRoomInputFocused(true)}
-                      onBlur={() => setRoomInputFocused(false)}
-                      selectTextOnFocus
-                      style={local.roomInput}
-                    />
-                    <Text style={local.roomInputHint} pointerEvents="none">
-                      ✎
+                  {canEditRoom ? (
+                    <View
+                      style={[
+                        local.roomInputWrap,
+                        roomInputFocused && local.roomInputWrapFocused,
+                      ]}
+                    >
+                      <TextInput
+                        placeholder="Enter Room Name"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
+                        value={roomName}
+                        onChangeText={setRoomName}
+                        onFocus={() => setRoomInputFocused(true)}
+                        onBlur={() => setRoomInputFocused(false)}
+                        selectTextOnFocus
+                        style={local.roomInput}
+                      />
+                      <Text style={local.roomInputHint} pointerEvents="none">
+                        ✎
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={local.roomNameReadOnly} numberOfLines={2}>
+                      {roomName.trim() || "Game Room"}
                     </Text>
-                  </View>
+                  )}
+                  {onlineLobby && actualRoomId ? (
+                    <Text style={local.roomCodeHint} selectable>
+                      Room code: {actualRoomId}
+                    </Text>
+                  ) : null}
                 </BlurPanel>
 
                 <View style={local.tableArea}>
                   <Text style={local.tableHint}>
-                    {names.length < MIN_PLAYERS
-                      ? `Add at least ${MIN_PLAYERS} players to start`
-                      : `${names.length} players at the table`}
+                    {onlineLobby
+                      ? names.length < MIN_PLAYERS
+                        ? "Share the room code — waiting for players"
+                        : `${names.length} players in lobby`
+                      : names.length < MIN_PLAYERS
+                        ? `Add at least ${MIN_PLAYERS} players to start`
+                        : `${names.length} players at the table`}
                   </Text>
 
                   <View
@@ -458,7 +529,7 @@ export default function CreateGame({
                       { width: ringSize.width, height: ringSize.height },
                     ]}
                   >
-                    {names.length < MAX_PLAYERS ? (
+                    {usingMock && names.length < MAX_PLAYERS ? (
                       <TouchableOpacity
                         style={[
                           local.emptySeat,
@@ -470,7 +541,7 @@ export default function CreateGame({
                         onPress={addCpu}
                         accessibilityLabel="Add CPU Player"
                       >
-                        <Text style={local.emptySeatPlus}>+</Text>
+                        <Text style={[local.emptySeatPlus, { color: colors.gold }]}>+</Text>
                         <Text style={local.emptySeatLabel}>Add CPU</Text>
                       </TouchableOpacity>
                     ) : null}
@@ -537,7 +608,7 @@ export default function CreateGame({
                               isThinking={isCPU}
                             />
                             {seat.isHostSeat && (
-                              <Text style={local.hostBadge}>Host</Text>
+                              <Text style={[local.hostBadge, { color: colors.gold }]}>Host</Text>
                             )}
                           </TouchableOpacity>
 
@@ -566,6 +637,7 @@ export default function CreateGame({
       <BottomBar>
         <BottomBarControls style={local.bottomControls}>
           <View style={[local.bottomInner, { maxWidth: contentMaxWidth }]}>
+            {usingMock ? (
             <View style={local.cpuSection}>
               <Text style={local.fieldLabel}>CPU Players</Text>
               <View style={local.stepper}>
@@ -580,7 +652,7 @@ export default function CreateGame({
                     names.filter((n) => n.startsWith("CPU ")).length === 0
                   }
                 >
-                  <Text style={local.stepBtnText}>−</Text>
+                  <Text style={[local.stepBtnText, { color: colors.gold }]}>−</Text>
                 </TouchableOpacity>
                 <Text style={local.cpuCount}>
                   {names.filter((n) => n.startsWith("CPU ")).length}
@@ -593,12 +665,21 @@ export default function CreateGame({
                   onPress={addCpu}
                   disabled={names.length >= MAX_PLAYERS}
                 >
-                  <Text style={local.stepBtnText}>+</Text>
+                  <Text style={[local.stepBtnText, { color: colors.gold }]}>+</Text>
                 </TouchableOpacity>
               </View>
             </View>
+            ) : null}
 
             <View style={ui.actionTrack}>
+              {onNavigateToAchievements ? (
+                <TouchableOpacity
+                  style={ui.actionSecondary}
+                  onPress={onNavigateToAchievements}
+                >
+                  <Text style={ui.actionSecondaryText}>Stats</Text>
+                </TouchableOpacity>
+              ) : null}
               {onNavigateToSettings ? (
                 <TouchableOpacity
                   style={ui.actionSecondary}
@@ -611,7 +692,7 @@ export default function CreateGame({
                 style={[
                   ui.actionPrimary,
                   !canStart && ui.actionPrimaryDisabled,
-                  !onNavigateToSettings && { flex: 1 },
+                  !onNavigateToSettings && !onNavigateToAchievements && { flex: 1 },
                 ]}
                 onPress={handleStart}
                 disabled={!canStart}
@@ -639,7 +720,7 @@ export default function CreateGame({
         onRequestClose={() => setShowPlayerModal(false)}
       >
         <View style={ui.modalOverlay}>
-          <BlurPanel style={ui.modalCard} intensity={62} {...BLUR_MODAL}>
+          <BlurPanel style={ui.modalCard} preset={blur.modal}>
             <Text style={ui.modalTitle}>Player</Text>
             <Text style={ui.modalBody}>
               {typeof selectedLobbyIndex === "number"
@@ -707,6 +788,25 @@ const local = StyleSheet.create({
     fontSize: 16,
     marginLeft: 8,
   },
+  hostOnlyHint: {
+    color: "rgba(255,255,255,0.35)",
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  roomNameReadOnly: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    paddingVertical: 10,
+    textAlign: "center",
+  },
+  roomCodeHint: {
+    color: "rgba(212,175,55,0.85)",
+    fontSize: 12,
+    marginTop: 10,
+    textAlign: "center",
+    lineHeight: 17,
+  },
   tableArea: {
     flex: 1,
     minHeight: LOBBY_RING_R * 2 + LOBBY_SEAT_H + 32,
@@ -757,7 +857,6 @@ const local = StyleSheet.create({
   },
   hostBadge: {
     marginTop: 2,
-    color: GOLD,
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 0.2,
@@ -776,7 +875,6 @@ const local = StyleSheet.create({
     zIndex: 2,
   },
   emptySeatPlus: {
-    color: GOLD,
     fontSize: 22,
     fontWeight: "700",
     lineHeight: 24,
@@ -818,7 +916,6 @@ const local = StyleSheet.create({
     opacity: 0.35,
   },
   stepBtnText: {
-    color: GOLD,
     fontSize: 20,
     fontWeight: "700",
     lineHeight: 22,

@@ -1,16 +1,8 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { View, Text, StyleSheet, Animated, Easing, Platform } from "react-native";
-
-const CONFETTI_COLORS = [
-  "#d4af37",
-  "#ffd700",
-  "#ff6b6b",
-  "#4ecdc4",
-  "#ffe66d",
-  "#ff85c0",
-  "#ffffff",
-  "#7ec8ff",
-];
+import { TRICK_WIN_XP } from "../services/playerStats";
+import { useAppTheme } from "../context/ThemeContext";
+import { hexToRgba } from "../utils/colorTheory";
 
 const PARTICLE_COUNT = 14;
 
@@ -23,7 +15,7 @@ type ParticleSpec = {
   spin: number;
 };
 
-function buildParticles(seed: number): ParticleSpec[] {
+function buildParticles(seed: number, colors: readonly string[]): ParticleSpec[] {
   return Array.from({ length: PARTICLE_COUNT }, (_, i) => {
     const t = (seed + i * 17) % 1000;
     const angle = (i / PARTICLE_COUNT) * Math.PI * 2 + (t / 1000) * 0.8;
@@ -32,7 +24,7 @@ function buildParticles(seed: number): ParticleSpec[] {
       distance: 0.55 + (t % 400) / 1000,
       sizeW: 3 + (t % 3),
       sizeH: 5 + (t % 4),
-      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+      color: colors[i % colors.length],
       spin: (t % 180) - 90,
     };
   });
@@ -41,28 +33,45 @@ function buildParticles(seed: number): ParticleSpec[] {
 type Props = {
   active: boolean;
   avatarSize: number;
+  /** Show floating +XP text (local human trick win). */
+  showXp?: boolean;
+  xpAmount?: number;
 };
 
-export default function TrickWinCelebration({ active, avatarSize }: Props) {
+export default function TrickWinCelebration({
+  active,
+  avatarSize,
+  showXp = false,
+  xpAmount = TRICK_WIN_XP,
+}: Props) {
+  const { colors, palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const burst = useRef(new Animated.Value(0)).current;
   const flagPop = useRef(new Animated.Value(0)).current;
   const flagWave = useRef(new Animated.Value(0)).current;
-  const particles = useMemo(() => buildParticles(avatarSize), [avatarSize]);
+  const xpFloat = useRef(new Animated.Value(0)).current;
+  const particles = useMemo(
+    () => buildParticles(avatarSize, palette.celebrationColors),
+    [avatarSize, palette.celebrationColors],
+  );
 
   useEffect(() => {
     if (!active) {
       burst.stopAnimation();
       flagPop.stopAnimation();
       flagWave.stopAnimation();
+      xpFloat.stopAnimation();
       burst.setValue(0);
       flagPop.setValue(0);
       flagWave.setValue(0);
+      xpFloat.setValue(0);
       return;
     }
 
     burst.setValue(0);
     flagPop.setValue(0);
     flagWave.setValue(0);
+    xpFloat.setValue(0);
 
     const burstAnim = Animated.timing(burst, {
       toValue: 1,
@@ -100,11 +109,23 @@ export default function TrickWinCelebration({ active, avatarSize }: Props) {
     burstAnim.start();
     flagAnim.start();
 
+    if (showXp) {
+      Animated.sequence([
+        Animated.delay(180),
+        Animated.timing(xpFloat, {
+          toValue: 1,
+          duration: 920,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+
     return () => {
       burstAnim.stop();
       flagAnim.stop();
     };
-  }, [active, burst, flagPop, flagWave]);
+  }, [active, burst, flagPop, flagWave, showXp, xpFloat]);
 
   if (!active) return null;
 
@@ -187,6 +208,38 @@ export default function TrickWinCelebration({ active, avatarSize }: Props) {
         <Text style={styles.flagEmoji}>🏁</Text>
       </Animated.View>
 
+      {showXp ? (
+        <Animated.View
+          style={[
+            styles.xpWrap,
+            {
+              left: spread + avatarSize / 2 - 36,
+              top: spread - avatarSize * 0.72,
+              opacity: xpFloat.interpolate({
+                inputRange: [0, 0.12, 0.75, 1],
+                outputRange: [0, 1, 1, 0],
+              }),
+              transform: [
+                {
+                  translateY: xpFloat.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, -32],
+                  }),
+                },
+                {
+                  scale: xpFloat.interpolate({
+                    inputRange: [0, 0.2, 1],
+                    outputRange: [0.7, 1.08, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.xpText}>+{xpAmount} XP</Text>
+        </Animated.View>
+      ) : null}
+
       <Animated.View
         style={[
           styles.winRing,
@@ -215,7 +268,11 @@ export default function TrickWinCelebration({ active, avatarSize }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+  const accent = colors.gold;
+  const accentBright = colors.onFelt.accent;
+
+  return StyleSheet.create({
   host: {
     position: "absolute",
     zIndex: 30,
@@ -246,15 +303,31 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 26,
   },
+  xpWrap: {
+    position: "absolute",
+    width: 72,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 33,
+  },
+  xpText: {
+    color: accentBright,
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+    textShadowColor: "rgba(0,0,0,0.65)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   winRing: {
     position: "absolute",
     borderWidth: 2.5,
-    borderColor: "rgba(255, 215, 0, 0.9)",
-    backgroundColor: "rgba(212, 175, 55, 0.12)",
+    borderColor: hexToRgba(accentBright, 0.9),
+    backgroundColor: hexToRgba(accent, 0.12),
     zIndex: 28,
     ...Platform.select({
       ios: {
-        shadowColor: "#ffd700",
+        shadowColor: accentBright,
         shadowOpacity: 0.55,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 0 },
@@ -263,4 +336,5 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-});
+  });
+}

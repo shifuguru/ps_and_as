@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import BlurPanel from "./BlurPanel";
-import { BLUR_CHROME } from "../styles/uiStandards";
+import { useAppTheme } from "../context/ThemeContext";
 
 export const LOBBY_STATUS_BAR_HEIGHT = 58;
 
@@ -20,10 +20,13 @@ export default function LobbyStatusBar({
   statusValue,
   topInset = 0,
 }: Props) {
+  const { colors, blur } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <BlurPanel
       style={[styles.panel, { paddingTop: topInset + 6 }]}
-      {...BLUR_CHROME}
+      preset={blur.chrome}
     >
       <View style={styles.container}>
         <View style={styles.centerSection}>
@@ -52,70 +55,72 @@ export default function LobbyStatusBar({
   );
 }
 
-const styles = StyleSheet.create({
-  panel: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 40,
-    elevation: 40,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.12)",
-  },
-  container: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  centerSection: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 0,
-  },
-  statusSection: {
-    flexShrink: 0,
-    alignItems: "flex-end",
-    justifyContent: "center",
-    minWidth: 72,
-    paddingLeft: 8,
-  },
-  statsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  statCard: {
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 56,
-    maxWidth: 88,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
-  },
-  roomCard: {
-    maxWidth: 120,
-  },
-  label: {
-    color: "rgba(255,255,255,0.65)",
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-    marginBottom: 2,
-    textAlign: "center",
-  },
-  value: {
-    color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-});
+function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+  return StyleSheet.create({
+    panel: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 40,
+      elevation: 40,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.panelBorder,
+    },
+    container: {
+      width: "100%",
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+    },
+    centerSection: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      minWidth: 0,
+    },
+    statusSection: {
+      flexShrink: 0,
+      alignItems: "flex-end",
+      justifyContent: "center",
+      minWidth: 72,
+      paddingLeft: 8,
+    },
+    statsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+    },
+    statCard: {
+      alignItems: "center",
+      justifyContent: "center",
+      minWidth: 56,
+      maxWidth: 88,
+      paddingVertical: 8,
+      paddingHorizontal: 8,
+      borderRadius: 14,
+      backgroundColor: colors.btnSecondaryBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.panelBorder,
+    },
+    roomCard: {
+      maxWidth: 120,
+    },
+    label: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: "700",
+      letterSpacing: 0.2,
+      marginBottom: 2,
+      textAlign: "center",
+    },
+    value: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "700",
+      textAlign: "center",
+    },
+  });
+}

@@ -17,11 +17,13 @@ export class SocketAdapter implements NetworkAdapter {
   private shouldAutoJoin: boolean;
   private connectPromise: Promise<void> | null = null;
   private discoverQueued = false;
+  private cachedGameState: unknown = null;
 
   constructor(
     private url: string | undefined,
     private roomId: string,
     private name: string,
+    private profileId: string,
     autoJoin: boolean = true,
   ) {
     this.shouldAutoJoin = autoJoin;
@@ -29,6 +31,15 @@ export class SocketAdapter implements NetworkAdapter {
 
   isConnected(): boolean {
     return !!this.socket?.connected;
+  }
+
+  /** Last authoritative snapshot from the server (survives screen transitions). */
+  getCachedGameState(): unknown {
+    return this.cachedGameState;
+  }
+
+  clearCachedGameState() {
+    this.cachedGameState = null;
   }
 
   private waitForConnect(timeoutMs = 15000): Promise<void> {
@@ -107,6 +118,7 @@ export class SocketAdapter implements NetworkAdapter {
             this.socket.emit("joinRoom", {
               roomId: this.roomId,
               name: this.name,
+              profileId: this.profileId,
             });
           }
           this.flushDiscoverQueue();
@@ -157,10 +169,19 @@ export class SocketAdapter implements NetworkAdapter {
 
     this.socket.on("startGame", (data: any) => {
       console.log("[SocketAdapter] Received startGame:", data);
+      const players = Array.isArray(data?.players)
+        ? data.players.map((p: any) =>
+            typeof p === "string" ? { id: p, name: p } : p,
+          )
+        : [];
       this.handlers.forEach((h) =>
         h({
           type: "state",
-          state: { type: "startGame", players: data.players },
+          state: {
+            type: "startGame",
+            players,
+            dealSeed: data?.dealSeed,
+          },
         }),
       );
     });
@@ -197,6 +218,21 @@ export class SocketAdapter implements NetworkAdapter {
 
     this.socket.on("disconnect", (reason: string) => {
       console.log("[SocketAdapter] Disconnected:", reason);
+      this.handlers.forEach((h) =>
+        h({
+          type: "state",
+          state: { type: "socketDisconnected", reason },
+        }),
+      );
+    });
+
+    this.socket.on("connect", () => {
+      this.handlers.forEach((h) =>
+        h({
+          type: "state",
+          state: { type: "socketConnected" },
+        }),
+      );
     });
 
     this.socket.on("kicked", (data: any) => {
@@ -272,6 +308,9 @@ export class SocketAdapter implements NetworkAdapter {
     });
 
     this.socket.on("gameStateSync", (data: any) => {
+      if (data?.gameState) {
+        this.cachedGameState = data.gameState;
+      }
       this.handlers.forEach((h) =>
         h({
           type: "state",
@@ -337,7 +376,11 @@ export class SocketAdapter implements NetworkAdapter {
       this.handlers.forEach((h) =>
         h({
           type: "state",
-          state: { type: "nextRoundStarting", gameState: data.gameState },
+          state: {
+            type: "nextRoundStarting",
+            gameState: data.gameState,
+            dealSeed: data.dealSeed,
+          },
         }),
       );
     });
@@ -345,6 +388,7 @@ export class SocketAdapter implements NetworkAdapter {
 
   async disconnect() {
     this.discoverQueued = false;
+    this.clearCachedGameState();
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
@@ -375,6 +419,7 @@ export class SocketAdapter implements NetworkAdapter {
     this.socket.emit("createRoom", {
       roomId,
       name,
+      profileId: this.profileId,
       isPublic: true,
       roomName: roomName || roomId,
     });
@@ -406,7 +451,7 @@ export class SocketAdapter implements NetworkAdapter {
 
   joinRoom(roomId: string, name: string) {
     if (!this.socket) return;
-    this.socket.emit("joinRoom", { roomId, name });
+    this.socket.emit("joinRoom", { roomId, name, profileId: this.profileId });
   }
 
   leaveRoom(roomId: string) {
@@ -437,8 +482,17 @@ export class SocketAdapter implements NetworkAdapter {
   }
 
   requestGameState(roomId: string) {
-    if (!this.socket) return;
+    if (!this.socket?.connected) {
+      console.warn("[SocketAdapter] requestGameState: socket not connected");
+      return;
+    }
+    console.log("[SocketAdapter] Requesting game state for room:", roomId);
     this.socket.emit("requestGameState", { roomId });
+  }
+
+  playerReadyForNextRound(roomId: string) {
+    if (!this.socket) return;
+    this.socket.emit("playerReadyForNextRound", { roomId });
   }
 
   on(_ev: "message", cb: (ev: NetworkEvent) => void) {

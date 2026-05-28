@@ -194,6 +194,21 @@ function makeEmptyGame(names: string[]): GameState {
   assert.ok(s2.currentTrick && s2.currentTrick.actions.filter((a:any)=>a.type==='pass' && a.playerId===g.players[1].id).length >= 2, "P2 should now have an additional pass recorded");
 }
 
+// 2) Playing one joker should remove only that joker when the player holds duplicates
+{
+  const g = makeEmptyGame(["P1", "P2"]);
+  const jokerA: Card = { suit: "joker", value: 15 };
+  const jokerB: Card = { suit: "joker", value: 15 };
+  g.players[0].hand = [jokerA, jokerB];
+  g.currentPlayerIndex = 0;
+
+  const s = playCards(g, g.players[0].id, [jokerA]);
+  assert.strictEqual(s.players[0].hand.length, 1, "Playing one joker should leave one joker in hand");
+  assert.strictEqual(s.players[0].hand[0].value, 15, "Remaining card should still be a joker");
+  assert.strictEqual(s.players[0].hand[0].suit, "joker", "Remaining card should still be a joker");
+  assert.strictEqual(s.pile.length, 1, "Pile should show only one joker played");
+}
+
 // 1b) passCount survives a normal beat play mid-trick
 {
   const g = makeEmptyGame(["P1", "P2", "P3"]);

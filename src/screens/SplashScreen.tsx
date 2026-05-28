@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, Animated, Easing, Text } from "react-native";
 import Svg, { Path } from "react-native-svg";
+import { gameTitleFaceStyle } from "../utils/gameTitleFont";
 
 export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
   const opacity = useRef(new Animated.Value(1)).current;
@@ -13,7 +14,6 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
 
   useEffect(() => {
     const sequence = Animated.sequence([
-      // Logo intro
       Animated.parallel([
         Animated.timing(logoOpacity, {
           toValue: 1,
@@ -28,8 +28,6 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
           useNativeDriver: true,
         }),
       ]),
-
-      // Text reveal
       Animated.parallel([
         Animated.timing(textOpacity, {
           toValue: 1,
@@ -43,11 +41,7 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
           useNativeDriver: true,
         }),
       ]),
-
-      // Hold
       Animated.delay(900),
-
-      // Exit
       Animated.timing(opacity, {
         toValue: 0,
         duration: 720,
@@ -89,7 +83,9 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
             transform: [{ translateY: textTranslate }],
           }}
         >
-          <Text style={styles.title}>P&apos;s & A&apos;s</Text>
+          <Text style={[styles.title, gameTitleFaceStyle()]}>
+            P&apos;s & A&apos;s
+          </Text>
           <Text style={styles.subtitle}>Presidents & Assholes</Text>
           <Text style={styles.credit}>App designed by Michael Drury</Text>
         </Animated.View>

@@ -23,7 +23,8 @@ import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import BlurPanel from "./BlurPanel";
 import { ACTION_BAR_HEIGHT } from "./ActionBar";
 import { HAND_FAN_HEIGHT } from "./PlayerHand";
-import { ui } from "../styles/uiStandards";
+import { LOCAL_SEAT_TABLE_LIFT } from "../utils/tableLayout";
+import { useAppTheme } from "../context/ThemeContext";
 
 
 
@@ -32,25 +33,26 @@ import { ui } from "../styles/uiStandards";
 export const BOTTOM_CONTROLS_HEIGHT = ACTION_BAR_HEIGHT + 16;
 
 /** Space for the centered leave pill below an action track (gap + button). */
-export const BOTTOM_LEAVE_ROW_HEIGHT = 34;
-
-
+export const BOTTOM_LEAVE_ROW_HEIGHT = 48;
 
 /** Gap between the hand fan and the action buttons */
-
 export const HAND_CONTROLS_GAP = 20;
 
-
-
-/** Extra height the sheet extends past the bottom edge. */
-
+/** Extra height the bottom sheet extends past the bottom edge. */
 export const BOTTOM_SHEET_BLEED = 32;
+
+function bottomOuterPad(safeBottom = 0): number {
+  const chrome = Math.max(0, safeBottom);
+  const homeClearance =
+    Platform.OS === "ios" ? Math.max(chrome, 20) + 14 : chrome + 16;
+  return Platform.OS === "web"
+    ? 12 + BOTTOM_SHEET_BLEED + chrome
+    : homeClearance;
+}
 
 /** Reserve scroll padding for a bottom panel with action track + leave (no hand). */
 export function menuBottomReserve(safeBottom = 0): number {
-  const outerPad =
-    Platform.OS === "web" ? 12 + BOTTOM_SHEET_BLEED : safeBottom + 10;
-  return ACTION_BAR_HEIGHT + 18 + BOTTOM_LEAVE_ROW_HEIGHT + outerPad + 8;
+  return ACTION_BAR_HEIGHT + 18 + BOTTOM_LEAVE_ROW_HEIGHT + bottomOuterPad(safeBottom) + 8;
 }
 
 /** Vertical space to reserve above the bottom sheet — keep in sync with GameScreen padding. */
@@ -59,7 +61,7 @@ export function reservedBottomHeight(
   handVisible = true,
 ): number {
   const outerPad =
-    Platform.OS === "web" ? 12 + BOTTOM_SHEET_BLEED : safeBottom + 10;
+    Platform.OS === "web" ? 12 + BOTTOM_SHEET_BLEED : bottomOuterPad(safeBottom);
   const handSection = handVisible
     ? HAND_FAN_HEIGHT + HAND_CONTROLS_GAP + 2
     : 0;
@@ -69,12 +71,16 @@ export function reservedBottomHeight(
 /** How far below the top of the bottom sheet the local seat sits (tune for felt/hand gap). */
 export const LOCAL_SEAT_DROP_FROM_BAR_TOP = 52;
 
-/** Screen-bottom offset for the local player seat — just above the hand fan. */
+/** Screen-bottom offset for the local player seat — above the hand fan, toward the table. */
 export function localSeatBottomOffset(
   safeBottom = 0,
   handVisible = true,
 ): number {
-  return reservedBottomHeight(safeBottom, handVisible) - LOCAL_SEAT_DROP_FROM_BAR_TOP;
+  return (
+    reservedBottomHeight(safeBottom, handVisible) -
+    LOCAL_SEAT_DROP_FROM_BAR_TOP +
+    LOCAL_SEAT_TABLE_LIFT
+  );
 }
 
 
@@ -86,6 +92,7 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 
   bottomOffset?: number;
+  minHeight?: number;
 
 };
 
@@ -98,19 +105,16 @@ export default function BottomBar({
   style,
 
   bottomOffset = 8,
+  minHeight,
 
 }: Props) {
 
+  const { colors, blur } = useAppTheme();
   const insets = useLayoutInsets();
-
-  const bottomInset = Platform.OS === "web" ? 0 : insets.bottom || 0;
-
-  const paddingBottom =
-    Platform.OS === "web"
-      ? 12 + BOTTOM_SHEET_BLEED
-      : bottomInset + 10;
-
-
+  const bottomInset = insets.bottom || 0;
+  const paddingBottom = bottomOuterPad(bottomInset);
+  const barBottom =
+    Platform.OS === "web" ? bottomInset - BOTTOM_SHEET_BLEED : -BOTTOM_SHEET_BLEED;
 
   return (
 
@@ -120,15 +124,16 @@ export default function BottomBar({
 
         styles.bar,
 
-        style,
+        { borderTopColor: colors.panelBorder },
 
-        { paddingBottom, bottom: -BOTTOM_SHEET_BLEED },
+        style,
+        minHeight ? { minHeight } : undefined,
+
+        { paddingBottom, bottom: barBottom },
 
       ]}
 
-      intensity={42}
-      scrimOpacity={0.16}
-      webOpacity={0.05}
+      preset={blur.chrome}
 
     >
 
@@ -229,6 +234,8 @@ export function BottomBarLeave({
   accessibilityLabel?: string;
 
 }) {
+
+  const { ui } = useAppTheme();
 
   return (
 

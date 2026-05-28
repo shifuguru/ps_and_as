@@ -19,7 +19,13 @@ export { LOCAL_SEAT_BAND as LOCAL_SEAT_HEIGHT } from "../utils/tableLayout";
 
 type RingProps = Omit<
   React.ComponentProps<typeof OpponentRing>,
-  "arenaWidth" | "arenaHeight" | "ringLayout"
+  | "arenaWidth"
+  | "arenaHeight"
+  | "ringLayout"
+  | "seatFootprintW"
+  | "seatFootprintH"
+  | "seatDimensions"
+  | "sideAnchorMargin"
 >;
 
 type Props = RingProps & {
@@ -71,6 +77,7 @@ export default function GamePlayArea({
         cardHeight: undefined as number | undefined,
         scaleLimits: tableScaleLimits({
           isCompact: false,
+          isVeryCompact: false,
           isTall: false,
           isWide: false,
           isStretchy: false,
@@ -281,6 +288,10 @@ export default function GamePlayArea({
             arenaWidth={layout.width}
             arenaHeight={layout.height}
             ringLayout={layout.opponentRing}
+            seatFootprintW={layout.seatFootprintW}
+            seatFootprintH={layout.seatFootprintH}
+            seatDimensions={layout.seatDimensions}
+            sideAnchorMargin={layout.sideAnchorMargin}
             lastPlayPlayerId={lastPlayPlayerId}
             trickWinnerPlayerId={trickWinnerPlayerId}
           />

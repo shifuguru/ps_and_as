@@ -26,8 +26,8 @@ function simpleSimulation() {
         console.error(`Unexpected: play rejected for ${current.name} when playing ${play.suit}-${play.value}`);
         break;
       }
-      // If the card was a 2, pile should have been cleared
-      if (play.value === 2 && next.pile.length !== 0) {
+      // If the card was a 2 (internal encoding 15), pile should have been cleared
+      if (play.value === 15 && next.pile.length !== 0) {
         console.error("Rule violation: playing a 2 should clear the pile but it did not");
         break;
       }

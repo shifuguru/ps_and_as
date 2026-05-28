@@ -10,14 +10,10 @@ import {
   Easing,
 } from "react-native";
 import { triggerHaptic } from "../utils/haptics";
-import { ui } from "../styles/uiStandards";
+import { useAppTheme } from "../context/ThemeContext";
 
 /** Fixed height budget for bottom-bar layout math (see GameScreen). */
 export const ACTION_BAR_HEIGHT = 108;
-
-const GOLD = "#d4af37";
-const GOLD_DIM = "rgba(212, 175, 55, 0.45)";
-const GOLD_GLOW = "rgba(212, 175, 55, 0.22)";
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -42,6 +38,16 @@ export default function ActionBar({
   isPlayerTurn = false,
   noValidPlays = false,
 }: Props) {
+  const { colors, ui } = useAppTheme();
+  const gold = colors.gold;
+  const goldDim =
+    colors.mode === "light"
+      ? "rgba(0, 122, 255, 0.42)"
+      : "rgba(100, 210, 255, 0.42)";
+  const goldGlow =
+    colors.mode === "light"
+      ? "rgba(0, 122, 255, 0.18)"
+      : "rgba(100, 210, 255, 0.2)";
   const { width } = useWindowDimensions();
   const barWidth = Math.min(width - 32, 440);
 
@@ -124,12 +130,12 @@ export default function ActionBar({
   const passBorder = showPassFlash
     ? passFlash.interpolate({
         inputRange: [0, 1],
-        outputRange: [GOLD_DIM, "rgba(255,255,255,0.95)"],
+        outputRange: [goldDim, "rgba(255,255,255,0.95)"],
       })
     : isPlayerTurn && !passDisabled
       ? turnGlow.interpolate({
           inputRange: [0, 1],
-          outputRange: [GOLD_GLOW, GOLD_DIM],
+          outputRange: [goldGlow, goldDim],
         })
       : "rgba(255,255,255,0.1)";
 
@@ -141,20 +147,20 @@ export default function ActionBar({
     : "#f0f0f0";
 
   const playBorderColor = playReady
-    ? GOLD
+    ? gold
     : isPlayerTurn && !playDisabled
       ? turnGlow.interpolate({
           inputRange: [0, 1],
-          outputRange: [GOLD_GLOW, GOLD_DIM],
+          outputRange: [goldGlow, goldDim],
         })
       : "rgba(255,255,255,0.08)";
 
   const playBackground = playReady
-    ? GOLD
+    ? gold
     : isPlayerTurn && !playDisabled
       ? turnGlow.interpolate({
           inputRange: [0, 1],
-          outputRange: ["rgba(212,175,55,0.12)", "rgba(212,175,55,0.22)"],
+          outputRange: ["rgba(10,132,255,0.12)", "rgba(10,132,255,0.22)"],
         })
       : "rgba(255,255,255,0.04)";
 
@@ -220,6 +226,12 @@ export default function ActionBar({
             {
               backgroundColor: playBackground,
               borderColor: playBorderColor,
+              ...(playReady || (isPlayerTurn && !playDisabled && !playReady)
+                ? Platform.select({
+                    ios: { shadowColor: gold },
+                    default: {},
+                  })
+                : null),
             },
           ]}
           onPress={() => {
@@ -309,7 +321,6 @@ const styles = StyleSheet.create({
   playButtonTurn: {
     ...Platform.select({
       ios: {
-        shadowColor: GOLD,
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.25,
         shadowRadius: 8,
@@ -320,7 +331,6 @@ const styles = StyleSheet.create({
   playButtonReady: {
     ...Platform.select({
       ios: {
-        shadowColor: GOLD,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.4,
         shadowRadius: 10,

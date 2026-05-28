@@ -236,6 +236,38 @@ const cases: Case[] = [
     expectValues: [3, 4, 5],
     trickOnly: false,
   },
+  {
+    name: "ten-rule oscillation 10-9-10-9 is not a run",
+    actions: [
+      makeAction("play", 0, [card(10)]),
+      makeAction("play", 1, [card(9)]),
+      makeAction("play", 2, [card(10)]),
+      makeAction("play", 3, [card(9)]),
+    ],
+    pile: [card(9)],
+    expectRun: false,
+  },
+  {
+    name: "ten-rule partial 10-9-10 is not a run",
+    actions: [
+      makeAction("play", 0, [card(10)]),
+      makeAction("play", 1, [card(9)]),
+      makeAction("play", 2, [card(10)]),
+    ],
+    pile: [card(10)],
+    expectRun: false,
+  },
+  {
+    name: "descending with 10: J-10-9 is a run",
+    actions: [
+      makeAction("play", 0, [card(11)]),
+      makeAction("play", 1, [card(10)]),
+      makeAction("play", 2, [card(9)]),
+    ],
+    pile: [card(9)],
+    expectRun: true,
+    expectValues: [11, 10, 9],
+  },
 ];
 
 function detectRun(

@@ -5,6 +5,7 @@ import Svg, { Path, Circle, Rect, Line } from "react-native-svg";
 type IconName =
   | "plus"
   | "globe"
+  | "multiplayer"
   | "shuffle"
   | "person"
   | "trophy"
@@ -37,6 +38,34 @@ export default function MenuIcon({ name, size = 20, color = "#d4af37" }: Props) 
           <Path d="M3 12h18" stroke={c} strokeWidth={sw} />
           <Path d="M12 3c2.5 2.5 4 5.5 4 9s-1.5 6.5-4 9" stroke={c} strokeWidth={sw} />
           <Path d="M12 3c-2.5 2.5-4 5.5-4 9s1.5 6.5 4 9" stroke={c} strokeWidth={sw} />
+        </Svg>
+      );
+    case "multiplayer":
+      return (
+        <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+          <Circle cx="12" cy="11" r="6.5" stroke={c} strokeWidth={sw} />
+          <Path d="M5.5 11h13" stroke={c} strokeWidth={sw} strokeLinecap="round" />
+          <Path
+            d="M12 4.5c1.8 1.8 2.8 3.9 2.8 6.5s-1 4.7-2.8 6.5"
+            stroke={c}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+          <Path
+            d="M12 4.5c-1.8 1.8-2.8 3.9-2.8 6.5s1 4.7 2.8 6.5"
+            stroke={c}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+          <Circle cx="5" cy="18" r="1.4" fill={c} />
+          <Circle cx="12" cy="20" r="1.4" fill={c} />
+          <Circle cx="19" cy="18" r="1.4" fill={c} />
+          <Path
+            d="M8.2 16.8L10.4 14.8M15.8 16.8l-2.2-2"
+            stroke={c}
+            strokeWidth={sw * 0.85}
+            strokeLinecap="round"
+          />
         </Svg>
       );
     case "shuffle":

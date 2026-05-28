@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { ui } from "../styles/uiStandards";
+import { useAppTheme } from "../context/ThemeContext";
 
 type Props = {
   title: string;
@@ -13,6 +13,8 @@ export default function ScreenTopBar({
   onBack,
   backLabel = "Leave",
 }: Props) {
+  const { ui } = useAppTheme();
+
   return (
     <View style={ui.topBar}>
       {onBack ? (

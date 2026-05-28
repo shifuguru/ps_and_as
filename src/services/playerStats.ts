@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { roleForPlacement } from "../utils/roundRoles";
 
 const STORAGE_KEY = "@ps_and_as_player_stats";
 
@@ -10,6 +11,8 @@ export type PlayerStats = {
   timesAsshole: number;
   presidentStreak: number;
   bestPresidentStreak: number;
+  xp: number;
+  tricksWon: number;
 };
 
 export type AchievementDef = {
@@ -28,7 +31,11 @@ export const DEFAULT_PLAYER_STATS: PlayerStats = {
   timesAsshole: 0,
   presidentStreak: 0,
   bestPresidentStreak: 0,
+  xp: 0,
+  tricksWon: 0,
 };
+
+export const TRICK_WIN_XP = 15;
 
 export const ACHIEVEMENTS: AchievementDef[] = [
   {
@@ -58,6 +65,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     description: "Finish as Vice President",
     emoji: "⭐",
     check: (s) => s.timesVicePresident >= 1,
+  },
+  {
+    id: "vice_asshole",
+    title: "Almost Last",
+    description: "Finish as Vice Asshole",
+    emoji: "😬",
+    check: (s) => s.timesViceAsshole >= 1,
   },
   {
     id: "hot_streak",
@@ -100,6 +114,8 @@ function normalizeStats(raw: Partial<PlayerStats> | null): PlayerStats {
     timesAsshole: raw?.timesAsshole ?? 0,
     presidentStreak: raw?.presidentStreak ?? 0,
     bestPresidentStreak: raw?.bestPresidentStreak ?? 0,
+    xp: raw?.xp ?? 0,
+    tricksWon: raw?.tricksWon ?? 0,
   };
 }
 
@@ -130,7 +146,9 @@ export async function recordRoundResult(
   const stats = await getPlayerStats();
   stats.roundsPlayed += 1;
 
-  if (placementIndex === 0) {
+  const role = roleForPlacement(placementIndex, playerCount);
+
+  if (role === "President") {
     stats.timesPresident += 1;
     stats.presidentStreak += 1;
     stats.bestPresidentStreak = Math.max(
@@ -141,19 +159,26 @@ export async function recordRoundResult(
     stats.presidentStreak = 0;
   }
 
-  if (playerCount >= 5) {
-    if (placementIndex === 1) stats.timesVicePresident += 1;
-    if (placementIndex === playerCount - 2) stats.timesViceAsshole += 1;
-    if (placementIndex === playerCount - 1) stats.timesAsshole += 1;
-  } else if (placementIndex === playerCount - 1) {
-    stats.timesAsshole += 1;
-  }
+  if (role === "Vice President") stats.timesVicePresident += 1;
+  if (role === "Vice Asshole") stats.timesViceAsshole += 1;
+  if (role === "Asshole") stats.timesAsshole += 1;
 
   await savePlayerStats(stats);
   if (Platform.OS === "ios") {
     const { syncStatsToGameCenter } = await import("./gameCenterSync");
     void syncStatsToGameCenter(stats);
   }
+  return stats;
+}
+
+/** Award XP when the local human wins a trick. */
+export async function recordTrickWin(
+  xp = TRICK_WIN_XP,
+): Promise<PlayerStats> {
+  const stats = await getPlayerStats();
+  stats.tricksWon += 1;
+  stats.xp += xp;
+  await savePlayerStats(stats);
   return stats;
 }
 

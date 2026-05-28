@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
-import { View, Animated, StyleSheet, Text, TouchableOpacity, Platform } from "react-native";
+import { View, Animated, StyleSheet, Text, TouchableOpacity, Platform, Alert } from "react-native";
 import SplashScreen from "./src/screens/SplashScreen";
 import CreateGame from "./src/screens/CreateGame";
 import FindGame from "./src/screens/FindGame";
@@ -9,7 +9,7 @@ import Settings from "./src/screens/Settings";
 import MainMenu from "./src/screens/MainMenu";
 import ScreenContainer from "./src/components/ScreenContainer";
 import BlurPanel from "./src/components/BlurPanel";
-import { ui, BLUR_PANEL } from "./src/styles/uiStandards";
+import { ThemeProvider, useAppTheme } from "./src/context/ThemeContext";
 import { useMenuAudio } from "./src/hooks/useMenuAudio";
 import AnimatedBackground from "./src/components/AnimatedBackground";
 import { SocketAdapter } from "./src/game/socketAdapter";
@@ -17,20 +17,37 @@ import { MockAdapter } from "./src/game/network";
 import type { LobbyMember } from "./src/game/network";
 import { isSocketAdapter } from "./src/game/socketAdapter";
 import { getOrCreatePlayerId } from "./src/services/gameCenter";
+import {
+  clearLobbySession,
+  getLobbySession,
+  saveLobbySession,
+  type LobbySession,
+} from "./src/services/lobbySession";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import FeltBackground from "./src/components/FeltBackground";
+import FullscreenBlurScrim from "./src/components/FullscreenBlurScrim";
 import { DEFAULT_FELT_COLOR } from "./src/services/wallpaper";
 import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
 import { tryCollapseSafariChrome } from "./src/utils/safariChrome";
+import { useVisualViewportSize } from "./src/hooks/useVisualViewportSize";
+import { useAppFonts } from "./src/hooks/useAppFonts";
+import { StatusBar } from "expo-status-bar";
 
-export default function App() {
+function AppContent() {
+  const { colors, ui, blur, feltTint, setFeltTint, refreshFeltTint } = useAppTheme();
+  const viewport = useVisualViewportSize();
   // splashVisible: whether the splash overlay is still mounted
   // menuVisible: whether the main menu should be shown (after splash fully hidden)
   const [splashVisible, setSplashVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const { playEffect, toggleMute, isMuted, muted } = useMenuAudio();
-  const [screen, setScreen] = useState<"menu" | "create" | "find" | "game" | "achievements" | "settings">("menu");
+  const [screen, setScreen] = useState<
+    "menu" | "create" | "find" | "game"
+  >("menu");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [achievementsOpen, setAchievementsOpen] = useState(false);
   const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[] | null>(null);
+  const [dealSeed, setDealSeed] = useState<number | undefined>(undefined);
   const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
   const [roomAdapter, setRoomAdapter] = useState<SocketAdapter | null>(null);
@@ -47,6 +64,8 @@ export default function App() {
     } catch {
       /* ignore */
     }
+    void clearLobbySession();
+    setPendingRejoin(null);
     setRoomAdapter(null);
     setJoinedRoomId(null);
     setActiveRoomId(null);
@@ -58,12 +77,49 @@ export default function App() {
     if (screen !== "find") return null;
     try {
       console.log("[App] Creating network adapter for discovery only...");
-      return new SocketAdapter(undefined, "", "", false);
+      return new SocketAdapter(undefined, "", "", "", false);
     } catch (e) {
       console.error("[App] Failed to create network adapter:", e);
       return null;
     }
   }, [screen]);
+
+  useEffect(() => {
+    void (async () => {
+      const session = await getLobbySession();
+      if (session) setPendingRejoin(session);
+    })();
+  }, []);
+
+  const rejoinLobby = async () => {
+    if (!pendingRejoin) return;
+    const profile = await getOrCreatePlayerId();
+    if (profile.id !== pendingRejoin.profileId) {
+      await clearLobbySession();
+      setPendingRejoin(null);
+      Alert.alert(
+        "Cannot Rejoin",
+        "This lobby was saved under a different player profile on this device.",
+      );
+      return;
+    }
+    playEffect("click");
+    setLocalPlayerName(pendingRejoin.playerName);
+    setRoomAdapter(
+      new SocketAdapter(
+        undefined,
+        pendingRejoin.roomId,
+        pendingRejoin.playerName,
+        profile.id,
+        true,
+      ),
+    );
+    setJoinedRoomId(pendingRejoin.roomId);
+    setActiveRoomId(pendingRejoin.roomId);
+    setIsOnlineGame(true);
+    setScreen("create");
+    setPendingRejoin(null);
+  };
 
   const splashOpacity = useRef(new Animated.Value(1)).current;
   const menuOpacity = useRef(new Animated.Value(0)).current;
@@ -90,6 +146,10 @@ export default function App() {
   const startRandomGame = async () => {
     const playerInfo = await getOrCreatePlayerId();
     const hostName = playerInfo.displayName || "Player";
+    console.log("[App] Quick Game requested", {
+      hostName,
+      playerInfoId: playerInfo.id,
+    });
     setLocalPlayerName(hostName);
     setLocalPlayerId(playerInfo.id);
     setLobbyMembers([
@@ -113,7 +173,7 @@ export default function App() {
 
   const primaryButtons: {
     label: string;
-    icon: "plus" | "shuffle" | "person" | "globe" | "trophy" | "gear";
+    icon: "plus" | "shuffle" | "person" | "globe" | "multiplayer" | "trophy" | "gear";
     action: () => void;
   }[] = [
     {
@@ -134,38 +194,44 @@ export default function App() {
         void startRandomGame();
       },
     },
-    /* LOCAL GAME DISABLED FOR NOW
     {
-      label: "Local",
-      icon: "person",
+      label: "Multiplayer",
+      icon: "multiplayer",
       action: () => {
         disconnectRoom();
         setIsOnlineGame(false);
-        setScreen("create");
+        setRoomAdapter(null);
+        setJoinedRoomId(null);
+        setScreen("find");
       },
     },
-    */
-    /* FIND GAME DISABLED FOR NOW
-    {
-      label: "Find Game",
-      icon: "globe",
-      action: () => setScreen("find"),
-    },
-    */
     {
       label: "Achievements",
       icon: "trophy",
-      action: () => setScreen("achievements"),
+      action: () => openAchievements(),
     },
     {
       label: "Settings",
       icon: "gear",
-      action: () => setScreen("settings"),
+      action: () => openSettings(),
     },
   ];
   const [wallpaperSource, setWallpaperSource] = useState<any>(require("./assets/ps_and_as_bg.png"));
-  const [wallpaperTint, setWallpaperTint] = useState<string | null>(null);
   const [wallpaperRawUri, setWallpaperRawUri] = useState<string | null>(null);
+  const [pendingRejoin, setPendingRejoin] = useState<LobbySession | null>(null);
+
+  useEffect(() => {
+    console.log("[App] screen state", {
+      screen,
+      menuVisible,
+      isOnlineGame,
+      joinedRoomId,
+      activeRoomId,
+      localAdapter: !!localAdapter,
+      roomAdapter: !!roomAdapter,
+      lobbyMembersCount: lobbyMembers?.length ?? 0,
+    });
+  }, [screen, menuVisible, isOnlineGame, joinedRoomId, activeRoomId, localAdapter, roomAdapter, lobbyMembers]);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -175,14 +241,15 @@ export default function App() {
     style.setAttribute("data-app", "no-text-select");
     style.textContent = `
       html, body, #root {
-        height: 100%;
-        min-height: 100%;
-        min-height: 100dvh;
+        position: fixed;
+        inset: 0;
+        width: 100%;
         margin: 0;
         padding: 0;
-        background-color: ${DEFAULT_FELT_COLOR};
+        background-color: ${colors.surface};
         overflow: hidden;
         overscroll-behavior: none;
+        touch-action: manipulation;
       }
       @supports (height: 100dvh) {
         html, body, #root {
@@ -205,7 +272,7 @@ export default function App() {
     return () => {
       doc.head.removeChild(style);
     };
-  }, []);
+  }, [colors.surface]);
 
   useEffect(() => {
     (async () => {
@@ -215,7 +282,7 @@ export default function App() {
         const tint = await svc.getWallpaperTint();
         const raw = await svc.getWallpaperUri();
         setWallpaperSource(src);
-        setWallpaperTint(tint);
+        setFeltTint(tint ?? DEFAULT_FELT_COLOR);
         setWallpaperRawUri(raw);
       } catch (e) {
         // ignore
@@ -230,20 +297,41 @@ export default function App() {
       const tint = await svc.getWallpaperTint();
       const raw = await svc.getWallpaperUri();
       setWallpaperSource(src);
-      setWallpaperTint(tint);
+      setFeltTint(tint ?? DEFAULT_FELT_COLOR);
+      await refreshFeltTint();
       setWallpaperRawUri(raw);
     } catch (e) {
       // ignore
     }
   };
 
+  const openSettings = () => setSettingsOpen(true);
+
+  const closeSettings = () => {
+    void reloadWallpaper();
+    setSettingsOpen(false);
+  };
+
+  const openAchievements = () => setAchievementsOpen(true);
+
+  const closeAchievements = () => setAchievementsOpen(false);
+
   return (
-    <SafeAreaProvider>
-    <View style={[{ flex: 1 }, Platform.OS === "web" && appStyles.webRoot]}>
+    <>
+      <StatusBar style={colors.statusBarStyle} />
+    <View
+      style={[
+        { flex: 1 },
+        Platform.OS === "web" && [
+          appStyles.webRoot,
+          { height: viewport.height, maxHeight: viewport.height },
+        ],
+      ]}
+    >
         {/* Persistent felt wallpaper — one instance for the whole app */}
         <FeltBackground
           fullBleed
-          tint={wallpaperTint ?? DEFAULT_FELT_COLOR}
+          tint={feltTint}
         />
 
         <View style={appStyles.appContent}>
@@ -252,8 +340,8 @@ export default function App() {
           screen !== "create" &&
           screen !== "find" &&
           screen !== "menu" &&
-          screen !== "achievements" &&
-          screen !== "settings" && <AnimatedBackground />}
+          !settingsOpen &&
+          !achievementsOpen && <AnimatedBackground />}
 
         {/* Splash overlay (kept mounted until hide animation finishes) */}
         {splashVisible && (
@@ -276,6 +364,54 @@ export default function App() {
         {/* Main menu — consolidated with icons */}
         {menuVisible && screen === "menu" && (
           <Animated.View style={[{ flex: 1 }, { opacity: menuOpacity }]}>
+            {pendingRejoin ? (
+              <View
+                style={[
+                  appStyles.rejoinBanner,
+                  {
+                    backgroundColor: colors.btnGoldBg,
+                    borderColor: colors.btnGoldBorder,
+                  },
+                ]}
+              >
+                <Text style={[appStyles.rejoinTitle, { color: colors.onFelt.textPrimary }]}>
+                  Resume your lobby?
+                </Text>
+                <Text style={[appStyles.rejoinBody, { color: colors.onFelt.textSecondary }]} numberOfLines={2}>
+                  {pendingRejoin.isHost ? "Host" : "Guest"} · room{" "}
+                  {pendingRejoin.roomName || pendingRejoin.roomId}
+                </Text>
+                <View style={appStyles.rejoinActions}>
+                  <TouchableOpacity
+                    style={[appStyles.rejoinPrimary, { backgroundColor: colors.gold }]}
+                    onPress={() => void rejoinLobby()}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[appStyles.rejoinPrimaryText, { color: colors.textOnGold }]}>
+                      Rejoin
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      appStyles.rejoinSecondary,
+                      {
+                        backgroundColor: colors.btnSecondaryBg,
+                        borderColor: colors.btnSecondaryBorder,
+                      },
+                    ]}
+                    onPress={() => {
+                      void clearLobbySession();
+                      setPendingRejoin(null);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[appStyles.rejoinSecondaryText, { color: colors.btnSecondaryText }]}>
+                      Dismiss
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
             <MainMenu
               buttons={primaryButtons}
               onButtonPress={(action) => {
@@ -285,36 +421,39 @@ export default function App() {
             />
           </Animated.View>
         )}
-        {menuVisible && screen === "achievements" && (
-          <Achievements onBack={() => setScreen("menu")} />
-        )}
-        {menuVisible && screen === "settings" && (
-          <Settings
-            onWallpaperPreview={(tint) => setWallpaperTint(tint)}
-            onWallpaperChange={() => reloadWallpaper()}
-            onBack={() => {
-              void reloadWallpaper();
-              setScreen("menu");
-            }}
-          />
-        )}
         {menuVisible && screen === "create" && (
           <CreateGame 
             adapter={roomAdapter || undefined} 
             isJoining={!!roomAdapter && !!joinedRoomId}
             joinRoomId={joinedRoomId || undefined}
-            onRoomReady={(roomId) => setActiveRoomId(roomId)}
+            onRoomReady={(roomId) => {
+              setActiveRoomId(roomId);
+              void (async () => {
+                const profile = await getOrCreatePlayerId();
+                await saveLobbySession({
+                  roomId,
+                  profileId: profile.id,
+                  playerName: profile.displayName,
+                  isHost: !joinedRoomId,
+                  roomName: roomId,
+                });
+                setPendingRejoin(null);
+              })();
+            }}
             onBack={() => {
+              const wasOnlineLobby = isSocketAdapter(roomAdapter);
               disconnectRoom();
               setIsOnlineGame(false);
-              setScreen("menu");
+              setScreen(wasOnlineLobby ? "find" : "menu");
             }}
-            onNavigateToSettings={() => setScreen("settings")}
-            onStart={(members, localName, localSocketId) => {
+            onNavigateToSettings={openSettings}
+            onNavigateToAchievements={openAchievements}
+            onStart={(members, localName, localSocketId, seed) => {
               console.log("[App] CreateGame onStart:", members, localName, localSocketId);
               setLobbyMembers(members);
               setLocalPlayerName(localName);
               if (localSocketId) setLocalPlayerId(localSocketId);
+              setDealSeed(typeof seed === "number" ? seed : undefined);
               const online = isSocketAdapter(roomAdapter);
               setIsOnlineGame(online);
               if (online) {
@@ -338,15 +477,39 @@ export default function App() {
             <FindGame 
               adapter={discoveryAdapter} 
               onBack={() => setScreen("menu")}
-              onNavigateToSettings={() => setScreen("settings")}
+              onNavigateToSettings={openSettings}
+            onNavigateToAchievements={openAchievements}
+              onHostGame={(name) => {
+                void (async () => {
+                  const profile = await getOrCreatePlayerId();
+                  setLocalPlayerName(name);
+                  setRoomAdapter(
+                    new SocketAdapter(undefined, "", name, profile.id, false),
+                  );
+                  setJoinedRoomId(null);
+                  setActiveRoomId(null);
+                  setIsOnlineGame(true);
+                  setScreen("create");
+                })();
+              }}
               onJoinRoom={(roomId, playerName) => {
-                setRoomAdapter(
-                  new SocketAdapter(undefined, roomId, playerName, true),
-                );
-                setJoinedRoomId(roomId);
-                setActiveRoomId(roomId);
-                setIsOnlineGame(true);
-                setScreen("create");
+                void (async () => {
+                  const profile = await getOrCreatePlayerId();
+                  setLocalPlayerName(playerName);
+                  setRoomAdapter(
+                    new SocketAdapter(
+                      undefined,
+                      roomId,
+                      playerName,
+                      profile.id,
+                      true,
+                    ),
+                  );
+                  setJoinedRoomId(roomId);
+                  setActiveRoomId(roomId);
+                  setIsOnlineGame(true);
+                  setScreen("create");
+                })();
               }} 
             />
           ) : (
@@ -359,7 +522,7 @@ export default function App() {
                   padding: 24,
                 }}
               >
-                <BlurPanel style={[ui.panel, { width: "100%", maxWidth: 360 }]} {...BLUR_PANEL} intensity={52}>
+                <BlurPanel style={[ui.panel, { width: "100%", maxWidth: 360 }]} {...blur.panel} intensity={52}>
                   <Text style={ui.panelEyebrow}>Connection</Text>
                   <Text style={ui.emptyTitle}>Network Unavailable</Text>
                   <Text style={[ui.emptyBody, { marginBottom: 16 }]}>
@@ -380,6 +543,7 @@ export default function App() {
         {menuVisible && screen === "game" && (
           <GameScreen 
             initialLobbyPlayers={lobbyMembers ?? undefined}
+            dealSeed={dealSeed}
             localPlayerName={localPlayerName ?? undefined}
             localPlayerId={localPlayerId ?? undefined}
             adapter={
@@ -388,6 +552,7 @@ export default function App() {
                 : localAdapter ?? undefined
             }
             roomId={activeRoomId ?? joinedRoomId ?? undefined}
+            onNavigateToAchievements={openAchievements}
             onBack={() => {
               if (isOnlineGame && activeRoomId && roomAdapter) {
                 roomAdapter.leaveRoom(activeRoomId);
@@ -400,13 +565,57 @@ export default function App() {
             }}
           />
         )}
+        {menuVisible && settingsOpen && (
+          <View style={appStyles.settingsOverlay}>
+            <FullscreenBlurScrim />
+            <View style={appStyles.settingsForeground}>
+              <Settings
+                onWallpaperPreview={setFeltTint}
+                onWallpaperChange={() => reloadWallpaper()}
+                onBack={closeSettings}
+              />
+            </View>
+          </View>
+        )}
+        {menuVisible && achievementsOpen && (
+          <View style={appStyles.settingsOverlay}>
+            <FullscreenBlurScrim />
+            <View style={appStyles.settingsForeground}>
+              <Achievements onBack={closeAchievements} />
+            </View>
+          </View>
+        )}
         </View>
     </View>
+    </>
+  );
+}
+
+export default function App() {
+  const { ready: fontsReady } = useAppFonts();
+
+  if (!fontsReady) {
+    return (
+      <SafeAreaProvider>
+        <View style={appStyles.fontBoot} />
+      </SafeAreaProvider>
+    );
+  }
+
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
 
 const appStyles = StyleSheet.create({
+  fontBoot: {
+    flex: 1,
+    backgroundColor: "#000000",
+  },
   webRoot: {
     minHeight: "100dvh",
     height: "100dvh",
@@ -416,5 +625,59 @@ const appStyles = StyleSheet.create({
     flex: 1,
     position: "relative",
     zIndex: 1,
+  },
+  settingsOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 200,
+    elevation: 200,
+  },
+  settingsForeground: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+    elevation: 1,
+  },
+  rejoinBanner: {
+    position: "absolute",
+    top: 12,
+    left: 16,
+    right: 16,
+    zIndex: 20,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  rejoinTitle: {
+    fontWeight: "800",
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  rejoinBody: {
+    fontSize: 12,
+    marginBottom: 10,
+  },
+  rejoinActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  rejoinPrimary: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  rejoinPrimaryText: {
+    fontWeight: "800",
+    fontSize: 13,
+  },
+  rejoinSecondary: {
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  rejoinSecondaryText: {
+    fontWeight: "700",
+    fontSize: 13,
   },
 });

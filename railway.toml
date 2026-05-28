@@ -1,0 +1,13 @@
+# Railway deploy config — game server only (not the Expo app).
+# https://docs.railway.app/reference/config-as-code
+
+[build]
+# Install deps; no Expo web export needed for the socket server.
+buildCommand = "npm install"
+
+[deploy]
+startCommand = "npm run start:server"
+healthcheckPath = "/"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

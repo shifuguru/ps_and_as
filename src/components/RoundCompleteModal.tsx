@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Modal,
   View,
@@ -9,7 +9,9 @@ import {
 } from "react-native";
 import BlurPanel from "./BlurPanel";
 import { triggerHaptic } from "../utils/haptics";
-import { GOLD, ui, BLUR_MODAL } from "../styles/uiStandards";
+import { useAppTheme } from "../context/ThemeContext";
+
+import { roleEmoji, roleForPlacement } from "../utils/roundRoles";
 
 type Player = { id: string; name: string };
 
@@ -24,32 +26,6 @@ type Props = {
   onToggleReady: () => void;
 };
 
-function roleForPlacement(index: number, total: number): string {
-  if (index === 0) return "President";
-  if (total >= 5) {
-    if (index === 1) return "Vice President";
-    if (index === total - 1) return "Asshole";
-    if (index === total - 2) return "Vice Asshole";
-  } else if (index === total - 1) {
-    return "Asshole";
-  }
-  return "Civilian";
-}
-
-function roleEmoji(role: string): string | null {
-  switch (role) {
-    case "President":
-      return "👑";
-    case "Vice President":
-      return "⭐";
-    case "Asshole":
-    case "Vice Asshole":
-      return "💩";
-    default:
-      return null;
-  }
-}
-
 export default function RoundCompleteModal({
   visible,
   finishedOrder,
@@ -59,6 +35,8 @@ export default function RoundCompleteModal({
   onQuit,
   onToggleReady,
 }: Props) {
+  const { colors, ui, blur } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(width - 48, 420);
   const readyCount = Object.values(readyStates).filter(Boolean).length;
@@ -69,7 +47,7 @@ export default function RoundCompleteModal({
       <View style={ui.modalOverlay}>
         <BlurPanel
           style={[ui.modalCard, { width: cardWidth, maxWidth: cardWidth }]}
-          {...BLUR_MODAL}
+          preset={blur.modal}
         >
           <Text style={ui.modalTitle}>Round Complete</Text>
           <Text style={[ui.modalBody, { fontSize: 22, marginBottom: 18 }]}>Final Rankings</Text>
@@ -128,7 +106,7 @@ export default function RoundCompleteModal({
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[ui.actionPrimary, isReady && { backgroundColor: GOLD }]}
+              style={[ui.actionPrimary, isReady && { backgroundColor: colors.gold }]}
               activeOpacity={0.82}
               onPress={() => {
                 triggerHaptic("medium");
@@ -142,7 +120,7 @@ export default function RoundCompleteModal({
               <Text
                 style={[
                   ui.actionPrimaryText,
-                  isReady && { color: "#111111" },
+                  isReady && { color: colors.textOnGold },
                 ]}
               >
                 {isReady ? "Not Ready" : "Next Round"}
@@ -155,7 +133,8 @@ export default function RoundCompleteModal({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+  return StyleSheet.create({
   rankings: {
     width: "100%",
     marginBottom: 14,
@@ -167,16 +146,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 14,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: colors.btnSecondaryBg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255, 255, 255, 0.12)",
+    borderColor: colors.panelBorder,
   },
   rankRowLocal: {
-    borderColor: "rgba(212, 175, 55, 0.45)",
-    backgroundColor: "rgba(212, 175, 55, 0.1)",
+    borderColor: colors.btnGoldBorder,
+    backgroundColor: colors.btnGoldBg,
   },
   rankIndex: {
-    color: GOLD,
+    color: colors.gold,
     fontSize: 16,
     fontWeight: "800",
     width: 24,
@@ -188,12 +167,12 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   rankName: {
-    color: "#ffffff",
+    color: colors.textPrimary,
     fontSize: 15,
     fontWeight: "700",
   },
   rankRole: {
-    color: "rgba(255, 255, 255, 0.65)",
+    color: colors.textMuted,
     fontSize: 11,
     fontWeight: "600",
     marginTop: 2,
@@ -204,22 +183,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "rgba(212, 175, 55, 0.18)",
+    backgroundColor: colors.btnGoldBg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(212, 175, 55, 0.35)",
+    borderColor: colors.btnGoldBorder,
   },
   readyBadgeText: {
-    color: GOLD,
+    color: colors.gold,
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 0.2,
   },
   readyCount: {
-    color: "rgba(255, 255, 255, 0.55)",
+    color: colors.textMuted,
     fontSize: 11,
     fontWeight: "600",
     letterSpacing: 0.2,
     textAlign: "center",
     marginBottom: 14,
   },
-});
+  });
+}

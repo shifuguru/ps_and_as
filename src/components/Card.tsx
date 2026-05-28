@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, TouchableWithoutFeedback, View, StyleSheet, Easing, Platform, Text } from "react-native";
-import { Card as CardType } from "../game/ruleset";
+import { Card as CardType, formatCardRank } from "../game/ruleset";
 
 export default function Card({
   card,
@@ -111,14 +111,7 @@ export default function Card({
       }
     })();
 
-    const label = (() => {
-      if (card.suit === "joker") return "JOKER";
-      if (card.value <= 10 && card.value >= 2) return String(card.value);
-      if (card.value === 11) return "J";
-      if (card.value === 12) return "Q";
-      if (card.value === 13) return "K";
-      return "A";
-    })();
+    const label = formatCardRank(card);
 
     return (
       <View style={[local.cardTableShell, local.cardTable, style]}>
@@ -200,14 +193,7 @@ export default function Card({
     }
   })();
 
-  const label = (() => {
-    if (card.suit === "joker") return "JOKER";
-    if (card.value <= 10 && card.value >= 2) return String(card.value);
-    if (card.value === 11) return "J";
-    if (card.value === 12) return "Q";
-    if (card.value === 13) return "K";
-    return "A";
-  })();
+  const label = formatCardRank(card);
 
   return (
     <Animated.View

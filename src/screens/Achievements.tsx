@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,8 @@ import BottomBar, {
 } from "../components/BottomBar";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { playerInitials } from "../utils/playerDisplay";
-import { GOLD, BLUR_PANEL, contentMaxWidth, ui } from "../styles/uiStandards";
+import { contentMaxWidth } from "../styles/uiStandards";
+import { useAppTheme } from "../context/ThemeContext";
 import {
   authenticatePlayer,
   getOrCreatePlayerId,
@@ -40,6 +41,8 @@ import {
 } from "../services/playerStats";
 
 export default function Achievements({ onBack }: { onBack: () => void }) {
+  const { colors, ui } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
   const { width } = useWindowDimensions();
   const contentMax = contentMaxWidth(width);
@@ -110,12 +113,12 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
     return (
       <ScreenContainer ignoreHeaderOffset style={styles.loadingRoot}>
         <View style={styles.loadingCenter}>
-          <ActivityIndicator size="large" color={GOLD} />
+          <ActivityIndicator size="large" color={colors.gold} />
           <Text style={styles.loadingText}>Loading Profile…</Text>
         </View>
         <BottomBar>
           <BottomBarControls style={styles.bottomControls}>
-            <BottomBarLeave onPress={onBack} />
+            <BottomBarLeave onPress={onBack} label="Back" />
           </BottomBarControls>
         </BottomBar>
       </ScreenContainer>
@@ -140,7 +143,7 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
           <ScreenTopBar title="Achievements" />
 
           {/* Profile */}
-          <BlurPanel style={ui.panel} {...BLUR_PANEL} intensity={52}>
+          <BlurPanel style={ui.panel} intensity={52}>
             <Text style={ui.panelEyebrow}>Player Profile</Text>
 
             <View style={styles.profileRow}>
@@ -164,6 +167,7 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
           <BlurPanel style={ui.panel} intensity={48}>
             <Text style={ui.panelEyebrow}>Statistics</Text>
             <View style={styles.statsGrid}>
+              <StatCard label="XP" value={String(stats?.xp ?? 0)} />
               <StatCard label="Rounds" value={String(stats?.roundsPlayed ?? 0)} />
               <StatCard
                 label="President"
@@ -174,6 +178,7 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
                 label="Achievements"
                 value={`${unlocked.length}/${ACHIEVEMENTS.length}`}
               />
+              <StatCard label="Tricks" value={String(stats?.tricksWon ?? 0)} />
             </View>
 
             <View style={styles.roleRow}>
@@ -312,7 +317,7 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
                       disabled={isAuthenticating}
                     >
                       {isAuthenticating ? (
-                        <ActivityIndicator size="small" color={GOLD} />
+                        <ActivityIndicator size="small" color={colors.gold} />
                       ) : (
                         <Text style={ui.actionPrimaryText}>Sign In</Text>
                       )}
@@ -321,7 +326,7 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
                 </>
               )}
             </View>
-            <BottomBarLeave onPress={onBack} />
+            <BottomBarLeave onPress={onBack} label="Back" />
           </View>
         </BottomBarControls>
       </BottomBar>
@@ -330,6 +335,8 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={styles.statCard}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -339,6 +346,8 @@ function StatCard({ label, value }: { label: string; value: string }) {
 }
 
 function RolePill({ label, count }: { label: string; count: number }) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={styles.rolePill}>
       <Text style={styles.rolePillLabel}>{label}</Text>
@@ -347,7 +356,8 @@ function RolePill({ label, count }: { label: string; count: number }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+  return StyleSheet.create({
   loadingRoot: { flex: 1 },
   loadingCenter: {
     flex: 1,
@@ -355,7 +365,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   loadingText: {
-    color: "rgba(255,255,255,0.7)",
+    color: colors.textSecondary,
     marginTop: 14,
     fontSize: 15,
   },
@@ -375,15 +385,15 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "rgba(212, 175, 55, 0.18)",
+    backgroundColor: colors.btnGoldBg,
     borderWidth: 2,
-    borderColor: "rgba(212, 175, 55, 0.45)",
+    borderColor: colors.btnGoldBorder,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
   },
   avatarText: {
-    color: "#fff",
+    color: colors.textPrimary,
     fontWeight: "800",
     fontSize: 16,
   },
@@ -392,12 +402,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   profileName: {
-    color: "#fff",
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: "700",
   },
   profileHint: {
-    color: "rgba(255,255,255,0.55)",
+    color: colors.textMuted,
     fontSize: 12,
     marginTop: 2,
     fontWeight: "600",
@@ -416,12 +426,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 8,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: colors.btnSecondaryBg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: colors.panelBorder,
   },
   statLabel: {
-    color: "rgba(255,255,255,0.6)",
+    color: colors.textMuted,
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 0.2,
@@ -429,7 +439,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   statValue: {
-    color: "#fff",
+    color: colors.textPrimary,
     fontSize: 22,
     fontWeight: "800",
     textAlign: "center",
@@ -447,22 +457,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: colors.btnSecondaryBg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: colors.panelBorder,
   },
   rolePillLabel: {
-    color: "rgba(255,255,255,0.55)",
+    color: colors.textMuted,
     fontSize: 10,
     fontWeight: "600",
   },
   rolePillValue: {
-    color: GOLD,
+    color: colors.gold,
     fontSize: 12,
     fontWeight: "800",
   },
   streakText: {
-    color: "rgba(255,255,255,0.5)",
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: "600",
     marginTop: 8,
@@ -477,15 +487,15 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: colors.btnSecondaryBg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: colors.panelBorder,
     opacity: 0.55,
   },
   achievementRowEarned: {
     opacity: 1,
-    backgroundColor: "rgba(212, 175, 55, 0.1)",
-    borderColor: "rgba(212, 175, 55, 0.35)",
+    backgroundColor: colors.btnGoldBg,
+    borderColor: colors.btnGoldBorder,
   },
   achievementEmoji: {
     fontSize: 22,
@@ -498,28 +508,28 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   achievementTitle: {
-    color: "#fff",
+    color: colors.textPrimary,
     fontSize: 14,
     fontWeight: "700",
   },
   achievementTitleLocked: {
-    color: "rgba(255,255,255,0.65)",
+    color: colors.textSecondary,
   },
   achievementDesc: {
-    color: "rgba(255,255,255,0.5)",
+    color: colors.textMuted,
     fontSize: 11,
     marginTop: 2,
   },
   achievementStatus: {
-    color: "rgba(255,255,255,0.25)",
+    color: colors.textMuted,
     fontSize: 16,
     fontWeight: "800",
   },
   achievementStatusEarned: {
-    color: GOLD,
+    color: colors.gold,
   },
   accountText: {
-    color: "rgba(255,255,255,0.6)",
+    color: colors.textSecondary,
     fontSize: 13,
     lineHeight: 19,
     marginBottom: 12,
@@ -527,4 +537,5 @@ const styles = StyleSheet.create({
   gcActions: {
     gap: 8,
   },
-});
+  });
+}

@@ -1,12 +1,22 @@
 /** Shared play-area geometry for table, seats, and card pile. */
 
+import {
+  computeSeatDimensions,
+  computeSeatTableGap,
+  SIDE_ANCHOR_CENTER_BLEND,
+  type SeatDimensions,
+} from "./seatDimensions";
+
+/** @deprecated Use layout.localBandHeight from computePlayAreaLayout. */
 export const LOCAL_SEAT_BAND = 88;
+/** Pushes the local player avatar up toward the table center (away from the hand). */
+export const LOCAL_SEAT_TABLE_LIFT = 44;
 export const PLAY_TYPE_PILL_BAND = 12;
+/** @deprecated Use layout seat footprint from computePlayAreaLayout. */
 export const SEAT_FOOTPRINT_H = 92;
+/** @deprecated Use layout seat footprint from computePlayAreaLayout. */
 export const SEAT_FOOTPRINT_W = 76;
 export const OPPONENT_TOP_PAD = 30;
-/** Gap between opponent avatars and the card pile. */
-export const CARD_RING_GAP = 20;
 /** How far a seat avatar extends toward the table center from its ring position. */
 export const RING_SEAT_INSET = 0.5;
 export const RING_BOTTOM_PAD = 8;
@@ -19,7 +29,7 @@ export type OpponentRingLayout = {
   minTop: number;
   cx: number;
   cy: number;
-  /** Single radius — equal rx/ry so equal angle steps form a circle, not a diamond. */
+  /** Distance from ring center to opponent avatar centers. */
   radius: number;
   totalPlayers: number;
 };
@@ -29,6 +39,7 @@ export type PlayAreaLayout = {
   height: number;
   aspect: number;
   isCompact: boolean;
+  isVeryCompact: boolean;
   isTall: boolean;
   isWide: boolean;
   isStretchy: boolean;
@@ -36,7 +47,16 @@ export type PlayAreaLayout = {
   cardZoneHeight: number;
   cardZoneLeft: number;
   cardZoneWidth: number;
+  cardZoneCenterX: number;
+  cardZoneCenterY: number;
+  /** Gap from card-table bounding circle to avatar orbit (clamped min–max). */
+  seatTableGap: number;
+  /** Horizontal inset when side seats anchor to screen edges. */
+  sideAnchorMargin: number;
   localBandHeight: number;
+  seatFootprintW: number;
+  seatFootprintH: number;
+  seatDimensions: SeatDimensions;
   playAnchorX: number;
   playAnchorY: number;
   opponentRing: OpponentRingLayout;
@@ -64,6 +84,64 @@ export function opponentRingAngles(totalPlayers: number): number[] {
   );
 }
 
+export type OpponentSeatPlacement = {
+  cx: number;
+  cy: number;
+  radius: number;
+  arenaWidth: number;
+  footprintW: number;
+  footprintH: number;
+  sideAnchorMargin: number;
+  /** Pin left/right seats to screen edges (default true). */
+  anchorSides?: boolean;
+};
+
+/** Inset from the screen edge for side-anchored seats. */
+export function sideAnchorMarginForWidth(width: number, isWide: boolean): number {
+  void isWide;
+  if (width < 400) return 0;
+  if (width < 640) return 2;
+  if (width < 1024) return 4;
+  return 6;
+}
+
+/**
+ * Seat position on the opponent ring. Left/right seats (≈90° / 270°) anchor
+ * to the screen edge; top seats stay on the circular orbit.
+ */
+export function opponentSeatPosition(
+  angleDeg: number,
+  placement: OpponentSeatPlacement,
+): { left: number; top: number } {
+  const {
+    cx,
+    cy,
+    radius,
+    arenaWidth,
+    footprintW,
+    footprintH,
+    sideAnchorMargin,
+    anchorSides = true,
+  } = placement;
+
+  const rad = (angleDeg * Math.PI) / 180;
+  const sin = Math.sin(rad);
+  const cos = Math.cos(rad);
+
+  let left = cx + radius * sin - footprintW / 2;
+  const top = cy - radius * cos - footprintH / 2;
+
+  if (anchorSides && Math.abs(sin) > 0.82) {
+    const edgeLeft =
+      sin > 0
+        ? arenaWidth - sideAnchorMargin - footprintW
+        : sideAnchorMargin;
+    left = edgeLeft + (left - edgeLeft) * SIDE_ANCHOR_CENTER_BLEND;
+  }
+
+  return { left, top };
+}
+
 export function polarSeatPosition(
   angleDeg: number,
   cx: number,
@@ -74,17 +152,43 @@ export function polarSeatPosition(
   arenaHeight: number,
   footprintW = SEAT_FOOTPRINT_W,
   footprintH = SEAT_FOOTPRINT_H,
+  options?: { sideAnchorMargin?: number; anchorSides?: boolean },
 ): { left: number; top: number } {
-  const rad = (angleDeg * Math.PI) / 180;
-  const x = cx + radius * Math.sin(rad) - footprintW / 2;
-  const y = cy - radius * Math.cos(rad) - footprintH / 2;
-  return { left: x, top: y };
+  void minTop;
+  void arenaHeight;
+  return opponentSeatPosition(angleDeg, {
+    cx,
+    cy,
+    radius,
+    arenaWidth,
+    footprintW,
+    footprintH,
+    sideAnchorMargin: options?.sideAnchorMargin ?? 4,
+    anchorSides: options?.anchorSides ?? true,
+  });
+}
+
+/** Max ring radius that keeps every seat slot inside the arena (top seat is tightest). */
+function maxSafeRingRadius(
+  ringCy: number,
+  width: number,
+  ringBandBottom: number,
+  seat: Pick<SeatDimensions, "footprintW" | "footprintH">,
+  minTop: number,
+  sideMargin: number,
+): number {
+  const roleBadgeTop = 8;
+  const nameStackBelow = 20;
+  const maxFromTop = ringCy - minTop - roleBadgeTop - seat.footprintH * 0.48;
+  const maxFromBottom =
+    ringBandBottom - ringCy - seat.footprintH * 0.52 - nameStackBelow;
+  const maxFromX = width / 2 - seat.footprintW / 2 - sideMargin;
+  return Math.max(52, Math.min(maxFromTop, maxFromBottom, maxFromX));
 }
 
 /**
- * Layout the card zone and ring inside the play area.
- * Local player is rendered separately above the hand (GameScreen overlay).
- * The play area already excludes the bottom hand sheet — use its full height.
+ * Layout the card zone inside a seat ring that expands outward from the table
+ * on roomier screens, always capped so the top opponent stays visible.
  */
 export function computePlayAreaLayout(
   width: number,
@@ -92,59 +196,98 @@ export function computePlayAreaLayout(
   totalPlayers = 4,
 ): PlayAreaLayout {
   const aspect = height / Math.max(width, 1);
-  const isCompact = height < 520;
+  const isCompact = height < 560;
+  const isVeryCompact = height < 400;
   const isTall = aspect > 2.15;
   const isWide = width >= 640;
 
-  const localBandHeight = LOCAL_SEAT_BAND;
+  const seat = computeSeatDimensions(width, height);
   const cx = width / 2;
   const sideMargin = isWide ? 12 : 8;
   const minTop = OPPONENT_TOP_PAD;
+  const ringBandBottom = height - RING_BOTTOM_PAD;
+  const verticalBudget = ringBandBottom - minTop;
 
-  // Opponents only — local seat is outside this view (screen overlay above hand).
-  const ringTopY = minTop + SEAT_FOOTPRINT_H * 0.25;
-  const ringBottomY =
-    height - SEAT_FOOTPRINT_H * 0.38 - RING_BOTTOM_PAD;
-
-  const maxRadiusX = Math.max(
-    48,
-    width / 2 - SEAT_FOOTPRINT_W / 2 - sideMargin,
-  );
-  const maxRadiusY = Math.max(48, (ringBottomY - ringTopY) / 2);
-  const maxRadius = Math.min(maxRadiusX, maxRadiusY);
-  const radius =
-    maxRadius <= 48 ? maxRadius : clamp(maxRadius * 0.97, 48, maxRadius);
-  const cy = (ringTopY + ringBottomY) / 2;
+  const ringTopY = minTop + seat.footprintH * 0.25;
+  const ringBottomY = ringBandBottom - seat.footprintH * 0.38;
+  const ringCy = (ringTopY + ringBottomY) / 2;
 
   const seatReach =
-    Math.max(SEAT_FOOTPRINT_W, SEAT_FOOTPRINT_H) * RING_SEAT_INSET;
-  const innerRadius = Math.max(44, radius - seatReach - CARD_RING_GAP);
-  const cardZoneWidth = Math.min(
-    width - sideMargin * 2,
-    Math.round(innerRadius * 2),
+    Math.max(seat.footprintW, seat.footprintH) * RING_SEAT_INSET;
+
+  const maxCardW = width - sideMargin * 2;
+  const widthRatio = isWide ? 0.8 : isVeryCompact ? 0.88 : isCompact ? 0.86 : 0.84;
+  const heightRatio = isWide ? 0.58 : isVeryCompact ? 0.46 : isCompact ? 0.5 : 0.52;
+
+  const minCardZone = isVeryCompact ? 96 : isCompact ? 112 : 128;
+  const maxCardZoneW = isWide ? 300 : isVeryCompact ? 210 : 260;
+  const maxCardZoneH = isWide ? 280 : isVeryCompact ? 200 : 250;
+
+  let cardZoneWidth = clamp(
+    Math.round(maxCardW * widthRatio),
+    minCardZone,
+    maxCardZoneW,
   );
-  const cardZoneLeft = cx - cardZoneWidth / 2;
-  const minCardZone = isCompact ? 112 : 128;
-  const maxCardZone = isWide ? 280 : 250;
-  const cardZoneHeight = Math.min(
-    clamp(Math.round(innerRadius * 1.55), minCardZone, maxCardZone),
-    Math.round(innerRadius * 1.85),
+  let cardZoneHeight = clamp(
+    Math.round(verticalBudget * heightRatio),
+    minCardZone,
+    maxCardZoneH,
   );
+
   const cardZoneTop = clamp(
-    cy - cardZoneHeight / 2,
+    ringCy - cardZoneHeight / 2,
     minTop + 4,
-    ringBottomY - cardZoneHeight,
+    ringBandBottom - cardZoneHeight - 4,
   );
+  const cardZoneCenterY = cardZoneTop + cardZoneHeight / 2;
+
+  const maxRingRadius = maxSafeRingRadius(
+    cardZoneCenterY,
+    width,
+    ringBandBottom,
+    seat,
+    minTop,
+    sideMargin,
+  );
+
+  const { gap: seatTableGap } = computeSeatTableGap(
+    width,
+    height,
+    cardZoneWidth,
+    cardZoneHeight,
+    cardZoneTop,
+    seat,
+    { minTop, ringBandBottom, sideMargin },
+  );
+
+  const maxCardClear = Math.max(
+    40,
+    maxRingRadius - seatReach - seatTableGap,
+  );
+  let cardClearRadius = Math.hypot(cardZoneWidth / 2, cardZoneHeight / 2);
+  if (cardClearRadius > maxCardClear) {
+    const scale = maxCardClear / cardClearRadius;
+    cardZoneWidth = Math.max(minCardZone, Math.round(cardZoneWidth * scale));
+    cardZoneHeight = Math.max(minCardZone, Math.round(cardZoneHeight * scale));
+    cardClearRadius = Math.hypot(cardZoneWidth / 2, cardZoneHeight / 2);
+  }
+
+  const desiredRingRadius = cardClearRadius + seatReach + seatTableGap;
+  const ringRadius = Math.min(desiredRingRadius, maxRingRadius);
+
+  const cardZoneLeft = cx - cardZoneWidth / 2;
 
   const playAnchorX = cx;
   const playAnchorY = cardZoneTop + cardZoneHeight * 0.44;
   const isStretchy = cardZoneHeight > 240;
+  const sideAnchorMargin = sideAnchorMarginForWidth(width, isWide);
 
   return {
     width,
     height,
     aspect,
     isCompact,
+    isVeryCompact,
     isTall,
     isWide,
     isStretchy,
@@ -152,26 +295,38 @@ export function computePlayAreaLayout(
     cardZoneHeight,
     cardZoneLeft,
     cardZoneWidth,
-    localBandHeight,
+    cardZoneCenterX: cx,
+    cardZoneCenterY,
+    seatTableGap,
+    sideAnchorMargin,
+    localBandHeight: seat.localBand,
+    seatFootprintW: seat.footprintW,
+    seatFootprintH: seat.footprintH,
+    seatDimensions: seat,
     playAnchorX,
     playAnchorY,
     opponentRing: {
       mode: "ring",
       minTop,
       cx,
-      cy,
-      radius,
+      cy: cardZoneCenterY,
+      radius: ringRadius,
       totalPlayers,
     },
   };
 }
 
 export function tableScaleLimits(
-  layout: Pick<PlayAreaLayout, "isCompact" | "isTall" | "isWide" | "isStretchy">,
+  layout: Pick<PlayAreaLayout, "isCompact" | "isTall" | "isWide" | "isStretchy"> & {
+    isVeryCompact?: boolean;
+  },
 ): {
   displayScale: number;
   maxFillScale: number;
 } {
+  if (layout.isVeryCompact) {
+    return { displayScale: 0.92, maxFillScale: 1.34 };
+  }
   if (layout.isStretchy) {
     return { displayScale: 1, maxFillScale: 1.52 };
   }
@@ -192,12 +347,13 @@ export function opponentRowPositions(
   width: number,
   rowY: number,
   rowSpan: number,
+  footprintW = SEAT_FOOTPRINT_W,
 ): Array<{ left: number; top: number }> {
   if (count <= 0) return [];
   const startX = (width - rowSpan) / 2;
   const step = count <= 1 ? 0 : rowSpan / (count - 1);
   return Array.from({ length: count }, (_, i) => ({
-    left: startX + i * step - SEAT_FOOTPRINT_W / 2,
+    left: startX + i * step - footprintW / 2,
     top: rowY,
   }));
 }

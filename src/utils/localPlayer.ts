@@ -1,4 +1,5 @@
 import type { Player } from "../game/ruleset";
+import type { GameState } from "../game/core";
 import { isMockAdapter, type NetworkAdapter } from "../game/network";
 
 const PLACEHOLDER_NAMES = new Set(["You", "You (Host)", "Player"]);
@@ -83,12 +84,19 @@ export function normalizeLobbyNames(
 }
 
 /** True when an adapter event carries a full game snapshot (not lobby metadata). */
-export function isFullGameState(state: unknown): state is { players: Player[] } {
+export function isFullGameState(state: unknown): state is GameState {
   if (!state || typeof state !== "object") return false;
   const s = state as { type?: string; players?: unknown; currentPlayerIndex?: unknown };
   if (s.type && typeof s.type === "string") return false;
   if (!Array.isArray(s.players) || s.players.length === 0) return false;
   if (typeof s.currentPlayerIndex !== "number") return false;
-  const first = s.players[0] as { hand?: unknown };
-  return Array.isArray(first?.hand);
+  return s.players.every(
+    (p) => p && typeof p === "object" && Array.isArray((p as { hand?: unknown }).hand),
+  );
+}
+
+/** Accept authoritative server snapshots (including hidden opponent hands). */
+export function parseServerGameState(state: unknown): GameState | null {
+  if (isFullGameState(state)) return state;
+  return null;
 }

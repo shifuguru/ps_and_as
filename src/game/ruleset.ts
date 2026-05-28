@@ -3,8 +3,22 @@
 
 export type Card = {
   suit: "hearts" | "diamonds" | "clubs" | "spades" | "joker";
-  value: number; // 2-15 (11=Jack, 12=Queen, 13=King, 14=Ace, 15=Joker)
+  value: number; // numeric face: 3..14 (A=14); two=15, joker=16 (game encodings)
+  hidden?: boolean;
 };
+
+/** Display rank for UI — matches internal encoding in createDeck(). */
+export function formatCardRank(card: Pick<Card, "suit" | "value" | "hidden">): string {
+  if (card.hidden) return "";
+  if (card.suit === "joker" || card.value === 16) return "JOKER";
+  if (card.value === 15) return "2";
+  if (card.value >= 3 && card.value <= 10) return String(card.value);
+  if (card.value === 11) return "J";
+  if (card.value === 12) return "Q";
+  if (card.value === 13) return "K";
+  if (card.value === 14) return "A";
+  return "?";
+}
 
 export type Player = {
   id: string;
@@ -20,24 +34,52 @@ export function createDeck(): Card[] {
 
   for (const suit of suits) {
     for (let value = 2; value <= 14; value++) {
-      deck.push({ suit, value });
+      // Map numeric '2' to the game's internal two-value (15)
+      if (value === 2) {
+        deck.push({ suit, value: 15 });
+      } else {
+        deck.push({ suit, value });
+      }
     }
   }
 
-  // add two jokers as highest rank
-  deck.push({ suit: "joker", value: 15 });
-  deck.push({ suit: "joker", value: 15 });
+  // add two jokers as highest rank (now 16)
+  deck.push({ suit: "joker", value: 16 });
+  deck.push({ suit: "joker", value: 16 });
 
   return deck;
 }
 
 // Shuffle the deck using Fisher-Yates algorithm
 export function shuffleDeck(deck: Card[]): Card[] {
-  for (let i = deck.length - 1; i > 0; i--) {
+  const copy = deck.slice();
+  for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
+    [copy[i], copy[j]] = [copy[j], copy[i]];
   }
-  return deck;
+  return copy;
+}
+
+function mulberry32(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s += 0x6d2b79f5;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Deterministic shuffle so every client in a room deals the same hands. */
+export function shuffleDeckSeeded(deck: Card[], seed: number): Card[] {
+  const copy = deck.slice();
+  const random = mulberry32(seed);
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
 }
 
 // Deal cards to players

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,12 @@ import BottomBar, {
 } from "../components/BottomBar";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { playerInitials } from "../utils/playerDisplay";
-import { BLUR_PANEL, contentMaxWidth, GOLD, ui } from "../styles/uiStandards";
+import { contentMaxWidth } from "../styles/uiStandards";
+import { useAppTheme } from "../context/ThemeContext";
+import {
+  type AppearancePreference,
+  type TextContrastPreference,
+} from "../services/themePreferences";
 import {
   DEFAULT_FELT_COLOR,
   FELT_PRESETS,
@@ -42,6 +47,17 @@ export default function Settings({
   onWallpaperChange?: () => void;
   onBack?: () => void;
 }) {
+  const {
+    colors,
+    ui,
+    palette,
+    appearancePreference,
+    textContrastPreference,
+    setAppearancePreference,
+    setTextContrastPreference,
+    setFeltTint,
+  } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
   const { width } = useWindowDimensions();
   const contentMax = contentMaxWidth(width);
@@ -107,6 +123,7 @@ export default function Settings({
     if (!normalized) return;
     setPreviewTint(normalized);
     setHexInput(normalized.replace(/^#/, ""));
+    setFeltTint(normalized);
     onWallpaperPreview?.(normalized);
   };
 
@@ -132,6 +149,7 @@ export default function Settings({
     setPreviewTint(DEFAULT_FELT_COLOR);
     setHexInput(DEFAULT_FELT_COLOR.replace(/^#/, ""));
     onWallpaperPreview?.(DEFAULT_FELT_COLOR);
+    setFeltTint(DEFAULT_FELT_COLOR);
     onWallpaperChange?.();
   };
 
@@ -141,6 +159,7 @@ export default function Settings({
     const normalized = normalizeHexColor(cleaned);
     if (normalized) {
       setPreviewTint(normalized);
+      setFeltTint(normalized);
       onWallpaperPreview?.(normalized);
     }
   };
@@ -166,6 +185,7 @@ export default function Settings({
     setPreviewTint(savedTint);
     setHexInput(savedTint.replace(/^#/, "").slice(0, 6));
     onWallpaperPreview?.(savedTint);
+    setFeltTint(savedTint);
   };
 
   return (
@@ -185,7 +205,7 @@ export default function Settings({
         <View style={[styles.content, { maxWidth: contentMax }]}>
           <ScreenTopBar title="Settings" />
 
-          <BlurPanel style={ui.panel} {...BLUR_PANEL} intensity={52}>
+          <BlurPanel style={ui.panel} intensity={52}>
             <Text style={ui.panelEyebrow}>Player Profile</Text>
 
             <View style={styles.profileRow}>
@@ -210,7 +230,7 @@ export default function Settings({
               value={playerName}
               onChangeText={setPlayerName}
               placeholder="Enter Your Name"
-              placeholderTextColor="rgba(255,255,255,0.35)"
+              placeholderTextColor={colors.textMuted}
               maxLength={20}
               autoCapitalize="words"
               autoCorrect={false}
@@ -238,6 +258,89 @@ export default function Settings({
           </BlurPanel>
 
           <BlurPanel style={ui.panel} intensity={48}>
+            <Text style={ui.panelEyebrow}>Appearance</Text>
+            <Text style={styles.tintHint}>
+              Choose light or dark panels, or follow your device setting.
+            </Text>
+            <SegmentControl
+              options={[
+                { id: "system", label: "System" },
+                { id: "light", label: "Light" },
+                { id: "dark", label: "Dark" },
+              ]}
+              value={appearancePreference}
+              onChange={(value) => void setAppearancePreference(value as AppearancePreference)}
+              colors={colors}
+            />
+          </BlurPanel>
+
+          <BlurPanel style={ui.panel} intensity={48}>
+            <Text style={ui.panelEyebrow}>Table Text</Text>
+            <Text style={styles.tintHint}>
+              Auto picks readable text for your felt. Light text suits dark
+              tables; dark ink suits light felts — mismatched choices are
+              corrected automatically.
+            </Text>
+            <View style={styles.paletteRow}>
+              {[
+                { label: "Felt", color: palette.feltSurface },
+                { label: "Accent", color: palette.complement },
+                { label: "Highlight", color: palette.complementBright },
+              ].map((swatch) => (
+                <View key={swatch.label} style={styles.paletteItem}>
+                  <View
+                    style={[styles.paletteSwatch, { backgroundColor: swatch.color }]}
+                  />
+                  <Text style={styles.paletteLabel}>{swatch.label}</Text>
+                </View>
+              ))}
+            </View>
+            <SegmentControl
+              options={[
+                { id: "auto", label: "Auto" },
+                { id: "light", label: "Light text" },
+                { id: "dark", label: "Dark ink" },
+              ]}
+              value={textContrastPreference}
+              onChange={(value) =>
+                void setTextContrastPreference(value as TextContrastPreference)
+              }
+              colors={colors}
+            />
+            <View
+              style={[
+                styles.textPreview,
+                { backgroundColor: previewTintNormalized },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.textPreviewTitle,
+                  { color: colors.onFelt.textPrimary },
+                ]}
+              >
+                P&apos;s & A&apos;s
+              </Text>
+              <Text
+                style={[
+                  styles.textPreviewSubtitle,
+                  { color: colors.onFelt.accent },
+                ]}
+              >
+                Accent highlight
+              </Text>
+              <Text
+                style={[
+                  styles.textPreviewBody,
+                  { color: colors.onFelt.textMuted },
+                ]}
+              >
+                Muted body text preview
+              </Text>
+            </View>
+          </BlurPanel>
+
+          <BlurPanel style={ui.panel} intensity={48}>
             <Text style={ui.panelEyebrow}>Felt Tint</Text>
             <Text style={styles.tintHint}>
               Preview updates live. Tap Set Felt Color to save your preference.
@@ -260,7 +363,7 @@ export default function Settings({
               <Text style={styles.hexPrefix}>#</Text>
               <TextInput
                 placeholder="rrggbb"
-                placeholderTextColor="rgba(255,255,255,0.35)"
+                placeholderTextColor={colors.textMuted}
                 value={hexInput}
                 onChangeText={handleHexInputChange}
                 style={[ui.input, styles.hexInputField]}
@@ -327,7 +430,7 @@ export default function Settings({
                   </TouchableOpacity>
                 </View>
               ) : null}
-              <BottomBarLeave onPress={onBack} />
+              <BottomBarLeave onPress={onBack} label="Back" />
             </View>
           </BottomBarControls>
         </BottomBar>
@@ -336,7 +439,74 @@ export default function Settings({
   );
 }
 
-const styles = StyleSheet.create({
+function SegmentControl<T extends string>({
+  options,
+  value,
+  onChange,
+  colors,
+}: {
+  options: { id: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  const styles = useMemo(() => createSegmentStyles(colors), [colors]);
+
+  return (
+    <View style={styles.row}>
+      {options.map((option) => {
+        const selected = option.id === value;
+        return (
+          <TouchableOpacity
+            key={option.id}
+            style={[styles.segment, selected && styles.segmentSelected]}
+            onPress={() => onChange(option.id)}
+            activeOpacity={0.85}
+          >
+            <Text
+              style={[styles.segmentText, selected && styles.segmentTextSelected]}
+            >
+              {option.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+function createSegmentStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+  return StyleSheet.create({
+    row: {
+      flexDirection: "row",
+      gap: 8,
+    },
+    segment: {
+      flex: 1,
+      borderRadius: 12,
+      paddingVertical: 11,
+      alignItems: "center",
+      backgroundColor: colors.btnSecondaryBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.panelBorder,
+    },
+    segmentSelected: {
+      backgroundColor: colors.btnGoldBg,
+      borderColor: colors.btnGoldBorder,
+    },
+    segmentText: {
+      color: colors.textMuted,
+      fontWeight: "700",
+      fontSize: 13,
+    },
+    segmentTextSelected: {
+      color: colors.btnGoldText,
+    },
+  });
+}
+
+function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+  return StyleSheet.create({
   scroll: { flex: 1 },
   content: { width: "100%" },
   bottomControls: {
@@ -355,15 +525,15 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "rgba(212, 175, 55, 0.18)",
+    backgroundColor: colors.btnGoldBg,
     borderWidth: 2,
-    borderColor: "rgba(212, 175, 55, 0.45)",
+    borderColor: colors.btnGoldBorder,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
   },
   avatarText: {
-    color: "#fff",
+    color: colors.textPrimary,
     fontWeight: "800",
     fontSize: 16,
   },
@@ -372,12 +542,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   profileName: {
-    color: "#fff",
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: "700",
   },
   profileHint: {
-    color: "rgba(255,255,255,0.55)",
+    color: colors.textMuted,
     fontSize: 12,
     marginTop: 2,
     fontWeight: "600",
@@ -386,32 +556,78 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: colors.btnSecondaryBg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: colors.panelBorder,
   },
   saveBtnActive: {
-    backgroundColor: GOLD,
-    borderColor: GOLD,
+    backgroundColor: colors.gold,
+    borderColor: colors.gold,
   },
   saveBtnSaved: {
     backgroundColor: "rgba(76,175,80,0.35)",
     borderColor: "rgba(76,175,80,0.6)",
   },
   saveBtnText: {
-    color: "rgba(255,255,255,0.45)",
+    color: colors.textMuted,
     fontWeight: "800",
     fontSize: 14,
     letterSpacing: 0.2,
   },
   saveBtnTextActive: {
-    color: "#111",
+    color: colors.textOnGold,
   },
   tintHint: {
-    color: "rgba(255,255,255,0.5)",
+    color: colors.textMuted,
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 12,
+  },
+  textPreview: {
+    marginTop: 14,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.panelBorder,
+  },
+  textPreviewTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  textPreviewSubtitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  textPreviewBody: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  paletteRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 14,
+  },
+  paletteItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: 6,
+  },
+  paletteSwatch: {
+    width: "100%",
+    height: 28,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.panelBorder,
+  },
+  paletteLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    textTransform: "uppercase",
   },
   swatchRow: {
     flexDirection: "row",
@@ -427,20 +643,20 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   swatchSelected: {
-    borderColor: "#fff",
+    borderColor: colors.textPrimary,
   },
   hexInputWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.28)",
+    backgroundColor: colors.inputBg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: colors.inputBorder,
     borderRadius: 12,
     paddingLeft: 14,
     paddingRight: 10,
   },
   hexPrefix: {
-    color: GOLD,
+    color: colors.gold,
     fontSize: 16,
     fontWeight: "700",
     marginRight: 2,
@@ -452,4 +668,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
     paddingVertical: 12,
   },
-});
+  });
+}

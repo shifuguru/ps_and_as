@@ -1,5 +1,5 @@
-import { Dimensions, ScaledSize, useWindowDimensions } from "react-native";
-import { useEffect, useState } from "react";
+import { Dimensions, ScaledSize } from "react-native";
+import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 
 export const breakpoints = {
   mobile: 480,
@@ -8,10 +8,9 @@ export const breakpoints = {
   wide: 1440,
 };
 
-// Hook for responsive dimensions that update on orientation change
-export function useResponsiveDimensions() {
-  const dimensions = useWindowDimensions();
-  return dimensions;
+// Hook for responsive dimensions that update on orientation / browser chrome changes.
+export function useResponsiveDimensions(): ScaledSize {
+  return useVisualViewportSize();
 }
 
 // Detect device type based on width

@@ -7,38 +7,52 @@ import {
   ViewStyle,
 } from "react-native";
 import { BlurView } from "expo-blur";
+import { useAppTheme } from "../context/ThemeContext";
+import type { BlurPreset } from "../styles/themeColors";
 
 type Props = {
   children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   /** Blur strength on native (0–100). */
   intensity?: number;
-  /** Dark scrim over blur — lower = more see-through (default 0.28). */
+  /** Dark scrim over blur — lower = more see-through. */
   scrimOpacity?: number;
-  /** Web glass fill opacity (default 0.08). */
+  /** Web glass fill opacity. */
   webOpacity?: number;
+  /** Override blur preset (chrome / panel / modal). */
+  preset?: BlurPreset;
 };
 
 export default function BlurPanel({
   children,
   style,
-  intensity = 52,
-  scrimOpacity = 0.28,
-  webOpacity = 0.08,
+  intensity,
+  scrimOpacity,
+  webOpacity,
+  preset,
 }: Props) {
+  const { colors } = useAppTheme();
+  const blur = preset ?? colors.blur.panel;
+  const resolvedIntensity = intensity ?? blur.intensity;
+  const resolvedScrim = scrimOpacity ?? blur.scrimOpacity;
+  const resolvedWebOpacity = webOpacity ?? blur.webOpacity;
+  const scrimRgb = colors.mode === "light" ? "255, 255, 255" : "8, 28, 18";
+
   if (Platform.OS === "web") {
     return (
       <View
         style={[
           styles.fallback,
-          { backgroundColor: `rgba(255, 255, 255, ${webOpacity})` },
+          { backgroundColor: `rgba(${scrimRgb}, ${resolvedWebOpacity})` },
           style,
         ]}
       >
         <View
           style={[
             styles.fallbackTint,
-            { backgroundColor: `rgba(255, 255, 255, ${webOpacity * 0.5})` },
+            {
+              backgroundColor: `rgba(${scrimRgb}, ${resolvedWebOpacity * 0.5})`,
+            },
           ]}
           pointerEvents="none"
         />
@@ -48,11 +62,15 @@ export default function BlurPanel({
   }
 
   return (
-    <BlurView intensity={intensity} tint="dark" style={[styles.blur, style]}>
+    <BlurView
+      intensity={resolvedIntensity}
+      tint={blur.tint}
+      style={[styles.blur, style]}
+    >
       <View
         style={[
           styles.scrim,
-          { backgroundColor: `rgba(8, 28, 18, ${scrimOpacity})` },
+          { backgroundColor: `rgba(${scrimRgb}, ${resolvedScrim})` },
         ]}
         pointerEvents="none"
       />

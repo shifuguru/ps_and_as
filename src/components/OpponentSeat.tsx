@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -10,22 +10,20 @@ import {
 import { Player } from "../game/ruleset";
 import { playerInitials } from "../utils/playerDisplay";
 import TrickWinCelebration from "./TrickWinCelebration";
+import {
+  avatarSizeForSeat,
+  useSeatDimensions,
+  type SeatDimensions,
+} from "../utils/seatDimensions";
+import { useAppTheme } from "../context/ThemeContext";
+import { hexToRgba } from "../utils/colorTheory";
+import type { FeltPalette } from "../styles/feltPalette";
+import type { AppThemeColors } from "../styles/themeColors";
 
-const SEAT_COLORS = [
-  "#5a8a6a",
-  "#4a7a9a",
-  "#8a6a4a",
-  "#7a5a8a",
-  "#6a8a8a",
-  "#9a6a5a",
-  "#5a6a9a",
-  "#8a5a6a",
-];
-
-function seatColor(playerId: string): string {
+function seatColor(playerId: string, seatColors: readonly string[]): string {
   let n = 0;
   for (let i = 0; i < playerId.length; i++) n += playerId.charCodeAt(i);
-  return SEAT_COLORS[n % SEAT_COLORS.length];
+  return seatColors[n % seatColors.length];
 }
 
 function roleEmoji(role: Player["role"]): string | null {
@@ -63,6 +61,12 @@ type Props = {
   isLastPlay?: boolean;
   /** Brief confetti / flag after winning a trick */
   celebrateTrickWin?: boolean;
+  /** Floating +XP with the checkered flag (local human only). */
+  showTrickXp?: boolean;
+  /** Precomputed seat metrics from play-area layout (keeps ring math in sync). */
+  seatDims?: SeatDimensions;
+  /** Width basis when seatDims is not supplied. */
+  layoutWidth?: number;
 };
 
 export default function OpponentSeat({
@@ -75,7 +79,14 @@ export default function OpponentSeat({
   isLocal = false,
   isLastPlay = false,
   celebrateTrickWin = false,
+  showTrickXp = false,
+  seatDims: seatDimsProp,
+  layoutWidth,
 }: Props) {
+  const { colors, palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, palette), [colors, palette]);
+  const hookDims = useSeatDimensions(layoutWidth);
+  const dims = seatDimsProp ?? hookDims;
   const pulse = useRef(new Animated.Value(0)).current;
   const initials = playerInitials(player.name);
   const role = roleEmoji(player.role);
@@ -115,14 +126,19 @@ export default function OpponentSeat({
     outputRange: [0.35, 0.95],
   });
 
-  const avatarSize = compact ? 34 : isLocal ? 44 : 40;
+  const avatarSize = avatarSizeForSeat(dims, { compact, isLocal });
+
+  const seatStyle = compact
+    ? { minWidth: dims.seatMinWCompact, maxWidth: dims.seatMaxWCompact }
+    : isLocal
+      ? { minWidth: dims.seatMinWLocal, maxWidth: dims.seatMaxWLocal }
+      : { minWidth: dims.seatMinW, maxWidth: dims.seatMaxW };
 
   return (
     <View
       style={[
         styles.seat,
-        compact && styles.seatCompact,
-        isLocal && styles.seatLocal,
+        seatStyle,
         isOut && styles.seatOut,
       ]}
     >
@@ -133,7 +149,11 @@ export default function OpponentSeat({
           celebrateTrickWin && styles.avatarWrapCelebrate,
         ]}
       >
-        <TrickWinCelebration active={celebrateTrickWin} avatarSize={avatarSize} />
+        <TrickWinCelebration
+          active={celebrateTrickWin}
+          avatarSize={avatarSize}
+          showXp={showTrickXp}
+        />
         {isLastPlay && !isOut && !isActive && !celebrateTrickWin && (
           <View
             style={[
@@ -169,30 +189,58 @@ export default function OpponentSeat({
               width: avatarSize,
               height: avatarSize,
               borderRadius: avatarSize / 2,
-              backgroundColor: seatColor(player.id),
+              backgroundColor: seatColor(player.id, palette.seatColors),
             },
             isOut && styles.avatarOut,
             isLocal && styles.avatarLocal,
           ]}
         >
-          <Text style={[styles.initials, compact && styles.initialsCompact]}>
+          <Text
+            style={[
+              styles.initials,
+              {
+                fontSize: compact ? dims.initialsFontCompact : dims.initialsFont,
+              },
+            ]}
+          >
             {initials}
           </Text>
         </View>
         {role ? (
-          <Text style={styles.roleBadge} pointerEvents="none">
+          <Text
+            style={[styles.roleBadge, { fontSize: dims.roleFont }]}
+            pointerEvents="none"
+          >
             {role}
           </Text>
         ) : null}
         {!isOut && (
-          <View style={styles.countBadge}>
-            <Text style={styles.countText}>{player.handCount}</Text>
+          <View
+            style={[
+              styles.countBadge,
+              {
+                minWidth: dims.countBadgeSize,
+                height: dims.countBadgeSize,
+                borderRadius: dims.countBadgeSize / 2,
+              },
+            ]}
+          >
+            <Text style={[styles.countText, { fontSize: dims.countFont }]}>
+              {player.handCount}
+            </Text>
           </View>
         )}
       </View>
 
       <Text
-        style={[styles.name, compact && styles.nameCompact, isOut && styles.nameOut]}
+        style={[
+          styles.name,
+          {
+            fontSize: compact ? dims.nameFontCompact : dims.nameFont,
+            maxWidth: compact ? dims.nameMaxWCompact : dims.nameMaxW,
+          },
+          isOut && styles.nameOut,
+        ]}
         numberOfLines={1}
       >
         {player.name}
@@ -211,20 +259,19 @@ export default function OpponentSeat({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: AppThemeColors, palette: FeltPalette) {
+  const accent = colors.gold;
+  const accentSoft = hexToRgba(accent, 0.55);
+  const accentFill = hexToRgba(accent, 0.08);
+  const accentRing = hexToRgba(accent, 0.95);
+  const accentLocal = hexToRgba(accent, 0.75);
+  const accentBadge = hexToRgba(accent, 0.35);
+  const onFelt = colors.onFelt;
+
+  return StyleSheet.create({
   seat: {
     alignItems: "center",
-    minWidth: 64,
-    maxWidth: 88,
     paddingHorizontal: 4,
-  },
-  seatCompact: {
-    minWidth: 56,
-    maxWidth: 72,
-  },
-  seatLocal: {
-    minWidth: 72,
-    maxWidth: 96,
   },
   seatOut: {
     opacity: 0.45,
@@ -241,10 +288,10 @@ const styles = StyleSheet.create({
   turnRing: {
     position: "absolute",
     borderWidth: 2,
-    borderColor: "rgba(212,175,55,0.95)",
+    borderColor: accentRing,
     ...Platform.select({
       ios: {
-        shadowColor: "#d4af37",
+        shadowColor: accent,
         shadowOpacity: 0.45,
         shadowRadius: 6,
         shadowOffset: { width: 0, height: 0 },
@@ -255,8 +302,8 @@ const styles = StyleSheet.create({
   lastPlayRing: {
     position: "absolute",
     borderWidth: 2,
-    borderColor: "rgba(212,175,55,0.55)",
-    backgroundColor: "rgba(212,175,55,0.08)",
+    borderColor: accentSoft,
+    backgroundColor: accentFill,
   },
   avatar: {
     alignItems: "center",
@@ -269,70 +316,56 @@ const styles = StyleSheet.create({
   },
   avatarLocal: {
     borderWidth: 2,
-    borderColor: "rgba(212,175,55,0.75)",
+    borderColor: accentLocal,
   },
   initials: {
-    color: "#fff",
+    color: onFelt.textPrimary,
     fontWeight: "800",
-    fontSize: 13,
-  },
-  initialsCompact: {
-    fontSize: 11,
   },
   roleBadge: {
     position: "absolute",
     top: -6,
     left: -4,
-    fontSize: 11,
   },
   countBadge: {
     position: "absolute",
     right: -8,
     bottom: -4,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
     paddingHorizontal: 5,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.72)",
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.35)",
+    borderColor: accentBadge,
   },
   countText: {
-    color: "#fff",
-    fontSize: 10,
+    color: onFelt.textPrimary,
     fontWeight: "800",
   },
   name: {
-    color: "#fff",
+    color: onFelt.textPrimary,
     fontWeight: "700",
-    fontSize: 11,
     textAlign: "center",
-    maxWidth: 84,
-  },
-  nameCompact: {
-    fontSize: 10,
-    maxWidth: 68,
   },
   nameOut: {
-    color: "rgba(255,255,255,0.45)",
+    color: onFelt.textMuted,
   },
   statusPill: {
     marginTop: 2,
     fontSize: 9,
     fontWeight: "800",
     letterSpacing: 0.2,
-    color: "rgba(255,255,255,0.55)",
+    color: onFelt.textMuted,
   },
   passPill: {
-    color: "#c9a86c",
+    color: hexToRgba(onFelt.accent, 0.82),
   },
   thinkPill: {
-    color: "#d4af37",
+    color: onFelt.accent,
     fontSize: 12,
   },
   youPill: {
-    color: "#d4af37",
+    color: onFelt.accent,
   },
-});
+  });
+}

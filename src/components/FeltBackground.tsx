@@ -28,6 +28,15 @@ export default function FeltBackground({
     }
   }, [tint, fullBleed]);
 
+  const tintOverlay = (
+    <View
+      style={[
+        StyleSheet.absoluteFill,
+        { backgroundColor: tint, opacity: 0.82 },
+      ]}
+    />
+  );
+
   if (Platform.OS === "web") {
     const bleed = fullBleed ? WEB_FULL_BLEED_FIXED : null;
     return (
@@ -49,12 +58,7 @@ export default function FeltBackground({
           style={styles.webImage as object}
           resizeMode="cover"
         />
-        <View
-          style={[
-            StyleSheet.absoluteFill,
-            { backgroundColor: tint, opacity: 0.82 },
-          ]}
-        />
+        {tintOverlay}
       </View>
     );
   }
@@ -66,12 +70,7 @@ export default function FeltBackground({
         style={StyleSheet.absoluteFill}
         resizeMode="cover"
       >
-        <View
-          style={[
-            StyleSheet.absoluteFill,
-            { backgroundColor: tint, opacity: 0.82 },
-          ]}
-        />
+        {tintOverlay}
       </ImageBackground>
     </View>
   );

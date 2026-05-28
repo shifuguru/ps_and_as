@@ -1,12 +1,10 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Platform,
-  useWindowDimensions,
   StyleProp,
   ViewStyle,
 } from "react-native";
@@ -14,12 +12,13 @@ import ScreenContainer from "../components/ScreenContainer";
 import BlurPanel from "../components/BlurPanel";
 import MenuIcon from "../components/MenuIcon";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
-
-import { GOLD } from "../styles/uiStandards";
+import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
+import { gameTitleFaceStyle } from "../utils/gameTitleFont";
+import { useAppTheme } from "../context/ThemeContext";
 
 export type MainMenuButton = {
   label: string;
-  icon: "plus" | "shuffle" | "person" | "globe" | "trophy" | "gear";
+  icon: "plus" | "shuffle" | "person" | "globe" | "multiplayer" | "trophy" | "gear";
   action: () => void;
 };
 
@@ -28,6 +27,10 @@ type Props = {
   onButtonPress: (action: () => void) => void;
   style?: StyleProp<ViewStyle>;
 };
+
+const MENU_ICON_SIZE = 20;
+const MENU_ICON_SLOT = 24;
+const MENU_BTN_HPAD = 18;
 
 function MenuGlassButton({
   label,
@@ -38,14 +41,18 @@ function MenuGlassButton({
   icon: MainMenuButton["icon"];
   onPress: () => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <TouchableOpacity activeOpacity={0.82} onPress={onPress}>
       <BlurPanel intensity={52} style={styles.glassBtn}>
         <View style={styles.glassBtnRow}>
-          <View style={styles.iconWrap}>
-            <MenuIcon name={icon} size={20} color={GOLD} />
+          <View style={styles.iconColumn}>
+            <MenuIcon name={icon} size={MENU_ICON_SIZE} color={colors.gold} />
           </View>
           <Text style={styles.glassBtnText}>{label}</Text>
+          <View style={styles.iconColumn} />
         </View>
       </BlurPanel>
     </TouchableOpacity>
@@ -53,13 +60,11 @@ function MenuGlassButton({
 }
 
 export default function MainMenu({ buttons, onButtonPress, style }: Props) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
-  const { width, height } = useWindowDimensions();
+  const { width, height } = useVisualViewportSize();
   const contentMaxWidth = Math.min(420, Math.max(300, width - 48));
-  const titleFont =
-    Platform.OS === "ios"
-      ? "Snell Roundhand"
-      : "'Georgia', 'Palatino Linotype', 'Book Antiqua', serif";
 
   return (
     <ScreenContainer ignoreHeaderOffset style={[{ flex: 1 }, style]}>
@@ -77,12 +82,7 @@ export default function MainMenu({ buttons, onButtonPress, style }: Props) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={[styles.content, { maxWidth: contentMaxWidth }]}>
-          <Text
-            style={[
-              styles.title,
-              { fontFamily: titleFont, fontStyle: "italic" },
-            ]}
-          >
+          <Text style={[styles.title, gameTitleFaceStyle()]}>
             P&apos;s & A&apos;s
           </Text>
           <Text style={styles.subtitle}>Presidents & Assholes</Text>
@@ -103,62 +103,66 @@ export default function MainMenu({ buttons, onButtonPress, style }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 24,
-  },
-  content: {
-    width: "100%",
-  },
-  title: {
-    color: "#ffffff",
-    fontSize: 48,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 6,
-    textShadowColor: "rgba(212, 175, 55, 0.28)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 10,
-  },
-  subtitle: {
-    color: GOLD,
-    fontSize: 15,
-    textAlign: "center",
-    letterSpacing: 1.4,
-    marginBottom: 28,
-    fontWeight: "600",
-  },
-  buttonStack: {
-    gap: 10,
-  },
-  glassBtn: {
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.14)",
-    overflow: "hidden",
-  },
-  glassBtnRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 15,
-    paddingHorizontal: 18,
-  },
-  iconWrap: {
-    width: 24,
-    alignItems: "center",
-    marginRight: 12,
-  },
-  glassBtnText: {
-    color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-  },
-});
+function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+  return StyleSheet.create({
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 24,
+    },
+    content: {
+      width: "100%",
+    },
+    title: {
+      color: colors.onFelt.textPrimary,
+      fontSize: 48,
+      fontWeight: "700",
+      textAlign: "center",
+      marginBottom: 6,
+      textShadowColor: colors.onFelt.textShadow,
+      textShadowOffset: { width: 0, height: 2 },
+      textShadowRadius: 10,
+    },
+    subtitle: {
+      color: colors.onFelt.accent,
+      fontSize: 15,
+      textAlign: "center",
+      letterSpacing: 1.4,
+      marginBottom: 28,
+      fontWeight: "600",
+    },
+    buttonStack: {
+      gap: 10,
+    },
+    glassBtn: {
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.panelBorder,
+      overflow: "hidden",
+    },
+    glassBtnRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 15,
+      paddingHorizontal: MENU_BTN_HPAD,
+      minHeight: 50,
+    },
+    iconColumn: {
+      width: MENU_ICON_SLOT,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    glassBtnText: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "700",
+      letterSpacing: 0.3,
+      textAlign: "center",
+    },
+  });
+}

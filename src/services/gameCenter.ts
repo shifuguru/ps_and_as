@@ -1,5 +1,6 @@
 // Game Center integration (iOS) via expo-game-center, with local fallback elsewhere.
 import { Platform } from "react-native";
+import * as Application from "expo-application";
 import ExpoGameCenter, { GameCenterService } from "expo-game-center";
 import {
   GAME_CENTER_ACHIEVEMENTS,
@@ -7,11 +8,20 @@ import {
 } from "../config/gameCenterIds";
 
 export interface PlayerInfo {
+  /** Stable ID used for multiplayer rooms (Game Center ID or install ID). */
   id: string;
+  /** Device-scoped install ID — survives Game Center sign-in/out. */
+  installId: string;
+  /** Game Center player ID when linked; null otherwise. */
+  linkedAccountId: string | null;
   displayName: string;
   isAuthenticated: boolean;
   source: "gamecenter" | "fallback";
 }
+
+const INSTALL_ID_KEY = "@player_install_id";
+const LEGACY_ID_KEY = "@player_id";
+const LINKED_GC_KEY = "@player_linked_gc_id";
 
 let gcService: GameCenterService | null = null;
 
@@ -30,30 +40,78 @@ export function isGameCenterPlatformSupported(): boolean {
   return GameCenterService.isPlatformSupported();
 }
 
-async function ensureDeviceId(): Promise<string> {
-  const cached = await getCachedPlayerId();
+async function readHardwareInstallId(): Promise<string | null> {
+  try {
+    if (Platform.OS === "android") {
+      return Application.getAndroidId();
+    }
+    if (Platform.OS === "ios") {
+      return (await Application.getIosIdForVendorAsync()) ?? null;
+    }
+  } catch {
+    // fall through
+  }
+  return null;
+}
+
+async function ensureInstallId(): Promise<string> {
+  const cached = await getCachedInstallId();
   if (cached) return cached;
-  const id = `device-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-  await cachePlayerId(id);
+
+  const legacy = await getCachedPlayerId();
+  const hardware = await readHardwareInstallId();
+  const id =
+    legacy ||
+    (hardware ? `hw-${hardware}` : null) ||
+    `install-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+
+  await cacheInstallId(id);
+  if (!legacy) {
+    await cachePlayerId(id);
+  }
   return id;
+}
+
+function buildPlayerInfo(
+  installId: string,
+  displayName: string,
+  linkedAccountId: string | null,
+  isAuthenticated: boolean,
+  source: PlayerInfo["source"],
+): PlayerInfo {
+  return {
+    id: linkedAccountId || installId,
+    installId,
+    linkedAccountId,
+    displayName,
+    isAuthenticated,
+    source,
+  };
+}
+
+async function ensureDeviceId(): Promise<string> {
+  return ensureInstallId();
 }
 
 async function playerInfoFromLocalPlayer(
   player: { playerID: string; displayName: string; alias: string },
   cachedName: string | null,
+  installId: string,
 ): Promise<PlayerInfo> {
+  await cacheLinkedGameCenterId(player.playerID);
   await cachePlayerId(player.playerID);
   const displayName =
     cachedName || player.displayName || player.alias || "Player";
   if (!cachedName && displayName) {
     await cachePlayerName(displayName);
   }
-  return {
-    id: player.playerID,
+  return buildPlayerInfo(
+    installId,
     displayName,
-    isAuthenticated: true,
-    source: "gamecenter",
-  };
+    player.playerID,
+    true,
+    "gamecenter",
+  );
 }
 
 /**
@@ -78,7 +136,8 @@ export async function authenticatePlayer(): Promise<PlayerInfo> {
     const player = await ExpoGameCenter.getLocalPlayer();
     if (player?.playerID) {
       const cachedName = await getCachedPlayerName();
-      return playerInfoFromLocalPlayer(player, cachedName);
+      const installId = await ensureInstallId();
+      return playerInfoFromLocalPlayer(player, cachedName, installId);
     }
   } catch (error) {
     console.warn("[GameCenter] Authentication failed:", error);
@@ -106,6 +165,8 @@ export async function isPlayerAuthenticated(): Promise<boolean> {
  */
 export async function getOrCreatePlayerId(): Promise<PlayerInfo> {
   const cachedName = await getCachedPlayerName();
+  const installId = await ensureInstallId();
+  const linkedAccountId = await getCachedLinkedGameCenterId();
 
   if (isGameCenterPlatformSupported()) {
     try {
@@ -113,7 +174,7 @@ export async function getOrCreatePlayerId(): Promise<PlayerInfo> {
       if (available) {
         const player = await ExpoGameCenter.getLocalPlayer();
         if (player?.playerID) {
-          return playerInfoFromLocalPlayer(player, cachedName);
+          return playerInfoFromLocalPlayer(player, cachedName, installId);
         }
       }
     } catch {
@@ -121,30 +182,70 @@ export async function getOrCreatePlayerId(): Promise<PlayerInfo> {
     }
   }
 
-  const cachedId = await getCachedPlayerId();
-  if (cachedId) {
-    return {
-      id: cachedId,
-      displayName: cachedName || "Player",
-      isAuthenticated: false,
-      source: "fallback",
-    };
+  if (linkedAccountId) {
+    return buildPlayerInfo(
+      installId,
+      cachedName || "Player",
+      linkedAccountId,
+      false,
+      "gamecenter",
+    );
   }
 
-  const newId = await ensureDeviceId();
-  return {
-    id: newId,
-    displayName: cachedName || "Player",
-    isAuthenticated: false,
-    source: "fallback",
-  };
+  return buildPlayerInfo(
+    installId,
+    cachedName || "Player",
+    null,
+    false,
+    "fallback",
+  );
+}
+
+export async function getCachedInstallId(): Promise<string | null> {
+  try {
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    return await AsyncStorage.getItem(INSTALL_ID_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export async function cacheInstallId(id: string): Promise<void> {
+  try {
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    await AsyncStorage.setItem(INSTALL_ID_KEY, id);
+  } catch {
+    // ignore
+  }
+}
+
+export async function getCachedLinkedGameCenterId(): Promise<string | null> {
+  try {
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    return await AsyncStorage.getItem(LINKED_GC_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export async function cacheLinkedGameCenterId(id: string): Promise<void> {
+  try {
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    await AsyncStorage.setItem(LINKED_GC_KEY, id);
+  } catch {
+    // ignore
+  }
 }
 
 export async function getCachedPlayerId(): Promise<string | null> {
   try {
     const AsyncStorage =
       require("@react-native-async-storage/async-storage").default;
-    return await AsyncStorage.getItem("@player_id");
+    return await AsyncStorage.getItem(LEGACY_ID_KEY);
   } catch {
     return null;
   }
@@ -154,7 +255,7 @@ export async function cachePlayerId(id: string): Promise<void> {
   try {
     const AsyncStorage =
       require("@react-native-async-storage/async-storage").default;
-    await AsyncStorage.setItem("@player_id", id);
+    await AsyncStorage.setItem(LEGACY_ID_KEY, id);
   } catch {
     // ignore
   }

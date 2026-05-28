@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Modal,
   View,
@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import BlurPanel from "./BlurPanel";
 import { triggerHaptic } from "../utils/haptics";
-import { GOLD, ui, BLUR_MODAL } from "../styles/uiStandards";
+import { useAppTheme } from "../context/ThemeContext";
 
 type Props = {
   visible: boolean;
@@ -17,6 +17,8 @@ type Props = {
 };
 
 export default function TenRuleModal({ visible, onChoose }: Props) {
+  const { colors, ui, blur } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(width - 48, 400);
 
@@ -25,9 +27,7 @@ export default function TenRuleModal({ visible, onChoose }: Props) {
       <View style={ui.modalOverlay}>
         <BlurPanel
           style={[ui.modalCard, { width: cardWidth, maxWidth: cardWidth }]}
-          intensity={62}
-          scrimOpacity={BLUR_MODAL.scrimOpacity}
-          webOpacity={BLUR_MODAL.webOpacity}
+          preset={blur.modal}
         >
           <Text style={ui.modalTitle}>10 Played</Text>
           <Text style={[ui.modalBody, { fontSize: 22, marginBottom: 10 }]}>
@@ -75,42 +75,44 @@ export default function TenRuleModal({ visible, onChoose }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  choiceRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 10,
-  },
-  choiceBtn: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.45)",
-    backgroundColor: "rgba(212, 175, 55, 0.12)",
-    minHeight: 108,
-  },
-  choiceArrow: {
-    color: GOLD,
-    fontSize: 28,
-    fontWeight: "800",
-    lineHeight: 30,
-    marginBottom: 6,
-  },
-  choiceLabel: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: 0.3,
-  },
-  choiceHint: {
-    color: "rgba(255, 255, 255, 0.55)",
-    fontSize: 10,
-    fontWeight: "600",
-    letterSpacing: 0.2,
-    marginTop: 4,
-  },
-});
+function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+  return StyleSheet.create({
+    choiceRow: {
+      flexDirection: "row",
+      alignItems: "stretch",
+      gap: 10,
+    },
+    choiceBtn: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 16,
+      paddingHorizontal: 10,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.btnGoldBorder,
+      backgroundColor: colors.btnGoldBg,
+      minHeight: 108,
+    },
+    choiceArrow: {
+      color: colors.gold,
+      fontSize: 28,
+      fontWeight: "800",
+      lineHeight: 30,
+      marginBottom: 6,
+    },
+    choiceLabel: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "800",
+      letterSpacing: 0.3,
+    },
+    choiceHint: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: "600",
+      letterSpacing: 0.2,
+      marginTop: 4,
+    },
+  });
+}

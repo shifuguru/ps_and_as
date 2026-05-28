@@ -175,6 +175,19 @@ export default function GameTable({
 
   const playCount = plays.length;
 
+  const emptyMessage = useMemo(() => {
+    const narrow =
+      zoneSize.width > 0
+        ? zoneSize.width < 168
+        : layoutHint?.isVeryCompact || layoutHint?.isCompact;
+    return narrow ? "No plays yet" : "No cards played yet";
+  }, [zoneSize.width, layoutHint?.isCompact, layoutHint?.isVeryCompact]);
+
+  const emptyTextMaxWidth = useMemo(() => {
+    if (zoneSize.width <= 0) return undefined;
+    return Math.max(72, zoneSize.width - 28);
+  }, [zoneSize.width]);
+
   const playTypeBadgeTop = useMemo(() => {
     if (tableRows.length === 0) return 0;
     let rowBottom = 0;
@@ -194,8 +207,17 @@ export default function GameTable({
     <View style={styles.tableFrame} onLayout={onZoneLayout}>
       <View style={styles.anchorHost} pointerEvents="box-none">
         {playCount === 0 ? (
-          <View style={styles.tableMessageCenter} pointerEvents="none">
-            <Text style={styles.emptyText}>No cards on the table yet.</Text>
+          <View style={styles.emptyHost} pointerEvents="none">
+            <Text
+              style={[
+                styles.emptyText,
+                emptyTextMaxWidth != null && { maxWidth: emptyTextMaxWidth },
+                (layoutHint?.isVeryCompact || (emptyTextMaxWidth ?? 999) < 140) &&
+                  styles.emptyTextCompact,
+              ]}
+            >
+              {emptyMessage}
+            </Text>
           </View>
         ) : (
           <Animated.View style={styles.playCluster}>
@@ -413,17 +435,26 @@ const styles = StyleSheet.create({
     textAlign: "center",
     letterSpacing: 0.4,
   },
-  emptyText: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 13,
-    textAlign: "center",
-    paddingHorizontal: 20,
-    maxWidth: 280,
-  },
-  tableMessageCenter: {
-    ...StyleSheet.absoluteFillObject,
+  emptyHost: {
+    flex: 1,
+    minHeight: 0,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: 14,
+  },
+  emptyText: {
+    color: "rgba(255,255,255,0.52)",
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
+    textAlign: "center",
+    ...(Platform.OS === "web"
+      ? ({ userSelect: "none" } as object)
+      : null),
+  },
+  emptyTextCompact: {
+    fontSize: 11,
+    lineHeight: 15,
+    letterSpacing: 0.2,
   },
 });

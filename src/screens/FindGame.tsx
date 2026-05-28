@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Platform,
   StyleSheet,
   useWindowDimensions,
+  TextInput,
 } from "react-native";
 import BottomBar, {
   BottomBarControls,
@@ -20,13 +21,15 @@ import LobbyStatusBar, {
   LOBBY_STATUS_BAR_HEIGHT,
 } from "../components/LobbyStatusBar";
 import BlurPanel from "../components/BlurPanel";
+import MenuIcon from "../components/MenuIcon";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { NetworkAdapter } from "../game/network";
 import { SocketAdapter } from "../game/socketAdapter";
 import { getOrCreatePlayerId } from "../services/gameCenter";
 import { triggerHaptic } from "../utils/haptics";
 import { playerInitials } from "../utils/playerDisplay";
-import { GOLD, BLUR_PANEL, contentMaxWidth, ui } from "../styles/uiStandards";
+import { contentMaxWidth } from "../styles/uiStandards";
+import { useAppTheme } from "../context/ThemeContext";
 
 interface AvailableRoom {
   roomId: string;
@@ -54,20 +57,32 @@ function connectionLabel(
   return "Offline";
 }
 
+function normalizeRoomCode(raw: string): string {
+  return raw.trim();
+}
+
 export default function FindGame({
   onBack,
   onJoinRoom,
+  onHostGame,
   adapter,
   onNavigateToSettings,
+  onNavigateToAchievements,
 }: {
   onBack: () => void;
   onJoinRoom: (roomId: string, playerName: string) => void;
+  onHostGame: (playerName: string) => void;
   adapter: NetworkAdapter;
   onNavigateToSettings?: () => void;
+  onNavigateToAchievements?: () => void;
 }) {
+  const { colors, ui } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([]);
   const [isSearching, setIsSearching] = useState(true);
   const [playerName, setPlayerName] = useState("");
+  const [roomCode, setRoomCode] = useState("");
+  const [codeFocused, setCodeFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<
     "disconnected" | "connecting" | "connected"
@@ -120,6 +135,13 @@ export default function FindGame({
         setError(ev.state.message);
         setIsSearching(false);
         setConnectionStatus("disconnected");
+      } else if (ev.state.type === "socketConnected") {
+        setConnectionStatus("connected");
+        setError(null);
+        void refreshRooms();
+      } else if (ev.state.type === "socketDisconnected") {
+        setConnectionStatus("disconnected");
+        setIsSearching(false);
       } else if (ev.state.type === "connected") {
         setConnectionStatus("connected");
       }
@@ -152,23 +174,46 @@ export default function FindGame({
       clearInterval(interval);
       void adapter.disconnect();
     };
-  }, [adapter, refreshRooms]);
+  }, [adapter, refreshRooms, socket]);
+
+  const requireName = (): boolean => {
+    if (playerName.trim()) return true;
+    setError("Set your name in Settings first.");
+    return false;
+  };
 
   const handleJoinRoom = (roomId: string) => {
-    if (!playerName.trim()) {
-      setError("Set your name in Settings first.");
+    if (!requireName()) return;
+    triggerHaptic("medium");
+    setError(null);
+    onJoinRoom(roomId, playerName.trim());
+  };
+
+  const handleJoinWithCode = () => {
+    const code = normalizeRoomCode(roomCode);
+    if (!code) {
+      setError("Enter a room code from your host.");
+      return;
+    }
+    handleJoinRoom(code);
+  };
+
+  const handleHost = () => {
+    if (!requireName()) return;
+    if (connectionStatus !== "connected") {
+      setError("Connect to the server before hosting.");
       return;
     }
     triggerHaptic("medium");
     setError(null);
-    onJoinRoom(roomId, playerName.trim());
+    onHostGame(playerName.trim());
   };
 
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
       <LobbyStatusBar
         playerCount={availableRooms.length}
-        roomName="Find Game"
+        roomName="Multiplayer"
         statusLabel="Server"
         statusValue={connectionLabel(connectionStatus)}
         topInset={insets.top}
@@ -190,7 +235,7 @@ export default function FindGame({
           showsVerticalScrollIndicator={false}
         >
           <View style={{ width: contentMax }}>
-            <BlurPanel style={[ui.panel, { marginBottom: 16 }]} {...BLUR_PANEL}>
+            <BlurPanel style={[ui.panel, { marginBottom: 14 }]}>
               <View style={styles.profileRow}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
@@ -203,32 +248,109 @@ export default function FindGame({
                     {playerName || "…"}
                   </Text>
                 </View>
-                {onNavigateToSettings ? (
-                  <TouchableOpacity
-                    style={ui.btnSecondary}
-                    onPress={onNavigateToSettings}
-                  >
-                    <Text style={ui.btnSecondaryText}>Edit</Text>
-                  </TouchableOpacity>
-                ) : null}
+                <View style={styles.profileActions}>
+                  {onNavigateToAchievements ? (
+                    <TouchableOpacity
+                      style={ui.btnSecondary}
+                      onPress={onNavigateToAchievements}
+                    >
+                      <Text style={ui.btnSecondaryText}>Stats</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {onNavigateToSettings ? (
+                    <TouchableOpacity
+                      style={ui.btnSecondary}
+                      onPress={onNavigateToSettings}
+                    >
+                      <Text style={ui.btnSecondaryText}>Edit</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
               </View>
             </BlurPanel>
+
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={styles.actionTile}
+                activeOpacity={0.85}
+                onPress={handleHost}
+                disabled={connectionStatus !== "connected"}
+              >
+                <BlurPanel style={styles.actionTileInner} intensity={50}>
+                  <MenuIcon name="plus" size={22} color={colors.gold} />
+                  <Text style={styles.actionTileTitle}>Host Game</Text>
+                  <Text style={styles.actionTileHint}>
+                    Create a lobby for friends
+                  </Text>
+                </BlurPanel>
+              </TouchableOpacity>
+
+              <View style={styles.actionTile}>
+                <BlurPanel style={styles.actionTileInner} intensity={50}>
+                  <MenuIcon name="multiplayer" size={22} color={colors.gold} />
+                  <Text style={styles.actionTileTitle}>Join With Code</Text>
+                  <View
+                    style={[
+                      styles.codeInputWrap,
+                      codeFocused && styles.codeInputWrapFocused,
+                    ]}
+                  >
+                    <TextInput
+                      placeholder="Paste room code"
+                      placeholderTextColor={colors.textMuted}
+                      value={roomCode}
+                      onChangeText={setRoomCode}
+                      onFocus={() => setCodeFocused(true)}
+                      onBlur={() => setCodeFocused(false)}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      spellCheck={false}
+                      autoComplete="off"
+                      textContentType="none"
+                      importantForAutofill="no"
+                      keyboardType="default"
+                      {...(Platform.OS === "web"
+                        ? ({
+                            name: "room-code",
+                            autoComplete: "off",
+                            "data-1p-ignore": true,
+                            "data-lpignore": "true",
+                          } as object)
+                        : null)}
+                      style={styles.codeInput}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      ui.btnGoldFill,
+                      styles.codeJoinBtn,
+                      !normalizeRoomCode(roomCode) && styles.codeJoinBtnDisabled,
+                    ]}
+                    onPress={handleJoinWithCode}
+                    disabled={!normalizeRoomCode(roomCode)}
+                  >
+                    <Text style={ui.btnGoldFillText}>Join</Text>
+                  </TouchableOpacity>
+                </BlurPanel>
+              </View>
+            </View>
 
             <View style={styles.listHeader}>
               <View style={styles.listHeaderLeft}>
                 {isSearching ? (
                   <ActivityIndicator
                     size="small"
-                    color={GOLD}
+                    color={colors.gold}
                     style={{ marginRight: 8 }}
                   />
                 ) : null}
-                <Text style={styles.listTitle}>
-                  {isSearching
-                    ? "Searching For Games…"
-                    : `${availableRooms.length} Open Game${availableRooms.length === 1 ? "" : "s"}`}
-                </Text>
+                <Text style={styles.listTitle}>Open Games</Text>
               </View>
+              <TouchableOpacity onPress={refreshRooms} disabled={isSearching}>
+                <Text style={styles.refreshLink}>
+                  {isSearching ? "…" : "Refresh"}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {error ? (
@@ -239,10 +361,10 @@ export default function FindGame({
 
             {availableRooms.length === 0 && !isSearching ? (
               <BlurPanel style={ui.panel} intensity={44}>
-                <Text style={ui.emptyTitle}>No Games Nearby</Text>
+                <Text style={ui.emptyTitle}>No Public Games</Text>
                 <Text style={ui.emptyBody}>
-                  Host a public game from Create Game and it will show up here
-                  for others on your network.
+                  Host a game above and share the room code, or browse again
+                  when someone opens a public lobby.
                 </Text>
               </BlurPanel>
             ) : (
@@ -302,26 +424,6 @@ export default function FindGame({
       <BottomBar>
         <BottomBarControls style={styles.bottomControls}>
           <View style={{ width: contentMax, alignSelf: "center" }}>
-            <View style={ui.actionTrack}>
-              <TouchableOpacity
-                style={[
-                  ui.actionSecondary,
-                  !onNavigateToSettings && { flex: 1 },
-                ]}
-                onPress={refreshRooms}
-                disabled={isSearching}
-              >
-                <Text style={ui.actionSecondaryText}>Refresh</Text>
-              </TouchableOpacity>
-              {onNavigateToSettings ? (
-                <TouchableOpacity
-                  style={ui.actionPrimary}
-                  onPress={onNavigateToSettings}
-                >
-                  <Text style={ui.actionPrimaryText}>Settings</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
             <BottomBarLeave onPress={onBack} />
           </View>
         </BottomBarControls>
@@ -330,7 +432,8 @@ export default function FindGame({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+  return StyleSheet.create({
   bottomControls: {
     paddingTop: 18,
   },
@@ -343,14 +446,14 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(212,175,55,0.18)",
+    backgroundColor: colors.btnGoldBg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(212,175,55,0.35)",
+    borderColor: colors.btnGoldBorder,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
-    color: GOLD,
+    color: colors.gold,
     fontSize: 15,
     fontWeight: "800",
   },
@@ -358,10 +461,68 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  profileActions: {
+    flexDirection: "row",
+    gap: 6,
+    flexShrink: 0,
+  },
   playerName: {
-    color: "#fff",
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: "700",
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 18,
+  },
+  actionTile: {
+    flex: 1,
+    minWidth: 0,
+  },
+  actionTileInner: {
+    borderRadius: 16,
+    padding: 14,
+    alignItems: "center",
+    gap: 8,
+    minHeight: 168,
+  },
+  actionTileTitle: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  actionTileHint: {
+    color: colors.textMuted,
+    fontSize: 11,
+    textAlign: "center",
+    lineHeight: 15,
+  },
+  codeInputWrap: {
+    width: "100%",
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.inputBorder,
+    backgroundColor: colors.inputBg,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.OS === "ios" ? 10 : 6,
+  },
+  codeInputWrapFocused: {
+    borderColor: colors.btnGoldBorder,
+  },
+  codeInput: {
+    color: colors.inputText,
+    fontSize: 13,
+    textAlign: "center",
+  },
+  codeJoinBtn: {
+    width: "100%",
+    paddingVertical: 9,
+    marginTop: 2,
+  },
+  codeJoinBtnDisabled: {
+    opacity: 0.45,
   },
   listHeader: {
     flexDirection: "row",
@@ -376,8 +537,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listTitle: {
-    color: "rgba(255,255,255,0.75)",
-    fontSize: 14,
+    color: colors.textSecondary,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  refreshLink: {
+    color: colors.gold,
+    fontSize: 13,
     fontWeight: "600",
   },
   errorPanel: {
@@ -403,13 +569,13 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   roomTitle: {
-    color: "#fff",
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: "700",
     marginBottom: 2,
   },
   roomHost: {
-    color: "rgba(255,255,255,0.55)",
+    color: colors.textMuted,
     fontSize: 12,
     marginBottom: 6,
   },
@@ -418,23 +584,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   roomMetaText: {
-    color: "rgba(255,255,255,0.45)",
+    color: colors.textMuted,
     fontSize: 12,
   },
   roomMetaDot: {
-    color: "rgba(255,255,255,0.25)",
+    color: colors.textMuted,
     marginHorizontal: 6,
   },
   joinBtnDisabled: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderColor: "rgba(255,255,255,0.15)",
+    backgroundColor: colors.btnSecondaryBg,
+    borderColor: colors.panelBorder,
   },
   joinBtnText: {
-    color: GOLD,
+    color: colors.gold,
     fontSize: 14,
     fontWeight: "800",
   },
   joinBtnTextDisabled: {
-    color: "rgba(255,255,255,0.35)",
+    color: colors.textMuted,
   },
-});
+  });
+}

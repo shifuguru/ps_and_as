@@ -23,7 +23,7 @@ import {
   cardsNeededToPlay,
   TrickHistory,
 } from "../game/core";
-import { createDeck, shuffleDeck, dealCards } from "../game/ruleset";
+import { createDeck, shuffleDeck, shuffleDeckSeeded, dealCards } from "../game/ruleset";
 import Card from "../components/Card";
 import { ScrollView } from "react-native";
 import { MockAdapter, type NetworkAdapter } from "../game/network";
@@ -32,6 +32,7 @@ import type { LobbyMember } from "../game/network";
 import {
   isFullGameState,
   normalizeLobbyNames,
+  parseServerGameState,
   resolveLocalHumanPlayer,
 } from "../utils/localPlayer";
 import { recordRoundResult } from "../services/playerStats";
@@ -52,6 +53,7 @@ import PlayerHand, {
   type PlayerHandHandle,
 } from "../components/PlayerHand";
 import ActionBar from "../components/ActionBar";
+import MenuIcon from "../components/MenuIcon";
 import RoundCompleteModal from "../components/RoundCompleteModal";
 import TenRuleModal from "../components/TenRuleModal";
 import GameTable from "../components/GameTable";
@@ -67,6 +69,7 @@ import {
 } from "../utils/trickDisplay";
 import { styles } from "../styles/theme";
 import { responsive, isLandscape, adaptiveScale } from "../utils/responsive";
+import { useAppTheme } from "../context/ThemeContext";
 
 // Helper: pick `take` same-rank indices including the card the player tapped
 function selectSameRankNearTap(
@@ -275,21 +278,26 @@ type TrickPauseSnapshot = {
 export default function GameScreen({
   initialPlayers,
   initialLobbyPlayers,
+  dealSeed,
   localPlayerName,
   localPlayerId,
   adapter: networkAdapter,
   roomId,
   onBack,
+  onNavigateToAchievements,
 }: {
   initialPlayers?: string[];
   initialLobbyPlayers?: LobbyMember[];
+  dealSeed?: number;
   localPlayerName?: string;
   localPlayerId?: string;
   adapter?: NetworkAdapter | MockAdapter | SocketAdapter;
   roomId?: string;
   onBack?: () => void;
+  onNavigateToAchievements?: () => void;
 } = {}) {
   const [state, setState] = useState<GameState | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
   const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
   const [showGameLog, setShowGameLog] = useState<boolean>(false);
@@ -342,6 +350,7 @@ export default function GameScreen({
     null,
   );
   const insets = useLayoutInsets();
+  const { colors } = useAppTheme();
 
   function snapshotState(s: GameState | null) {
     if (!s) return null;
@@ -457,23 +466,30 @@ export default function GameScreen({
     };
   }, []);
 
-  // When all players are marked ready, start the next round: redeal, trade, and set starter
+  // When all players are marked ready, start the next round (local / hotseat only).
   useEffect(() => {
-    if (!roundOver) return;
+    if (!roundOver || onlineMultiplayer) return;
     if (!state) return;
     const readyIds = Object.keys(playerReadyStates);
     if (readyIds.length === 0) return;
     const allReady = state.players.every((p) => !!playerReadyStates[p.id]);
     if (!allReady) return;
-
-    // all ready -> start next round
     startNextRound();
-  }, [playerReadyStates, roundOver, state]);
+  }, [playerReadyStates, roundOver, state, onlineMultiplayer]);
 
-  function startNextRound() {
+  function startNextRound(nextDealSeed?: number) {
     if (!state) return;
+    const seed =
+      typeof nextDealSeed === "number"
+        ? nextDealSeed
+        : typeof dealSeed === "number"
+          ? dealSeed
+          : undefined;
     // 1) Re-deal the cards to existing players
-    const deck = shuffleDeck(createDeck());
+    const deck =
+      seed != null
+        ? shuffleDeckSeeded(createDeck(), seed)
+        : shuffleDeck(createDeck());
     // mutate a shallow copy of players array to avoid surprising refs
     const playersCopy = state.players.map((p) => ({ ...p, hand: [] }));
     dealCards(deck, playersCopy as any);
@@ -637,12 +653,60 @@ export default function GameScreen({
     });
   }
 
+  const startNextRoundRef = useRef(startNextRound);
+  startNextRoundRef.current = startNextRound;
+  const stateSyncedRef = useRef(false);
+  const syncRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
-    const g = initialLobbyPlayers?.length
-      ? createGameFromLobby(initialLobbyPlayers)
-      : createGame(normalizeLobbyNames(initialPlayers, localPlayerName));
-    setState(g);
-    void adapter.connect();
+    if (!onlineMultiplayer) {
+      const g = initialLobbyPlayers?.length
+        ? createGameFromLobby(initialLobbyPlayers, dealSeed)
+        : createGame(normalizeLobbyNames(initialPlayers, localPlayerName));
+      setState(g);
+    } else if (isSocketAdapter(networkAdapter)) {
+      const cached = parseServerGameState(networkAdapter.getCachedGameState());
+      if (cached) {
+        stateSyncedRef.current = true;
+        setState(cached);
+      }
+    }
+
+    const applyServerSync = (raw: unknown) => {
+      const parsed = parseServerGameState(raw);
+      if (!parsed) {
+        console.warn("[GameScreen] Ignored invalid gameStateSync payload", raw);
+        return;
+      }
+      stateSyncedRef.current = true;
+      setState(parsed);
+    };
+
+    const requestSync = () => {
+      if (!onlineMultiplayer || !isSocketAdapter(networkAdapter) || !roomId) {
+        return;
+      }
+      networkAdapter.requestGameState(roomId);
+    };
+
+    void adapter.connect().then(() => {
+      requestSync();
+      if (onlineMultiplayer && !stateSyncedRef.current) {
+        let attempts = 0;
+        syncRetryTimerRef.current = setInterval(() => {
+          attempts += 1;
+          if (stateSyncedRef.current || attempts >= 8) {
+            if (syncRetryTimerRef.current) {
+              clearInterval(syncRetryTimerRef.current);
+              syncRetryTimerRef.current = null;
+            }
+            return;
+          }
+          requestSync();
+        }, 1200);
+      }
+    });
+
     adapter.on("message", (ev) => {
       // structured log for incoming adapter events
       emitDebug("adapter:event", {
@@ -651,8 +715,19 @@ export default function GameScreen({
         roomId,
         raw: ev,
       });
-      // Handle game actions from server (other players' moves)
-      if (ev.type === "state" && ev.state && ev.state.type === "gameAction") {
+      if (
+        ev.type === "state" &&
+        ev.state?.type === "gameStateSync"
+      ) {
+        applyServerSync(ev.state.gameState);
+      } else if (ev.type === "state" && ev.state?.type === "error") {
+        setSyncError(ev.state.message ?? "Could not sync with server");
+      } else if (
+        ev.type === "state" &&
+        ev.state &&
+        ev.state.type === "gameAction" &&
+        !onlineMultiplayer
+      ) {
         console.log(
           "[GameScreen] Received game action from",
           ev.state.playerName,
@@ -728,6 +803,22 @@ export default function GameScreen({
           });
         }
       }
+      else if (ev.type === "state" && ev.state?.type === "playerReadyUpdate") {
+        const readyMap = ev.state.readyForNextRound;
+        if (readyMap && typeof readyMap === "object") {
+          setPlayerReadyStates({ ...readyMap });
+        }
+      } else if (ev.type === "state" && ev.state?.type === "nextRoundStarting") {
+        if (onlineMultiplayer) {
+          setRoundOver(false);
+          roundStatsRecordedRef.current = false;
+          setPlayerReadyStates({});
+        } else {
+          const seed =
+            typeof ev.state.dealSeed === "number" ? ev.state.dealSeed : undefined;
+          startNextRoundRef.current(seed);
+        }
+      }
       // Legacy support for MockAdapter — only apply full game snapshots.
       else if (ev.type === "state" && isFullGameState(ev.state)) {
         emitDebug("adapter:state", {
@@ -738,11 +829,15 @@ export default function GameScreen({
     });
 
     return () => {
+      if (syncRetryTimerRef.current) {
+        clearInterval(syncRetryTimerRef.current);
+        syncRetryTimerRef.current = null;
+      }
       if (!networkAdapter) {
         void fallbackAdapterRef.current?.disconnect();
       }
     };
-  }, []);
+  }, [onlineMultiplayer, roomId, networkAdapter]);
 
   // Determine which players are controlled locally on this device (hotseat).
   // For mock/local games (MockAdapter or no network adapter provided) we treat
@@ -946,7 +1041,39 @@ export default function GameScreen({
     return () => clearTimeout(timer);
   }, [state, trickPauseActive]);
 
-  if (!state) return null;
+  if (!state) {
+    if (onlineMultiplayer) {
+      return (
+        <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              padding: 24,
+            }}
+          >
+            <Text style={{ color: colors.onFelt.textPrimary, fontSize: 16, textAlign: "center" }}>
+              {syncError ?? "Waiting for game state from server…"}
+            </Text>
+            {syncError ? (
+              <Text
+                style={{
+                  color: colors.onFelt.textMuted,
+                  fontSize: 13,
+                  marginTop: 12,
+                  textAlign: "center",
+                }}
+              >
+                Restart the game server (`npm run server`) and start a new room.
+              </Text>
+            ) : null}
+          </View>
+        </ScreenContainer>
+      );
+    }
+    return null;
+  }
 
   // const windowDimensions = useWindowDimensions();
   // const width = windowDimensions.width;
@@ -1136,13 +1263,21 @@ export default function GameScreen({
         after: snapshotState(next),
       });
       setSelected([]);
-      setState(next);
-      broadcastGameAction({
-        type: "play",
-        playerId: actor.id,
-        playerName: actor.name,
-        cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
-      });
+      if (onlineMultiplayer) {
+        broadcastGameAction({
+          type: "play",
+          playerId: actor.id,
+          cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
+        });
+      } else {
+        setState(next);
+        broadcastGameAction({
+          type: "play",
+          playerId: actor.id,
+          playerName: actor.name,
+          cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
+        });
+      }
     }
   };
 
@@ -1174,12 +1309,19 @@ export default function GameScreen({
         playerName: actor.name,
         after: snapshotState(next),
       });
-      setState(next);
-      broadcastGameAction({
-        type: "pass",
-        playerId: actor.id,
-        playerName: actor.name,
-      });
+      if (onlineMultiplayer) {
+        broadcastGameAction({
+          type: "pass",
+          playerId: actor.id,
+        });
+      } else {
+        setState(next);
+        broadcastGameAction({
+          type: "pass",
+          playerId: actor.id,
+          playerName: actor.name,
+        });
+      }
     }
   };
 
@@ -1461,6 +1603,27 @@ export default function GameScreen({
   // Note: no appear animation here to avoid flashing on re-renders
   return (
     <ScreenContainer ignoreHeaderOffset={true} style={{ flex: 1 }}>
+      {onNavigateToAchievements ? (
+        <TouchableOpacity
+          style={[
+            local.statsFab,
+            {
+              top: contentTopPadding + 4,
+              backgroundColor:
+                colors.mode === "light"
+                  ? "rgba(255,255,255,0.72)"
+                  : "rgba(255,255,255,0.1)",
+              borderColor: colors.btnGoldBorder,
+            },
+          ]}
+          onPress={onNavigateToAchievements}
+          accessibilityRole="button"
+          accessibilityLabel="View player stats"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <MenuIcon name="trophy" size={18} color={colors.gold} />
+        </TouchableOpacity>
+      ) : null}
       {/* Toggleable structured debug overlay (doesn't block bottom hand) */}
       {showDebugOverlay && (
         <View style={[local.debugOverlay, { top: contentTopPadding + 4 }]}>
@@ -1513,6 +1676,10 @@ export default function GameScreen({
       <TenRuleModal
         visible={isTenRuleChoice}
         onChoose={(direction) => {
+          if (onlineMultiplayer) {
+            broadcastGameAction({ type: "tenRule", direction });
+            return;
+          }
           setState(setTenRuleDirection(state, direction));
         }}
       />
@@ -1669,10 +1836,15 @@ export default function GameScreen({
         onToggleReady={() => {
           const id = humanPlayer?.id;
           if (!id) return;
-          setPlayerReadyStates((prev) => ({
-            ...prev,
-            [id]: !prev[id],
-          }));
+          if (playerReadyStates[id]) {
+            setPlayerReadyStates((prev) => ({ ...prev, [id]: false }));
+            return;
+          }
+          if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
+            networkAdapter.playerReadyForNextRound(roomId);
+            return;
+          }
+          setPlayerReadyStates((prev) => ({ ...prev, [id]: true }));
         }}
       />
       
@@ -1682,11 +1854,22 @@ export default function GameScreen({
 
 const local = StyleSheet.create({
   container: { flex: 1 },
+  statsFab: {
+    position: "absolute",
+    right: 14,
+    zIndex: 60,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   localSeatOverlay: {
     position: "absolute",
     left: 12,
     right: 12,
-    zIndex: 55,
+    zIndex: 44,
     alignItems: "center",
     justifyContent: "flex-end",
     overflow: "visible",

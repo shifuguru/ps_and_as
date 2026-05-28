@@ -1,6 +1,6 @@
 // core.ts
 // Core game state and logic for Presidents & Assholes
-import { Card, Player, createDeck, shuffleDeck, dealCards } from "./ruleset";
+import { Card, Player, createDeck, shuffleDeck, shuffleDeckSeeded, dealCards } from "./ruleset";
 
 // RULE: Single-rank-per-turn variant (no multi-card straights as a single play)
 export const SINGLE_RANK_PER_TURN = true;
@@ -88,8 +88,11 @@ export function isPlayerStillIn(state: GameState, playerId: string): boolean {
   return !state.finishedOrder.includes(playerId) && player.hand.length > 0;
 }
 
-function buildInitialGameState(players: Player[]): GameState {
-  const deck = shuffleDeck(createDeck());
+function buildInitialGameState(players: Player[], dealSeed?: number): GameState {
+  const deck =
+    dealSeed != null
+      ? shuffleDeckSeeded(createDeck(), dealSeed)
+      : shuffleDeck(createDeck());
   dealCards(deck, players);
   const threeOfClubsIndex = players.findIndex((p) =>
     p.hand.some((c) => c.suit === "clubs" && c.value === 3),
@@ -128,6 +131,7 @@ export function createGame(playerNames: string[]): GameState {
 /** Create a game using lobby socket ids (online multiplayer). */
 export function createGameFromLobby(
   lobbyPlayers: { id: string; name: string }[],
+  dealSeed?: number,
 ): GameState {
   const players: Player[] = lobbyPlayers.map((p) => ({
     id: p.id,
@@ -135,7 +139,20 @@ export function createGameFromLobby(
     hand: [],
     role: "Neutral",
   }));
-  return buildInitialGameState(players);
+  return buildInitialGameState(players, dealSeed);
+}
+
+function removeCardsFromHand(hand: Card[], cards: Card[]): Card[] {
+  const remaining = hand.slice();
+  for (const card of cards) {
+    const index = remaining.findIndex(
+      (h) => h.suit === card.suit && h.value === card.value,
+    );
+    if (index !== -1) {
+      remaining.splice(index, 1);
+    }
+  }
+  return remaining;
 }
 
 export function playCards(state: GameState, playerId: string, cards: Card[]): GameState {
@@ -183,6 +200,8 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
 
   // RULE: a single turn may ONLY play one rank repeated N times (1–4)
   if (!allSameValue(cards)) return state;
+
+  try { console.log('[core DEBUG] playCards incoming cards', cards.map(c=>c.value), 'containsTwo=', containsTwo(cards), '__filename=', __filename); } catch(e) {}
 
   // Compute effective pile/run for contextual rule checks (e.g., tens shouldn't
   // trigger the ten-rule when the active pile is a run formed by consecutive
@@ -258,7 +277,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   }
 
   // remove cards from player's hand
-  player.hand = player.hand.filter((h) => !cards.some((c) => c.suit === h.suit && c.value === h.value));
+  player.hand = removeCardsFromHand(player.hand, cards);
   syncFinishedFromEmptyHands(state);
   // record who played last
   state.lastPlayPlayerIndex = pIndex;
@@ -274,6 +293,41 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     cards: cards.slice(),
     timestamp: Date.now(),
   });
+
+  // If the play is a 2, immediately clear the pile and start a fresh trick.
+  if (containsTwo(cards)) {
+    console.log('[core DEBUG] playCards: immediate containsTwo handling');
+    state.lastClear = { type: "two", value: 15, playerIndex: pIndex };
+    state.pile = cards;
+    state.pileHistory = state.pileHistory || [];
+    state.pileHistory.push(cards.slice());
+    state.pileOwners = state.pileOwners || [];
+    state.pileOwners.push(player.id);
+    state.tableStacks = state.tableStacks || [];
+    state.tableStackOwners = state.tableStackOwners || [];
+    for (let i = 0; i < state.pileHistory.length; i++) {
+      state.tableStacks.push(state.pileHistory[i]);
+      state.tableStackOwners.push((state.pileOwners && state.pileOwners[i]) ? state.pileOwners[i] : null);
+    }
+    state.pile = [];
+    state.pileHistory = [];
+    state.pileOwners = [];
+    state.passCount = 0;
+    state.lastClear = undefined;
+    state.fourOfAKindChallenge = undefined;
+    state.tenRule = { active: false, direction: null };
+    state.tenRulePending = false;
+    state.currentTrick = { trickNumber: (state.trickHistory?.length || 0) + 1, actions: [] };
+    if (isPlayerStillIn(state, player.id)) {
+      state.currentPlayerIndex = pIndex;
+      state.mustPlay = true;
+    } else {
+      state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+      state.mustPlay = false;
+    }
+    syncFinishedFromEmptyHands(state);
+    return { ...state };
+  }
 
   // Two and single Joker still immediately end/clear the pile. Four-of-a-kind
   // starts a special challenge: the next player must play another set of four
@@ -370,17 +424,40 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
     state.mustPlay = false;
   } else if (containsTwo(cards)) {
-    // 2s are high cards but do NOT automatically end the trick
-    state.lastClear = { type: "two", value: 2, playerIndex: pIndex };
+    console.log('[core DEBUG] playCards: entering containsTwo branch for', player.id, cards.map(c=>c.value));
+    // 2s are high cards and CLEAR the pile, starting a fresh trick.
+    state.lastClear = { type: "two", value: 15, playerIndex: pIndex };
+    // Record on pileHistory briefly then collect it into table stacks
     state.pile = cards;
     state.pileHistory = state.pileHistory || [];
     state.pileHistory.push(cards.slice());
     state.pileOwners = state.pileOwners || [];
     state.pileOwners.push(player.id);
-    syncPassCountFromTrick(state);
-    // Advance to next player
-    state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
-    state.mustPlay = false;
+    // Move visible pile entries to table stacks (face-down) and reset pile/history
+    state.tableStacks = state.tableStacks || [];
+    state.tableStackOwners = state.tableStackOwners || [];
+    for (let i = 0; i < state.pileHistory.length; i++) {
+      state.tableStacks.push(state.pileHistory[i]);
+      state.tableStackOwners.push((state.pileOwners && state.pileOwners[i]) ? state.pileOwners[i] : null);
+    }
+    state.pile = [];
+    state.pileHistory = [];
+    state.pileOwners = [];
+    state.passCount = 0;
+    state.lastClear = undefined;
+    state.fourOfAKindChallenge = undefined;
+    state.tenRule = { active: false, direction: null };
+    state.tenRulePending = false;
+    // Start a fresh trick (new currentTrick actions)
+    state.currentTrick = { trickNumber: (state.trickHistory?.length || 0) + 1, actions: [] };
+    // Advance turn: winner (player who played 2) leads if still active, otherwise next active
+    if (isPlayerStillIn(state, player.id)) {
+      state.currentPlayerIndex = pIndex;
+      state.mustPlay = true;
+    } else {
+      state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+      state.mustPlay = false;
+    }
   } else {
     // normal play replaces the pile
     state.pile = cards;
@@ -442,12 +519,14 @@ export function cardsNeededToPlay(pile: Card[], playValue: number): number {
   return pileCount;
 }
 
-// Rank order (low -> high): 3,4,5,6,7,8,9,10,J(11),Q(12),K(13),A(14),2,Joker(15)
-// Note: card numeric values use 2 for the '2' card and 15 for Jokers. The
-// RANK_ORDER array maps card values to the game's rank ordering (index in the
-// array is the relative rank). For example, indexOf(3) === 0 (lowest),
-// indexOf(10) === 7, indexOf(14 /*A*/) === 11, indexOf(2) === 12, indexOf(15) === 13.
-export const RANK_ORDER = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 2, 15];
+// Rank order (low -> high): 3,4,5,6,7,8,9,10,J(11),Q(12),K(13),A(14),2(15),Joker(16)
+// Note: card numeric values use conventional face encodings for most cards
+// (3..14 where 14=Ace). In this game's internal encoding, '2' is represented
+// as 15 and Joker as 16. The RANK_ORDER array maps those encoded values to
+// the game's rank ordering (index in the array is the relative rank). For
+// example, indexOf(3) === 0 (lowest), indexOf(10) === 7, indexOf(14 /*A*/) === 11,
+// indexOf(15 /*2*/) === 12, indexOf(16 /*Joker*/) === 13.
+export const RANK_ORDER = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
 export function rankIndex(value: number) {
   const idx = RANK_ORDER.indexOf(value);
@@ -553,6 +632,50 @@ export function consecutiveSequenceInfo(
   const best =
     fromTrick.repCards.length >= fromHist.repCards.length ? fromTrick : fromHist;
   if (best.repCards.length >= 2) return best;
+
+  // Special case: treat a single (or same-multiplicity) `pile` entry appended
+  // to a recent `fromHist`/`fromTrick` sequence as a continuing run when
+  // multiplicities match and ranks are consecutive. This allows contexts
+  // like history [[8],[9]] with pile [10] to be recognized as a run.
+  const sources = [fromTrick, fromHist];
+
+  // Extra heuristic: if the last two entries in pileHistory form adjacent
+  // ranks with equal multiplicity, and the current pile matches that
+  // multiplicity and is adjacent to the most recent history entry, treat
+  // the three as a potential run (covers history [[8],[9]] + pile [10]).
+  if (pileHistory && pileHistory.length >= 2 && pile && pile.length > 0) {
+    const e2 = pileHistory[pileHistory.length - 1];
+    const e1 = pileHistory[pileHistory.length - 2];
+    if (e1 && e2 && e1.length === e2.length && e1.length === pile.length) {
+      if (e1.length > 0 && e2.length > 0) {
+        const a = e1[0];
+        const b = e2[0];
+        const c = pile[0];
+        if (!isJoker(a) && !isJoker(b) && !isJoker(c)) {
+          if (Math.abs(rankIndex(b.value) - rankIndex(a.value)) === 1 && Math.abs(rankIndex(c.value) - rankIndex(b.value)) === 1) {
+            const combined = [a, b, c];
+            if (isRunContextSequence(combined)) {
+              return { repCards: combined, multiplicity: e1.length };
+            }
+          }
+        }
+      }
+    }
+  }
+  for (const src of sources) {
+    if (src.repCards.length >= 2 && pile && pile.length === src.multiplicity) {
+      // Only consider non-joker/2 adjacency which is validated by isRunContextSequence
+      const last = src.repCards[src.repCards.length - 1];
+      const candidate = pile[0];
+      if (Math.abs(rankIndex(candidate.value) - rankIndex(last.value)) === 1) {
+        const combined = [...src.repCards, candidate];
+        if (isRunContextSequence(combined)) {
+          return { repCards: combined, multiplicity: src.multiplicity };
+        }
+      }
+    }
+  }
+
   if (pile && pile.length >= 3 && isRun(pile)) {
     return { repCards: pile, multiplicity: pile.length };
   }
@@ -726,10 +849,10 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
     return Math.abs(playRank - lastRank) === 1;
   }
   // 11. Twos rule: only Joker or completing quad can beat 2s
-  const pileIsTwos = pileIsUniform && pile.length > 0 && pile[0].value === 2;
+  const pileIsTwos = pileIsUniform && pile.length > 0 && pile[0].value === 15;
   if (pileIsTwos) {
     if (isSingleJoker(cards)) return true;
-    if (allSameValue(cards) && cards[0].value === 2 && pileCount + playCount === 4) {
+    if (allSameValue(cards) && cards[0].value === 15 && pileCount + playCount === 4) {
       return true;
     }
     return false;
@@ -744,26 +867,47 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
 
 // Context-only run detection for sequences formed via consecutive single-card plays.
 // Allows 10s to appear in the sequence (they do not break the run), but still
-// disallows Jokers and 2s. Requires that each adjacent pair differs by exactly 1
-// in rank, for at least 3 cards total. Direction can change (e.g., 9-10-9) but
-// typical gameplay will be monotonic except around 10 where either 9 or J is valid.
+// disallows Jokers and 2s. Requires at least 3 distinct consecutive ranks so
+// ten-rule oscillations (e.g. 10-lower, 9, 10-lower, 9) are not misclassified.
 export function isRunContextSequence(cards: Card[]): boolean {
-  if (!cards || cards.length < 3) return false;
+  if (!cards || cards.length < 2) return false;
+  // Disallow jokers and twos from participating in run contexts
   for (let i = 0; i < cards.length; i++) {
     const c = cards[i];
-    if (isJoker(c)) return false; // Jokers are not allowed in runs
+    if (isJoker(c)) return false;
+    if (c.value === 15 || c.value === 2) return false;
   }
+
+  // All adjacent ranks must differ by exactly 1 in rankIndex space
   for (let i = 1; i < cards.length; i++) {
     const prev = rankIndex(cards[i - 1].value);
     const cur = rankIndex(cards[i].value);
     if (Math.abs(cur - prev) !== 1) return false;
+  }
+
+  const uniqueValues = [...new Set(cards.map((c) => c.value))];
+  // For length-2 sequences, allow simple adjacency (e.g., 9-10) to count as a
+  // run context so it can be extended — higher validations occur when
+  // attempting to actually play into the sequence.
+  if (cards.length === 2) {
+    return uniqueValues.length === 2;
+  }
+
+  // For length >=3, require at least 3 distinct consecutive ranks
+  if (uniqueValues.length < 3) return false;
+  const sortedUnique = uniqueValues.sort((a, b) => rankIndex(a) - rankIndex(b));
+  for (let i = 1; i < sortedUnique.length; i++) {
+    const prev = rankIndex(sortedUnique[i - 1]);
+    const cur = rankIndex(sortedUnique[i]);
+    if (cur !== prev + 1) return false;
   }
   return true;
 }
 
 // special helpers
 export function containsTwo(cards: Card[]) {
-  return cards.some((c) => c.value === 2);
+  // Accept both legacy numeric-2 (2) and internal-two (15).
+  return cards.some((c) => c.value === 15 || c.value === 2);
 }
 
 export function containsTen(cards: Card[]) {
@@ -771,7 +915,8 @@ export function containsTen(cards: Card[]) {
 }
 
 export function isJoker(card: Card) {
-  return card.value === 15 && card.suit === "joker";
+  // Accept either legacy (15) or new (16) joker encodings for robustness.
+  return (card.value === 16 || card.value === 15) && card.suit === "joker";
 }
 
 export function isSingleJoker(cards: Card[]) {
@@ -797,7 +942,7 @@ export function isRun(cards: Card[]): boolean {
   const freq: { [value: number]: number } = {};
   for (const c of cards) {
     // Disallow jokers from being part of runs
-    if (c.value === 10 || c.value === 15) return false;
+    if (c.value === 16) return false;
     freq[c.value] = (freq[c.value] || 0) + 1;
   }
 
@@ -932,9 +1077,9 @@ export function findCPUPlay(hand: Card[], pile: Card[], tenRule?: { active: bool
 
   // Special: pile is uniform 2s — only Joker or completing quad allowed
   const pileIsUniform = allSameValue(pile);
-  const pileIsTwos = pileIsUniform && pile.length > 0 && pile[0].value === 2;
+  const pileIsTwos = pileIsUniform && pile.length > 0 && pile[0].value === 15;
   if (pileIsTwos) {
-    const twos = grouped[2];
+    const twos = grouped[15];
     // Only allow completing quad (pile has 1-3 twos, play remaining to reach 4)
     if (twos && pileCount + twos.length === 4) {
       validPlays.push(twos.slice(0, 4 - pileCount));

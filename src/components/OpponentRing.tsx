@@ -2,10 +2,10 @@ import React, { useMemo } from "react";
 import { View, StyleSheet } from "react-native";
 import OpponentSeat, { OpponentSeatPlayer } from "./OpponentSeat";
 import type { OpponentRingLayout } from "../utils/tableLayout";
+import type { SeatDimensions } from "../utils/seatDimensions";
 import {
-  SEAT_FOOTPRINT_W,
   opponentRingAngles,
-  polarSeatPosition,
+  opponentSeatPosition,
 } from "../utils/tableLayout";
 
 type Props = {
@@ -17,6 +17,10 @@ type Props = {
   arenaWidth: number;
   arenaHeight: number;
   ringLayout: OpponentRingLayout;
+  seatFootprintW: number;
+  seatFootprintH: number;
+  seatDimensions: SeatDimensions;
+  sideAnchorMargin: number;
   lastPlayPlayerId?: string | null;
   trickWinnerPlayerId?: string | null;
 };
@@ -54,6 +58,10 @@ export default function OpponentRing({
   arenaWidth,
   arenaHeight,
   ringLayout,
+  seatFootprintW,
+  seatFootprintH,
+  seatDimensions,
+  sideAnchorMargin,
   lastPlayPlayerId,
   trickWinnerPlayerId,
 }: Props) {
@@ -103,20 +111,20 @@ export default function OpponentRing({
         const celebrateTrickWin =
           !!trickWinnerPlayerId && player.id === trickWinnerPlayerId && !isOut;
 
-        const pos = polarSeatPosition(
-          angle,
-          ringLayout.cx,
-          ringLayout.cy,
-          ringLayout.radius,
-          ringLayout.minTop,
+        const pos = opponentSeatPosition(angle, {
+          cx: ringLayout.cx,
+          cy: ringLayout.cy,
+          radius: ringLayout.radius,
           arenaWidth,
-          arenaHeight,
-        );
+          footprintW: seatFootprintW,
+          footprintH: seatFootprintH,
+          sideAnchorMargin,
+        });
 
         return (
           <View
             key={player.id}
-            style={[styles.seatSlot, pos]}
+            style={[styles.seatSlot, pos, { width: seatFootprintW }]}
             pointerEvents="box-none"
           >
             <OpponentSeat
@@ -128,6 +136,8 @@ export default function OpponentRing({
               isLastPlay={isLastPlay}
               celebrateTrickWin={celebrateTrickWin}
               compact={compact}
+              seatDims={seatDimensions}
+              layoutWidth={arenaWidth}
             />
           </View>
         );
@@ -143,7 +153,6 @@ const styles = StyleSheet.create({
   },
   seatSlot: {
     position: "absolute",
-    width: SEAT_FOOTPRINT_W,
     alignItems: "center",
     overflow: "visible",
   },

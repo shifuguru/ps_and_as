@@ -2,10 +2,9 @@ import { allSameValue, isRun } from "../game/core";
 import type { TrickPlayDisplay } from "./trickDisplay";
 import type { PlayAreaLayout } from "./tableLayout";
 import {
-  LOCAL_SEAT_BAND,
-  SEAT_FOOTPRINT_W,
-  polarSeatPosition,
+  opponentSeatPosition,
   ringAngleForSeat,
+  LOCAL_SEAT_TABLE_LIFT,
 } from "./tableLayout";
 import {
   type FrozenPlaySpot,
@@ -32,26 +31,28 @@ export function seatOriginInPlayArea(
   if (localPlayerIds.includes(playerId)) {
     return {
       x: layout.width / 2,
-      y: playAreaHeight - LOCAL_SEAT_BAND * 0.42,
+      y: playAreaHeight - layout.localBandHeight * 0.42 - LOCAL_SEAT_TABLE_LIFT,
     };
   }
 
   const { opponentRing: ring } = layout;
   const angle = ringAngleForSeat(seatIndex, allPlayerIds.length);
-  const pos = polarSeatPosition(
-    angle,
-    ring.cx,
-    ring.cy,
-    ring.radius,
-    ring.minTop,
-    layout.width,
-    playAreaHeight,
-  );
+  const pos = opponentSeatPosition(angle, {
+    cx: ring.cx,
+    cy: ring.cy,
+    radius: ring.radius,
+    arenaWidth: layout.width,
+    footprintW: layout.seatFootprintW,
+    footprintH: layout.seatFootprintH,
+    sideAnchorMargin: layout.sideAnchorMargin,
+  });
   const compact = allPlayerIds.length >= 6;
-  const avatarCenterY = compact ? 20 : 24;
+  const avatarCenterY = compact
+    ? layout.seatDimensions.avatarCenterYCompact
+    : layout.seatDimensions.avatarCenterY;
 
   return {
-    x: pos.left + SEAT_FOOTPRINT_W / 2,
+    x: pos.left + layout.seatFootprintW / 2,
     y: pos.top + avatarCenterY,
   };
 }
