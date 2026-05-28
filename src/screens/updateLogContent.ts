@@ -18,6 +18,8 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     date: "May 2026",
     title: "Recent fixes",
     items: [
+      "Run rules — two singles in a row (e.g. 3 then 4) is normal play until a third consecutive card starts a run; you must beat the pile, not play back to an adjacent rank",
+      "Deal ceremony — riffle shuffle animation (split, bridge, merge) and faster card dealing so you get to play sooner",
       "Automatic update prompts when a newer web build is deployed — refresh to get the latest",
       "First-round deal ceremony online — everyone sees the shuffle and cards dealt to each seat before play starts",
       "Disconnect grace period — if someone drops, their seat stays open ~20–30 seconds with a countdown; they can rejoin or the game ends cleanly",
@@ -45,7 +47,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
       "Custom felt tint with a color graph picker beside the hex field",
       "Dark ink text with a subtle shadow so labels read clearly on light tables",
       "Light, dark, or system appearance — plus auto text contrast for your felt",
-      "Deal ceremony: shuffle animation, face-down dealing, and President/Asshole trades",
+      "Deal ceremony: riffle shuffle, faster face-down dealing, and President/Asshole trades",
     ],
   },
   {

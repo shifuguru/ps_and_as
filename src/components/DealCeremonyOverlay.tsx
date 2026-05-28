@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
-  Easing,
   StyleSheet,
   Text,
   View,
   useWindowDimensions,
 } from "react-native";
 import Card from "./Card";
+import DealShuffleAnimation from "./DealShuffleAnimation";
 import TableCardFlight, { type CardFlightSpec } from "./TableCardFlight";
 import { tableCardDimensions } from "./cardDimensions";
 import type { PlayAreaLayout } from "../utils/tableLayout";
@@ -37,12 +37,12 @@ type Props = {
   onMandatoryTradesAnimated?: () => void;
 };
 
-const SHUFFLE_MS = 3400;
-const DEAL_FLIGHT_MS = 580;
+const SHUFFLE_MS = 3600;
+const DEAL_FLIGHT_MS = 340;
 /** Pause after each card lands before the next clockwise deal. */
-const DEAL_STEP_GAP_MS = 180;
+const DEAL_STEP_GAP_MS = 55;
 /** Off-table seats still advance the deal order at a readable pace. */
-const HIDDEN_SEAT_DEAL_MS = 320;
+const HIDDEN_SEAT_DEAL_MS = 160;
 const MANDATORY_TRADE_MS = 720;
 
 export default function DealCeremonyOverlay({
@@ -64,8 +64,6 @@ export default function DealCeremonyOverlay({
   const { colors } = useAppTheme();
   const { width: screenW } = useWindowDimensions();
   const dims = tableCardDimensions();
-  const shuffleSpin = useRef(new Animated.Value(0)).current;
-  const shuffleScale = useRef(new Animated.Value(0.85)).current;
   const labelOpacity = useRef(new Animated.Value(1)).current;
 
   const [phase, setPhase] = useState<"shuffle" | "deal" | "trade" | "done">(
@@ -84,8 +82,6 @@ export default function DealCeremonyOverlay({
   dealRoundRef.current = dealRound;
   const dealStepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dealWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const shuffleGenRef = useRef(0);
-
   const offsetPoint = useCallback(
     (x: number, y: number) => ({
       x: x + playAreaOffsetLeft,
@@ -164,59 +160,16 @@ export default function DealCeremonyOverlay({
     [advanceDealRound],
   );
 
+  const beginDealPhase = useCallback(() => setPhase("deal"), []);
+
   useEffect(() => {
     if (!visible) return;
-    const gen = ++shuffleGenRef.current;
     ceremonyFinishedRef.current = false;
     setPhase("shuffle");
     setDealRound(0);
     setDealtCounts({});
     setActiveFlights([]);
-    shuffleSpin.setValue(0);
-    shuffleScale.setValue(0.85);
-
-    const shuffleAnim = Animated.parallel([
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(shuffleSpin, {
-            toValue: 1,
-            duration: 280,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.timing(shuffleSpin, {
-            toValue: -1,
-            duration: 280,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-        ]),
-        { iterations: 5 },
-      ),
-      Animated.sequence([
-        Animated.timing(shuffleScale, {
-          toValue: 1.05,
-          duration: SHUFFLE_MS / 2,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shuffleScale, {
-          toValue: 1,
-          duration: SHUFFLE_MS / 2,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]);
-
-    shuffleAnim.start(({ finished }) => {
-      if (!finished || gen !== shuffleGenRef.current) return;
-      setPhase("deal");
-    });
-
-    return () => {
-      shuffleGenRef.current += 1;
-      shuffleAnim.stop();
-    };
-  }, [visible, shuffleSpin, shuffleScale]);
+  }, [visible]);
 
   useEffect(() => {
     return () => {
@@ -393,11 +346,6 @@ export default function DealCeremonyOverlay({
 
   const deckScreen = offsetPoint(deckCenter.x, deckCenter.y);
 
-  const shuffleRotate = shuffleSpin.interpolate({
-    inputRange: [-1, 1],
-    outputRange: ["-7deg", "7deg"],
-  });
-
   const statusText =
     phase === "shuffle"
       ? "Shuffling…"
@@ -412,39 +360,15 @@ export default function DealCeremonyOverlay({
       </Animated.View>
 
       {phase === "shuffle" ? (
-        <Animated.View
-          style={[
-            styles.deckStack,
-            {
-              left: deckScreen.x - dims.width / 2,
-              top: deckScreen.y - dims.height / 2,
-              transform: [{ rotate: shuffleRotate }, { scale: shuffleScale }],
-            },
-          ]}
-        >
-          {[0, 1, 2].map((i) => (
-            <View
-              key={i}
-              style={[
-                styles.stackCard,
-                {
-                  left: i * 3,
-                  top: i * 2,
-                  width: dims.width * 0.8,
-                  height: dims.height * 0.8,
-                },
-              ]}
-            >
-              <Card
-                card={{ suit: "spades", value: 0 }}
-                selected={false}
-                faceDown
-                onPress={() => {}}
-                style={{ width: "100%", height: "100%" }}
-              />
-            </View>
-          ))}
-        </Animated.View>
+        <DealShuffleAnimation
+          cardW={dims.width * 0.78}
+          cardH={dims.height * 0.78}
+          left={deckScreen.x}
+          top={deckScreen.y}
+          running
+          durationMs={SHUFFLE_MS}
+          onComplete={beginDealPhase}
+        />
       ) : null}
 
       {activeFlights.map((flight) => (
@@ -546,12 +470,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     overflow: "hidden",
-  },
-  deckStack: {
-    position: "absolute",
-  },
-  stackCard: {
-    position: "absolute",
   },
   dealtStack: {
     position: "absolute",

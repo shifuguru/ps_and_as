@@ -95,6 +95,15 @@ const cases: Case[] = [
     expectValues: [3, 4, 5],
   },
   {
+    name: "singles 3-4 only — not yet a run",
+    actions: [
+      makeAction("play", 0, [card(3)]),
+      makeAction("play", 1, [card(4)]),
+    ],
+    pile: [card(4)],
+    expectRun: false,
+  },
+  {
     name: "9-10-J singles (10 in run context)",
     actions: [
       makeAction("play", 0, [card(9)]),
@@ -379,6 +388,52 @@ console.log("\n=== Integration: playCards with intervening passes ===\n");
     console.log(
       `      runActive=${runActive} sixValid=${sixValid} trick=${info.repCards.map((c) => c.value)} eff=${eff.map((c) => c.value)}`,
     );
+  }
+}
+
+// Two-card sequence: adjacency rules must not apply until 3rd consecutive card
+console.log("\n=== Two-card sequence: normal beat-the-pile ===\n");
+{
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(3)]),
+      makeAction("play", 1, [card(4)]),
+    ],
+  };
+  const pile = [card(4)];
+  const history: Card[][] = [[card(3)], [card(4)]];
+
+  const threeInvalid = !isValidPlay(
+    [card(3)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const fiveValid = isValidPlay(
+    [card(5)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+
+  if (threeInvalid && fiveValid) {
+    passed++;
+    console.log("PASS  3-4 pile: 3 rejected, 5 accepted (normal play)");
+  } else {
+    failed++;
+    console.log("FAIL  3-4 pile: 3 rejected, 5 accepted");
+    console.log(`      threeInvalid=${threeInvalid} fiveValid=${fiveValid}`);
   }
 }
 

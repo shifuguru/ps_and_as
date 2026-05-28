@@ -104,17 +104,33 @@ assert.strictEqual(
   "9 should be allowed after 10 in run context even with 10-rule higher active"
 );
 
-// 2-card sequence 9-10: extending with J should work; 10 should not have triggered rule
+// 2-card sequence 9-10: not yet a run — normal beat-the-pile with 10-rule
 const history910: Card[][] = [[nine], [ten]];
 assert.strictEqual(
   isValidPlay([jack], [ten], tenRuleHigher, history910, [{ trickNumber: 0, actions: [] }]),
   true,
-  "Jack should extend 9-10 sequence despite active 10-rule"
+  "Jack should beat 10 via normal 10-rule (not run adjacency) on a 2-card 9-10 sequence"
 );
 assert.strictEqual(
   isValidPlay([nine], [ten], tenRuleHigher, history910, [{ trickNumber: 0, actions: [] }]),
+  false,
+  "9 should NOT be allowed on 10 when only 9-10 played — not yet a run"
+);
+
+// Two singles 3-4: normal play — must beat 4, not wrap back to 3
+const history34: Card[][] = [[{ suit: "hearts", value: 3 }], [{ suit: "hearts", value: 4 }]];
+const threeAgain: Card[] = [{ suit: "spades", value: 3 }];
+const five: Card[] = [{ suit: "spades", value: 5 }];
+const fourOnPile: Card[] = [{ suit: "hearts", value: 4 }];
+assert.strictEqual(
+  isValidPlay(threeAgain, fourOnPile, undefined, history34, [{ trickNumber: 0, actions: [] }]),
+  false,
+  "3 should NOT be allowed on pile 4 after 3-4 — not yet a run"
+);
+assert.strictEqual(
+  isValidPlay(five, fourOnPile, undefined, history34, [{ trickNumber: 0, actions: [] }]),
   true,
-  "9 should extend back from 10 in 9-10 sequence despite active 10-rule"
+  "5 should beat 4 after 3-4 — normal play until 3rd consecutive card"
 );
 
 // Quad close on 10s must work even when 10-rule is active
