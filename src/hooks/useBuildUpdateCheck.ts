@@ -49,15 +49,15 @@ export function useBuildUpdateCheck(
     const sub = AppState.addEventListener("change", onAppState);
 
     if (Platform.OS === "web") {
-      const doc = (globalThis as { document?: Document }).document;
+      const doc = (globalThis as { document?: { visibilityState?: string; addEventListener?: (type: string, fn: () => void) => void; removeEventListener?: (type: string, fn: () => void) => void } }).document;
       const onVisible = () => {
         if (doc?.visibilityState === "visible") void checkForUpdate();
       };
-      doc?.addEventListener("visibilitychange", onVisible);
+      doc?.addEventListener?.("visibilitychange", onVisible);
       return () => {
         clearInterval(interval);
         sub.remove();
-        doc?.removeEventListener("visibilitychange", onVisible);
+        doc?.removeEventListener?.("visibilitychange", onVisible);
       };
     }
 

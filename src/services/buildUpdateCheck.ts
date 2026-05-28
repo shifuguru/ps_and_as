@@ -6,6 +6,8 @@ import {
   type BuildVersionInfo,
 } from "../config/buildVersion";
 import { getServerUrl } from "../config/server";
+
+function parseVersionPayload(raw: unknown): BuildVersionInfo | null {
   if (!raw || typeof raw !== "object") return null;
   const data = raw as Record<string, unknown>;
   const version = typeof data.version === "string" ? data.version : APP_VERSION;
@@ -65,7 +67,7 @@ export function isRemoteBuildNewer(remote: BuildVersionInfo): boolean {
 
 export function applyBuildUpdate(): void {
   if (Platform.OS === "web") {
-    const loc = (globalThis as { location?: Location }).location;
+    const loc = (globalThis as { location?: { href: string; replace: (url: string) => void; reload: () => void } }).location;
     if (loc) {
       const url = new URL(loc.href);
       url.searchParams.set("_refresh", String(Date.now()));

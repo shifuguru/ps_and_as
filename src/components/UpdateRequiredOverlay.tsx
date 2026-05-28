@@ -48,13 +48,13 @@ export default function UpdateRequiredOverlay({ latestBuild }: Props) {
             ) : null}
           </View>
           <TouchableOpacity
-            style={[ui.btnPrimary, styles.primaryBtn]}
+            style={[ui.actionPrimary, styles.primaryBtn]}
             onPress={applyBuildUpdate}
             activeOpacity={0.88}
             accessibilityRole="button"
             accessibilityLabel="Refresh to update"
           >
-            <Text style={ui.btnPrimaryText}>
+            <Text style={ui.actionPrimaryText}>
               {Platform.OS === "web" ? "Refresh now" : "Restart app"}
             </Text>
           </TouchableOpacity>
