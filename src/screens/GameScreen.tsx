@@ -493,46 +493,6 @@ export default function GameScreen({
     [awayPlayers],
   );
 
-  const roleById = useMemo(() => {
-    const src =
-      tradePhase?.players ?? ceremonyPrep?.players ?? state?.players ?? [];
-    const map: Record<string, GameState["players"][number]["role"]> = {};
-    for (const p of src) {
-      map[p.id] = p.role;
-    }
-    return map;
-  }, [tradePhase, ceremonyPrep, state?.players]);
-
-  const tableSeats = useMemo(
-    () => buildTableSeatConfig(state?.players ?? [], myPlayerId),
-    [state?.players, myPlayerId],
-  );
-
-  const playAreaLayout = useMemo(() => {
-    const playAreaGameHeight = Math.max(
-      0,
-      playAreaSize.height -
-        reservedBottomHeight(
-          insets.bottom || 0,
-          (humanPlayer?.hand.length ?? 0) > 0 && !gameplayLocked,
-        ),
-    );
-    if (playAreaSize.width <= 0 || playAreaGameHeight <= 0 || !state) return null;
-    return computePlayAreaLayout(
-      playAreaSize.width,
-      playAreaGameHeight,
-      tableSeats.layoutSeatCount,
-    );
-  }, [
-    playAreaSize.width,
-    playAreaSize.height,
-    insets.bottom,
-    humanPlayer?.hand.length,
-    gameplayLocked,
-    tableSeats.layoutSeatCount,
-    state,
-  ]);
-
   const requestLeaveGame = useCallback(() => {
     setLeaveConfirmVisible(true);
   }, []);
@@ -1454,18 +1414,6 @@ export default function GameScreen({
     return () => clearTimeout(timer);
   }, [state, trickPauseActive, gameplayLocked, roundOver, humanPlayer?.id]);
 
-  const localControlledIds = humanPlayer ? [humanPlayer.id] : [];
-  const deadHandGraveyard =
-    !gameplayLocked && !ceremonyPrep && !tradePhase;
-  const playAreaGameHeight = Math.max(
-    0,
-    playAreaSize.height -
-      reservedBottomHeight(
-        insets.bottom || 0,
-        (humanPlayer?.hand.length ?? 0) > 0 && !gameplayLocked,
-      ),
-  );
-
   if (!state) {
     if (onlineMultiplayer) {
       return (
@@ -1499,6 +1447,31 @@ export default function GameScreen({
     }
     return null;
   }
+
+  const roleById: Record<string, GameState["players"][number]["role"]> = {};
+  for (const p of tradePhase?.players ?? ceremonyPrep?.players ?? state.players) {
+    roleById[p.id] = p.role;
+  }
+  const tableSeats = buildTableSeatConfig(state.players, myPlayerId);
+  const playAreaGameHeight = Math.max(
+    0,
+    playAreaSize.height -
+      reservedBottomHeight(
+        insets.bottom || 0,
+        (humanPlayer?.hand.length ?? 0) > 0 && !gameplayLocked,
+      ),
+  );
+  const playAreaLayout =
+    playAreaSize.width <= 0 || playAreaGameHeight <= 0
+      ? null
+      : computePlayAreaLayout(
+          playAreaSize.width,
+          playAreaGameHeight,
+          tableSeats.layoutSeatCount,
+        );
+  const localControlledIds = humanPlayer ? [humanPlayer.id] : [];
+  const deadHandGraveyard =
+    !gameplayLocked && !ceremonyPrep && !tradePhase;
 
   // const windowDimensions = useWindowDimensions();
   // const width = windowDimensions.width;
