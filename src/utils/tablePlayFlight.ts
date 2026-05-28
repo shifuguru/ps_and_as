@@ -6,6 +6,7 @@ import {
   ringAngleForSeat,
   LOCAL_SEAT_TABLE_LIFT,
 } from "./tableLayout";
+import { DEAD_HAND_RING_ANGLE } from "./tableSeats";
 import {
   type FrozenPlaySpot,
   layoutPlayBundle,
@@ -17,15 +18,20 @@ export function playDisplayKey(play: TrickPlayDisplay): string {
   return playIdentityKey(play);
 }
 
+export type SeatOriginOptions = {
+  deadHandId?: string | null;
+};
+
 /** Approximate avatar center in play-area coordinates. */
 export function seatOriginInPlayArea(
   layout: PlayAreaLayout,
   playAreaHeight: number,
   playerId: string,
-  allPlayerIds: string[],
+  layoutSeatIds: string[],
   localPlayerIds: string[],
+  options?: SeatOriginOptions,
 ): { x: number; y: number } | null {
-  const seatIndex = allPlayerIds.indexOf(playerId);
+  const seatIndex = layoutSeatIds.indexOf(playerId);
   if (seatIndex < 0) return null;
 
   if (localPlayerIds.includes(playerId)) {
@@ -35,8 +41,12 @@ export function seatOriginInPlayArea(
     };
   }
 
+  const deadHandId = options?.deadHandId;
   const { opponentRing: ring } = layout;
-  const angle = ringAngleForSeat(seatIndex, allPlayerIds.length);
+  const angle =
+    deadHandId && playerId === deadHandId
+      ? DEAD_HAND_RING_ANGLE
+      : ringAngleForSeat(seatIndex, layoutSeatIds.length);
   const pos = opponentSeatPosition(angle, {
     cx: ring.cx,
     cy: ring.cy,
@@ -46,7 +56,7 @@ export function seatOriginInPlayArea(
     footprintH: layout.seatFootprintH,
     sideAnchorMargin: layout.sideAnchorMargin,
   });
-  const compact = allPlayerIds.length >= 6;
+  const compact = layoutSeatIds.length >= 6;
   const avatarCenterY = compact
     ? layout.seatDimensions.avatarCenterYCompact
     : layout.seatDimensions.avatarCenterY;
