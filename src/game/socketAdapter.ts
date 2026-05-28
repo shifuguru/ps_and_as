@@ -19,6 +19,8 @@ export class SocketAdapter implements NetworkAdapter {
   private connectPromise: Promise<void> | null = null;
   private discoverQueued = false;
   private cachedGameState: unknown = null;
+  /** Room the client belongs to — used to rejoin after socket reconnect. */
+  private activeRoomId: string | null = null;
 
   constructor(
     private url: string | undefined,
@@ -28,6 +30,41 @@ export class SocketAdapter implements NetworkAdapter {
     autoJoin: boolean = true,
   ) {
     this.shouldAutoJoin = autoJoin;
+    if (roomId) {
+      this.activeRoomId = roomId;
+    }
+  }
+
+  getProfileId(): string {
+    return this.profileId;
+  }
+
+  getActiveRoomId(): string | null {
+    return this.activeRoomId;
+  }
+
+  setActiveRoomId(roomId: string) {
+    this.activeRoomId = roomId;
+    this.roomId = roomId;
+  }
+
+  /** Drop room membership locally so reconnect does not auto-rejoin. */
+  clearRoomSession() {
+    this.activeRoomId = null;
+    this.roomId = "";
+    this.shouldAutoJoin = false;
+    this.clearCachedGameState();
+  }
+
+  private rejoinActiveRoom() {
+    const targetRoomId = this.activeRoomId || this.roomId;
+    if (!targetRoomId || !this.socket?.connected) return;
+    console.log("[SocketAdapter] Rejoining room after reconnect:", targetRoomId);
+    this.socket.emit("joinRoom", {
+      roomId: targetRoomId,
+      name: this.name,
+      profileId: this.profileId,
+    });
   }
 
   isConnected(): boolean {
@@ -115,12 +152,10 @@ export class SocketAdapter implements NetworkAdapter {
 
         this.socket.on("connect", () => {
           console.log("[SocketAdapter] Connected! Socket ID:", this.socket.id);
-          if (this.shouldAutoJoin && this.roomId) {
-            this.socket.emit("joinRoom", {
-              roomId: this.roomId,
-              name: this.name,
-              profileId: this.profileId,
-            });
+          if (this.activeRoomId || this.roomId) {
+            this.rejoinActiveRoom();
+          } else if (this.shouldAutoJoin && this.roomId) {
+            this.rejoinActiveRoom();
           }
           this.flushDiscoverQueue();
         });
@@ -182,6 +217,7 @@ export class SocketAdapter implements NetworkAdapter {
             type: "startGame",
             players,
             dealSeed: data?.dealSeed,
+            spectator: !!data?.spectator,
           },
         }),
       );
@@ -192,7 +228,12 @@ export class SocketAdapter implements NetworkAdapter {
       this.handlers.forEach((h) =>
         h({
           type: "state",
-          state: { type: "connected", id: data.id, name: data.name },
+          state: {
+            type: "connected",
+            id: data.id,
+            name: data.name,
+            isSpectator: !!data?.isSpectator,
+          },
         }),
       );
     });
@@ -238,6 +279,7 @@ export class SocketAdapter implements NetworkAdapter {
 
     this.socket.on("kicked", (data: any) => {
       console.warn("[SocketAdapter] Kicked from room:", data.message);
+      this.clearRoomSession();
       this.handlers.forEach((h) =>
         h({
           type: "state",
@@ -248,6 +290,7 @@ export class SocketAdapter implements NetworkAdapter {
 
     this.socket.on("roomDismissed", (data: any) => {
       console.log("[SocketAdapter] Room dismissed:", data?.roomId);
+      this.clearRoomSession();
       this.handlers.forEach((h) =>
         h({
           type: "state",
@@ -298,6 +341,20 @@ export class SocketAdapter implements NetworkAdapter {
       );
     });
 
+    this.socket.on("playerLeft", (data: any) => {
+      this.handlers.forEach((h) =>
+        h({
+          type: "state",
+          state: {
+            type: "playerLeft",
+            playerId: data.playerId,
+            playerName: data.playerName,
+            reason: data.reason,
+          },
+        }),
+      );
+    });
+
     this.socket.on("gameAction", (data: any) => {
       console.log(
         "[SocketAdapter] Game action from",
@@ -325,7 +382,11 @@ export class SocketAdapter implements NetworkAdapter {
       this.handlers.forEach((h) =>
         h({
           type: "state",
-          state: { type: "gameStateSync", gameState: data.gameState },
+          state: {
+            type: "gameStateSync",
+            gameState: data.gameState,
+            spectator: !!data?.spectator,
+          },
         }),
       );
     });
@@ -426,6 +487,8 @@ export class SocketAdapter implements NetworkAdapter {
       console.warn("[SocketAdapter] createRoom: socket not connected");
       return;
     }
+    this.setActiveRoomId(roomId);
+    this.name = name;
     console.log("[SocketAdapter] Creating room:", roomId, "with host:", name);
     this.socket.emit("createRoom", {
       roomId,
@@ -462,6 +525,8 @@ export class SocketAdapter implements NetworkAdapter {
 
   joinRoom(roomId: string, name: string) {
     if (!this.socket) return;
+    this.setActiveRoomId(roomId);
+    this.name = name;
     this.socket.emit("joinRoom", { roomId, name, profileId: this.profileId });
   }
 
@@ -513,6 +578,10 @@ export class SocketAdapter implements NetworkAdapter {
 
   on(_ev: "message", cb: (ev: NetworkEvent) => void) {
     this.handlers.push(cb);
+  }
+
+  off(_ev: "message", cb: (ev: NetworkEvent) => void) {
+    this.handlers = this.handlers.filter((h) => h !== cb);
   }
 
   emitEvent(eventName: string, data: any) {

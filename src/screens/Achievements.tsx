@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   useWindowDimensions,
+  Platform,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import BlurPanel from "../components/BlurPanel";
@@ -40,7 +41,13 @@ import {
   type PlayerStats,
 } from "../services/playerStats";
 
-export default function Achievements({ onBack }: { onBack: () => void }) {
+export default function Achievements({
+  onBack,
+  onNavigateToSettings,
+}: {
+  onBack: () => void;
+  onNavigateToSettings?: () => void;
+}) {
   const { colors, ui } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
@@ -108,6 +115,10 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
 
   const unlocked = stats ? unlockedAchievements(stats) : [];
   const unlockedIds = new Set(unlocked.map((a) => a.id));
+  const gameCenterAvailable =
+    Platform.OS === "ios" && isGameCenterPlatformSupported();
+  const showBottomGameCenterActions =
+    gameCenterAvailable && playerInfo?.isAuthenticated;
 
   if (isLoading) {
     return (
@@ -157,10 +168,29 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
                   {savedName || "Player"}
                 </Text>
                 <Text style={styles.profileHint}>
-                  {playerInfo?.isAuthenticated ? "Game Center" : "Local Profile"}
+                  {playerInfo?.isAuthenticated && gameCenterAvailable
+                    ? "Game Center"
+                    : "Local Profile"}
                 </Text>
               </View>
             </View>
+            {!gameCenterAvailable ? (
+              <>
+                <Text style={styles.accountText}>
+                  Stats and achievements are saved on this device. Set your
+                  display name in Settings so friends recognize you online.
+                </Text>
+                {onNavigateToSettings ? (
+                  <TouchableOpacity
+                    style={ui.btnSecondary}
+                    onPress={onNavigateToSettings}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={ui.btnSecondaryText}>Open Settings</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </>
+            ) : null}
           </BlurPanel>
 
           {/* Statistics */}
@@ -235,8 +265,8 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
             </View>
           </BlurPanel>
 
-          {/* Game Center (iOS) */}
-          {isGameCenterPlatformSupported() ? (
+          {/* Game Center (iOS native) */}
+          {gameCenterAvailable ? (
             <BlurPanel style={ui.panel} intensity={44}>
               <Text style={ui.panelEyebrow}>Game Center</Text>
               {playerInfo?.isAuthenticated ? (
@@ -291,41 +321,22 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
       <BottomBar>
         <BottomBarControls style={styles.bottomControls}>
           <View style={{ width: contentMax, alignSelf: "center" }}>
-            <View style={ui.actionTrack}>
-              {isGameCenterPlatformSupported() &&
-              playerInfo?.isAuthenticated ? (
-                <>
-                  <TouchableOpacity
-                    style={ui.actionSecondary}
-                    onPress={() => void showGameCenterAchievements()}
-                  >
-                    <Text style={ui.actionSecondaryText}>Achievements</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={ui.actionPrimary}
-                    onPress={() => void showGameCenterLeaderboards()}
-                  >
-                    <Text style={ui.actionPrimaryText}>Leaderboards</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  {isGameCenterPlatformSupported() ? (
-                    <TouchableOpacity
-                      style={[ui.actionPrimary, { flex: 1 }]}
-                      onPress={handleLogin}
-                      disabled={isAuthenticating}
-                    >
-                      {isAuthenticating ? (
-                        <ActivityIndicator size="small" color={colors.gold} />
-                      ) : (
-                        <Text style={ui.actionPrimaryText}>Sign In</Text>
-                      )}
-                    </TouchableOpacity>
-                  ) : null}
-                </>
-              )}
-            </View>
+            {showBottomGameCenterActions ? (
+              <View style={ui.actionTrack}>
+                <TouchableOpacity
+                  style={ui.actionSecondary}
+                  onPress={() => void showGameCenterAchievements()}
+                >
+                  <Text style={ui.actionSecondaryText}>Achievements</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={ui.actionPrimary}
+                  onPress={() => void showGameCenterLeaderboards()}
+                >
+                  <Text style={ui.actionPrimaryText}>Leaderboards</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             <BottomBarLeave onPress={onBack} label="Back" />
           </View>
         </BottomBarControls>

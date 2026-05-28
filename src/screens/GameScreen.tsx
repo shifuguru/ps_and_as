@@ -22,6 +22,7 @@ import {
   nextActivePlayerIndex,
   cardsNeededToPlay,
   TrickHistory,
+  isJoker,
 } from "../game/core";
 import { createDeck, shuffleDeck, shuffleDeckSeeded, dealCards } from "../game/ruleset";
 import Card from "../components/Card";
@@ -283,6 +284,7 @@ export default function GameScreen({
   localPlayerId,
   adapter: networkAdapter,
   roomId,
+  isSpectator = false,
   onBack,
   onNavigateToAchievements,
 }: {
@@ -293,11 +295,13 @@ export default function GameScreen({
   localPlayerId?: string;
   adapter?: NetworkAdapter | MockAdapter | SocketAdapter;
   roomId?: string;
+  isSpectator?: boolean;
   onBack?: () => void;
   onNavigateToAchievements?: () => void;
 } = {}) {
   const [state, setState] = useState<GameState | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [spectatorMode, setSpectatorMode] = useState(isSpectator);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
   const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
   const [showGameLog, setShowGameLog] = useState<boolean>(false);
@@ -313,6 +317,11 @@ export default function GameScreen({
   }
   const adapter = networkAdapter ?? fallbackAdapterRef.current!;
   const onlineMultiplayer = isSocketAdapter(networkAdapter) && !!roomId;
+  const readOnlyOnline = onlineMultiplayer && spectatorMode;
+
+  useEffect(() => {
+    setSpectatorMode(isSpectator);
+  }, [isSpectator]);
 
   function broadcastGameAction(action: Record<string, unknown>) {
     if (!onlineMultiplayer || !isSocketAdapter(networkAdapter) || !roomId) return;
@@ -672,7 +681,7 @@ export default function GameScreen({
       }
     }
 
-    const applyServerSync = (raw: unknown) => {
+    const applyServerSync = (raw: unknown, spectator?: boolean) => {
       const parsed = parseServerGameState(raw);
       if (!parsed) {
         console.warn("[GameScreen] Ignored invalid gameStateSync payload", raw);
@@ -680,6 +689,14 @@ export default function GameScreen({
       }
       stateSyncedRef.current = true;
       setState(parsed);
+      if (typeof spectator === "boolean") {
+        setSpectatorMode(spectator);
+      } else if (
+        localPlayerId &&
+        parsed.players.some((p) => p.id === localPlayerId)
+      ) {
+        setSpectatorMode(false);
+      }
     };
 
     const requestSync = () => {
@@ -719,7 +736,14 @@ export default function GameScreen({
         ev.type === "state" &&
         ev.state?.type === "gameStateSync"
       ) {
-        applyServerSync(ev.state.gameState);
+        applyServerSync(ev.state.gameState, ev.state.spectator);
+      } else if (
+        ev.type === "state" &&
+        (ev.state?.type === "playerLeft" || ev.state?.type === "playerRemoved")
+      ) {
+        if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
+          networkAdapter.requestGameState(roomId);
+        }
       } else if (ev.type === "state" && ev.state?.type === "error") {
         setSyncError(ev.state.message ?? "Could not sync with server");
       } else if (
@@ -813,6 +837,7 @@ export default function GameScreen({
           setRoundOver(false);
           roundStatsRecordedRef.current = false;
           setPlayerReadyStates({});
+          setSpectatorMode(false);
         } else {
           const seed =
             typeof ev.state.dealSeed === "number" ? ev.state.dealSeed : undefined;
@@ -1152,7 +1177,7 @@ export default function GameScreen({
       : -1;
 
   const handleCardPress = (idx: number) => {
-    if (trickPauseActive || roundOver) return;
+    if (trickPauseActive || roundOver || readOnlyOnline) return;
     const card = hand[idx];
     const ownerIdForHand = currentIsLocalHuman ? current.id : humanPlayer?.id;
     if (ownerIdForHand && hasPassedInCurrentTrick(state, ownerIdForHand)) {
@@ -1160,6 +1185,12 @@ export default function GameScreen({
       return;
     }
     setFocused(idx);
+
+    if (isJoker(card)) {
+      setSelected((s) => (s.includes(idx) ? [] : [idx]));
+      return;
+    }
+
     const tappedValue = card.value;
     const currentSelected = selected.slice();
     const pileCount = state.pile.length;
@@ -1183,12 +1214,6 @@ export default function GameScreen({
       return;
     }
 
-    // Jokers always beat as a single card — never match doubles/triples/quads count
-    if (tappedValue === 15) {
-      setSelected((s) => (s.includes(idx) ? [] : [idx]));
-      return;
-    }
-
     const take = Math.min(
       cardsNeededToPlay(state.pile, tappedValue),
       sameAll.length,
@@ -1207,7 +1232,7 @@ export default function GameScreen({
   };
 
   const handlePlayPress = () => {
-    if (roundOver || !isHumanTurn || trickPauseActive) return;
+    if (roundOver || !isHumanTurn || trickPauseActive || readOnlyOnline) return;
     const actor = current;
     if (!actor) return;
     if (hasPassedInCurrentTrick(state, actor.id)) {
@@ -1282,7 +1307,7 @@ export default function GameScreen({
   };
 
   const handlePassPress = () => {
-    if (roundOver || !isHumanTurn || trickPauseActive) return;
+    if (roundOver || !isHumanTurn || trickPauseActive || readOnlyOnline) return;
     const actor = current;
     if (!actor) return;
     if (hasPassedInCurrentTrick(state, actor.id)) {
@@ -1770,13 +1795,20 @@ export default function GameScreen({
         ) : null}
 
         <BottomBarControls>
-          {!handVisible && !isHumanTurn ? (
+          {readOnlyOnline ? (
+            <View style={[local.waitingPill, local.waitingPillCollapsed]}>
+              <Text style={local.waitingPillText}>
+                Spectating — you can play the next round
+              </Text>
+            </View>
+          ) : !handVisible && !isHumanTurn ? (
             <View style={[local.waitingPill, local.waitingPillCollapsed]}>
               <Text style={local.waitingPillText}>
                 Waiting for {current.name}…
               </Text>
             </View>
           ) : null}
+          {!readOnlyOnline ? (
           <ActionBar
             selectedCount={selected.length}
             onPlay={handlePlayPress}
@@ -1789,6 +1821,7 @@ export default function GameScreen({
             isPlayerTurn={isHumanTurn && !roundOver}
             noValidPlays={noValidPlays}
           />
+          ) : null}
         </BottomBarControls>
 
         {/* Game Log (toggleable) */}

@@ -4,6 +4,35 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type ChromeInsets = { top: number; bottom: number };
 
+/** Browser UI only — virtual keyboard shrink must not count as bottom inset. */
+const WEB_MAX_BOTTOM_CHROME = 80;
+const WEB_KEYBOARD_GAP_THRESHOLD = 120;
+
+function readWebChromeInsets(win: {
+  innerHeight?: number;
+  visualViewport?: {
+    height: number;
+    offsetTop: number;
+  } | null;
+}): ChromeInsets {
+  const vv = win.visualViewport;
+  if (!vv) return { top: 0, bottom: 0 };
+
+  const top = Math.max(0, Math.round(vv.offsetTop));
+  const layoutH = win.innerHeight ?? vv.height;
+  const gap = layoutH - vv.height - vv.offsetTop;
+
+  // Mobile browsers keep layout viewport height when the keyboard opens; the
+  // visual viewport shrinks instead. Treating that gap as bottom inset inflates
+  // fixed bottom bars (Settings Back button) to fill the keyboard area.
+  const keyboardLikelyOpen = gap > WEB_KEYBOARD_GAP_THRESHOLD;
+  const bottom = keyboardLikelyOpen
+    ? 0
+    : Math.max(0, Math.min(Math.round(gap), WEB_MAX_BOTTOM_CHROME));
+
+  return { top, bottom };
+}
+
 /** Safe-area + mobile browser chrome (Safari address bar, etc.) on web. */
 export function useLayoutInsets() {
   const insets = useSafeAreaInsets();
@@ -27,17 +56,7 @@ export function useLayoutInsets() {
     if (!win.window) return;
 
     const read = () => {
-      const vv = win.window!.visualViewport;
-      if (!vv) {
-        setWebChrome({ top: 0, bottom: 0 });
-        return;
-      }
-      const top = Math.max(0, Math.round(vv.offsetTop));
-      const bottom = Math.max(
-        0,
-        Math.round((win.innerHeight ?? vv.height) - vv.height - vv.offsetTop),
-      );
-      setWebChrome({ top, bottom });
+      setWebChrome(readWebChromeInsets(win.window!));
     };
 
     read();

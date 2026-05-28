@@ -26,7 +26,9 @@ function isRoundComplete(state) {
 }
 
 function beginAuthoritativeRound(room, dealSeed) {
-  const lobbyPlayers = room.players.map((p) => ({ id: p.id, name: p.name }));
+  const lobbyPlayers = room.players
+    .filter((p) => !p.disconnectedAt && !p.isSpectator)
+    .map((p) => ({ id: p.id, name: p.name }));
   const nextState = createGameFromLobby(lobbyPlayers, dealSeed);
   nextState.readyForNextRound = {};
   room.gameState = nextState;
@@ -201,19 +203,63 @@ function allTradesComplete(gameState) {
   return true;
 }
 
-// Grace period for reconnection (60 seconds in-game, 2 minutes in lobby)
-const DISCONNECT_GRACE_PERIOD = 60 * 1000;
-const LOBBY_DISCONNECT_GRACE = 2 * 60 * 1000;
+// Testing timeouts — raise these for production (e.g. 60s in-game, 2m lobby, 10m empty shell).
+const DISCONNECT_GRACE_PERIOD = 15 * 1000;
+const LOBBY_DISCONNECT_GRACE = 15 * 1000;
 /** How long an empty room shell stays joinable by code before auto-delete. */
-const EMPTY_ROOM_REJOIN_MS = 10 * 60 * 1000;
+const EMPTY_ROOM_REJOIN_MS = 15 * 1000;
 const emptyRoomTimers = {};
 
 function activePlayerCount(room) {
-  return room.players.filter((p) => !p.disconnectedAt).length;
+  return room.players.filter((p) => !p.disconnectedAt && !p.isSpectator).length;
+}
+
+function isRoundInProgress(room) {
+  if (!room?.inGame || !room.gameState?.players?.length) return false;
+  const finished = room.gameState.finishedOrder?.length ?? 0;
+  return finished < room.gameState.players.length;
+}
+
+function roomListingPayload(roomId, room) {
+  return {
+    roomId,
+    hostName: room.hostName,
+    roomName: room.roomName || roomId,
+    playerCount: activePlayerCount(room),
+    maxPlayers: 8,
+    createdAt: room.createdAt,
+    inGame: !!room.inGame,
+    roundInProgress: isRoundInProgress(room),
+  };
 }
 
 function isRoomListedPublic(room) {
-  return room.isPublic && activePlayerCount(room) > 0;
+  if (!room.isPublic) return false;
+  if (room.inGame && activePlayerCount(room) > 0) return true;
+  return activePlayerCount(room) > 0;
+}
+
+function removePlayerFromActiveGame(room, playerId) {
+  const gs = room.gameState;
+  if (!gs?.players) return;
+  const idx = gs.players.findIndex((p) => p.id === playerId);
+  if (idx < 0) return;
+
+  const wasCurrent = gs.players[gs.currentPlayerIndex]?.id === playerId;
+  gs.players = gs.players.filter((p) => p.id !== playerId);
+  gs.finishedOrder = (gs.finishedOrder || []).filter((id) => id !== playerId);
+
+  if (gs.players.length === 0) {
+    room.inGame = false;
+    room.gameState = null;
+    return;
+  }
+
+  if (wasCurrent) {
+    gs.currentPlayerIndex = gs.currentPlayerIndex % gs.players.length;
+  } else if (idx < gs.currentPlayerIndex) {
+    gs.currentPlayerIndex = Math.max(0, gs.currentPlayerIndex - 1);
+  }
 }
 
 function clearEmptyRoomTimer(roomId) {
@@ -262,6 +308,7 @@ function afterPlayerLeftRoom(roomId) {
       name: p.name,
       ready: p.ready,
       disconnected: !!p.disconnectedAt,
+      isSpectator: !!p.isSpectator,
     })),
     host: room.host,
   });
@@ -274,7 +321,11 @@ function getPlayerBySocket(room, socketId) {
 
 function isRoomHost(room, socketId) {
   const player = getPlayerBySocket(room, socketId);
-  return !!(player && room.host === player.id);
+  return !!(
+    player &&
+    !player.disconnectedAt &&
+    room.host === player.id
+  );
 }
 
 function resolveProfileId(profileId, socket) {
@@ -355,14 +406,7 @@ function schedulePlayerRemoval(roomId, playerId, _socketId, graceMs = DISCONNECT
 function broadcastAvailableRooms() {
   const availableRooms = Object.entries(rooms)
     .filter(([_, room]) => isRoomListedPublic(room))
-    .map(([roomId, room]) => ({
-      roomId,
-      hostName: room.hostName,
-      roomName: room.roomName || roomId,
-      playerCount: activePlayerCount(room),
-      maxPlayers: 8,
-      createdAt: room.createdAt
-    }));
+    .map(([roomId, room]) => roomListingPayload(roomId, room));
   
   io.emit('availableRooms', availableRooms);
 }
@@ -376,15 +420,12 @@ io.on('connection', (socket) => {
   // Send available rooms when client requests discovery
   socket.on('discoverRooms', () => {
     const availableRooms = Object.entries(rooms)
-      .filter(([_, room]) => isRoomListedPublic(room) && activePlayerCount(room) < 8)
-      .map(([roomId, room]) => ({
-        roomId,
-        hostName: room.hostName,
-        roomName: room.roomName || roomId,
-        playerCount: activePlayerCount(room),
-        maxPlayers: 8,
-        createdAt: room.createdAt
-      }));
+      .filter(([_, room]) => {
+        if (!isRoomListedPublic(room)) return false;
+        if (room.inGame && isRoundInProgress(room)) return true;
+        return activePlayerCount(room) < 8;
+      })
+      .map(([roomId, room]) => roomListingPayload(roomId, room));
     
     socket.emit('availableRooms', availableRooms);
   });
@@ -393,7 +434,8 @@ io.on('connection', (socket) => {
     const pid = resolveProfileId(profileId, socket);
     rooms[roomId] = rooms[roomId] || { 
       players: [], 
-      host: pid, 
+      host: pid,
+      creatorId: pid,
       hostName: name,
       roomName: roomName || roomId,
       createdAt: Date.now(),
@@ -446,42 +488,70 @@ io.on('connection', (socket) => {
       if (rooms[roomId].hostName === existingPlayer.name || rooms[roomId].host === existingPlayer.id) {
         rooms[roomId].host = existingPlayer.id;
         rooms[roomId].hostName = existingPlayer.name;
+      } else if (rooms[roomId].creatorId === existingPlayer.id) {
+        rooms[roomId].host = existingPlayer.id;
+        rooms[roomId].hostName = existingPlayer.name;
       }
     } else {
-      if (activePlayerCount(room) >= 8) {
+      const joiningMidRound = room.inGame && isRoundInProgress(room);
+      const seatedCount = room.players.filter(
+        (p) => !p.disconnectedAt && !p.isSpectator,
+      ).length;
+      if (!joiningMidRound && seatedCount >= 8) {
         socket.emit('error', { message: 'Room is full' });
         return;
       }
-      rooms[roomId].players.push({ 
+      rooms[roomId].players.push({
         id: pid,
         profileId: pid,
-        name, 
-        socketId: socket.id, 
+        name,
+        socketId: socket.id,
         ready: false,
-        disconnectedAt: null 
+        disconnectedAt: null,
+        isSpectator: joiningMidRound,
       });
     }
     
     socket.join(roomId);
+    const joined = rooms[roomId].players.find((p) => p.socketId === socket.id);
     io.to(roomId).emit('lobbyUpdate', { 
       players: rooms[roomId].players.map(p => ({ 
         id: p.id, 
         name: p.name, 
         ready: p.ready,
-        disconnected: !!p.disconnectedAt 
+        disconnected: !!p.disconnectedAt,
+        isSpectator: !!p.isSpectator,
       })), 
       host: rooms[roomId].host 
     });
-    socket.emit('connected', { id: pid, profileId: pid, socketId: socket.id, name });
+    socket.emit('connected', {
+      id: pid,
+      profileId: pid,
+      socketId: socket.id,
+      name,
+      isSpectator: !!joined?.isSpectator,
+    });
     
     if (rooms[roomId].inGame && rooms[roomId].gameState?.players) {
-      const joined = rooms[roomId].players.find((p) => p.socketId === socket.id);
       if (joined) {
-        socket.emit('gameStateSync', {
-          gameState: viewForPlayer(rooms[roomId].gameState, joined.id),
-        });
+        const inRound = joined.isSpectator || !rooms[roomId].gameState.players.some(
+          (p) => p.id === joined.id,
+        );
+        const viewId = inRound
+          ? rooms[roomId].gameState.players[0]?.id
+          : joined.id;
+        if (viewId) {
+          socket.emit('gameStateSync', {
+            gameState: viewForPlayer(rooms[roomId].gameState, viewId),
+            spectator: inRound,
+          });
+        }
         socket.emit('startGame', {
-          players: rooms[roomId].players.map((p) => ({ id: p.id, name: p.name })),
+          players: rooms[roomId].gameState.players.map((p) => ({
+            id: p.id,
+            name: p.name,
+          })),
+          spectator: inRound,
         });
       }
     }
@@ -495,6 +565,25 @@ io.on('connection', (socket) => {
     const leaving = room.players.find((p) => p.socketId === socket.id);
     if (!leaving) return;
     const wasHost = room.host === leaving.id;
+
+    if (room.inGame && room.gameState?.players) {
+      removePlayerFromActiveGame(room, leaving.id);
+      io.to(roomId).emit('playerLeft', {
+        playerId: leaving.id,
+        playerName: leaving.name,
+        reason: 'left',
+      });
+      if (room.gameState?.players?.length) {
+        broadcastGameState(io, room);
+      }
+    } else {
+      io.to(roomId).emit('playerRemoved', {
+        playerId: leaving.id,
+        playerName: leaving.name,
+        reason: 'left',
+      });
+    }
+
     room.players = room.players.filter((p) => p.socketId !== socket.id);
     if (wasHost && room.players.length > 0) {
       migrateHost(roomId);
@@ -528,8 +617,8 @@ io.on('connection', (socket) => {
     }
     // require at least 2 players
     const room = rooms[roomId];
-    if (room.players.length < 2) {
-      console.log('[Server] Not enough players:', room.players.length);
+    if (activePlayerCount(room) < 2) {
+      console.log('[Server] Not enough connected players:', activePlayerCount(room));
       return;
     }
 
@@ -551,8 +640,11 @@ io.on('connection', (socket) => {
       room.inGame = true;
       broadcastGameState(io, room);
       io.to(roomId).emit('startGame', {
-        players: room.players.map(p => ({ id: p.id, name: p.name })),
+        players: room.players
+          .filter((p) => !p.isSpectator)
+          .map(p => ({ id: p.id, name: p.name })),
       });
+      if (room.isPublic) broadcastAvailableRooms();
     } catch (err) {
       console.error('[Server] startGame failed:', err);
       room.inGame = false;
@@ -751,6 +843,9 @@ io.on('connection', (socket) => {
   function startNextRound(roomId) {
     const room = rooms[roomId];
     if (!room) return;
+    room.players.forEach((p) => {
+      p.isSpectator = false;
+    });
     const dealSeed = Math.floor(Math.random() * 2147483647);
     beginAuthoritativeRound(room, dealSeed);
     broadcastGameState(io, room);
@@ -767,26 +862,49 @@ io.on('connection', (socket) => {
 
   socket.on('kickPlayer', ({ roomId, playerName }) => {
     if (!rooms[roomId]) return;
-    // Only host can kick
-    if (!isRoomHost(rooms[roomId], socket.id)) return;
-    
-    const playerToKick = rooms[roomId].players.find(p => p.name === playerName);
+    const room = rooms[roomId];
+    if (!isRoomHost(room, socket.id)) return;
+
+    const playerToKick = room.players.find(p => p.name === playerName);
     if (!playerToKick) return;
-    
+
     console.log('Host kicking player:', playerName);
-    
-    const wasHost = rooms[roomId].host === playerToKick.id;
-    
-    // Remove player from room
-    rooms[roomId].players = rooms[roomId].players.filter(p => p.name !== playerName);
-    
-    // Notify the kicked player
-    io.to(playerToKick.socketId).emit('kicked', { message: 'You have been removed from the game' });
-    
-    if (wasHost && rooms[roomId].players.length > 0) {
+
+    const wasHost = room.host === playerToKick.id;
+    const kickedId = playerToKick.id;
+    const kickedSocketId = playerToKick.socketId;
+
+    if (room.inGame && room.gameState?.players) {
+      removePlayerFromActiveGame(room, kickedId);
+      io.to(roomId).emit('playerLeft', {
+        playerId: kickedId,
+        playerName: playerToKick.name,
+        reason: 'kicked',
+      });
+      if (room.gameState?.players?.length) {
+        broadcastGameState(io, room);
+      }
+    } else {
+      io.to(roomId).emit('playerRemoved', {
+        playerId: kickedId,
+        playerName: playerToKick.name,
+        reason: 'kicked',
+      });
+    }
+
+    room.players = room.players.filter(p => p.name !== playerName);
+
+    io.to(kickedSocketId).emit('kicked', { message: 'You have been removed from the game' });
+
+    const kickedSocket = io.sockets.sockets.get(kickedSocketId);
+    if (kickedSocket) {
+      kickedSocket.leave(roomId);
+    }
+
+    if (wasHost && room.players.length > 0) {
       migrateHost(roomId);
     }
-    
+
     afterPlayerLeftRoom(roomId);
   });
 
@@ -803,7 +921,6 @@ io.on('connection', (socket) => {
         // Mark as disconnected with timestamp
         player.disconnectedAt = Date.now();
         
-        const wasHost = room.host === player.id;
         const wasPublic = room.isPublic;
         const graceMs = room.inGame ? DISCONNECT_GRACE_PERIOD : LOBBY_DISCONNECT_GRACE;
         
@@ -815,10 +932,6 @@ io.on('connection', (socket) => {
             playerName: player.name,
             gracePeriod: graceMs
           });
-          
-          if (wasHost) {
-            migrateHost(roomId);
-          }
           
           io.to(roomId).emit('lobbyUpdate', { 
             players: room.players.map(p => ({ 
@@ -833,10 +946,6 @@ io.on('connection', (socket) => {
           schedulePlayerRemoval(roomId, player.id, socket.id, graceMs);
         } else {
           console.log(`[Server] Lobby disconnect for ${player.name}, grace period before removal`);
-          
-          if (wasHost) {
-            migrateHost(roomId);
-          }
           
           io.to(roomId).emit('lobbyUpdate', { 
             players: room.players.map(p => ({ 

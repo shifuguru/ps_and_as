@@ -38,6 +38,8 @@ interface AvailableRoom {
   playerCount: number;
   maxPlayers: number;
   createdAt: number;
+  inGame?: boolean;
+  roundInProgress?: boolean;
 }
 
 function formatTimeAgo(timestamp: number) {
@@ -65,6 +67,7 @@ export default function FindGame({
   onBack,
   onJoinRoom,
   onHostGame,
+  onSpectateRoom,
   adapter,
   onNavigateToSettings,
   onNavigateToAchievements,
@@ -72,6 +75,7 @@ export default function FindGame({
   onBack: () => void;
   onJoinRoom: (roomId: string, playerName: string) => void;
   onHostGame: (playerName: string) => void;
+  onSpectateRoom?: (roomId: string, playerName: string) => void;
   adapter: NetworkAdapter;
   onNavigateToSettings?: () => void;
   onNavigateToAchievements?: () => void;
@@ -79,6 +83,7 @@ export default function FindGame({
   const { colors, ui } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([]);
+  const [roomsLoaded, setRoomsLoaded] = useState(false);
   const [isSearching, setIsSearching] = useState(true);
   const [playerName, setPlayerName] = useState("");
   const [roomCode, setRoomCode] = useState("");
@@ -129,6 +134,7 @@ export default function FindGame({
 
       if (ev.state.type === "availableRooms") {
         setAvailableRooms(ev.state.rooms || []);
+        setRoomsLoaded(true);
         setIsSearching(false);
         setError(null);
       } else if (ev.state.type === "error") {
@@ -187,6 +193,14 @@ export default function FindGame({
     triggerHaptic("medium");
     setError(null);
     onJoinRoom(roomId, playerName.trim());
+  };
+
+  const handleSpectateRoom = (roomId: string) => {
+    if (!requireName()) return;
+    if (!onSpectateRoom) return;
+    triggerHaptic("medium");
+    setError(null);
+    onSpectateRoom(roomId, playerName.trim());
   };
 
   const handleJoinWithCode = () => {
@@ -344,9 +358,18 @@ export default function FindGame({
                   ) : null}
                 </View>
               </View>
-              <TouchableOpacity onPress={refreshRooms} disabled={isSearching}>
-                <Text style={styles.refreshLink}>
-                  {isSearching ? "…" : "Refresh"}
+              <TouchableOpacity
+                onPress={refreshRooms}
+                disabled={isSearching}
+                style={styles.refreshBtn}
+              >
+                <Text
+                  style={[
+                    styles.refreshLink,
+                    isSearching && styles.refreshLinkDisabled,
+                  ]}
+                >
+                  Refresh
                 </Text>
               </TouchableOpacity>
             </View>
@@ -357,7 +380,7 @@ export default function FindGame({
               </BlurPanel>
             ) : null}
 
-            {availableRooms.length === 0 && !isSearching ? (
+            {availableRooms.length === 0 && roomsLoaded ? (
               <BlurPanel style={ui.panel} intensity={44}>
                 <Text style={ui.emptyTitle}>No Public Games</Text>
                 <Text style={ui.emptyBody}>
@@ -367,7 +390,20 @@ export default function FindGame({
               </BlurPanel>
             ) : (
               availableRooms.map((room) => {
-                const full = room.playerCount >= room.maxPlayers;
+                const inPlay = !!room.inGame && !!room.roundInProgress;
+                const betweenRounds = !!room.inGame && !room.roundInProgress;
+                const full = !inPlay && room.playerCount >= room.maxPlayers;
+                const showSpectate = inPlay && !!onSpectateRoom;
+                const actionLabel = showSpectate
+                  ? "Spectate"
+                  : full
+                    ? "Full"
+                    : betweenRounds
+                      ? "Join"
+                      : "Join";
+                const actionDisabled =
+                  !playerName.trim() ||
+                  (showSpectate ? false : full);
                 return (
                   <BlurPanel
                     key={room.roomId}
@@ -386,28 +422,57 @@ export default function FindGame({
                           <Text style={styles.roomMetaText}>
                             {room.playerCount}/{room.maxPlayers} players
                           </Text>
-                          <Text style={styles.roomMetaDot}>·</Text>
-                          <Text style={styles.roomMetaText}>
-                            {formatTimeAgo(room.createdAt)}
-                          </Text>
+                          {inPlay ? (
+                            <>
+                              <Text style={styles.roomMetaDot}>·</Text>
+                              <Text
+                                style={[
+                                  styles.roomMetaText,
+                                  styles.roomMetaInPlay,
+                                ]}
+                              >
+                                In Play
+                              </Text>
+                            </>
+                          ) : betweenRounds ? (
+                            <>
+                              <Text style={styles.roomMetaDot}>·</Text>
+                              <Text style={styles.roomMetaText}>
+                                Between Rounds
+                              </Text>
+                            </>
+                          ) : (
+                            <>
+                              <Text style={styles.roomMetaDot}>·</Text>
+                              <Text style={styles.roomMetaText}>
+                                {formatTimeAgo(room.createdAt)}
+                              </Text>
+                            </>
+                          )}
                         </View>
                       </View>
                       <TouchableOpacity
                         style={[
-                          ui.btnGold,
+                          showSpectate ? ui.btnSecondary : ui.btnGold,
                           { paddingVertical: 10, paddingHorizontal: 18 },
-                          full && styles.joinBtnDisabled,
+                          actionDisabled && styles.joinBtnDisabled,
                         ]}
-                        onPress={() => handleJoinRoom(room.roomId)}
-                        disabled={full || !playerName.trim()}
+                        onPress={() =>
+                          showSpectate
+                            ? handleSpectateRoom(room.roomId)
+                            : handleJoinRoom(room.roomId)
+                        }
+                        disabled={actionDisabled}
                       >
                         <Text
                           style={[
-                            styles.joinBtnText,
-                            full && styles.joinBtnTextDisabled,
+                            showSpectate
+                              ? ui.btnSecondaryText
+                              : styles.joinBtnText,
+                            actionDisabled && styles.joinBtnTextDisabled,
                           ]}
                         >
-                          {full ? "Full" : "Join"}
+                          {actionLabel}
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -532,10 +597,11 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   listHeaderLeft: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
+    flexShrink: 1,
   },
   listHeaderSpinnerSlot: {
-    width: 22,
+    width: 20,
+    height: 20,
     marginLeft: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -544,11 +610,20 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     color: colors.textSecondary,
     fontSize: 15,
     fontWeight: "700",
+    flexShrink: 0,
+  },
+  refreshBtn: {
+    minWidth: 64,
+    alignItems: "flex-end",
+    marginLeft: 12,
   },
   refreshLink: {
     color: colors.gold,
     fontSize: 13,
     fontWeight: "600",
+  },
+  refreshLinkDisabled: {
+    opacity: 0.45,
   },
   errorPanel: {
     borderRadius: 14,
@@ -590,6 +665,10 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   roomMetaText: {
     color: colors.textMuted,
     fontSize: 12,
+  },
+  roomMetaInPlay: {
+    color: colors.gold,
+    fontWeight: "700",
   },
   roomMetaDot: {
     color: colors.textMuted,

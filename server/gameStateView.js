@@ -21,9 +21,15 @@ function broadcastGameState(io, room) {
   const state = room.gameState;
   if (!state || !Array.isArray(state.players)) return;
   for (const member of room.players) {
-    if (!member.socketId) continue;
+    if (!member.socketId || member.disconnectedAt) continue;
+    const inRound = state.players.some((p) => p.id === member.id);
+    const viewId = inRound && !member.isSpectator
+      ? member.id
+      : state.players[0]?.id;
+    if (!viewId) continue;
     io.to(member.socketId).emit("gameStateSync", {
-      gameState: viewForPlayer(state, member.id),
+      gameState: viewForPlayer(state, viewId),
+      spectator: member.isSpectator || !inRound,
     });
   }
 }

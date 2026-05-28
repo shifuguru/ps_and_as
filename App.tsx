@@ -57,6 +57,7 @@ function AppContent() {
   const [joinedRoomId, setJoinedRoomId] = useState<string | null>(null);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [isOnlineGame, setIsOnlineGame] = useState(false);
+  const [isSpectator, setIsSpectator] = useState(false);
 
   const disconnectRoom = () => {
     try {
@@ -69,6 +70,7 @@ function AppContent() {
     setRoomAdapter(null);
     setJoinedRoomId(null);
     setActiveRoomId(null);
+    setIsSpectator(false);
   };
 
   // Discovery adapter is created lazily only when viewing the Find Game screen so
@@ -334,11 +336,13 @@ function AppContent() {
       members: LobbyMember[],
       localName: string,
       localSocketId?: string,
+      asSpectator = false,
     ) => {
-      console.log("[App] enterOnlineGame:", members.length, "players");
+      console.log("[App] enterOnlineGame:", members.length, "players", asSpectator ? "(spectator)" : "");
       setLobbyMembers(members);
       setLocalPlayerName(localName);
       if (localSocketId) setLocalPlayerId(localSocketId);
+      setIsSpectator(asSpectator);
       setDealSeed(undefined);
       setIsOnlineGame(true);
       setLocalAdapter(null);
@@ -347,14 +351,61 @@ function AppContent() {
     [],
   );
 
+  // Kicked / room dismissed must work from any screen (lobby or in-game).
+  useEffect(() => {
+    if (!roomAdapter || !isSocketAdapter(roomAdapter)) return;
+
+    const onForcedExit = (ev: {
+      type: string;
+      state?: { type?: string; message?: string };
+    }) => {
+      if (ev.type !== "state" || !ev.state?.type) return;
+      const kind = ev.state.type;
+      if (kind !== "kicked" && kind !== "roomDismissed") return;
+
+      roomAdapter.clearRoomSession();
+      void clearLobbySession();
+      setPendingRejoin(null);
+      setJoinedRoomId(null);
+      setActiveRoomId(null);
+      setIsOnlineGame(false);
+      setIsSpectator(false);
+      setLobbyMembers(null);
+      setRoomAdapter(null);
+      setScreen("menu");
+
+      if (kind === "kicked") {
+        Alert.alert(
+          "Removed from Game",
+          ev.state.message || "You have been removed from the game",
+        );
+      } else {
+        Alert.alert("Room Closed", "The host closed this lobby.");
+      }
+    };
+
+    roomAdapter.on("message", onForcedExit);
+    return () => {
+      roomAdapter.off("message", onForcedExit);
+    };
+  }, [roomAdapter]);
+
   // All clients must react to startGame here — CreateGame may unmount before guests receive it.
   useEffect(() => {
     if (!roomAdapter || !isSocketAdapter(roomAdapter)) return;
 
-    const onMessage = (ev: { type: string; state?: { type?: string; players?: unknown } }) => {
+    const onMessage = (ev: {
+      type: string;
+      state?: {
+        type?: string;
+        players?: unknown;
+        spectator?: boolean;
+      };
+    }) => {
       if (ev.type !== "state" || ev.state?.type !== "startGame") return;
       if (screenRef.current === "game") return;
 
+      const asSpectator = !!ev.state.spectator;
       const rawPlayers = ev.state.players;
       const fromEvent: LobbyMember[] = Array.isArray(rawPlayers)
         ? rawPlayers.map((p: string | LobbyMember, i: number) =>
@@ -364,23 +415,60 @@ function AppContent() {
           )
         : [];
       const members =
-        lobbyMembersRef.current && lobbyMembersRef.current.length > 0
-          ? lobbyMembersRef.current
-          : fromEvent;
+        fromEvent.length > 0
+          ? fromEvent
+          : lobbyMembersRef.current && lobbyMembersRef.current.length > 0
+            ? lobbyMembersRef.current
+            : [];
 
       const roomId = activeRoomIdRef.current ?? joinedRoomIdRef.current;
+      const displayName = localPlayerNameRef.current ?? "Player";
+      const profileId = roomAdapter.getProfileId();
+      const localId =
+        members.find((m) => m.id === profileId)?.id ??
+        members.find(
+          (m) =>
+            m.name.toLowerCase() === displayName.trim().toLowerCase(),
+        )?.id ??
+        localPlayerIdRef.current ??
+        undefined;
+
+      const enter = () => {
+        if (screenRef.current === "game") return;
+        enterOnlineGame(members, displayName, localId, asSpectator);
+      };
+
       if (roomId) {
         roomAdapter.requestGameState(roomId);
       }
 
-      enterOnlineGame(
-        members,
-        localPlayerNameRef.current ?? "Player",
-        localPlayerIdRef.current ?? undefined,
-      );
+      if (roomAdapter.getCachedGameState()) {
+        enter();
+        return;
+      }
+
+      let entered = false;
+      const onSync = (syncEv: { type: string; state?: { type?: string } }) => {
+        if (entered) return;
+        if (syncEv.type === "state" && syncEv.state?.type === "gameStateSync") {
+          entered = true;
+          roomAdapter.off("message", onSync);
+          enter();
+        }
+      };
+      roomAdapter.on("message", onSync);
+      setTimeout(() => {
+        if (entered) return;
+        entered = true;
+        roomAdapter.off("message", onSync);
+        enter();
+      }, 2000);
     };
 
     roomAdapter.on("message", onMessage);
+    return () => {
+      roomAdapter.off("message", onMessage);
+    };
   }, [roomAdapter, enterOnlineGame]);
 
   return (
@@ -495,6 +583,9 @@ function AppContent() {
             joinRoomId={joinedRoomId || undefined}
             onRoomReady={(roomId) => {
               setActiveRoomId(roomId);
+              if (isSocketAdapter(roomAdapter)) {
+                roomAdapter.setActiveRoomId(roomId);
+              }
               void (async () => {
                 const profile = await getOrCreatePlayerId();
                 await saveLobbySession({
@@ -515,6 +606,10 @@ function AppContent() {
             }}
             onNavigateToSettings={openSettings}
             onNavigateToAchievements={openAchievements}
+            onLobbyMembersChange={(members) => {
+              setLobbyMembers(members);
+              lobbyMembersRef.current = members;
+            }}
             onStart={(members, localName, localSocketId) => {
               if (isSocketAdapter(roomAdapter)) {
                 enterOnlineGame(members, localName, localSocketId);
@@ -561,6 +656,7 @@ function AppContent() {
                 void (async () => {
                   const profile = await getOrCreatePlayerId();
                   setLocalPlayerName(playerName);
+                  setIsSpectator(false);
                   setRoomAdapter(
                     new SocketAdapter(
                       undefined,
@@ -575,7 +671,28 @@ function AppContent() {
                   setIsOnlineGame(true);
                   setScreen("create");
                 })();
-              }} 
+              }}
+              onSpectateRoom={(roomId, playerName) => {
+                void (async () => {
+                  const profile = await getOrCreatePlayerId();
+                  setLocalPlayerName(playerName);
+                  setIsSpectator(true);
+                  setLobbyMembers([]);
+                  const adapter = new SocketAdapter(
+                    undefined,
+                    roomId,
+                    playerName,
+                    profile.id,
+                    true,
+                  );
+                  setRoomAdapter(adapter);
+                  setJoinedRoomId(roomId);
+                  setActiveRoomId(roomId);
+                  setIsOnlineGame(true);
+                  setScreen("game");
+                  await adapter.connect();
+                })();
+              }}
             />
           ) : (
             <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
@@ -617,6 +734,7 @@ function AppContent() {
                 : localAdapter ?? undefined
             }
             roomId={activeRoomId ?? joinedRoomId ?? undefined}
+            isSpectator={isOnlineGame && isSpectator}
             onNavigateToAchievements={openAchievements}
             onBack={() => {
               if (isOnlineGame && activeRoomId && roomAdapter) {
@@ -646,7 +764,13 @@ function AppContent() {
           <View style={appStyles.settingsOverlay}>
             <FullscreenBlurScrim />
             <View style={appStyles.settingsForeground}>
-              <Achievements onBack={closeAchievements} />
+              <Achievements
+                onBack={closeAchievements}
+                onNavigateToSettings={() => {
+                  closeAchievements();
+                  openSettings();
+                }}
+              />
             </View>
           </View>
         )}

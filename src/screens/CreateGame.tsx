@@ -103,6 +103,7 @@ export default function CreateGame({
   onNavigateToAchievements,
   joinRoomId,
   onRoomReady,
+  onLobbyMembersChange,
 }: {
   onBack: () => void;
   onStart: (
@@ -117,6 +118,7 @@ export default function CreateGame({
   onNavigateToAchievements?: () => void;
   joinRoomId?: string;
   onRoomReady?: (roomId: string) => void;
+  onLobbyMembersChange?: (members: LobbyMember[]) => void;
 }) {
   const { colors, ui, blur } = useAppTheme();
   const [names, setNames] = useState<string[]>([]);
@@ -260,6 +262,7 @@ export default function CreateGame({
       setNames(active.map((p) => p.name));
       setHostId(host ?? null);
       setConnectionStatus("connected");
+      onLobbyMembersChange?.(active);
     };
 
     net.on("message", (ev) => {
@@ -304,20 +307,6 @@ export default function CreateGame({
           });
         }
       }
-      if (ev.type === "state" && ev.state?.type === "kicked") {
-        Alert.alert(
-          "Removed from Game",
-          ev.state.message || "You have been removed from the game",
-          [{ text: "OK", onPress: () => onBack() }],
-        );
-      }
-      if (ev.type === "state" && ev.state?.type === "roomDismissed") {
-        Alert.alert(
-          "Room Closed",
-          "The host closed this lobby.",
-          [{ text: "OK", onPress: () => onBack() }],
-        );
-      }
       if (ev.type === "state" && ev.state?.type === "hostMigrated") {
         setHostId(ev.state.newHost ?? null);
       }
@@ -325,7 +314,12 @@ export default function CreateGame({
     return () => {
       mounted = false;
     };
-  }, [adapter, net, usingMock, onlineLobby, onStart, onBack, actualRoomId]);
+  }, [adapter, net, usingMock, onlineLobby, onStart, onBack, actualRoomId, onLobbyMembersChange]);
+
+  useEffect(() => {
+    if (!actualRoomId || !adapter || !isSocketAdapter(adapter)) return;
+    adapter.setActiveRoomId(actualRoomId);
+  }, [adapter, actualRoomId]);
 
   useEffect(() => {
     if (!playerNameReady) return;
