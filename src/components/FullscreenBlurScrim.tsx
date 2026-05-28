@@ -13,14 +13,10 @@ type Props = {
 /** Full-screen frosted scrim for modal overlays (Settings, etc.). */
 export default function FullscreenBlurScrim({
   intensity,
-  scrimOpacity,
 }: Props) {
   const { colors } = useAppTheme();
-  const resolvedIntensity = intensity ?? (colors.mode === "light" ? 64 : 78);
-  const resolvedScrim =
-    scrimOpacity ??
-    (colors.mode === "light" ? 0.72 : parseFloat(colors.fullscreenScrim.split(",")[3]?.replace(")", "") || "0.58"));
-
+  const resolvedIntensity =
+    intensity ?? (colors.mode === "light" ? 44 : 78);
   const scrimColor = colors.fullscreenScrim;
 
   if (Platform.OS === "web") {

@@ -30,6 +30,15 @@ export function livingPlayerIds(players: Player[]): string[] {
   return livingPlayers(players).map((p) => p.id);
 }
 
+/** Finish order with sidelined dead-hand entries removed. */
+export function livingFinishedOrder(
+  players: Pick<Player, "id" | "isDeadHand">[],
+  finishedOrder: string[],
+): string[] {
+  const livingIds = new Set(livingPlayerIds(players as Player[]));
+  return finishedOrder.filter((id) => livingIds.has(id));
+}
+
 /** True when the sidelined dead hand holds 3♣ (before or after sideline). */
 export function deadHandHoldsThreeClubs(
   players: Pick<Player, "id" | "hand" | "isDeadHand" | "sidelinedHand">[],
@@ -64,9 +73,7 @@ export function applyDeadHandAfterDeal(
 
   dead.sidelinedHand = [...dead.hand];
   dead.hand = [];
-  if (!state.finishedOrder.includes(dead.id)) {
-    state.finishedOrder.push(dead.id);
-  }
+  dead.role = "Neutral";
 
   state.currentPlayerIndex = resolveOpeningPlayerIndex(
     state.players,

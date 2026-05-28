@@ -448,5 +448,56 @@ console.log("\n=== Two-card sequence: normal beat-the-pile ===\n");
   }
 }
 
+console.log("\n=== Doubles run: extend 33-44-55 with 66 ===\n");
+{
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(3), card(3)]),
+      makeAction("play", 1, [card(4), card(4)]),
+      makeAction("play", 2, [card(5), card(5)]),
+    ],
+  };
+  const pile = [card(5), card(5)];
+  const history: Card[][] = [
+    [card(3), card(3)],
+    [card(4), card(4)],
+    [card(5), card(5)],
+  ];
+  const sixes = [card(6, "hearts"), card(6, "diamonds")];
+
+  const doublesRun = isValidPlay(
+    sixes,
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const tripleSixInvalid = !isValidPlay(
+    [card(6), card(6), card(6)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+
+  if (doublesRun && tripleSixInvalid) {
+    passed++;
+    console.log("PASS  doubles run 33-44-55 accepts 66, rejects triple 6");
+  } else {
+    failed++;
+    console.log("FAIL  doubles run 33-44-55 extension");
+    console.log(`      doublesRun=${doublesRun} tripleSixInvalid=${tripleSixInvalid}`);
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);

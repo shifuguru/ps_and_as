@@ -19,7 +19,11 @@ import ScreenContainer from "../components/ScreenContainer";
 import LobbyStatusBar, {
   LOBBY_STATUS_BAR_HEIGHT,
 } from "../components/LobbyStatusBar";
-import BottomBar, { BottomBarControls, BottomBarLeave } from "../components/BottomBar";
+import BottomBar, {
+  BottomBarControls,
+  BottomBarLeave,
+  bottomOuterPad,
+} from "../components/BottomBar";
 import BlurPanel from "../components/BlurPanel";
 import OpponentSeat from "../components/OpponentSeat";
 import LobbyPlayerModal from "../components/LobbyPlayerModal";
@@ -136,16 +140,12 @@ const BOTTOM_CPU_ROW_HEIGHT = 78;
 const BOTTOM_BAR_TOP_PAD = 18;
 
 function lobbyBottomReserve(safeBottom = 0): number {
-  const outerPad =
-    Platform.OS === "web"
-      ? 12 + 32 + Math.max(0, safeBottom)
-      : safeBottom + 10;
   return (
     ACTION_BAR_HEIGHT +
     BOTTOM_CPU_ROW_HEIGHT +
     BOTTOM_BAR_TOP_PAD +
     16 +
-    outerPad +
+    bottomOuterPad(safeBottom) +
     8
   );
 }
@@ -292,7 +292,7 @@ export default function CreateGame({
   onLobbyMembersChange?: (members: LobbyMember[]) => void;
   preferredPlayerName?: string;
 }) {
-  const { colors, ui, blur } = useAppTheme();
+  const { colors, ui, blur, feltTint: localFeltTint } = useAppTheme();
   const [names, setNames] = useState<string[]>([]);
   const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[]>([]);
   const lobbyMembersRef = useRef<LobbyMember[]>([]);
@@ -359,10 +359,11 @@ export default function CreateGame({
       return names.map((name, index) => ({
         id: `mock-${index}-${name}`,
         name,
+        feltTint: /^CPU\b/i.test(name) ? undefined : localFeltTint,
       }));
     }
     return lobbyMembers;
-  }, [usingMock, names, lobbyMembers]);
+  }, [usingMock, names, lobbyMembers, localFeltTint]);
 
   const seatCount = seatMembers.length;
   const showDeadHandSeat = onlineLobby && seatCount === MIN_PLAYERS;
@@ -495,6 +496,7 @@ export default function CreateGame({
           isLocalPlayer,
           isDeadHandSeat,
           ready: memberReady,
+          feltTint: member.feltTint,
         };
       }),
     [displaySeatMembers, seatMembers, usingMock, localId, hostId],
@@ -528,6 +530,12 @@ export default function CreateGame({
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (adapter && isSocketAdapter(adapter)) {
+      adapter.setFeltTint(localFeltTint);
+    }
+  }, [adapter, localFeltTint]);
 
   useEffect(() => {
     playerNameRef.current = playerName;
@@ -1059,6 +1067,7 @@ export default function CreateGame({
                                 name: seat.name,
                                 handCount: 0,
                                 role: "Neutral",
+                                feltTint: seat.feltTint,
                               }}
                               isLocal={seat.isLocalPlayer}
                               isActive={false}

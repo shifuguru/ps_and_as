@@ -9,7 +9,11 @@ import {
 import Card from "./Card";
 import DealShuffleAnimation from "./DealShuffleAnimation";
 import TableCardFlight, { type CardFlightSpec } from "./TableCardFlight";
-import { tableCardDimensions } from "./cardDimensions";
+import {
+  ceremonyCardCornerRadius,
+  tableCardDimensions,
+} from "./cardDimensions";
+import { avatarSizeForSeat } from "../utils/seatDimensions";
 import type { PlayAreaLayout } from "../utils/tableLayout";
 import { seatOriginInPlayArea } from "../utils/tablePlayFlight";
 import type { ClientPendingTrade } from "../game/roundPrep";
@@ -18,6 +22,7 @@ import { FULL_DECK_SIZE } from "../game/ruleset";
 import {
   buildClockwiseDealSteps,
   dealRecipientOrder,
+  isDeadHandSeatId,
 } from "../utils/tableSeats";
 
 type Props = {
@@ -38,17 +43,74 @@ type Props = {
   pendingTrades?: ClientPendingTrade[];
   onDealComplete: () => void;
   onMandatoryTradesAnimated?: () => void;
+  /** Live per-player dealt counts while the deal phase runs. */
+  onDealtCountsChange?: (counts: Record<string, number>) => void;
 };
 
 const SHUFFLE_MS = 3600;
-const DEAL_FLIGHT_MS = 340;
-/** Pause after each card lands before the next clockwise deal. */
-const DEAL_STEP_GAP_MS = 55;
+/** Deal pacing — linear ramp from slow (start) to fast (end). */
+const DEAL_FLIGHT_MS_SLOW = 380;
+const DEAL_FLIGHT_MS_FAST = 150;
+const DEAL_STEP_GAP_MS_SLOW = 58;
+const DEAL_STEP_GAP_MS_FAST = 6;
 /** Off-table seats still advance the deal order at a readable pace. */
-const HIDDEN_SEAT_DEAL_MS = 160;
+const HIDDEN_SEAT_DEAL_MS_SLOW = 170;
+const HIDDEN_SEAT_DEAL_MS_FAST = 35;
 const MANDATORY_TRADE_MS = 720;
 /** Pill height estimate — used to nudge the status label below the top edge. */
 const STATUS_LABEL_HEIGHT = 34;
+
+function lerp(from: number, to: number, t: number): number {
+  return from + (to - from) * t;
+}
+
+/** Progress through the deal: 0 at first card, 1 at last. */
+function dealStepProgress(roundIndex: number, totalSteps: number): number {
+  if (totalSteps <= 1) return 0;
+  return roundIndex / (totalSteps - 1);
+}
+
+function dealStepTiming(roundIndex: number, totalSteps: number) {
+  const t = dealStepProgress(roundIndex, totalSteps);
+  return {
+    flightMs: Math.round(lerp(DEAL_FLIGHT_MS_SLOW, DEAL_FLIGHT_MS_FAST, t)),
+    gapMs: Math.round(lerp(DEAL_STEP_GAP_MS_SLOW, DEAL_STEP_GAP_MS_FAST, t)),
+    hiddenMs: Math.round(
+      lerp(HIDDEN_SEAT_DEAL_MS_SLOW, HIDDEN_SEAT_DEAL_MS_FAST, t),
+    ),
+  };
+}
+
+/** Mini stack sized to sit inside the seat avatar ring. */
+function dealStackLayout(
+  layout: PlayAreaLayout,
+  layoutSeatIds: string[],
+  localPlayerIds: string[],
+  playerId: string,
+) {
+  const compact = layoutSeatIds.length >= 6;
+  const isLocal = localPlayerIds.includes(playerId);
+  const avatarSize = avatarSizeForSeat(layout.seatDimensions, {
+    compact,
+    isLocal,
+  });
+  const miniW = Math.max(18, Math.round(avatarSize * 0.32));
+  const miniH = Math.max(26, Math.round(avatarSize * 0.46));
+  return {
+    miniW,
+    miniH,
+    cornerRadius: ceremonyCardCornerRadius(miniW, miniH),
+  };
+}
+
+function estimateDealDurationMs(totalSteps: number): number {
+  let ms = 0;
+  for (let i = 0; i < totalSteps; i += 1) {
+    const step = dealStepTiming(i, totalSteps);
+    ms += step.flightMs + step.gapMs + 120;
+  }
+  return ms;
+}
 
 export default function DealCeremonyOverlay({
   visible,
@@ -66,6 +128,7 @@ export default function DealCeremonyOverlay({
   pendingTrades = [],
   onDealComplete,
   onMandatoryTradesAnimated,
+  onDealtCountsChange,
 }: Props) {
   const { colors } = useAppTheme();
   const { width: screenW } = useWindowDimensions();
@@ -89,6 +152,7 @@ export default function DealCeremonyOverlay({
   const dealStepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dealWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dealFlightRoundRef = useRef<number | null>(null);
+  const activeDealFlightMsRef = useRef(DEAL_FLIGHT_MS_SLOW);
   const offsetPoint = useCallback(
     (x: number, y: number) => ({
       x: x + playAreaOffsetLeft,
@@ -96,6 +160,9 @@ export default function DealCeremonyOverlay({
     }),
     [playAreaOffsetLeft, playAreaOffsetTop],
   );
+
+  const onDealtCountsChangeRef = useRef(onDealtCountsChange);
+  onDealtCountsChangeRef.current = onDealtCountsChange;
 
   const finishCeremony = () => {
     if (ceremonyFinishedRef.current) return;
@@ -109,12 +176,18 @@ export default function DealCeremonyOverlay({
     [deadHandId],
   );
 
+  const effectiveDealerId = useMemo(() => {
+    if (!dealerId) return null;
+    if (isDeadHandSeatId(dealerId) || dealerId === deadHandId) return null;
+    return dealerId;
+  }, [dealerId, deadHandId]);
+
   const deckCenter = useMemo(() => {
-    if (layout && dealerId) {
+    if (layout && effectiveDealerId) {
       const dealerPos = seatOriginInPlayArea(
         layout,
         playAreaHeight,
-        dealerId,
+        effectiveDealerId,
         layoutSeatIds,
         localPlayerIds,
         seatOptions,
@@ -127,21 +200,21 @@ export default function DealCeremonyOverlay({
     layout,
     screenW,
     playAreaHeight,
-    dealerId,
+    effectiveDealerId,
     layoutSeatIds,
     localPlayerIds,
     seatOptions,
   ]);
 
   const dealSteps = useMemo(() => {
-    const recipientOrder = dealRecipientOrder(playerIds, dealerId);
+    const recipientOrder = dealRecipientOrder(playerIds, effectiveDealerId);
     return buildClockwiseDealSteps(recipientOrder, totalCards);
-  }, [totalCards, playerIds, dealerId]);
+  }, [totalCards, playerIds, effectiveDealerId]);
 
   const dealStepsRef = useRef(dealSteps);
   dealStepsRef.current = dealSteps;
 
-  const advanceDealRound = useCallback((playerId: string) => {
+  const advanceDealRound = useCallback((playerId: string, roundIndex: number) => {
     setDealtCounts((prev) => ({
       ...prev,
       [playerId]: (prev[playerId] ?? 0) + 1,
@@ -149,10 +222,14 @@ export default function DealCeremonyOverlay({
     if (dealStepTimerRef.current) {
       clearTimeout(dealStepTimerRef.current);
     }
+    const { gapMs } = dealStepTiming(
+      roundIndex,
+      dealStepsRef.current.length,
+    );
     dealStepTimerRef.current = setTimeout(() => {
       dealStepTimerRef.current = null;
       setDealRound((r) => r + 1);
-    }, DEAL_STEP_GAP_MS);
+    }, gapMs);
   }, []);
 
   const handleDealFlightComplete = useCallback(
@@ -162,12 +239,15 @@ export default function DealCeremonyOverlay({
       const step = dealStepsRef.current[round];
       if (!step) return;
       setActiveFlights([]);
-      advanceDealRound(step.playerId);
+      advanceDealRound(step.playerId, round);
     },
     [advanceDealRound],
   );
 
-  const beginDealPhase = useCallback(() => setPhase("deal"), []);
+  const beginDealPhase = useCallback(
+    () => setPhase((current) => (current === "shuffle" ? "deal" : current)),
+    [],
+  );
 
   useEffect(() => {
     if (!visible) return;
@@ -177,7 +257,25 @@ export default function DealCeremonyOverlay({
     setDealRound(0);
     setDealtCounts({});
     setActiveFlights([]);
+    onDealtCountsChangeRef.current?.({});
   }, [visible]);
+
+  useEffect(() => {
+    if (!visible) {
+      onDealtCountsChangeRef.current?.({});
+      return;
+    }
+    onDealtCountsChangeRef.current?.(dealtCounts);
+  }, [visible, dealtCounts]);
+
+  // Web/native fallback — riffle animation can stall without firing onComplete.
+  useEffect(() => {
+    if (!visible || phase !== "shuffle") return;
+    const timer = setTimeout(() => {
+      setPhase((current) => (current === "shuffle" ? "deal" : current));
+    }, SHUFFLE_MS + 120);
+    return () => clearTimeout(timer);
+  }, [visible, phase]);
 
   useEffect(() => {
     return () => {
@@ -195,10 +293,10 @@ export default function DealCeremonyOverlay({
   // Belt-and-suspenders: never leave the table locked if layout or timers stall.
   useEffect(() => {
     if (!visible) return;
-    const perCardMs = DEAL_FLIGHT_MS + DEAL_STEP_GAP_MS + 80;
+    const perCardMs = estimateDealDurationMs(Math.max(dealSteps.length, 1));
     const maxMs =
       SHUFFLE_MS +
-      Math.max(dealSteps.length, 1) * perCardMs +
+      perCardMs +
       (pendingTrades.length > 0 ? MANDATORY_TRADE_MS + 600 : 600);
     const timer = setTimeout(() => finishCeremony(), maxMs);
     return () => clearTimeout(timer);
@@ -216,6 +314,7 @@ export default function DealCeremonyOverlay({
     }
 
     const step = dealSteps[dealRound];
+    const stepTiming = dealStepTiming(dealRound, dealSteps.length);
     const visibleSeat = layoutSeatIds.includes(step.playerId);
     const target =
       layout && visibleSeat
@@ -231,8 +330,8 @@ export default function DealCeremonyOverlay({
 
     if (!layout || !visibleSeat || !target) {
       const timer = setTimeout(
-        () => advanceDealRound(step.playerId),
-        HIDDEN_SEAT_DEAL_MS,
+        () => advanceDealRound(step.playerId, dealRound),
+        stepTiming.hiddenMs,
       );
       return () => clearTimeout(timer);
     }
@@ -240,9 +339,16 @@ export default function DealCeremonyOverlay({
     const flightId = `deal-${dealRound}`;
     if (dealFlightRoundRef.current === dealRound) return;
     dealFlightRoundRef.current = dealRound;
+    activeDealFlightMsRef.current = stepTiming.flightMs;
 
     const from = offsetPoint(deckCenter.x, deckCenter.y);
     const to = offsetPoint(target.x, target.y);
+    const stack = dealStackLayout(
+      layout,
+      layoutSeatIds,
+      localPlayerIds,
+      step.playerId,
+    );
     const flight: CardFlightSpec = {
       id: flightId,
       cards: [{ suit: "spades", value: 0, hidden: true }],
@@ -250,8 +356,9 @@ export default function DealCeremonyOverlay({
       fromY: from.y,
       toX: to.x,
       toY: to.y,
-      cardW: dims.width * 0.72,
-      cardH: dims.height * 0.72,
+      cardW: stack.miniW,
+      cardH: stack.miniH,
+      cornerRadius: stack.cornerRadius,
     };
 
     if (dealWatchdogRef.current) {
@@ -262,7 +369,7 @@ export default function DealCeremonyOverlay({
       dealWatchdogRef.current = null;
       if (dealRoundRef.current !== roundAtStart) return;
       handleDealFlightComplete(flightId);
-    }, DEAL_FLIGHT_MS + DEAL_STEP_GAP_MS + 120);
+    }, stepTiming.flightMs + stepTiming.gapMs + 120);
 
     setActiveFlights([flight]);
   }, [
@@ -381,6 +488,10 @@ export default function DealCeremonyOverlay({
         <DealShuffleAnimation
           cardW={dims.width * 0.78}
           cardH={dims.height * 0.78}
+          cornerRadius={ceremonyCardCornerRadius(
+            dims.width * 0.78,
+            dims.height * 0.78,
+          )}
           left={deckScreen.x}
           top={deckScreen.y}
           running
@@ -393,7 +504,11 @@ export default function DealCeremonyOverlay({
         <TableCardFlight
           key={flight.id}
           flight={flight}
-          durationMs={phase === "trade" ? MANDATORY_TRADE_MS : DEAL_FLIGHT_MS}
+          durationMs={
+            phase === "trade"
+              ? MANDATORY_TRADE_MS
+              : activeDealFlightMsRef.current
+          }
           onComplete={(id) => {
             if (phase === "deal" && id.startsWith("deal-")) {
               handleDealFlightComplete(id);
@@ -417,9 +532,15 @@ export default function DealCeremonyOverlay({
               seatOptions,
             );
             if (!pos) return null;
-            const miniW = dims.width * 0.36;
-            const miniH = dims.height * 0.36;
+            const { miniW, miniH, cornerRadius } = dealStackLayout(
+              layout,
+              layoutSeatIds,
+              localPlayerIds,
+              id,
+            );
             const stackCount = Math.min(3, count);
+            const stackW = miniW + (stackCount - 1) * 4;
+            const stackH = miniH + (stackCount - 1) * 2;
             const screenPos = offsetPoint(pos.x, pos.y);
             return (
               <View
@@ -427,10 +548,10 @@ export default function DealCeremonyOverlay({
                 style={[
                   styles.dealtStack,
                   {
-                    left: screenPos.x - miniW / 2,
-                    top: screenPos.y - miniH - 8,
-                    width: miniW + (stackCount - 1) * 4,
-                    height: miniH + (stackCount - 1) * 2,
+                    left: screenPos.x - stackW / 2,
+                    top: screenPos.y - stackH / 2,
+                    width: stackW,
+                    height: stackH,
                   },
                 ]}
               >
@@ -452,6 +573,7 @@ export default function DealCeremonyOverlay({
                       selected={false}
                       faceDown
                       variant="table"
+                      cornerRadius={cornerRadius}
                       onPress={() => {}}
                       style={{ width: miniW, height: miniH }}
                     />

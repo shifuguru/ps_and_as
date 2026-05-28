@@ -16,6 +16,20 @@ export const UPDATE_LOG_TAGLINE =
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
     date: "May 2026",
+    title: "Deal ceremony & table polish",
+    items: [
+      "Shuffle animation — riffle shuffle now plays on Expo Go and iOS (not just desktop web)",
+      "Deal ceremony — live card-count badges on each seat while cards are dealt; mini stacks sit inside avatar rings",
+      "Ten as your last card — you must pick higher or lower before you're out for the round",
+      "Pass button — turn glow and flash use your table theme accent instead of iOS blue",
+      "Leave button — red tint during an active game so it's easy to spot (light and dark mode)",
+      "Your avatar stays in place when you're out instead of jumping to the table centre",
+      "Game Center — safer round-end achievement sync (no crash when a mapping is missing)",
+      "Mandatory role trades — strip above the action bar while President/Asshole picks return cards",
+    ],
+  },
+  {
+    date: "May 2026",
     title: "Rules & table nudge",
     items: [
       "Turn bell — after ~12 seconds on someone's turn, a 🔔 appears on their seat; tap to nudge them (works in multiplayer too)",
@@ -109,6 +123,11 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
 ];
 
 export const KNOWN_ISSUES: KnownIssue[] = [
+  {
+    title: "Shuffle animation on mobile",
+    status: "Fix shipped",
+    note: "The deal riffle shuffle should now animate on Expo Go and iOS. Restart the app with a cleared cache if you still see a static deck.",
+  },
   {
     title: "Quick Game blank screen",
     status: "Fix shipped",

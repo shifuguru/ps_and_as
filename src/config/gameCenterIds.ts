@@ -11,6 +11,7 @@ export const GAME_CENTER_ACHIEVEMENTS: Record<string, string> = {
   president: `${BUNDLE}.achievement.president`,
   asshole: `${BUNDLE}.achievement.asshole`,
   vice_president: `${BUNDLE}.achievement.vice_president`,
+  vice_asshole: `${BUNDLE}.achievement.vice_asshole`,
   hot_streak: `${BUNDLE}.achievement.hot_streak`,
   veteran: `${BUNDLE}.achievement.veteran`,
   dynasty: `${BUNDLE}.achievement.dynasty`,

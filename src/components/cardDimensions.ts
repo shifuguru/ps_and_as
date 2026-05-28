@@ -21,3 +21,8 @@ export function tableCardDimensions(): {
     bundleOverlap: Math.round(width * 0.3),
   };
 }
+
+/** Tighter corners for mini face-down cards (deal ceremony, seat stacks). */
+export function ceremonyCardCornerRadius(width: number, height: number): number {
+  return Math.max(3, Math.round(Math.min(width, height) * 0.1));
+}

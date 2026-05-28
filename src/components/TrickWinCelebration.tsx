@@ -36,6 +36,8 @@ type Props = {
   /** Show floating +XP text (local human trick win). */
   showXp?: boolean;
   xpAmount?: number;
+  /** Winner's theme — defaults to local palette when omitted. */
+  celebrationColors?: readonly string[];
 };
 
 export default function TrickWinCelebration({
@@ -43,6 +45,7 @@ export default function TrickWinCelebration({
   avatarSize,
   showXp = false,
   xpAmount = TRICK_WIN_XP,
+  celebrationColors,
 }: Props) {
   const { colors, palette } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -50,9 +53,10 @@ export default function TrickWinCelebration({
   const flagPop = useRef(new Animated.Value(0)).current;
   const flagWave = useRef(new Animated.Value(0)).current;
   const xpFloat = useRef(new Animated.Value(0)).current;
+  const particleColors = celebrationColors ?? palette.celebrationColors;
   const particles = useMemo(
-    () => buildParticles(avatarSize, palette.celebrationColors),
-    [avatarSize, palette.celebrationColors],
+    () => buildParticles(avatarSize, particleColors),
+    [avatarSize, particleColors],
   );
 
   useEffect(() => {

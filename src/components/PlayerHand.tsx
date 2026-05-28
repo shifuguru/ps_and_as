@@ -32,9 +32,9 @@ const PAN_ACTIVATION_PX = 8;
 /** Max rotation (deg) for cards at the viewport edge */
 const MAX_ANGLE = 16;
 /** How high the centred card lifts above the baseline */
-const MAX_CENTER_LIFT = 14;
+const MAX_CENTER_LIFT = 12;
 /** Padding below card feet inside the hand zone */
-const FAN_BOTTOM_PADDING = 12;
+const FAN_BOTTOM_PADDING = 5;
 
 /** Headroom above card tops for arc + selected lift + scale/shadow */
 const FAN_HEADROOM = SELECT_LIFT + MAX_CENTER_LIFT + 20;

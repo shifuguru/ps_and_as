@@ -1,10 +1,23 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import Animated, {
+  cancelAnimation,
+  Easing,
+  type AnimatedStyle,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
+import type { ViewStyle } from "react-native";
 import Card from "./Card";
 
 type Props = {
   cardW: number;
   cardH: number;
+  cornerRadius?: number;
   left: number;
   top: number;
   running: boolean;
@@ -18,11 +31,13 @@ const SHUFFLE_CYCLES = 3;
 function CardPacket({
   cardW,
   cardH,
+  cornerRadius,
   style,
 }: {
   cardW: number;
   cardH: number;
-  style?: object;
+  cornerRadius?: number;
+  style?: AnimatedStyle<ViewStyle>;
 }) {
   return (
     <Animated.View style={[styles.packet, style]}>
@@ -45,6 +60,7 @@ function CardPacket({
             selected={false}
             faceDown
             variant="table"
+            cornerRadius={cornerRadius}
             onPress={() => {}}
             style={{ width: cardW, height: cardH }}
           />
@@ -54,96 +70,48 @@ function CardPacket({
   );
 }
 
-/** One riffle: split two halves, bridge-wiggle, square back up. */
-function riffleCycle(
-  split: Animated.Value,
-  riffle: Animated.Value,
-  lift: Animated.Value,
-  splitMs: number,
-  riffleMs: number,
-  mergeMs: number,
-) {
+function riffleWiggleSteps(riffleMs: number) {
   const riffleTicks = Math.max(3, Math.round(riffleMs / 140));
-  return Animated.sequence([
-    Animated.parallel([
-      Animated.timing(split, {
-        toValue: 1,
-        duration: splitMs,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(lift, {
-        toValue: 1,
-        duration: splitMs,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-    ]),
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(riffle, {
-          toValue: 1,
-          duration: 70,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(riffle, {
-          toValue: -1,
-          duration: 70,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ]),
-      { iterations: riffleTicks },
-    ),
-    Animated.parallel([
-      Animated.timing(split, {
-        toValue: 0,
-        duration: mergeMs,
-        easing: Easing.inOut(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(lift, {
-        toValue: 0,
-        duration: mergeMs,
-        easing: Easing.inOut(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(riffle, {
-        toValue: 0,
-        duration: mergeMs,
-        useNativeDriver: true,
-      }),
-    ]),
-  ]);
+  const steps = [];
+  for (let i = 0; i < riffleTicks; i += 1) {
+    steps.push(
+      withTiming(1, { duration: 70, easing: Easing.inOut(Easing.quad) }),
+      withTiming(-1, { duration: 70, easing: Easing.inOut(Easing.quad) }),
+    );
+  }
+  return steps;
 }
 
 export default function DealShuffleAnimation({
   cardW,
   cardH,
+  cornerRadius,
   left,
   top,
   running,
   durationMs = 3600,
   onComplete,
 }: Props) {
-  const split = useRef(new Animated.Value(0)).current;
-  const riffle = useRef(new Animated.Value(0)).current;
-  const lift = useRef(new Animated.Value(0)).current;
-  const entry = useRef(new Animated.Value(0.82)).current;
+  const split = useSharedValue(0);
+  const riffle = useSharedValue(0);
+  const lift = useSharedValue(0);
+  const entry = useSharedValue(0.82);
   const genRef = useRef(0);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   const splitX = cardW * 0.48;
+  const baseCenter = -cardW / 2;
+  const packetCenterY = -cardH / 2;
 
   useEffect(() => {
     if (!running) return;
     const gen = ++genRef.current;
-    const onDone = onComplete;
 
-    split.setValue(0);
-    riffle.setValue(0);
-    lift.setValue(0);
-    entry.setValue(0.82);
+    split.value = 0;
+    riffle.value = 0;
+    lift.value = 0;
+    entry.value = 0.82;
 
     const introMs = 220;
     const settleMs = 260;
@@ -155,158 +123,127 @@ export default function DealShuffleAnimation({
     const riffleMs = Math.round(cycleBudget * 0.38);
     const mergeMs = Math.round(cycleBudget * 0.3);
 
-    const anim = Animated.sequence([
-      Animated.timing(entry, {
-        toValue: 1,
-        duration: introMs,
-        easing: Easing.out(Easing.back(1.4)),
-        useNativeDriver: true,
+    const splitCycle = withSequence(
+      withTiming(1, {
+        duration: splitMs,
+        easing: Easing.out(Easing.cubic),
       }),
-      ...Array.from({ length: SHUFFLE_CYCLES }, () =>
-        riffleCycle(split, riffle, lift, splitMs, riffleMs, mergeMs),
-      ),
-      Animated.timing(entry, {
-        toValue: 1,
-        duration: settleMs,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
+      withTiming(0, {
+        duration: mergeMs,
+        easing: Easing.inOut(Easing.cubic),
       }),
-    ]);
+    );
 
-    anim.start(({ finished }) => {
-      if (!finished || gen !== genRef.current) return;
-      onDone?.();
+    const liftCycle = withSequence(
+      withTiming(1, {
+        duration: splitMs,
+        easing: Easing.out(Easing.quad),
+      }),
+      withTiming(0, {
+        duration: mergeMs,
+        easing: Easing.inOut(Easing.cubic),
+      }),
+    );
+
+    const riffleWiggleCycle = withSequence(
+      withTiming(0, { duration: splitMs }),
+      ...riffleWiggleSteps(riffleMs),
+      withTiming(0, { duration: mergeMs }),
+    );
+
+    entry.value = withTiming(1, {
+      duration: introMs,
+      easing: Easing.out(Easing.back(1.4)),
     });
+
+    split.value = withDelay(
+      introMs,
+      withRepeat(splitCycle, SHUFFLE_CYCLES, false),
+    );
+    lift.value = withDelay(
+      introMs,
+      withRepeat(liftCycle, SHUFFLE_CYCLES, false),
+    );
+    riffle.value = withDelay(
+      introMs,
+      withRepeat(riffleWiggleCycle, SHUFFLE_CYCLES, false),
+    );
+
+    const completeTimer = setTimeout(() => {
+      if (gen !== genRef.current) return;
+      onCompleteRef.current?.();
+    }, durationMs);
 
     return () => {
       genRef.current += 1;
-      anim.stop();
+      clearTimeout(completeTimer);
+      cancelAnimation(split);
+      cancelAnimation(lift);
+      cancelAnimation(riffle);
+      cancelAnimation(entry);
     };
-  }, [running, durationMs, split, riffle, lift, entry]);
+  }, [running, durationMs, split, lift, riffle, entry]);
 
-  const baseCenter = -cardW / 2;
+  const rootStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: entry.value }],
+  }));
 
-  const leftX = Animated.add(
-    split.interpolate({
-      inputRange: [0, 1],
-      outputRange: [baseCenter, baseCenter - splitX],
-    }),
-    riffle.interpolate({
-      inputRange: [-1, 0, 1],
-      outputRange: [5, 0, -5],
-    }),
-  );
-
-  const rightX = Animated.add(
-    split.interpolate({
-      inputRange: [0, 1],
-      outputRange: [baseCenter, baseCenter + splitX],
-    }),
-    riffle.interpolate({
-      inputRange: [-1, 0, 1],
-      outputRange: [-5, 0, 5],
-    }),
-  );
-
-  const leftY = Animated.add(
-    -cardH / 2,
-    Animated.add(
-      lift.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, -cardH * 0.14],
-      }),
-      riffle.interpolate({
-        inputRange: [-1, 0, 1],
-        outputRange: [2, 0, -2],
-      }),
-    ),
-  );
-
-  const rightY = Animated.add(
-    -cardH / 2,
-    Animated.add(
-      lift.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, -cardH * 0.1],
-      }),
-      riffle.interpolate({
-        inputRange: [-1, 0, 1],
-        outputRange: [-2, 0, 2],
-      }),
-    ),
-  );
-
-  const leftRotate = Animated.add(
-    split.interpolate({
-      inputRange: [0, 1],
-      outputRange: [-3, -16],
-    }),
-    riffle.interpolate({
-      inputRange: [-1, 0, 1],
-      outputRange: [4, 0, -4],
-    }),
-  );
-
-  const rightRotate = Animated.add(
-    split.interpolate({
-      inputRange: [0, 1],
-      outputRange: [3, 16],
-    }),
-    riffle.interpolate({
-      inputRange: [-1, 0, 1],
-      outputRange: [-4, 0, 4],
-    }),
-  );
-
-  const leftRotateStr = leftRotate.interpolate({
-    inputRange: [-25, 25],
-    outputRange: ["-25deg", "25deg"],
+  const leftStyle = useAnimatedStyle(() => {
+    const translateX =
+      baseCenter + split.value * -splitX + riffle.value * 5;
+    const translateY = lift.value * -cardH * 0.14 + riffle.value * 2;
+    const rotateDeg = -3 + split.value * -13 + riffle.value * 4;
+    return {
+      top: packetCenterY,
+      zIndex: 2,
+      transform: [
+        { translateX },
+        { translateY },
+        { rotate: `${rotateDeg}deg` },
+      ],
+    };
   });
-  const rightRotateStr = rightRotate.interpolate({
-    inputRange: [-25, 25],
-    outputRange: ["-25deg", "25deg"],
+
+  const rightStyle = useAnimatedStyle(() => {
+    const translateX =
+      baseCenter + split.value * splitX + riffle.value * -5;
+    const translateY = lift.value * -cardH * 0.1 + riffle.value * -2;
+    const rotateDeg = 3 + split.value * 13 + riffle.value * -4;
+    return {
+      top: packetCenterY,
+      zIndex: 1,
+      transform: [
+        { translateX },
+        { translateY },
+        { rotate: `${rotateDeg}deg` },
+      ],
+    };
   });
 
   if (!running) return null;
 
   return (
-    <Animated.View
-      style={[
-        styles.root,
-        {
-          left,
-          top,
-          transform: [{ scale: entry }],
-        },
-      ]}
+    <View
+      style={[styles.root, { left, top }]}
       pointerEvents="none"
+      collapsable={false}
     >
       <View style={styles.shadow} />
-      <CardPacket
-        cardW={cardW}
-        cardH={cardH}
-        style={{
-          zIndex: 2,
-          transform: [
-            { translateX: leftX },
-            { translateY: leftY },
-            { rotate: leftRotateStr },
-          ],
-        }}
-      />
-      <CardPacket
-        cardW={cardW}
-        cardH={cardH}
-        style={{
-          zIndex: 1,
-          transform: [
-            { translateX: rightX },
-            { translateY: rightY },
-            { rotate: rightRotateStr },
-          ],
-        }}
-      />
-    </Animated.View>
+      <Animated.View style={rootStyle}>
+        <CardPacket
+          cardW={cardW}
+          cardH={cardH}
+          cornerRadius={cornerRadius}
+          style={leftStyle}
+        />
+        <CardPacket
+          cardW={cardW}
+          cardH={cardH}
+          cornerRadius={cornerRadius}
+          style={rightStyle}
+        />
+      </Animated.View>
+    </View>
   );
 }
 

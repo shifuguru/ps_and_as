@@ -27,7 +27,7 @@ import {
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import FeltBackground from "./src/components/FeltBackground";
 import FullscreenBlurScrim from "./src/components/FullscreenBlurScrim";
-import { DEFAULT_FELT_COLOR } from "./src/services/wallpaper";
+import { DEFAULT_FELT_COLOR, getWallpaperTint } from "./src/services/wallpaper";
 import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
 import { tryCollapseSafariChrome } from "./src/utils/safariChrome";
 import { useVisualViewportSize } from "./src/hooks/useVisualViewportSize";
@@ -134,6 +134,7 @@ function AppContent() {
         pendingRejoin.playerName,
         profile.id,
         true,
+        feltTint,
       ),
     );
     setJoinedRoomId(pendingRejoin.roomId);
@@ -180,6 +181,7 @@ function AppContent() {
   const startRandomGame = async () => {
     const playerInfo = await getOrCreatePlayerId();
     const hostName = playerInfo.displayName || "Player";
+    const savedTint = (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
     console.log("[App] Quick Game requested", {
       hostName,
       playerInfoId: playerInfo.id,
@@ -187,7 +189,7 @@ function AppContent() {
     setLocalPlayerName(hostName);
     setLocalPlayerId(playerInfo.id);
     setLobbyMembers([
-      { id: "1", name: hostName },
+      { id: playerInfo.id, name: hostName, feltTint: savedTint },
       { id: "2", name: "CPU 1" },
       { id: "3", name: "CPU 2" },
       { id: "4", name: "CPU 3" },
@@ -767,7 +769,7 @@ function AppContent() {
                   const profile = await getOrCreatePlayerId();
                   setLocalPlayerName(name);
                   setRoomAdapter(
-                    new SocketAdapter(undefined, "", name, profile.id, false),
+                    new SocketAdapter(undefined, "", name, profile.id, false, feltTint),
                   );
                   setJoinedRoomId(null);
                   setActiveRoomId(null);
@@ -787,6 +789,7 @@ function AppContent() {
                       playerName,
                       profile.id,
                       true,
+                      feltTint,
                     ),
                   );
                   setJoinedRoomId(roomId);
@@ -807,6 +810,7 @@ function AppContent() {
                     playerName,
                     profile.id,
                     true,
+                    feltTint,
                   );
                   setRoomAdapter(adapter);
                   setJoinedRoomId(roomId);
@@ -880,7 +884,19 @@ function AppContent() {
             <View style={appStyles.settingsForeground}>
               <Settings
                 onWallpaperPreview={setFeltTint}
-                onWallpaperChange={() => reloadWallpaper()}
+                onWallpaperChange={async () => {
+                  reloadWallpaper();
+                  const tint = (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
+                  const roomId = activeRoomIdRef.current ?? joinedRoomIdRef.current;
+                  if (
+                    roomAdapter &&
+                    isSocketAdapter(roomAdapter) &&
+                    roomId &&
+                    roomAdapter.isConnected()
+                  ) {
+                    roomAdapter.updatePlayerTheme(roomId, tint);
+                  }
+                }}
                 onBack={closeSettings}
                 onNameSaved={(name) => {
                   setLocalPlayerName(name);

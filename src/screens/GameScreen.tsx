@@ -20,8 +20,6 @@ import {
   applyCpuTurn,
   setTenRuleDirection,
   isValidPlay,
-  RANK_ORDER,
-  isRun,
   hasPassedInCurrentTrick,
   effectivePile,
   consecutiveSequenceInfo,
@@ -35,18 +33,20 @@ import {
   isRoundCompleteForLiving,
   isDeadHandPlayer,
   livingPlayerIds,
+  livingFinishedOrder,
   applyDeadHandAfterDeal,
+  tenRuleChooserIndex,
 } from "../game/core";
 import {
   assignPlayerRoles,
   applyMandatoryTrades,
   allTradesCompleted,
+  autoCompleteCpuWinnerTrades,
   applyServerRolesToPlayers,
   buildFreshRoundState,
   clonePlayersForRound,
   completeWinnerReturn,
   dealFreshHands,
-  pickLowestCards,
   type ClientPendingTrade,
 } from "../game/roundPrep";
 import Card from "../components/Card";
@@ -60,7 +60,12 @@ import {
   parseServerGameState,
   resolveLocalHumanPlayer,
 } from "../utils/localPlayer";
-import { recordRoundResult, recordTrickWin } from "../services/playerStats";
+import {
+  recordRoundResult,
+  recordTrickWin,
+  TRICK_WIN_XP,
+  getPlayerStats,
+} from "../services/playerStats";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import DebugViewer from "../components/DebugViewer";
 import { Card as CardType, FULL_DECK_SIZE } from "../game/ruleset";
@@ -71,6 +76,7 @@ import BottomBar, {
   BottomBarControls,
   BottomBarHand,
   BottomBarLeave,
+  HAND_ZONE_TOP_CLEARANCE,
   localSeatBottomOffset,
   reservedBottomHeight,
 } from "../components/BottomBar";
@@ -235,7 +241,7 @@ function canCardBePlayedAtAll(
     return true;
   }
 
-  // Check if pile is in a run (or a 2-card sequence being extended)
+  // Check if pile is in an active run — extend with the next adjacent rank only.
   const trickRunInfo = runFromCurrentTrickInfo(currentTrick, players, finishedOrder || []);
   const seqInfo = consecutiveSequenceInfo(
     pile,
@@ -244,28 +250,24 @@ function canCardBePlayedAtAll(
     players,
     finishedOrder || [],
   );
-  let runMultiplicity = 1;
-  if (trickRunInfo?.repCards && trickRunInfo.repCards.length >= 3) {
-    runMultiplicity = trickRunInfo.multiplicity || 1;
-  }
   const runSeq =
     seqInfo.repCards.length >= (trickRunInfo?.repCards?.length || 0)
       ? seqInfo.repCards
       : trickRunInfo?.repCards || [];
-  if (runSeq.length >= 2) {
-    runMultiplicity =
-      seqInfo.repCards.length >= (trickRunInfo?.repCards?.length || 0)
+  const runMultiplicity =
+    runSeq.length >= 3
+      ? seqInfo.repCards.length >= (trickRunInfo?.repCards?.length || 0)
         ? seqInfo.multiplicity
-        : trickRunInfo?.multiplicity || 1;
-  }
-  const inRunContext = runSeq.length >= 2 && isRunContextSequence(runSeq);
+        : trickRunInfo?.multiplicity || 1
+      : trickRunInfo?.multiplicity || 1;
+  const inRunContext = isRunContextSequence(runSeq);
 
-  if (inRunContext && runMultiplicity === 1) {
+  if (inRunContext) {
     const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
     if (Math.abs(rankIndex(cardValue) - lastRank) === 1) {
-      const card = sameValue[0];
+      if (sameValue.length < runMultiplicity) return false;
       return isValidPlay(
-        [card],
+        sameValue.slice(0, runMultiplicity),
         pile,
         tenRule,
         pileHistory,
@@ -275,46 +277,6 @@ function canCardBePlayedAtAll(
         players,
         finishedOrder,
       );
-    }
-  }
-
-  if (inRunContext && runMultiplicity > 1 && runSeq.length >= 3) {
-    const requiredLength = runSeq.length;
-    const multiplicity = runMultiplicity || 1;
-
-    // Try to form runs that include this card value with required multiplicity
-    for (let startOffset = 0; startOffset < requiredLength; startOffset++) {
-      const targetStartRank = rankIndex(cardValue) - startOffset;
-      if (targetStartRank < 0) continue;
-
-      const runCards: CardType[] = [];
-      let ok = true;
-      for (let i = 0; i < requiredLength; i++) {
-        const neededRankIdx = targetStartRank + i;
-        if (neededRankIdx >= RANK_ORDER.length) { ok = false; break; }
-        const neededValue = RANK_ORDER[neededRankIdx];
-        const cardsOfValue = hand.filter((c) => c.value === neededValue);
-        if (cardsOfValue.length < multiplicity) { ok = false; break; }
-        // take multiplicity cards of this rank
-        runCards.push(...cardsOfValue.slice(0, multiplicity));
-      }
-      if (!ok) continue;
-      // Validate run structure and engine acceptance
-      if (isRun(runCards)) {
-        if (
-          isValidPlay(
-            runCards,
-            pile,
-            tenRule,
-            pileHistory,
-            trickHistory,
-            fourOfAKindChallenge,
-            currentTrick,
-            players,
-            finishedOrder,
-          )
-        ) return true;
-      }
     }
     return false;
   }
@@ -411,6 +373,16 @@ function GameScreen({
     useState<TrickPauseSnapshot | null>(null);
   const [roomNotice, setRoomNotice] = useState<string | null>(null);
   const [awayPlayers, setAwayPlayers] = useState<Record<string, AwayPlayer>>({});
+  const [playerFeltTints, setPlayerFeltTints] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    initialLobbyPlayers?.forEach((member) => {
+      if (member.feltTint) map[member.id] = member.feltTint;
+    });
+    return map;
+  });
+  /** Trick-win XP earned this game session (persists across rounds). */
+  const [gameXpByPlayerId, setGameXpByPlayerId] = useState<Record<string, number>>({});
+  const [localCareerXp, setLocalCareerXp] = useState<number | null>(null);
   const [awayTick, setAwayTick] = useState(0);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
   const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
@@ -476,7 +448,7 @@ function GameScreen({
   const readOnlyGame = gameplayLocked || readOnlyOnline;
 
   const insets = useLayoutInsets();
-  const { colors } = useAppTheme();
+  const { colors, feltTint: localFeltTint } = useAppTheme();
 
   const humanPlayer = state
     ? resolveLocalHumanPlayer(
@@ -491,6 +463,15 @@ function GameScreen({
     localPlayerId ??
     (isSocketAdapter(networkAdapter) ? networkAdapter.getProfileId() : null);
   myPlayerIdRef.current = myPlayerId;
+
+  const resolveSeatFeltTint = useCallback(
+    (player: { id: string; name: string }) => {
+      if (myPlayerId && player.id === myPlayerId) return localFeltTint;
+      if (playerFeltTints[player.id]) return playerFeltTints[player.id];
+      return undefined;
+    },
+    [myPlayerId, localFeltTint, playerFeltTints],
+  );
 
   const awayNotice = useMemo(() => {
     void awayTick;
@@ -509,6 +490,14 @@ function GameScreen({
     () => Object.keys(awayPlayers),
     [awayPlayers],
   );
+
+  const scoreboardXpByPlayerId = useMemo(() => {
+    const xp = { ...gameXpByPlayerId };
+    if (myPlayerId && localCareerXp != null) {
+      xp[myPlayerId] = localCareerXp;
+    }
+    return xp;
+  }, [gameXpByPlayerId, myPlayerId, localCareerXp]);
 
   const turnPlayerId = state?.players[state.currentPlayerIndex]?.id ?? null;
   const turnPlayerName = state?.players[state.currentPlayerIndex]?.name;
@@ -585,17 +574,24 @@ function GameScreen({
       players: GameState["players"],
       trades: ClientPendingTrade[],
     ) => {
-      if (trades.length === 0 || trades.every((t) => t.completed)) {
-        finalizeCeremonyRound(players, baseState);
+      const playersCopy = clonePlayersForRound(players);
+      const tradesCopy = trades.map((t) => ({ ...t, incoming: [...t.incoming] }));
+
+      if (!onlineMultiplayer) {
+        autoCompleteCpuWinnerTrades(playersCopy, tradesCopy);
+      }
+
+      if (tradesCopy.length === 0 || tradesCopy.every((t) => t.completed)) {
+        finalizeCeremonyRound(playersCopy, baseState);
         return;
       }
-      setTradePhase({ baseState, players, trades });
+      setTradePhase({ baseState, players: playersCopy, trades: tradesCopy });
       setCeremonyPrep(null);
       setTradeReturnPick([]);
-      const first = trades.find((t) => !t.completed) ?? null;
+      const first = tradesCopy.find((t) => !t.completed) ?? null;
       setActiveTrade(first);
     },
-    [finalizeCeremonyRound],
+    [finalizeCeremonyRound, onlineMultiplayer],
   );
 
   const handleDealComplete = useCallback(() => {
@@ -735,8 +731,7 @@ function GameScreen({
 
   function startNextRound(nextDealSeed?: number) {
     if (!state) return;
-    const living = livingPlayerIds(state.players);
-    const finishedOrder = state.finishedOrder.filter((id) => living.includes(id));
+    const finishedOrder = livingFinishedOrder(state.players, state.finishedOrder);
     startRoundCeremony(state, finishedOrder, nextDealSeed);
   }
 
@@ -894,6 +889,15 @@ function GameScreen({
           winnerId: last.winnerId ?? "",
         });
         setLastTrickWinner(last.winnerName);
+        const winnerId =
+          last.winnerId ??
+          state.players.find((p) => p.name === last.winnerName)?.id;
+        if (winnerId) {
+          setGameXpByPlayerId((prev) => ({
+            ...prev,
+            [winnerId]: (prev[winnerId] ?? 0) + TRICK_WIN_XP,
+          }));
+        }
         setShowWinnerBanner(false);
         setStackCollecting(false);
         setTrickPauseActive(true);
@@ -929,7 +933,8 @@ function GameScreen({
       }
       lastTrickLenRef.current = len;
     }
-    const allPlayersFinished = isRoundCompleteForLiving(state);
+    const allPlayersFinished =
+      isRoundCompleteForLiving(state) && !state.tenRulePending;
     if (allPlayersFinished && !roundOver) {
       setRoundOver(true);
       if (!roundStatsRecordedRef.current) {
@@ -1042,7 +1047,10 @@ function GameScreen({
           seedFromProps;
         pendingDealSeedRef.current = undefined;
 
-        const finishOrder = parsed.lastRoundOrder ?? [];
+        const finishOrder = livingFinishedOrder(
+          parsed.players,
+          parsed.lastRoundOrder ?? [],
+        );
         const players = clonePlayersForRound(
           parsed.players.map((p) => ({ ...p, hand: [] })),
         );
@@ -1222,6 +1230,17 @@ function GameScreen({
         if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
           networkAdapter.requestGameState(roomId);
         }
+      } else if (ev.type === "state" && ev.state?.type === "lobby") {
+        const members = ev.state.players;
+        if (Array.isArray(members)) {
+          setPlayerFeltTints((prev) => {
+            const next = { ...prev };
+            for (const member of members as LobbyMember[]) {
+              if (member.feltTint) next[member.id] = member.feltTint;
+            }
+            return next;
+          });
+        }
       } else if (
         ev.type === "state" &&
         (ev.state?.type === "playerLeft" ||
@@ -1398,6 +1417,14 @@ function GameScreen({
   }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId]);
 
   useEffect(() => {
+    if (!roundOver) {
+      setLocalCareerXp(null);
+      return;
+    }
+    void getPlayerStats().then((stats) => setLocalCareerXp(stats.xp));
+  }, [roundOver]);
+
+  useEffect(() => {
     if (!showWinnerBanner || !trickPauseSnapshot?.winnerId || !myPlayerId) return;
     if (trickPauseSnapshot.winnerId !== myPlayerId) return;
     const trickNum = state?.trickHistory?.length ?? 0;
@@ -1412,33 +1439,63 @@ function GameScreen({
   ]);
 
   useEffect(() => {
-    if (!tradePhase || onlineMultiplayer || !myPlayerId) return;
-    let changed = false;
-    for (const trade of tradePhase.trades) {
-      if (trade.completed || trade.winnerId === myPlayerId) continue;
-      const winner = tradePhase.players.find((p) => p.id === trade.winnerId);
-      if (!winner) continue;
-      const selected = pickLowestCards(winner.hand, trade.returnCount);
-      if (completeWinnerReturn(tradePhase.players, trade, selected)) {
-        changed = true;
-      }
-    }
+    if (!tradePhase || onlineMultiplayer) return;
+
+    const players = tradePhase.players;
+    const trades = tradePhase.trades;
+    const changed = autoCompleteCpuWinnerTrades(players, trades);
     if (!changed) return;
-    if (allTradesCompleted(tradePhase.trades)) {
-      finalizeCeremonyRound(tradePhase.players, tradePhase.baseState);
+
+    if (allTradesCompleted(trades)) {
+      finalizeCeremonyRound(players, tradePhase.baseState);
       return;
     }
-    const nextTrade = tradePhase.trades.find((t) => !t.completed) ?? null;
-    setActiveTrade((prev) =>
-      prev?.winnerId === nextTrade?.winnerId && prev?.loserId === nextTrade?.loserId
-        ? prev
-        : nextTrade,
-    );
-  }, [tradePhase, onlineMultiplayer, myPlayerId, finalizeCeremonyRound]);
+
+    const nextTrade = trades.find((t) => !t.completed) ?? null;
+    setTradePhase({ ...tradePhase, players: [...players], trades: [...trades] });
+    setActiveTrade(nextTrade);
+  }, [tradePhase, onlineMultiplayer, finalizeCeremonyRound]);
 
   // CPU auto-play effect
   useEffect(() => {
     if (!state || trickPauseActive || gameplayLocked || roundOver) return;
+
+    if (state.tenRulePending) {
+      const chooserIdx = tenRuleChooserIndex(state);
+      if (chooserIdx == null) return;
+      const chooser = state.players[chooserIdx];
+      if (!chooser || isDeadHandPlayer(chooser)) return;
+
+      const isNamedCPU = !!(
+        chooser.name &&
+        typeof chooser.name === "string" &&
+        chooser.name.startsWith("CPU")
+      );
+      const isHumanChooser =
+        !!(humanPlayer && chooser.id === humanPlayer.id);
+      if (!isNamedCPU || isHumanChooser) return;
+
+      const playerId = chooser.id;
+      const timer = setTimeout(() => {
+        const live = stateRef.current;
+        if (!live?.tenRulePending) return;
+        const liveChooserIdx = tenRuleChooserIndex(live);
+        if (liveChooserIdx == null || live.players[liveChooserIdx]?.id !== playerId) {
+          return;
+        }
+        const direction = Math.random() < 0.5 ? "higher" : "lower";
+        const next = setTenRuleDirection(live, direction);
+        emitDebug("action:10:cpu:choose", {
+          playerId,
+          playerName: chooser.name,
+          direction,
+          before: snapshotState(live),
+          after: snapshotState(next),
+        });
+        setState(next);
+      }, CPU_DELAY_MS);
+      return () => clearTimeout(timer);
+    }
 
     const current = state.players[state.currentPlayerIndex];
 
@@ -1564,13 +1621,15 @@ function GameScreen({
     roleById[p.id] = p.role;
   }
   const tableSeats = buildTableSeatConfig(state.players, myPlayerId);
+  const localPlayerOutForLayout =
+    !!humanPlayer && state.finishedOrder.includes(humanPlayer.id);
+  const handReserveForLayout =
+    ((humanPlayer?.hand.length ?? 0) > 0 && !gameplayLocked) ||
+    localPlayerOutForLayout;
   const playAreaGameHeight = Math.max(
     0,
     playAreaSize.height -
-      reservedBottomHeight(
-        insets.bottom || 0,
-        (humanPlayer?.hand.length ?? 0) > 0 && !gameplayLocked,
-      ),
+      reservedBottomHeight(insets.bottom || 0, handReserveForLayout),
   );
   const playAreaLayout =
     playAreaSize.width <= 0 || playAreaGameHeight <= 0
@@ -1651,6 +1710,8 @@ function GameScreen({
         onBack,
         turnBellPlayerId,
         handleTurnBellPress,
+        resolveSeatFeltTint,
+        scoreboardXpByPlayerId,
       }}
     >
       <GameScreenBoard />
@@ -1724,6 +1785,8 @@ function GameScreenBoard() {
     onBack,
     turnBellPlayerId,
     handleTurnBellPress,
+    resolveSeatFeltTint,
+    scoreboardXpByPlayerId,
   } = useContext(GameScreenRuntimeContext)! as {
     state: GameState;
     setState: React.Dispatch<React.SetStateAction<GameState | null>>;
@@ -1805,7 +1868,20 @@ function GameScreenBoard() {
     onBack: (() => void) | undefined;
     turnBellPlayerId: string | null;
     handleTurnBellPress: (playerId: string) => void;
+    resolveSeatFeltTint: (player: { id: string; name: string }) => string | undefined;
+    scoreboardXpByPlayerId: Record<string, number>;
   };
+
+  const [ceremonyDealCounts, setCeremonyDealCounts] = useState<
+    Record<string, number>
+  >({});
+
+  useEffect(() => {
+    if (!ceremonyPrep) setCeremonyDealCounts({});
+  }, [ceremonyPrep]);
+
+  const ceremonyCountFor = (playerId: string) =>
+    ceremonyPrep ? (ceremonyDealCounts[playerId] ?? 0) : null;
 
   // const windowDimensions = useWindowDimensions();
   // const width = windowDimensions.width;
@@ -1862,11 +1938,14 @@ function GameScreenBoard() {
   const currentIsLocalHuman = !!myPlayerId && current.id === myPlayerId;
   const currentIsOut =
     state.finishedOrder.includes(current.id) || current.hand.length === 0;
+  const tenRuleChooserIdx = tenRuleChooserIndex(state);
+  const tenRuleChooserId =
+    tenRuleChooserIdx != null ? state.players[tenRuleChooserIdx]?.id : null;
   const isTenRuleChoice =
     !!state.tenRulePending &&
     !trickPauseActive &&
     !!myPlayerId &&
-    current.id === myPlayerId;
+    tenRuleChooserId === myPlayerId;
   const isHumanTurn =
     !!myPlayerId &&
     current.id === myPlayerId &&
@@ -2111,14 +2190,15 @@ function GameScreenBoard() {
   const handInBottomBar = handVisible && !gameplayLocked;
   const localPlayerOut =
     !!humanPlayer && state.finishedOrder.includes(humanPlayer.id);
-  const localSeatHandReserve = handInBottomBar || localPlayerOut;
+  /** Keep bottom chrome height stable when the local player is out (hand hidden). */
+  const handReserveActive = handInBottomBar || localPlayerOut;
   const bottomBarHeight = reservedBottomHeight(
     insets.bottom || 0,
-    handInBottomBar,
+    handReserveActive,
   );
   const localSeatBottom = localSeatBottomOffset(
     insets.bottom || 0,
-    localSeatHandReserve,
+    handReserveActive,
   );
   const contentTopPadding = insets.top + 8;
   const trickPlays = buildTrickPlayDisplays(state);
@@ -2136,12 +2216,13 @@ function GameScreenBoard() {
     .map((p) => ({
       id: p.id,
       name: p.name,
-      handCount: p.hand.length,
+      handCount: ceremonyCountFor(p.id) ?? p.hand.length,
       role: roleById[p.id] ?? p.role,
       isDeadHand: isDeadHandPlayer(p),
       sidelinedCount: isDeadHandPlayer(p)
-        ? (p.sidelinedHand?.length ?? 0)
+        ? (ceremonyCountFor(p.id) ?? (p.sidelinedHand?.length ?? 0))
         : 0,
+      feltTint: resolveSeatFeltTint(p),
     }));
 
   const passedPlayerIds =
@@ -2163,8 +2244,10 @@ function GameScreenBoard() {
     ? {
         id: humanPlayer.id,
         name: humanPlayer.name,
-        handCount: humanPlayer.hand.length,
+        handCount:
+          ceremonyCountFor(humanPlayer.id) ?? humanPlayer.hand.length,
         role: roleById[humanPlayer.id] ?? humanPlayer.role,
+        feltTint: resolveSeatFeltTint(humanPlayer),
       }
     : null;
 
@@ -2608,7 +2691,7 @@ function GameScreenBoard() {
       {/* Player hand + actions — sticky bottom sheet */}
       <BottomBar>
         {handInBottomBar ? (
-          <BottomBarHand height={HAND_FAN_HEIGHT}>
+          <BottomBarHand height={HAND_FAN_HEIGHT + HAND_ZONE_TOP_CLEARANCE}>
             {!isHumanTurn ? (
               <View style={local.waitingPill}>
                 <Text style={local.waitingPillText}>
@@ -2653,7 +2736,7 @@ function GameScreenBoard() {
                 </Text>
               </View>
               {onBack ? (
-                <BottomBarLeave onPress={requestLeaveGame} label="Leave" />
+                <BottomBarLeave live onPress={requestLeaveGame} label="Leave" />
               ) : null}
             </>
           ) : gameplayLocked ? (
@@ -2766,6 +2849,7 @@ function GameScreenBoard() {
         }
         pendingTrades={ceremonyPrep?.trades.filter((t) => !t.completed) ?? []}
         onDealComplete={handleDealComplete}
+        onDealtCountsChange={setCeremonyDealCounts}
       />
 
       <RoleTradeModal
@@ -2789,6 +2873,7 @@ function GameScreenBoard() {
         )}
         players={state.players.filter((p) => !isDeadHandPlayer(p))}
         readyStates={playerReadyStates}
+        playerXp={scoreboardXpByPlayerId}
         localPlayerId={humanPlayer?.id ?? myPlayerId ?? undefined}
         spectatorMode={spectatorMode}
         deadHandSeatOpen={state.players.some(isDeadHandPlayer)}
@@ -3000,7 +3085,7 @@ const local = StyleSheet.create({
   },
   waitingPill: {
     position: "absolute",
-    top: 4,
+    top: 12,
     alignSelf: "center",
     zIndex: 2000,
     paddingVertical: 4,
@@ -3014,7 +3099,8 @@ const local = StyleSheet.create({
     position: "relative",
     top: 0,
     alignSelf: "center",
-    marginBottom: 8,
+    marginTop: 6,
+    marginBottom: 4,
     zIndex: 0,
   },
   waitingPillText: {

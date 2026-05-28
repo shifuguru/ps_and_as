@@ -34,6 +34,22 @@ export function createUiStyles(c: AppThemeColors) {
       fontWeight: "700",
       letterSpacing: 0.2,
     }),
+    leaveButtonLive: {
+      alignSelf: "center",
+      marginTop: 10,
+      paddingHorizontal: 22,
+      minHeight: 44,
+      borderRadius: 999,
+      backgroundColor: c.leaveButtonLiveBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.leaveButtonLiveBorder,
+      ...BUTTON_CENTER,
+    },
+    leaveButtonLiveText: buttonLabel(14, {
+      color: c.leaveButtonLiveText,
+      fontWeight: "700",
+      letterSpacing: 0.2,
+    }),
     screenTitle: {
       flex: 1,
       textAlign: "center",

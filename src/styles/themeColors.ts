@@ -55,6 +55,10 @@ export type AppThemeColors = {
   leaveButtonBg: string;
   leaveButtonBorder: string;
   leaveButtonText: string;
+  /** Leave control during an active game — red destructive tint. */
+  leaveButtonLiveBg: string;
+  leaveButtonLiveBorder: string;
+  leaveButtonLiveText: string;
   leaveText: string;
   modalOverlay: string;
   modalBorder: string;

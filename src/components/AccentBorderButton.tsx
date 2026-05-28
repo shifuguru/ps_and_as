@@ -79,7 +79,7 @@ export default function AccentBorderButton({
     dashOffset.setValue(0);
     const loop = Animated.loop(
       Animated.timing(dashOffset, {
-        toValue: perimeter,
+        toValue: -perimeter,
         duration: 2400,
         easing: Easing.linear,
         useNativeDriver: false,

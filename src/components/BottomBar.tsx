@@ -37,7 +37,10 @@ export const BOTTOM_CONTROLS_HEIGHT = ACTION_BAR_HEIGHT + 16;
 export const BOTTOM_LEAVE_ROW_HEIGHT = 48;
 
 /** Gap between the hand fan and the action buttons */
-export const HAND_CONTROLS_GAP = 20;
+export const HAND_CONTROLS_GAP = 14;
+
+/** Empty space above the fan inside the hand zone (clears the status pill). */
+export const HAND_ZONE_TOP_CLEARANCE = 8;
 
 /** Extra height the bottom sheet extends past the bottom edge. */
 export const BOTTOM_SHEET_BLEED = 32;
@@ -69,14 +72,24 @@ function bottomBarPositionStyle(
   return { bottom: bottomBarOffset(safeBottom) };
 }
 
-function bottomOuterPad(safeBottom = 0): number {
+/** Clearance from the physical screen bottom to bar content (home indicator, etc.). */
+export function bottomOuterPad(safeBottom = 0): number {
   const chrome = Math.max(0, safeBottom);
-  const homeClearance =
-    Platform.OS === "ios" ? Math.max(chrome, 20) + 14 : chrome + 16;
   if (Platform.OS === "web") {
-    return Math.max(12, chrome);
+    if (isMobileWeb()) {
+      return Math.max(chrome, 20) + 14;
+    }
+    return Math.max(16, chrome + 12);
   }
-  return homeClearance;
+  if (Platform.OS === "ios") {
+    return Math.max(chrome, 20) + 14;
+  }
+  return chrome + 16;
+}
+
+/** Inner padding — offsets sheet bleed so controls sit above the home indicator. */
+function bottomBarInnerPad(safeBottom = 0): number {
+  return bottomOuterPad(safeBottom) + bottomSheetBleed(safeBottom);
 }
 
 /** Reserve scroll padding for a bottom panel with action track + leave (no hand). */
@@ -91,7 +104,7 @@ export function reservedBottomHeight(
 ): number {
   const outerPad = bottomOuterPad(safeBottom);
   const handSection = handVisible
-    ? HAND_FAN_HEIGHT + HAND_CONTROLS_GAP + 2
+    ? HAND_FAN_HEIGHT + HAND_ZONE_TOP_CLEARANCE + HAND_CONTROLS_GAP + 2
     : 0;
   return 8 + handSection + BOTTOM_CONTROLS_HEIGHT + 4 + outerPad;
 }
@@ -140,7 +153,7 @@ export default function BottomBar({
   const { colors, blur } = useAppTheme();
   const insets = useLayoutInsets();
   const bottomInset = insets.bottom || 0;
-  const paddingBottom = bottomOuterPad(bottomInset);
+  const paddingBottom = bottomBarInnerPad(bottomInset);
 
   return (
 
@@ -251,6 +264,8 @@ export function BottomBarLeave({
 
   accessibilityLabel,
 
+  live = false,
+
 }: {
 
   onPress: () => void;
@@ -258,6 +273,9 @@ export function BottomBarLeave({
   label?: string;
 
   accessibilityLabel?: string;
+
+  /** Red destructive tint for leaving an active game. */
+  live?: boolean;
 
 }) {
 
@@ -267,7 +285,7 @@ export function BottomBarLeave({
 
     <TouchableOpacity
 
-      style={ui.leaveButton}
+      style={live ? ui.leaveButtonLive : ui.leaveButton}
 
       onPress={onPress}
 
@@ -279,7 +297,11 @@ export function BottomBarLeave({
 
     >
 
-      <Text style={ui.leaveButtonText}>{label}</Text>
+      <Text style={live ? ui.leaveButtonLiveText : ui.leaveButtonText}>
+
+        {label}
+
+      </Text>
 
     </TouchableOpacity>
 
@@ -343,7 +365,7 @@ const styles = StyleSheet.create({
 
     justifyContent: "flex-end",
 
-    paddingTop: 8,
+    paddingTop: 4,
 
   },
 
@@ -353,7 +375,7 @@ const styles = StyleSheet.create({
 
     paddingHorizontal: 16,
 
-    paddingTop: 2,
+    paddingTop: 0,
 
     paddingBottom: 4,
 

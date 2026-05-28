@@ -23,12 +23,8 @@ import type { FeltPalette } from "../styles/feltPalette";
 import type { AppThemeColors } from "../styles/themeColors";
 import { normalizePlayerRole, roleEmoji as sharedRoleEmoji } from "../utils/roundRoles";
 import TurnBellButton from "./TurnBellButton";
-
-function seatColor(playerId: string, seatColors: readonly string[]): string {
-  let n = 0;
-  for (let i = 0; i < playerId.length; i++) n += playerId.charCodeAt(i);
-  return seatColors[n % seatColors.length];
-}
+import { playerAvatarBackgroundColor, playerThemePalette } from "../utils/playerAvatarColor";
+import { isCpuPlayer } from "../utils/localPlayer";
 
 function roleEmoji(role: Player["role"] | string | undefined): string | null {
   return sharedRoleEmoji(normalizePlayerRole(role));
@@ -41,6 +37,8 @@ export type OpponentSeatPlayer = {
   role: Player["role"];
   isDeadHand?: boolean;
   sidelinedCount?: number;
+  /** Saved felt tint for this seat — drives avatar and celebration colors. */
+  feltTint?: string;
 };
 
 type Props = {
@@ -142,6 +140,15 @@ export default function OpponentSeat({
   const miniCardW = Math.max(18, avatarSize * 0.34);
   const miniCardH = Math.max(26, avatarSize * 0.48);
   const readyBadgeSize = Math.max(16, Math.round(avatarSize * 0.34));
+  const avatarBackgroundColor = isDeadHand
+    ? "rgba(255,255,255,0.08)"
+    : playerAvatarBackgroundColor(player.id, player.feltTint, {
+        isCpu: isCpuPlayer(player),
+      });
+  const celebrationPalette = useMemo(
+    () => playerThemePalette(player.feltTint, player.id, isCpuPlayer(player)),
+    [player.feltTint, player.id, player.name],
+  );
 
   const seatStyle = compact
     ? { minWidth: dims.seatMinWCompact, maxWidth: dims.seatMaxWCompact }
@@ -181,6 +188,7 @@ export default function OpponentSeat({
           active={celebrateTrickWin}
           avatarSize={avatarSize}
           showXp={showTrickXp}
+          celebrationColors={celebrationPalette.celebrationColors}
         />
         {isLastPlay && !isOut && !isActive && !celebrateTrickWin && (
           <View
@@ -217,9 +225,7 @@ export default function OpponentSeat({
               width: avatarSize,
               height: avatarSize,
               borderRadius: avatarSize / 2,
-              backgroundColor: isDeadHand
-                ? "rgba(255,255,255,0.08)"
-                : seatColor(player.id, palette.seatColors),
+              backgroundColor: avatarBackgroundColor,
             },
             isOut && !isDeadHand && styles.avatarOut,
             isDisconnected && !isOut && !isDeadHand && styles.avatarDisconnected,

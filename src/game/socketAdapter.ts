@@ -3,6 +3,7 @@ import { io as socketIo } from "socket.io-client";
 import { Platform } from "react-native";
 import { getServerUrl } from "../config/server";
 import { CLIENT_BUILD_ID } from "../config/buildVersion";
+import { DEFAULT_FELT_COLOR } from "../services/wallpaper";
 
 export function isSocketAdapter(adapter: unknown): adapter is SocketAdapter {
   return (
@@ -25,6 +26,7 @@ export class SocketAdapter implements NetworkAdapter {
   /** Room the client belongs to — used to rejoin after socket reconnect. */
   private activeRoomId: string | null = null;
   private cachedHostId: string | null = null;
+  private feltTint: string = DEFAULT_FELT_COLOR;
 
   constructor(
     private url: string | undefined,
@@ -32,11 +34,21 @@ export class SocketAdapter implements NetworkAdapter {
     private name: string,
     private profileId: string,
     autoJoin: boolean = true,
+    feltTint: string = DEFAULT_FELT_COLOR,
   ) {
     this.shouldAutoJoin = autoJoin;
+    this.feltTint = feltTint;
     if (roomId) {
       this.activeRoomId = roomId;
     }
+  }
+
+  getFeltTint(): string {
+    return this.feltTint;
+  }
+
+  setFeltTint(tint: string) {
+    this.feltTint = tint;
   }
 
   getProfileId(): string {
@@ -73,6 +85,7 @@ export class SocketAdapter implements NetworkAdapter {
       name: this.name,
       profileId: this.profileId,
       clientBuildId: CLIENT_BUILD_ID,
+      feltTint: this.feltTint,
     });
   }
 
@@ -608,6 +621,7 @@ export class SocketAdapter implements NetworkAdapter {
       profileId: this.profileId,
       isPublic: true,
       roomName: roomName || "Game Room",
+      feltTint: this.feltTint,
     });
   }
 
@@ -661,7 +675,16 @@ export class SocketAdapter implements NetworkAdapter {
       name,
       profileId: this.profileId,
       clientBuildId: CLIENT_BUILD_ID,
+      feltTint: this.feltTint,
     });
+  }
+
+  updatePlayerTheme(roomId: string, feltTint: string) {
+    if (!this.socket?.connected) return;
+    const code = roomId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!code || !feltTint) return;
+    this.feltTint = feltTint;
+    this.socket.emit("updatePlayerTheme", { roomId: code, feltTint });
   }
 
   leaveRoom(roomId: string) {

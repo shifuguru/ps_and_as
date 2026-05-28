@@ -5,11 +5,9 @@ import type { GameState } from "../src/game/core";
 import {
   createDeadHandPlayer,
   DEAD_HAND_ID,
+  applyDeadHandAfterDeal,
+  livingFinishedOrder,
 } from "../src/game/deadHand";
-import {
-  resolveFirstRoundLeadPlayerIndex,
-  resolveOpeningPlayerIndex,
-} from "../src/utils/tableSeats";
 import {
   createGame,
   playCards,
@@ -23,7 +21,17 @@ import {
   isRunContextSequence,
   nextActivePlayerIndex,
   isPlayerStillIn,
+  createGameFromLobby,
+  syncFinishedFromEmptyHands,
+  isRoundCompleteForLiving,
+  setTenRuleDirection,
 } from "../src/game/core";
+import { applyMandatoryTrades } from "../src/game/roundPrep";
+import { applyFinishOrderRoles } from "../src/utils/roundRoles";
+import {
+  resolveFirstRoundLeadPlayerIndex,
+  resolveOpeningPlayerIndex,
+} from "../src/utils/tableSeats";
 
 // Basic deck tests
 const deck = createDeck();
@@ -348,6 +356,63 @@ function makeEmptyGame(names: string[]): GameState {
   assert.ok(isPlayerStillIn(after, g.players[0].id) === false, "A should no longer be active");
 }
 
+// Last card is a 10 — must choose higher/lower before going out; round waits for choice
+{
+  const names = ["A", "B"];
+  const g = makeEmptyGame(names);
+  const lastTen: Card = { suit: "hearts", value: 10 };
+  g.players[0].hand = [lastTen];
+  g.players[1].hand = [{ suit: "spades", value: 8 }];
+  g.currentPlayerIndex = 0;
+  g.pile = [{ suit: "clubs", value: 9 }];
+  g.pileHistory = [[{ suit: "clubs", value: 9 }]];
+  g.pileOwners = [g.players[1].id];
+  g.lastPlayPlayerIndex = 1;
+  g.currentTrick = {
+    trickNumber: 1,
+    actions: [
+      {
+        type: "play",
+        playerId: g.players[1].id,
+        playerName: "B",
+        cards: [{ suit: "clubs", value: 9 }],
+        timestamp: 1,
+      },
+    ],
+  };
+
+  const pending = playCards(g, g.players[0].id, [lastTen]);
+  assert.ok(pending.tenRulePending, "Ten rule should be pending on last-card 10");
+  assert.strictEqual(pending.players[0].hand.length, 0, "A should have no cards left");
+  assert.ok(
+    pending.finishedOrder.includes(g.players[0].id),
+    "A should be marked finished",
+  );
+  assert.strictEqual(
+    pending.currentPlayerIndex,
+    0,
+    "Turn should stay with A until they choose higher/lower",
+  );
+  assert.ok(
+    !isRoundCompleteForLiving(pending),
+    "Round should not end before ten-rule choice (B still playing)",
+  );
+
+  const resolved = setTenRuleDirection(pending, "higher");
+  assert.ok(!resolved.tenRulePending, "Ten rule should clear after choice");
+  assert.ok(resolved.tenRule?.direction === "higher");
+  assert.ok(isPlayerStillIn(resolved, g.players[0].id) === false, "A stays out");
+  assert.strictEqual(
+    resolved.currentPlayerIndex,
+    1,
+    "Turn should advance to B after ten-rule choice",
+  );
+  assert.ok(
+    !isRoundCompleteForLiving(resolved),
+    "Round should continue for remaining players",
+  );
+}
+
 // Joker beats a pair on the pile when the trick had an earlier run but the pile is not in run context
 {
   const joker: Card = { suit: "joker", value: 16 };
@@ -600,3 +665,82 @@ function makeTwoPlayerDeadHandGame(
 }
 
 console.log("Dead hand round-1 opening tests passed");
+
+// Dead hand must never pollute finish order or receive placement roles.
+{
+  const g = createGameFromLobby(
+    [
+      { id: "host", name: "Host" },
+      { id: "guest", name: "Guest" },
+    ],
+    42,
+    { deadHand: true },
+  );
+  assert.ok(
+    !g.finishedOrder.includes(DEAD_HAND_ID),
+    "Dead hand should not be in finishedOrder after deal",
+  );
+
+  g.players.find((p) => p.id === "host")!.hand = [];
+  g.players.find((p) => p.id === "guest")!.hand = [{ suit: "hearts", value: 14 }];
+  syncFinishedFromEmptyHands(g);
+  assert.deepStrictEqual(
+    livingFinishedOrder(g.players, g.finishedOrder),
+    ["host"],
+    "Only living finishers belong in finish order",
+  );
+  assert.strictEqual(
+    g.players.find((p) => p.id === "host")!.role,
+    "President",
+    "First living player out should be President",
+  );
+  assert.strictEqual(
+    g.players.find((p) => p.id === DEAD_HAND_ID)!.role,
+    "Neutral",
+    "Dead hand must stay Neutral",
+  );
+
+  g.players.find((p) => p.id === "guest")!.hand = [];
+  syncFinishedFromEmptyHands(g);
+  const order = livingFinishedOrder(g.players, g.finishedOrder);
+  assert.deepStrictEqual(order, ["host", "guest"]);
+  assert.strictEqual(g.players.find((p) => p.id === "guest")!.role, "Asshole");
+
+  const ceremonyPlayers = g.players.map((p) => ({
+    ...p,
+    hand: [{ suit: "clubs" as const, value: 3 }],
+  }));
+  applyFinishOrderRoles(ceremonyPlayers, order);
+  const trades = applyMandatoryTrades(ceremonyPlayers);
+  assert.strictEqual(trades.length, 1);
+  assert.notStrictEqual(trades[0].winnerId, DEAD_HAND_ID);
+  assert.strictEqual(trades[0].winnerId, "host");
+}
+
+console.log("Dead hand role/trade tests passed");
+
+// Last remaining player finishes the round even with cards left in hand.
+{
+  const g = createGame(["A", "B", "C"]);
+  g.players[0].hand = [];
+  g.players[1].hand = [];
+  g.players[2].hand = [
+    { suit: "hearts" as const, value: 14 },
+    { suit: "spades" as const, value: 13 },
+    { suit: "clubs" as const, value: 12 },
+  ];
+  g.finishedOrder = [g.players[0].id, g.players[1].id];
+  syncFinishedFromEmptyHands(g);
+  assert.ok(
+    isRoundCompleteForLiving(g),
+    "Round should end when only one living player remains",
+  );
+  assert.ok(
+    g.finishedOrder.includes(g.players[2].id),
+    "Last player should be placed even with cards left",
+  );
+  assert.strictEqual(g.players[2].role, "Asshole");
+  assert.strictEqual(g.players[2].hand.length, 3, "Cards stay in hand");
+}
+
+console.log("Lone remaining player tests passed");

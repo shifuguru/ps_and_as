@@ -274,8 +274,11 @@ function buildShellColors(
       ? hexToRgba(frostLine, glassLine)
       : hexToRgba(accent, 0.16),
     leaveButtonText: isDark ? hexToRgba(frost, 0.9) : textPrimary,
+    leaveButtonLiveBg: hexToRgba("#FF3B30", isDark ? 0.16 : 0.1),
+    leaveButtonLiveBorder: hexToRgba("#FF3B30", isDark ? 0.44 : 0.34),
+    leaveButtonLiveText: isDark ? "#FF6961" : "#C41E17",
     leaveText: accent,
-    modalOverlay: hexToRgba("#000000", isDark ? 0.62 : 0.32),
+    modalOverlay: hexToRgba("#000000", isDark ? 0.62 : 0.22),
     modalBorder: isDark
       ? hexToRgba(frostLine, glassLine)
       : hexToRgba(accent, 0.14),
@@ -284,25 +287,25 @@ function buildShellColors(
     emptyBody: hexToRgba(textPrimary, 0.58),
     surface,
     feltWash: "transparent",
-    fullscreenScrim: hexToRgba(surface, isDark ? 0.58 : 0.78),
+    fullscreenScrim: hexToRgba(surface, isDark ? 0.58 : 0.4),
     statusBarStyle: isDark ? "light" : "dark",
     blur: {
       chrome: {
-        intensity: isDark ? 40 : 40,
-        scrimOpacity: isDark ? 0.16 : 0.32,
-        webOpacity: isDark ? 0.05 : 0.68,
+        intensity: isDark ? 40 : 36,
+        scrimOpacity: isDark ? 0.16 : 0.14,
+        webOpacity: isDark ? 0.05 : 0.36,
         tint: isDark ? "dark" : "light",
       },
       panel: {
-        intensity: isDark ? 48 : 52,
-        scrimOpacity: isDark ? 0.28 : 0.44,
-        webOpacity: isDark ? 0.08 : 0.9,
+        intensity: isDark ? 48 : 44,
+        scrimOpacity: isDark ? 0.28 : 0.2,
+        webOpacity: isDark ? 0.08 : 0.48,
         tint: isDark ? "dark" : "light",
       },
       modal: {
-        intensity: isDark ? 62 : 58,
-        scrimOpacity: isDark ? 0.28 : 0.48,
-        webOpacity: isDark ? 0.08 : 0.92,
+        intensity: isDark ? 62 : 50,
+        scrimOpacity: isDark ? 0.28 : 0.22,
+        webOpacity: isDark ? 0.08 : 0.52,
         tint: isDark ? "dark" : "light",
       },
     },

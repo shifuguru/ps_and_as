@@ -20,6 +20,8 @@ export type LobbyMember = {
   name: string;
   ready?: boolean;
   disconnected?: boolean;
+  /** Saved table felt tint — drives this player's avatar color for others. */
+  feltTint?: string;
 };
 
 export interface Player {

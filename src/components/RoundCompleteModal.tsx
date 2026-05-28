@@ -13,14 +13,17 @@ import { useAppTheme } from "../context/ThemeContext";
 import AccentBorderButton from "./AccentBorderButton";
 
 import { roleEmoji, roleForPlacement } from "../utils/roundRoles";
+import { livingFinishedOrder } from "../game/deadHand";
 
-type Player = { id: string; name: string };
+type Player = { id: string; name: string; isDeadHand?: boolean };
 
 type Props = {
   visible: boolean;
   finishedOrder: string[];
   players: Player[];
   readyStates: Record<string, boolean>;
+  /** Total XP to show beside each player name on the scoreboard. */
+  playerXp?: Record<string, number>;
   /** Local human on this device — used to highlight row and toggle ready. */
   localPlayerId?: string;
   /** Watching in dead-hand mode — can claim the open seat between rounds. */
@@ -35,6 +38,7 @@ export default function RoundCompleteModal({
   finishedOrder,
   players,
   readyStates,
+  playerXp = {},
   localPlayerId,
   spectatorMode = false,
   deadHandSeatOpen = false,
@@ -51,6 +55,11 @@ export default function RoundCompleteModal({
   const readyDenominator = canClaimSeat
     ? players.length + 1
     : players.length;
+  const rankedOrder = useMemo(
+    () => livingFinishedOrder(players, finishedOrder),
+    [players, finishedOrder],
+  );
+  const livingCount = players.filter((p) => !p.isDeadHand && p.id !== "__dead_hand__").length;
 
   return (
     <Modal visible={visible} transparent animationType="fade">
@@ -63,11 +72,11 @@ export default function RoundCompleteModal({
           <Text style={[ui.modalBody, { fontSize: 22, marginBottom: 18 }]}>Final Rankings</Text>
 
           <View style={styles.rankings}>
-            {finishedOrder.map((playerId, index) => {
+            {rankedOrder.map((playerId, index) => {
               const player = players.find((p) => p.id === playerId);
               if (!player) return null;
 
-              const role = roleForPlacement(index, finishedOrder.length);
+              const role = roleForPlacement(index, livingCount || rankedOrder.length);
               const emoji = roleEmoji(role);
               const ready = !!readyStates[playerId];
               const isLocal = playerId === localPlayerId;
@@ -79,9 +88,14 @@ export default function RoundCompleteModal({
                 >
                   <Text style={styles.rankIndex}>{index + 1}</Text>
                   <View style={styles.rankBody}>
-                    <Text style={styles.rankName} numberOfLines={1}>
-                      {player.name}
-                    </Text>
+                    <View style={styles.rankNameRow}>
+                      <Text style={styles.rankName} numberOfLines={1}>
+                        {player.name}
+                      </Text>
+                      <Text style={styles.rankXp}>
+                        {(playerXp[playerId] ?? 0).toLocaleString()} XP
+                      </Text>
+                    </View>
                     <Text style={styles.rankRole}>
                       {emoji ? `${emoji} ` : ""}
                       {role}
@@ -202,10 +216,23 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     minWidth: 0,
     marginLeft: 8,
   },
+  rankNameRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    flexWrap: "wrap",
+    gap: 6,
+  },
   rankName: {
     color: colors.textPrimary,
     fontSize: 15,
     fontWeight: "700",
+    flexShrink: 1,
+  },
+  rankXp: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.15,
   },
   rankRole: {
     color: colors.textMuted,

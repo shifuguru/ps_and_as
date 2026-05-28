@@ -16,6 +16,21 @@ const {
   isValidRoomCode,
 } = require('./profanityFilter');
 
+const DEFAULT_FELT_TINT = '#0f5132';
+
+function normalizeFeltTint(input) {
+  if (!input || typeof input !== 'string') return null;
+  const raw = input.trim();
+  const withHash = raw.startsWith('#') ? raw : `#${raw}`;
+  if (/^#[0-9a-fA-F]{6}$/.test(withHash)) return withHash.toLowerCase();
+  if (/^#[0-9a-fA-F]{8}$/.test(withHash)) return withHash.slice(0, 7).toLowerCase();
+  return null;
+}
+
+function resolveFeltTint(input) {
+  return normalizeFeltTint(input) || DEFAULT_FELT_TINT;
+}
+
 function cloneGameState(state) {
   return JSON.parse(JSON.stringify(state));
 }
@@ -82,18 +97,40 @@ function promoteReadySpectator(room) {
   return spectator;
 }
 
+function isLivingPlayer(player) {
+  return player && !player.isDeadHand && player.id !== '__dead_hand__';
+}
+
+function livingFinishOrder(gameState, finishOrder) {
+  const livingIds = new Set(
+    (gameState?.players || []).filter(isLivingPlayer).map((p) => p.id),
+  );
+  return (finishOrder || []).filter((id) => livingIds.has(id));
+}
+
+function livingPlayerCount(gameState) {
+  return (gameState?.players || []).filter(isLivingPlayer).length;
+}
+
 function startNextRound(roomId) {
   const room = rooms[roomId];
   if (!room) return;
   const promoted = promoteReadySpectator(room);
   const dealSeed = Math.floor(Math.random() * 2147483647);
-  const lastOrder = room.gameState?.lastRoundOrder?.slice() ?? [];
+  const lastOrder = livingFinishOrder(
+    room.gameState,
+    room.gameState?.lastRoundOrder?.slice() ?? [],
+  );
 
   beginAuthoritativeRound(room, dealSeed, { lastRoundOrder: lastOrder });
 
   if (lastOrder.length >= 2) {
     room.gameState.lastRoundOrder = lastOrder;
-    assignRolesFromFinishOrder(room.gameState, lastOrder.length);
+    assignRolesFromFinishOrder(
+      room.gameState,
+      livingPlayerCount(room.gameState),
+      lastOrder,
+    );
     const playerHands = {};
     for (const p of room.gameState.players) {
       playerHands[p.id] = [...p.hand];
@@ -188,7 +225,7 @@ function sortCardsByRankDesc(cards) {
 
 // Assign roles based on finish order. Mutates gameState object.
 function assignRolesFromFinishOrder(gameState, playersCount, finishOrder) {
-  const order = finishOrder ?? gameState.lastRoundOrder ?? [];
+  const order = livingFinishOrder(gameState, finishOrder ?? gameState.lastRoundOrder ?? []);
   const roles = {};
   // Defaults: everyone neutral
   for (const pid of (order.length ? order : [])) roles[pid] = 'neutral';
@@ -219,7 +256,7 @@ function prepareCardTrades(gameState, playerHands) {
   const presidentId = Object.keys(roles).find(k => roles[k] === 'president');
   const assholeId = Object.keys(roles).find(k => roles[k] === 'asshole');
 
-  const playerCount = Object.keys(playerHands).length;
+  const playerCount = livingPlayerCount(gameState);
 
   if (presidentId && assholeId) {
     if (playerCount >= 5) {
@@ -611,6 +648,7 @@ function buildLobbyUpdate(room) {
       ready: p.ready,
       disconnected: !!p.disconnectedAt,
       isSpectator: !!p.isSpectator,
+      feltTint: p.feltTint || DEFAULT_FELT_TINT,
     })),
     host: room.host,
     roomName: room.roomName || '',
@@ -823,7 +861,7 @@ io.on('connection', (socket) => {
     socket.emit('availableRooms', availableRooms);
   });
 
-  socket.on('createRoom', ({ roomId, name, profileId, isPublic = true, roomName }) => {
+  socket.on('createRoom', ({ roomId, name, profileId, isPublic = true, roomName, feltTint }) => {
     const pid = resolveProfileId(profileId, socket);
     const code = normalizeRoomCode(roomId);
     if (!isValidRoomCode(code)) {
@@ -869,7 +907,8 @@ io.on('connection', (socket) => {
       name: nameCheck.value,
       socketId: socket.id,
       ready: false,
-      disconnectedAt: null
+      disconnectedAt: null,
+      feltTint: resolveFeltTint(feltTint),
     });
     socket.join(code);
     io.to(code).emit('lobbyUpdate', buildLobbyUpdate(rooms[code]));
@@ -912,7 +951,17 @@ io.on('connection', (socket) => {
     if (room.isPublic) broadcastAvailableRooms();
   });
 
-  socket.on('joinRoom', ({ roomId, name, profileId, clientBuildId }) => {
+  socket.on('updatePlayerTheme', ({ roomId, feltTint }) => {
+    const code = normalizeRoomCode(roomId);
+    const room = rooms[code];
+    if (!room) return;
+    const player = getPlayerBySocket(room, socket.id);
+    if (!player) return;
+    player.feltTint = resolveFeltTint(feltTint);
+    io.to(code).emit('lobbyUpdate', buildLobbyUpdate(room));
+  });
+
+  socket.on('joinRoom', ({ roomId, name, profileId, clientBuildId, feltTint }) => {
     const code = normalizeRoomCode(roomId);
     if (!rooms[code]) {
       socket.emit('error', { message: 'Room not found' });
@@ -949,6 +998,9 @@ io.on('connection', (socket) => {
       cancelAwayRemoval(code, existingPlayer.id);
       attachPlayerSocket(existingPlayer, socket, nameCheck.value);
       delete existingPlayer.awayReason;
+      if (feltTint) {
+        existingPlayer.feltTint = resolveFeltTint(feltTint);
+      }
       if (existingPlayer.id !== pid) {
         existingPlayer.id = pid;
         existingPlayer.profileId = pid;
@@ -984,6 +1036,7 @@ io.on('connection', (socket) => {
         ready: false,
         disconnectedAt: null,
         isSpectator: joinAsSpectator,
+        feltTint: resolveFeltTint(feltTint),
       });
       if (joinAsSpectator) {
         console.log(`[Server] ${nameCheck.value} joined room ${code} as spectator (dead hand seat open)`);
@@ -1203,7 +1256,7 @@ io.on('connection', (socket) => {
     room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
     broadcastGameState(io, room);
 
-    if (isRoundComplete(room.gameState)) {
+    if (isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
       const finishOrder = room.gameState.finishedOrder.slice();
       const hands = {};
       for (const p of room.gameState.players) {
@@ -1244,13 +1297,19 @@ io.on('connection', (socket) => {
     if (!room) return;
     if (!room.gameState) room.gameState = {};
 
-    room.gameState.lastRoundOrder = finishOrder || [];
+    room.gameState.lastRoundOrder = livingFinishOrder(
+      room.gameState,
+      finishOrder || [],
+    );
     const playersCount =
-      activeRoundPlayerIds(room).length ||
-      (finishOrder && finishOrder.length) ||
-      room.gameState.players?.filter((p) => !p.isDeadHand && p.id !== '__dead_hand__').length ||
+      livingPlayerCount(room.gameState) ||
+      room.gameState.lastRoundOrder.length ||
       0;
-    const roles = assignRolesFromFinishOrder(room.gameState, playersCount);
+    const roles = assignRolesFromFinishOrder(
+      room.gameState,
+      playersCount,
+      room.gameState.lastRoundOrder,
+    );
 
     initReadyForNextRound(room);
     room.gameState.roles = roles;

@@ -7,6 +7,7 @@ import {
   isDeadHandPlayer,
   isRoundCompleteForLiving,
   livingPlayerHasRank,
+  livingPlayerIds,
 } from "./deadHand";
 import {
   type DealerContext,
@@ -21,6 +22,7 @@ export {
   isDeadHandPlayer,
   livingPlayers,
   livingPlayerIds,
+  livingFinishedOrder,
   isRoundCompleteForLiving,
   applyDeadHandAfterDeal,
 } from "./deadHand";
@@ -47,6 +49,14 @@ export type TrickHistory = {
   winnerName?: string;
 };
 
+export type FourOfAKindChallenge = {
+  active: boolean;
+  value: number;
+  starterIndex: number;
+  /** Cross-turn completion (e.g. one 3 + three 3s) — unbeatable, must pass. */
+  completedAcrossTurns?: boolean;
+};
+
 export type GameState = {
   id: string;
   players: Player[];
@@ -68,13 +78,7 @@ export type GameState = {
     direction: "higher" | "lower" | null;
   };
   tenRulePending?: boolean;
-  fourOfAKindChallenge?: {
-    active: boolean;
-    value: number; // rank value of the four-of-a-kind that started the challenge
-    starterIndex: number; // player index who started the 4-of-a-kind
-    /** Cross-turn completion (e.g. one 3 + three 3s) — unbeatable, must pass. */
-    completedAcrossTurns?: boolean;
-  };
+  fourOfAKindChallenge?: FourOfAKindChallenge;
   // Tracks the last clearing play type within the current trick so we can
   // enforce precedence (joker > four-of-a-kind challenge > two)
   lastClear?: {
@@ -100,14 +104,46 @@ function syncPassCountFromTrick(state: GameState): void {
   state.passCount = passedIds.size;
 }
 
-/** Mark every empty-handed player as finished (out of the round). */
-export function syncFinishedFromEmptyHands(state: GameState): void {
+/** When only one living player remains, they place last regardless of hand size. */
+function finalizeLoneRemainingPlayer(state: GameState): void {
+  const remaining = state.players.filter(
+    (p) => !isDeadHandPlayer(p) && !state.finishedOrder.includes(p.id),
+  );
+  if (remaining.length === 1) {
+    state.finishedOrder.push(remaining[0].id);
+  }
+}
+
+/** Sync finish order from empty hands and auto-place the last remaining player. */
+export function syncFinishedFromEmptyHands(
+  state: GameState,
+  options?: { skipLoneFinalize?: boolean },
+): void {
+  const livingIds = new Set(livingPlayerIds(state.players));
+  state.finishedOrder = state.finishedOrder.filter((id) => livingIds.has(id));
+
   for (const p of state.players) {
+    if (isDeadHandPlayer(p)) continue;
     if (p.hand.length === 0 && !state.finishedOrder.includes(p.id)) {
       state.finishedOrder.push(p.id);
     }
   }
+
+  if (
+    !options?.skipLoneFinalize &&
+    !state.tenRulePending &&
+    !state.tenRule?.active
+  ) {
+    finalizeLoneRemainingPlayer(state);
+  }
   applyFinishOrderRoles(state.players, state.finishedOrder);
+}
+
+/** Player who must pick higher/lower after playing a 10. */
+export function tenRuleChooserIndex(state: GameState): number | null {
+  if (!state.tenRulePending) return null;
+  const idx = state.lastPlayPlayerIndex ?? state.currentPlayerIndex;
+  return idx >= 0 && idx < state.players.length ? idx : null;
 }
 
 export function isPlayerStillIn(state: GameState, playerId: string): boolean {
@@ -294,6 +330,9 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.finishedOrder || [],
   );
   const isActiveRun = isRunContextSequence(seqForTen.repCards);
+  const playedTen = containsTen(cards);
+  const activatingTenRule =
+    playedTen && !state.tenRule?.active && !isActiveRun;
 
   // Validate play type: must play same number of cards as pile (unless pile is empty)
   // Enforce clear precedence: if this play is a 2 and the current trick already
@@ -337,7 +376,9 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
 
   // remove cards from player's hand
   player.hand = removeCardsFromHand(player.hand, cards);
-  syncFinishedFromEmptyHands(state);
+  syncFinishedFromEmptyHands(state, {
+    skipLoneFinalize: activatingTenRule,
+  });
   // record who played last
   state.lastPlayPlayerIndex = pIndex;
 
@@ -364,7 +405,6 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   // visibly see it and choose to pass before the trick is concluded.
 
   // Check if 10 was played - will need user input for direction
-  const playedTen = containsTen(cards);
   try {
     console.log(
       `[core DEBUG] playCards context: playedTen=${playedTen}, runSeq=${(seqForTen.repCards || []).map((c) => c.value).join(",")}, isActiveRun=${isActiveRun}`,
@@ -372,7 +412,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   } catch (e) {}
   // Do not activate the 10-rule when the active pile is a run. Tens are
   // explicitly excluded from influencing runs.
-  if (playedTen && !state.tenRule?.active && !isActiveRun) {
+  if (activatingTenRule) {
     // 10 rule is being activated - add cards to pile but pause for player input
     state.pile = cards;
     state.pileHistory = state.pileHistory || [];
@@ -479,6 +519,9 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   }
 
   syncFinishedFromEmptyHands(state);
+  if (isRoundCompleteForLiving(state)) {
+    return { ...state };
+  }
   return { ...state };
 }
 
@@ -502,6 +545,9 @@ export function setTenRuleDirection(state: GameState, direction: "higher" | "low
   syncFinishedFromEmptyHands(state);
 
   // The pile with the 10s remains active — advance past the 10 player if they are out.
+  if (isRoundCompleteForLiving(state)) {
+    return { ...state };
+  }
   const fromIndex = state.lastPlayPlayerIndex ?? state.currentPlayerIndex;
   state.currentPlayerIndex = nextActivePlayerIndex(state, fromIndex);
   state.mustPlay = true;
@@ -812,7 +858,7 @@ export function runFromCurrentTrick(currentTrick?: TrickHistory, players?: Playe
   return runFromCurrentTrickInfo(currentTrick, players, finishedOrder).repCards;
 }
 
-export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boolean; direction: "higher" | "lower" | null }, pileHistory?: Card[][], trickHistory?: TrickHistory[], fourOfAKindChallenge?: { active: boolean; value: number; starterIndex: number }, currentTrick?: TrickHistory, players?: Player[], finishedOrder?: string[], lastRoundOrder?: string[], currentPlayerId?: string) {
+export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boolean; direction: "higher" | "lower" | null }, pileHistory?: Card[][], trickHistory?: TrickHistory[], fourOfAKindChallenge?: FourOfAKindChallenge, currentTrick?: TrickHistory, players?: Player[], finishedOrder?: string[], lastRoundOrder?: string[], currentPlayerId?: string) {
   // --- NZ Presidents & Arseholes Rules ---
   // 1. Empty play not allowed
   if (!cards || cards.length === 0) return false;
@@ -1060,7 +1106,7 @@ type CpuPlayContext = {
   tenRule?: { active: boolean; direction: "higher" | "lower" | null };
   pileHistory?: Card[][];
   trickHistory?: TrickHistory[];
-  fourOfAKindChallenge?: { active: boolean; value: number; starterIndex: number };
+  fourOfAKindChallenge?: FourOfAKindChallenge;
   currentTrick?: TrickHistory;
   players?: Player[];
   finishedOrder?: string[];
@@ -1132,7 +1178,7 @@ export function findCPUPlay(
   pile: Card[],
   tenRule?: { active: boolean; direction: "higher" | "lower" | null },
   pileHistory?: Card[][],
-  fourOfAKindChallenge?: { active: boolean; value: number; starterIndex: number },
+  fourOfAKindChallenge?: FourOfAKindChallenge,
   currentTrick?: TrickHistory,
   players?: Player[],
   finishedOrder?: string[],
@@ -1332,6 +1378,10 @@ export function passTurn(state: GameState, playerId: string): GameState {
   if (pIndex === -1) return state;
   if (state.currentPlayerIndex !== pIndex) return state;
 
+  if (state.tenRulePending) {
+    return state;
+  }
+
   if (!isPlayerStillIn(state, playerId)) {
     syncFinishedFromEmptyHands(state);
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
@@ -1444,6 +1494,9 @@ export function passTurn(state: GameState, playerId: string): GameState {
           state.trickHistory.push(state.currentTrick);
           state.currentTrick = { trickNumber: state.trickHistory.length + 1, actions: [] };
           syncFinishedFromEmptyHands(state);
+          if (isRoundCompleteForLiving(state)) {
+            return { ...state };
+          }
           // If the winner still has cards, they lead the next trick; otherwise
           // advance to the next active player after the winner.
           if (isPlayerStillIn(state, winnerPlayer.id)) {
@@ -1455,20 +1508,9 @@ export function passTurn(state: GameState, playerId: string): GameState {
           }
         }
     }
-
-      // If only one player remains who is not in finishedOrder, finalize them
-      // immediately as the last player (they can no longer play against anyone).
-      try {
-        const remaining = state.players.filter(p => !state.finishedOrder.includes(p.id));
-        if (remaining.length === 1) {
-          const lone = remaining[0];
-          if (!state.finishedOrder.includes(lone.id)) {
-            state.finishedOrder.push(lone.id);
-          }
-        }
-      } catch (e) {}
   }
 
+  syncFinishedFromEmptyHands(state);
   return { ...state };
 }
 

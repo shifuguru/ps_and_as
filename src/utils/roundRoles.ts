@@ -69,11 +69,11 @@ export function applyFinishOrderRoles(
   players: Player[],
   finishedOrder: string[],
 ): void {
-  const activePlayers = livingPlayers(players);
-  activePlayers.forEach((p) => {
+  for (const p of players) {
     p.role = "Neutral";
-  });
+  }
 
+  const activePlayers = livingPlayers(players);
   const order = finishedOrder.filter((id) =>
     activePlayers.some((p) => p.id === id),
   );
@@ -89,9 +89,9 @@ export function applyFinishOrderRoles(
   setRole(order[0], "President");
   if (count >= 5 && finished >= 2) setRole(order[1], "Vice President");
   if (count >= 5 && finished >= count - 1) {
-    setRole(order[count - 2], "Vice Asshole");
+    setRole(order[order.length - 2], "Vice Asshole");
   }
   if (finished >= count && count >= 2) {
-    setRole(order[count - 1], "Asshole");
+    setRole(order[order.length - 1], "Asshole");
   }
 }

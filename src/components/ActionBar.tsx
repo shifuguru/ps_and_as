@@ -46,26 +46,16 @@ export default function ActionBar({
   const { colors, ui } = useAppTheme();
   const isLight = colors.mode === "light";
   const gold = colors.gold;
-  const goldDim =
-    colors.mode === "light"
-      ? "rgba(0, 122, 255, 0.42)"
-      : "rgba(100, 210, 255, 0.42)";
-  const goldGlow =
-    colors.mode === "light"
-      ? "rgba(0, 122, 255, 0.18)"
-      : "rgba(100, 210, 255, 0.2)";
+  const goldDim = hexToRgba(gold, isLight ? 0.42 : 0.38);
+  const goldGlow = hexToRgba(gold, isLight ? 0.18 : 0.2);
   const passIdleBg = colors.actionSecondaryBg;
   const passIdleBorder = colors.actionSecondaryBorder;
   const passIdleText = colors.actionSecondaryText;
   const playIdleBg = colors.actionPrimaryDisabledBg;
   const playIdleBorder = colors.actionPrimaryDisabledBorder;
   const playIdleText = colors.actionPrimaryDisabledText;
-  const playTurnBgLow = isLight
-    ? hexToRgba(colors.gold, 0.08)
-    : "rgba(10,132,255,0.12)";
-  const playTurnBgHigh = isLight
-    ? hexToRgba(colors.gold, 0.14)
-    : "rgba(10,132,255,0.22)";
+  const playTurnBgLow = hexToRgba(gold, isLight ? 0.08 : 0.12);
+  const playTurnBgHigh = hexToRgba(gold, isLight ? 0.14 : 0.22);
   const passTurnBgLow = isLight
     ? hexToRgba(colors.textPrimary, 0.04)
     : "rgba(255,255,255,0.06)";
@@ -309,13 +299,13 @@ export default function ActionBar({
       ) : null}
 
       <TouchableOpacity
-        style={ui.leaveButton}
+        style={ui.leaveButtonLive}
         onPress={onQuit}
         accessibilityRole="button"
         accessibilityLabel="Leave Game"
         hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
       >
-        <Text style={ui.leaveButtonText}>Leave Game</Text>
+        <Text style={ui.leaveButtonLiveText}>Leave Game</Text>
       </TouchableOpacity>
     </View>
   );

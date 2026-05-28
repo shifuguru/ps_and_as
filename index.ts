@@ -1,4 +1,5 @@
 import "react-native-gesture-handler";
+import "react-native-reanimated";
 import { Platform } from "react-native";
 import { registerRootComponent } from "expo";
 

@@ -5,6 +5,16 @@ import { isMockAdapter, type NetworkAdapter } from "../game/network";
 
 const PLACEHOLDER_NAMES = new Set(["You", "You (Host)", "Player"]);
 
+/** True for offline bot seats (Quick Game CPUs). */
+export function isCpuPlayer(
+  player: Pick<Player, "name"> | null | undefined,
+): boolean {
+  return !!(
+    player?.name &&
+    typeof player.name === "string" &&
+    /^CPU\b/i.test(player.name.trim())
+  );
+}
 /** Resolve the human controlled by this device in the current game state. */
 export function resolveLocalHumanPlayer(
   players: Player[],

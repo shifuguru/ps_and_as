@@ -2,6 +2,25 @@ import React, { useEffect, useRef } from "react";
 import { Animated, TouchableWithoutFeedback, View, StyleSheet, Easing, Platform, Text } from "react-native";
 import { Card as CardType, formatCardRank } from "../game/ruleset";
 
+function backFaceRadii(
+  style: { width?: number; height?: number } | undefined,
+  cornerRadius?: number,
+) {
+  const w = typeof style?.width === "number" ? style.width : 86;
+  const h = typeof style?.height === "number" ? style.height : 124;
+  const base = Math.min(w, h);
+  const outer =
+    cornerRadius ?? (base >= 52 ? 14 : Math.max(3, Math.round(base * 0.1)));
+  return {
+    outer,
+    inner: Math.max(2, outer - 1),
+    frame: Math.max(2, Math.round(outer * 0.64)),
+    frameInner: Math.max(1, Math.round(outer * 0.43)),
+    padding: Math.max(2, Math.round(outer * 0.5)),
+    ornament: Math.max(10, Math.round(base * 0.35)),
+  };
+}
+
 export default function Card({
   card,
   selected,
@@ -12,6 +31,7 @@ export default function Card({
   compact = false,
   flash = false,
   variant = "hand",
+  cornerRadius,
   style,
 }: {
   card: CardType;
@@ -26,6 +46,8 @@ export default function Card({
   flash?: boolean;
   /** hand = opaque face so overlapped fan cards don't bleed through */
   variant?: "hand" | "table";
+  /** Override outer corner radius (mini face-down cards). */
+  cornerRadius?: number;
   style?: any;
 }) {
   const anim = React.useRef(new Animated.Value(selected ? 1 : 0)).current;
@@ -93,13 +115,40 @@ export default function Card({
   // Table cards: static, fully opaque, no motion — avoids blur from nested transforms.
   if (isTable) {
     if (faceDown) {
+      const r = backFaceRadii(style, cornerRadius);
       return (
-        <View style={[local.cardTableShell, local.cardTable, style]}>
+        <View
+          style={[
+            local.cardTableShell,
+            local.cardTable,
+            { borderRadius: r.outer },
+            style,
+          ]}
+        >
           <View style={local.inner}>
-            <View style={local.backFace}>
-              <View style={local.backFaceFrame}>
-                <View style={local.backFaceInner}>
-                  <Text style={local.backFaceOrnament}>♠</Text>
+            <View
+              style={[
+                local.backFace,
+                { borderRadius: r.inner, padding: r.padding },
+              ]}
+            >
+              <View
+                style={[
+                  local.backFaceFrame,
+                  {
+                    borderRadius: r.frame,
+                    padding: Math.max(2, r.padding - 2),
+                  },
+                ]}
+              >
+                <View
+                  style={[local.backFaceInner, { borderRadius: r.frameInner }]}
+                >
+                  <Text
+                    style={[local.backFaceOrnament, { fontSize: r.ornament }]}
+                  >
+                    ♠
+                  </Text>
                 </View>
               </View>
             </View>

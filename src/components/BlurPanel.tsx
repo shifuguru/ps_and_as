@@ -37,6 +37,7 @@ export default function BlurPanel({
   const resolvedScrim = scrimOpacity ?? blur.scrimOpacity;
   const resolvedWebOpacity = webOpacity ?? blur.webOpacity;
   const scrimRgb = colors.mode === "light" ? "255, 255, 255" : "8, 28, 18";
+  const webTintStrength = colors.mode === "light" ? 0.28 : 0.5;
 
   if (Platform.OS === "web") {
     return (
@@ -51,7 +52,7 @@ export default function BlurPanel({
           style={[
             styles.fallbackTint,
             {
-              backgroundColor: `rgba(${scrimRgb}, ${resolvedWebOpacity * 0.5})`,
+              backgroundColor: `rgba(${scrimRgb}, ${resolvedWebOpacity * webTintStrength})`,
             },
           ]}
           pointerEvents="none"

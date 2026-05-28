@@ -10,7 +10,7 @@ import {
 import {
   DEAD_HAND_ID,
   isDeadHandPlayer,
-  livingPlayerIds,
+  livingFinishedOrder,
   livingPlayers,
 } from "./deadHand";
 import {
@@ -18,6 +18,7 @@ import {
   resolveOpeningPlayerIndex,
 } from "../utils/tableSeats";
 import { applyFinishOrderRoles } from "../utils/roundRoles";
+import { isCpuPlayer } from "../utils/localPlayer";
 
 export type ClientPendingTrade = {
   key: "president" | "vicePresident";
@@ -51,6 +52,10 @@ export function applyServerRolesToPlayers(
 ): void {
   if (!roles) return;
   for (const player of players) {
+    if (isDeadHandPlayer(player)) {
+      player.role = "Neutral";
+      continue;
+    }
     player.role = serverRoleToPlayerRole(roles[player.id]);
   }
 }
@@ -139,6 +144,24 @@ export function applyMandatoryTrades(players: Player[]): ClientPendingTrade[] {
   return pending;
 }
 
+/** Offline: president/VP CPUs instantly return their lowest cards. */
+export function autoCompleteCpuWinnerTrades(
+  players: Player[],
+  trades: ClientPendingTrade[],
+): boolean {
+  let changed = false;
+  for (const trade of trades) {
+    if (trade.completed) continue;
+    const winner = players.find((p) => p.id === trade.winnerId);
+    if (!winner || !isCpuPlayer(winner)) continue;
+    const selected = pickLowestCards(winner.hand, trade.returnCount);
+    if (completeWinnerReturn(players, trade, selected)) {
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 export function completeWinnerReturn(
   players: Player[],
   trade: ClientPendingTrade,
@@ -187,11 +210,10 @@ export function buildFreshRoundState(
   /** Use when `players` have hidden/empty hands (deal ceremony UI state). */
   openingPlayerIndex?: number,
 ): GameState {
-  const livingIds = livingPlayerIds(players);
   const lastRoundOrder =
-    prev.finishedOrder.filter((id) => livingIds.includes(id)).length >= 2
-      ? prev.finishedOrder.filter((id) => livingIds.includes(id))
-      : prev.lastRoundOrder?.filter((id) => livingIds.includes(id)) ?? [];
+    livingFinishedOrder(players, prev.finishedOrder).length >= 2
+      ? livingFinishedOrder(players, prev.finishedOrder)
+      : livingFinishedOrder(players, prev.lastRoundOrder ?? []);
 
   const dealerContext: DealerContext = {
     ...dealerOptions,

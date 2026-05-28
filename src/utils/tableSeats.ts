@@ -2,6 +2,7 @@ import {
   DEAD_HAND_ID,
   deadHandHoldsThreeClubs,
   isDeadHandPlayer,
+  livingFinishedOrder,
   livingPlayerIds,
 } from "../game/deadHand";
 import type { Player } from "../game/ruleset";
@@ -60,9 +61,9 @@ export type DealerContext = {
   roles?: Record<string, string>;
 };
 
-/** Asshole from last round deals; round 1 is dealt by the lobby host. */
+/** Asshole from last round deals; round 1 is dealt by the lobby host. Never the dead hand. */
 export function resolveDealerId(
-  players: Pick<Player, "id">[],
+  players: Pick<Player, "id" | "isDeadHand">[],
   options: {
     hostId?: string | null;
     lastRoundOrder?: string[];
@@ -73,27 +74,30 @@ export function resolveDealerId(
   const living = livingPlayerIds(players as Player[]);
   if (living.length === 0) return null;
 
-  const order = options.lastRoundOrder?.length
+  const pickDealer = (id: string | null | undefined): string | null => {
+    if (!id || !living.includes(id) || isDeadHandPlayer({ id })) return null;
+    return id;
+  };
+
+  const rawOrder = options.lastRoundOrder?.length
     ? options.lastRoundOrder
     : options.finishedOrder?.length
       ? options.finishedOrder
       : [];
+  const order = livingFinishedOrder(players as Player[], rawOrder);
 
   if (order.length >= 2) {
-    const assholeId = order[order.length - 1];
-    if (living.includes(assholeId)) return assholeId;
+    const assholeId = pickDealer(order[order.length - 1]);
+    if (assholeId) return assholeId;
 
     const roleAsshole = Object.entries(options.roles ?? {}).find(
       ([, role]) => role === "asshole" || role === "Asshole",
     )?.[0];
-    if (roleAsshole && living.includes(roleAsshole)) return roleAsshole;
+    const fromRole = pickDealer(roleAsshole);
+    if (fromRole) return fromRole;
   }
 
-  if (options.hostId && living.includes(options.hostId)) {
-    return options.hostId;
-  }
-
-  return living[0] ?? null;
+  return pickDealer(options.hostId) ?? pickDealer(living[0]) ?? null;
 }
 
 /** Dealer context for round ceremony — Asshole deals from round 2 onward. */
@@ -205,9 +209,11 @@ export function dealRecipientOrder(
   dealerId: string | null,
 ): string[] {
   if (turnOrderIds.length === 0) return [];
-  if (!dealerId) return [...turnOrderIds];
+  const safeDealerId =
+    dealerId && !isDeadHandSeatId(dealerId) ? dealerId : null;
+  if (!safeDealerId) return [...turnOrderIds];
 
-  const dealerIdx = turnOrderIds.indexOf(dealerId);
+  const dealerIdx = turnOrderIds.indexOf(safeDealerId);
   if (dealerIdx < 0) return [...turnOrderIds];
 
   return Array.from(

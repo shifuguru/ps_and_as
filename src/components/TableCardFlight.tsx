@@ -13,6 +13,7 @@ export type CardFlightSpec = {
   toY: number;
   cardW: number;
   cardH: number;
+  cornerRadius?: number;
 };
 
 type Props = {
@@ -154,6 +155,7 @@ export default function TableCardFlight({
               selected={false}
               variant="table"
               faceDown={!!card.hidden}
+              cornerRadius={flight.cornerRadius}
               style={{ width: flight.cardW, height: flight.cardH }}
               onPress={() => {}}
             />
