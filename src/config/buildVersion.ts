@@ -12,6 +12,27 @@ type RuntimeBuild = {
   builtAt?: string;
 };
 
+function readExtraBuild(): RuntimeBuild | null {
+  try {
+    const Constants = require("expo-constants").default as {
+      expoConfig?: {
+        extra?: {
+          buildId?: string | null;
+          appVersion?: string | null;
+        };
+      };
+    };
+    const extra = Constants.expoConfig?.extra;
+    if (!extra) return null;
+    return {
+      buildId: extra.buildId?.trim() || undefined,
+      version: extra.appVersion?.trim() || undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function runtimeBuild(): RuntimeBuild | null {
   try {
     return (
@@ -26,6 +47,7 @@ function runtimeBuild(): RuntimeBuild | null {
 /** Semantic app version from package.json / app.json. */
 export const APP_VERSION =
   process.env.EXPO_PUBLIC_APP_VERSION?.trim() ||
+  readExtraBuild()?.version ||
   runtimeBuild()?.version ||
   "0.0.0";
 
@@ -33,10 +55,11 @@ export const APP_VERSION =
 export function resolveClientBuildId(): string {
   const runtime = runtimeBuild()?.buildId?.trim();
   const env = process.env.EXPO_PUBLIC_BUILD_ID?.trim();
+  const extra = readExtraBuild()?.buildId?.trim();
   if (Platform.OS === "web") {
     return env || runtime || (__DEV__ ? "dev" : "unknown");
   }
-  return env || runtime || (__DEV__ ? "dev" : "unknown");
+  return env || extra || runtime || (__DEV__ ? "dev" : "unknown");
 }
 
 /**

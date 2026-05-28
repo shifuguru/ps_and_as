@@ -5,7 +5,6 @@ import {
   WEB_BASE_PATH,
   type BuildVersionInfo,
 } from "../config/buildVersion";
-import { getServerUrl } from "../config/server";
 
 function parseVersionPayload(raw: unknown): BuildVersionInfo | null {
   if (!raw || typeof raw !== "object") return null;
@@ -64,19 +63,12 @@ async function fetchJson(url: string): Promise<unknown | null> {
   }
 }
 
-/** Latest deployed build metadata (GitHub Pages version.json or game server /version). */
+/** Latest deployed build metadata. Web polls version.json; native relies on App Store + socket hints. */
 export async function fetchLatestBuildInfo(): Promise<BuildVersionInfo | null> {
-  const cacheBust = `t=${Date.now()}`;
-
-  if (Platform.OS === "web" && !__DEV__) {
-    return fetchLatestWebBuildInfo();
+  if (__DEV__ || Platform.OS !== "web") {
+    return null;
   }
-
-  const serverBase = getServerUrl().replace(/\/$/, "");
-  const fromServer = parseVersionPayload(
-    await fetchJson(`${serverBase}/version?${cacheBust}`),
-  );
-  return fromServer;
+  return fetchLatestWebBuildInfo();
 }
 
 export function isRemoteBuildNewer(remote: BuildVersionInfo): boolean {

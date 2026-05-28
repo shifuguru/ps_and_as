@@ -1,11 +1,13 @@
 // Game Center integration (iOS) via expo-game-center, with local fallback elsewhere.
 import { Platform } from "react-native";
 import * as Application from "expo-application";
-import ExpoGameCenter, { GameCenterService } from "expo-game-center";
 import {
   GAME_CENTER_ACHIEVEMENTS,
   GAME_CENTER_LEADERBOARDS,
 } from "../config/gameCenterIds";
+
+type GameCenterModule = typeof import("expo-game-center");
+type GameCenterServiceClass = GameCenterModule["GameCenterService"];
 
 export interface PlayerInfo {
   /** Stable ID used for multiplayer rooms (Game Center ID or install ID). */
@@ -23,11 +25,27 @@ const INSTALL_ID_KEY = "@player_install_id";
 const LEGACY_ID_KEY = "@player_id";
 const LINKED_GC_KEY = "@player_linked_gc_id";
 
-let gcService: GameCenterService | null = null;
+let gcService: InstanceType<GameCenterServiceClass> | null = null;
+let gameCenterModule: GameCenterModule | null | undefined;
 
-function getGameCenterService(): GameCenterService {
+function loadGameCenterModule(): GameCenterModule | null {
+  if (gameCenterModule !== undefined) return gameCenterModule;
+  try {
+    gameCenterModule = require("expo-game-center") as GameCenterModule;
+  } catch (error) {
+    console.warn("[GameCenter] Native module unavailable:", error);
+    gameCenterModule = null;
+  }
+  return gameCenterModule;
+}
+
+function getGameCenterService(): InstanceType<GameCenterServiceClass> {
+  const mod = loadGameCenterModule();
+  if (!mod) {
+    throw new Error("expo-game-center is not available on this platform");
+  }
   if (!gcService) {
-    gcService = new GameCenterService({
+    gcService = new mod.GameCenterService({
       achievements: GAME_CENTER_ACHIEVEMENTS,
       leaderboards: GAME_CENTER_LEADERBOARDS,
       enableLogging: __DEV__,
@@ -37,7 +55,13 @@ function getGameCenterService(): GameCenterService {
 }
 
 export function isGameCenterPlatformSupported(): boolean {
-  return GameCenterService.isPlatformSupported();
+  const mod = loadGameCenterModule();
+  if (!mod) return false;
+  try {
+    return mod.GameCenterService.isPlatformSupported();
+  } catch {
+    return false;
+  }
 }
 
 async function readHardwareInstallId(): Promise<string | null> {
@@ -123,17 +147,21 @@ export async function authenticatePlayer(): Promise<PlayerInfo> {
   }
 
   try {
-    const available = await ExpoGameCenter.isGameCenterAvailable();
+    const mod = loadGameCenterModule();
+    if (!mod) {
+      return getOrCreatePlayerId();
+    }
+    const available = await mod.default.isGameCenterAvailable();
     if (!available) {
       return getOrCreatePlayerId();
     }
 
-    const authenticated = await ExpoGameCenter.authenticateLocalPlayer();
+    const authenticated = await mod.default.authenticateLocalPlayer();
     if (!authenticated) {
       return getOrCreatePlayerId();
     }
 
-    const player = await ExpoGameCenter.getLocalPlayer();
+    const player = await mod.default.getLocalPlayer();
     if (player?.playerID) {
       const cachedName = await getCachedPlayerName();
       const installId = await ensureInstallId();
@@ -153,7 +181,9 @@ export async function isPlayerAuthenticated(): Promise<boolean> {
   if (!isGameCenterPlatformSupported()) return false;
 
   try {
-    const player = await ExpoGameCenter.getLocalPlayer();
+    const mod = loadGameCenterModule();
+    if (!mod) return false;
+    const player = await mod.default.getLocalPlayer();
     return !!(player && player.playerID);
   } catch {
     return false;
@@ -170,11 +200,14 @@ export async function getOrCreatePlayerId(): Promise<PlayerInfo> {
 
   if (isGameCenterPlatformSupported()) {
     try {
-      const available = await ExpoGameCenter.isGameCenterAvailable();
-      if (available) {
-        const player = await ExpoGameCenter.getLocalPlayer();
-        if (player?.playerID) {
-          return playerInfoFromLocalPlayer(player, cachedName, installId);
+      const mod = loadGameCenterModule();
+      if (mod) {
+        const available = await mod.default.isGameCenterAvailable();
+        if (available) {
+          const player = await mod.default.getLocalPlayer();
+          if (player?.playerID) {
+            return playerInfoFromLocalPlayer(player, cachedName, installId);
+          }
         }
       }
     } catch {

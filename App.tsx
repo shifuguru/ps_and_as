@@ -65,11 +65,19 @@ function AppContent() {
   const [isOnlineGame, setIsOnlineGame] = useState(false);
   const [isSpectator, setIsSpectator] = useState(false);
   const [gameInstanceKey, setGameInstanceKey] = useState(0);
+  const [updateDismissedBuildId, setUpdateDismissedBuildId] = useState<
+    string | null
+  >(null);
 
   const { updateAvailable, latestBuild } = useBuildUpdateCheck(
     !splashVisible,
     roomAdapter,
   );
+  const showUpdateOverlay =
+    Platform.OS === "web" &&
+    updateAvailable &&
+    latestBuild?.buildId &&
+    latestBuild.buildId !== updateDismissedBuildId;
 
   const disconnectRoom = () => {
     try {
@@ -156,6 +164,18 @@ function AppContent() {
       }).start();
     });
   };
+
+  // Failsafe: never leave users stuck on splash if animations fail (seen on some iOS builds).
+  useEffect(() => {
+    if (!splashVisible) return;
+    const timeout = setTimeout(() => {
+      setSplashVisible(false);
+      setMenuVisible(true);
+      menuOpacity.setValue(1);
+      splashOpacity.setValue(0);
+    }, 6000);
+    return () => clearTimeout(timeout);
+  }, [splashVisible, menuOpacity, splashOpacity]);
 
   const startRandomGame = async () => {
     const playerInfo = await getOrCreatePlayerId();
@@ -899,8 +919,13 @@ function AppContent() {
             </View>
           </View>
         )}
-        {updateAvailable ? (
-          <UpdateRequiredOverlay latestBuild={latestBuild} />
+        {showUpdateOverlay ? (
+          <UpdateRequiredOverlay
+            latestBuild={latestBuild}
+            onDismiss={() =>
+              setUpdateDismissedBuildId(latestBuild?.buildId ?? "dismissed")
+            }
+          />
         ) : null}
         </View>
     </View>

@@ -3,6 +3,21 @@ import { Platform } from "react-native";
 /** Keep in sync with `server/index.js` default PORT. */
 export const DEFAULT_SERVER_PORT = 4000;
 
+const PRODUCTION_SERVER_FALLBACK =
+  "https://psandas-production.up.railway.app";
+
+function readExtraServerUrl(): string | null {
+  try {
+    const Constants = require("expo-constants").default as {
+      expoConfig?: { extra?: { serverUrl?: string | null } };
+    };
+    const url = Constants.expoConfig?.extra?.serverUrl;
+    return typeof url === "string" && url.trim() ? url.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 function isLoopbackUrl(url: string): boolean {
   try {
     const { hostname } = new URL(url);
@@ -55,6 +70,7 @@ export function getServerUrl(override?: string): string {
 
   const port = DEFAULT_SERVER_PORT;
   const envUrl = process.env.EXPO_PUBLIC_SERVER_URL?.trim();
+  const extraUrl = readExtraServerUrl();
   const runtimeWebUrl = webRuntimeServerUrl();
 
   // Web dev: same-origin via Metro proxy (/socket.io → backend). Avoids CORS.
@@ -89,9 +105,13 @@ export function getServerUrl(override?: string): string {
     return envUrl;
   }
 
+  if (extraUrl && !isLoopbackUrl(extraUrl)) {
+    return extraUrl;
+  }
+
   if (__DEV__) {
     return `http://localhost:${port}`;
   }
 
-  return "https://YOUR-PROD-URL.example.com";
+  return PRODUCTION_SERVER_FALLBACK;
 }

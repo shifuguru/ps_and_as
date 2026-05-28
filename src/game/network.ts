@@ -137,5 +137,8 @@ export class MockAdapter implements NetworkAdapter {
 }
 
 export function isMockAdapter(adapter: NetworkAdapter | null | undefined): boolean {
-  return !adapter || adapter instanceof MockAdapter;
+  if (!adapter) return true;
+  if (adapter instanceof MockAdapter) return true;
+  // Production/minified builds: SocketAdapter exposes dismissRoom; MockAdapter does not.
+  return typeof (adapter as { dismissRoom?: unknown }).dismissRoom !== "function";
 }

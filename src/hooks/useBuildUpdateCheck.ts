@@ -22,7 +22,7 @@ export function useBuildUpdateCheck(
   const checkingRef = useRef(false);
 
   const checkForUpdate = useCallback(async () => {
-    if (!enabled || __DEV__) return;
+    if (!enabled || __DEV__ || Platform.OS !== "web") return;
     if (checkingRef.current) return;
     const clientId = resolveClientBuildId();
     if (clientId === "dev" || clientId === "unknown") return;
@@ -48,7 +48,7 @@ export function useBuildUpdateCheck(
   }, [enabled]);
 
   useEffect(() => {
-    if (!enabled || __DEV__) return;
+    if (!enabled || __DEV__ || Platform.OS !== "web") return;
 
     void checkForUpdate();
     const interval = setInterval(() => {
@@ -80,7 +80,13 @@ export function useBuildUpdateCheck(
   }, [checkForUpdate, enabled]);
 
   useEffect(() => {
-    if (!enabled || __DEV__ || !networkAdapter || !isSocketAdapter(networkAdapter)) {
+    if (
+      !enabled ||
+      __DEV__ ||
+      Platform.OS !== "web" ||
+      !networkAdapter ||
+      !isSocketAdapter(networkAdapter)
+    ) {
       return;
     }
 

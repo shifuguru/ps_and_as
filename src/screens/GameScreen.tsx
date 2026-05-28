@@ -944,8 +944,12 @@ function GameScreen({
     startNextRound();
   }, [playerReadyStates, roundOver, state, onlineMultiplayer]);
 
+  const offlineInitRef = useRef(false);
+
   useEffect(() => {
     if (!onlineMultiplayer) {
+      if (offlineInitRef.current) return;
+      offlineInitRef.current = true;
       const g = initialLobbyPlayers?.length
         ? createGameFromLobby(initialLobbyPlayers, seedFromProps)
         : createGame(normalizeLobbyNames(initialPlayers, localPlayerName));
@@ -1759,8 +1763,43 @@ function GameScreenBoard() {
       state.players.find((p) => !isDeadHandPlayer(p)) ?? state.players[0];
   }
   if (!current) {
-    throw new Error(
-      "Game table could not be set up (invalid current player index).",
+    return (
+      <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 24,
+          }}
+        >
+          <Text
+            style={{
+              color: colors.onFelt.textPrimary,
+              fontSize: 16,
+              textAlign: "center",
+              marginBottom: 16,
+            }}
+          >
+            Could not set up the table. Try leaving and starting again.
+          </Text>
+          {onBack ? (
+            <TouchableOpacity
+              onPress={onBack}
+              style={{
+                paddingVertical: 12,
+                paddingHorizontal: 20,
+                borderRadius: 10,
+                backgroundColor: "rgba(212, 175, 55, 0.2)",
+              }}
+            >
+              <Text style={{ color: colors.onFelt.textPrimary, fontWeight: "700" }}>
+                Back to menu
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </ScreenContainer>
     );
   }
 

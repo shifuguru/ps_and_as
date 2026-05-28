@@ -13,9 +13,10 @@ import { applyBuildUpdate } from "../services/buildUpdateCheck";
 
 type Props = {
   latestBuild: BuildVersionInfo | null;
+  onDismiss?: () => void;
 };
 
-export default function UpdateRequiredOverlay({ latestBuild }: Props) {
+export default function UpdateRequiredOverlay({ latestBuild, onDismiss }: Props) {
   const { colors, ui, blur } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -58,6 +59,17 @@ export default function UpdateRequiredOverlay({ latestBuild }: Props) {
               {Platform.OS === "web" ? "Refresh now" : "Restart app"}
             </Text>
           </TouchableOpacity>
+          {Platform.OS !== "web" && onDismiss ? (
+            <TouchableOpacity
+              style={[ui.btnSecondary, styles.dismissBtn]}
+              onPress={onDismiss}
+              activeOpacity={0.88}
+              accessibilityRole="button"
+              accessibilityLabel="Continue with current version"
+            >
+              <Text style={ui.btnSecondaryText}>Continue anyway</Text>
+            </TouchableOpacity>
+          ) : null}
           <Text style={styles.hint}>
             {Platform.OS === "web"
               ? "If the page still looks old, close the tab and open the game again."
@@ -113,6 +125,10 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     primaryBtn: {
       width: "100%",
+    },
+    dismissBtn: {
+      width: "100%",
+      marginTop: 10,
     },
     hint: {
       color: colors.textMuted,
