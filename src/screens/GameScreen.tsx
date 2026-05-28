@@ -115,6 +115,12 @@ import {
   resolveOpeningPlayerIndex,
 } from "../utils/tableSeats";
 import { useSlowTurnBell } from "../hooks/useSlowTurnBell";
+import {
+  IOS_BOTTOM_GAP_DEBUG,
+  IOS_GAP_DEBUG_COLORS,
+  debugBg,
+  logIosBottomGapMetrics,
+} from "../debug/iosBottomGapDebug";
 
 type GameStateWithDealSeed = GameState & { dealSeed?: number };
 
@@ -2477,7 +2483,15 @@ function GameScreenBoard() {
 
   // Note: no appear animation here to avoid flashing on re-renders
   return (
-    <ScreenContainer ignoreHeaderOffset={true} style={{ flex: 1 }}>
+    <ScreenContainer
+      ignoreHeaderOffset={true}
+      style={[{ flex: 1 }, debugBg(IOS_GAP_DEBUG_COLORS.gameScreen)]}
+      onLayout={(event) => {
+        if (!IOS_BOTTOM_GAP_DEBUG) return;
+        const { width, height } = event.nativeEvent.layout;
+        logIosBottomGapMetrics([{ label: "gameScreen", width, height }], insets);
+      }}
+    >
       {bannerNotice ? (
         <View
           style={[

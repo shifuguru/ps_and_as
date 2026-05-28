@@ -25,8 +25,19 @@ export type SeatOriginOptions = {
   deadHandId?: string | null;
 };
 
+export type DealStackPositionOptions = SeatOriginOptions & {
+  /** Mini-stack height — positions stack bottom just above the hand-count badge. */
+  stackH?: number;
+};
+
 /** Offset from avatar center toward the table (inside the seat ring) for deal stacks. */
 export const DEAL_STACK_TOWARD_CENTER = 0.52;
+
+/** Matches OpponentSeat countBadge (right/bottom offsets from avatar wrap). */
+const COUNT_BADGE_OUTSET_RIGHT = 8;
+const COUNT_BADGE_OUTSET_BOTTOM = 4;
+/** Gap between the count badge top edge and the bottom of the deal mini-stack. */
+const DEAL_STACK_ABOVE_BADGE_GAP = 3;
 
 /** Radial step from a ring seat toward the table center (matches ringAngleForSeat). */
 export function ringInwardOffset(
@@ -82,8 +93,8 @@ export function seatOriginInPlayArea(
   };
 }
 
-/** Face-down deal stack — sits inside the seat ring, between avatar and table center. */
-export function seatDealStackInPlayArea(
+/** Hand-count badge center in play-area coordinates (matches OpponentSeat layout). */
+export function seatCountBadgeCenterInPlayArea(
   layout: PlayAreaLayout,
   playAreaHeight: number,
   playerId: string,
@@ -101,19 +112,55 @@ export function seatDealStackInPlayArea(
   );
   if (!origin) return null;
 
-  const seatIndex = layoutSeatIds.indexOf(playerId);
-  if (seatIndex < 0) return null;
+  const compact = layoutSeatIds.length >= 6;
+  const isLocal = localPlayerIds.includes(playerId);
+  const avatarSize = avatarSizeForSeat(layout.seatDimensions, { compact, isLocal });
+  const countBadgeSize = layout.seatDimensions.countBadgeSize;
+
+  return {
+    x:
+      origin.x +
+      avatarSize / 2 +
+      COUNT_BADGE_OUTSET_RIGHT -
+      countBadgeSize / 2,
+    y:
+      origin.y +
+      avatarSize / 2 +
+      COUNT_BADGE_OUTSET_BOTTOM -
+      countBadgeSize / 2,
+  };
+}
+
+/** Face-down deal stack — centered above the seat hand-count badge. */
+export function seatDealStackInPlayArea(
+  layout: PlayAreaLayout,
+  playAreaHeight: number,
+  playerId: string,
+  layoutSeatIds: string[],
+  localPlayerIds: string[],
+  options?: DealStackPositionOptions,
+): { x: number; y: number } | null {
+  const badge = seatCountBadgeCenterInPlayArea(
+    layout,
+    playAreaHeight,
+    playerId,
+    layoutSeatIds,
+    localPlayerIds,
+    options,
+  );
+  if (!badge) return null;
 
   const compact = layoutSeatIds.length >= 6;
   const isLocal = localPlayerIds.includes(playerId);
   const avatarSize = avatarSizeForSeat(layout.seatDimensions, { compact, isLocal });
-  const inset = avatarSize * DEAL_STACK_TOWARD_CENTER;
-  const angle = ringAngleForSeat(seatIndex, layoutSeatIds.length);
-  const { dx, dy } = ringInwardOffset(angle, inset);
+  const countBadgeSize = layout.seatDimensions.countBadgeSize;
+  const stackH =
+    options?.stackH ?? Math.max(26, Math.round(avatarSize * 0.48));
 
+  const badgeTop = badge.y - countBadgeSize / 2;
   return {
-    x: origin.x + dx,
-    y: origin.y + dy,
+    x: badge.x,
+    y: badgeTop - DEAL_STACK_ABOVE_BADGE_GAP - stackH / 2,
   };
 }
 

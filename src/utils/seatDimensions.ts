@@ -109,6 +109,17 @@ export function avatarSizeForSeat(
   return dims.avatar;
 }
 
+/** Mini face-down cards beside / above a seat avatar (deal ceremony, dead hand). */
+export function seatMiniCardDimensions(avatarSize: number): {
+  width: number;
+  height: number;
+} {
+  return {
+    width: Math.max(18, Math.round(avatarSize * 0.34)),
+    height: Math.max(26, Math.round(avatarSize * 0.48)),
+  };
+}
+
 /** Distance from avatar center down to the bottom of OpponentSeat (name + status pill). */
 export function avatarBelowCenterOffset(
   dims: SeatDimensions,

@@ -13,6 +13,7 @@ import TrickWinCelebration from "./TrickWinCelebration";
 import Card from "./Card";
 import {
   avatarSizeForSeat,
+  seatMiniCardDimensions,
   useSeatDimensions,
   type SeatDimensions,
 } from "../utils/seatDimensions";
@@ -137,8 +138,9 @@ export default function OpponentSeat({
   const isDeadHand = !!player.isDeadHand;
   const isGraveyard = isDeadHand && graveyardMode;
   const sidelinedCount = player.sidelinedCount ?? 0;
-  const miniCardW = Math.max(18, avatarSize * 0.34);
-  const miniCardH = Math.max(26, avatarSize * 0.48);
+  const miniCard = seatMiniCardDimensions(avatarSize);
+  const miniCardW = miniCard.width;
+  const miniCardH = miniCard.height;
   const readyBadgeSize = Math.max(16, Math.round(avatarSize * 0.34));
   const avatarBackgroundColor = isDeadHand
     ? "rgba(255,255,255,0.08)"

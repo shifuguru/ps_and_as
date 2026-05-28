@@ -13,7 +13,7 @@ import {
   ceremonyCardCornerRadius,
   tableCardDimensions,
 } from "./cardDimensions";
-import { avatarSizeForSeat } from "../utils/seatDimensions";
+import { avatarSizeForSeat, seatMiniCardDimensions } from "../utils/seatDimensions";
 import type { PlayAreaLayout } from "../utils/tableLayout";
 import {
   seatDealStackInPlayArea,
@@ -97,8 +97,7 @@ function dealStackLayout(
     compact,
     isLocal,
   });
-  const miniW = Math.max(18, Math.round(avatarSize * 0.32));
-  const miniH = Math.max(26, Math.round(avatarSize * 0.46));
+  const { width: miniW, height: miniH } = seatMiniCardDimensions(avatarSize);
   return {
     miniW,
     miniH,
@@ -319,15 +318,24 @@ export default function DealCeremonyOverlay({
     const step = dealSteps[dealRound];
     const stepTiming = dealStepTiming(dealRound, dealSteps.length);
     const visibleSeat = layoutSeatIds.includes(step.playerId);
-    const target =
+    const stack =
       layout && visibleSeat
+        ? dealStackLayout(
+            layout,
+            layoutSeatIds,
+            localPlayerIds,
+            step.playerId,
+          )
+        : null;
+    const target =
+      layout && visibleSeat && stack
         ? seatDealStackInPlayArea(
             layout,
             playAreaHeight,
             step.playerId,
             layoutSeatIds,
             localPlayerIds,
-            seatOptions,
+            { ...seatOptions, stackH: stack.miniH },
           )
         : null;
 
@@ -346,12 +354,6 @@ export default function DealCeremonyOverlay({
 
     const from = offsetPoint(deckCenter.x, deckCenter.y);
     const to = offsetPoint(target.x, target.y);
-    const stack = dealStackLayout(
-      layout,
-      layoutSeatIds,
-      localPlayerIds,
-      step.playerId,
-    );
     const flight: CardFlightSpec = {
       id: flightId,
       cards: [{ suit: "spades", value: 0, hidden: true }],
@@ -526,15 +528,6 @@ export default function DealCeremonyOverlay({
         ? layoutSeatIds.map((id) => {
             const count = dealtCounts[id] ?? 0;
             if (count <= 0 || !layout) return null;
-            const pos = seatDealStackInPlayArea(
-              layout,
-              playAreaHeight,
-              id,
-              layoutSeatIds,
-              localPlayerIds,
-              seatOptions,
-            );
-            if (!pos) return null;
             const { miniW, miniH, cornerRadius } = dealStackLayout(
               layout,
               layoutSeatIds,
@@ -544,6 +537,15 @@ export default function DealCeremonyOverlay({
             const stackCount = Math.min(3, count);
             const stackW = miniW + (stackCount - 1) * 4;
             const stackH = miniH + (stackCount - 1) * 2;
+            const pos = seatDealStackInPlayArea(
+              layout,
+              playAreaHeight,
+              id,
+              layoutSeatIds,
+              localPlayerIds,
+              { ...seatOptions, stackH },
+            );
+            if (!pos) return null;
             const screenPos = offsetPoint(pos.x, pos.y);
             return (
               <View

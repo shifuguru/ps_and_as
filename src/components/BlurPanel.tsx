@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  LayoutChangeEvent,
   Platform,
   StyleProp,
   StyleSheet,
@@ -22,6 +23,7 @@ type Props = {
   webOpacity?: number;
   /** Override blur preset (chrome / panel / modal). */
   preset?: BlurPreset;
+  onLayout?: (event: LayoutChangeEvent) => void;
 };
 
 export default function BlurPanel({
@@ -32,6 +34,7 @@ export default function BlurPanel({
   scrimOpacity,
   webOpacity,
   preset,
+  onLayout,
 }: Props) {
   const { colors } = useAppTheme();
   const blur = preset ?? colors.blur.panel;
@@ -46,6 +49,7 @@ export default function BlurPanel({
       <View
         // @ts-expect-error className is supported on RN Web
         className={className}
+        onLayout={onLayout}
         style={[
           styles.fallback,
           { backgroundColor: `rgba(${scrimRgb}, ${resolvedWebOpacity})` },
@@ -70,6 +74,7 @@ export default function BlurPanel({
     <BlurView
       intensity={resolvedIntensity}
       tint={blur.tint}
+      onLayout={onLayout}
       style={[styles.blur, style]}
     >
       <View

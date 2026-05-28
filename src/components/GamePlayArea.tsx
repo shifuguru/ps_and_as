@@ -14,6 +14,10 @@ import {
   playGroupTargetFromSpot,
   seatOriginInPlayArea,
 } from "../utils/tablePlayFlight";
+import {
+  IOS_GAP_DEBUG_COLORS,
+  debugBg,
+} from "../debug/iosBottomGapDebug";
 
 export { LOCAL_SEAT_BAND as LOCAL_SEAT_HEIGHT } from "../utils/tableLayout";
 
@@ -279,7 +283,10 @@ export default function GamePlayArea({
       : children;
 
   return (
-    <View style={styles.root} onLayout={onLayout}>
+    <View
+      style={[styles.root, debugBg(IOS_GAP_DEBUG_COLORS.tableFelt)]}
+      onLayout={onLayout}
+    >
       {layout && layout.cardZoneHeight > 0 && (
         <View
           style={[

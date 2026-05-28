@@ -37,10 +37,19 @@ import { useBuildUpdateCheck } from "./src/hooks/useBuildUpdateCheck";
 import UpdateRequiredOverlay from "./src/components/UpdateRequiredOverlay";
 import AppErrorBoundary from "./src/components/AppErrorBoundary";
 import { StatusBar } from "expo-status-bar";
+import { useLayoutInsets } from "./src/hooks/useLayoutInsets";
+import {
+  IOS_BOTTOM_GAP_DEBUG,
+  IOS_GAP_DEBUG_COLORS,
+  debugBg,
+  logIosBottomGapMetrics,
+} from "./src/debug/iosBottomGapDebug";
 
 function AppContent() {
   const { colors, ui, blur, feltTint, setFeltTint, refreshFeltTint } = useAppTheme();
   const viewport = useVisualViewportSize();
+  const layoutInsets = useLayoutInsets();
+  const appRootProbeRef = useRef<{ width: number; height: number } | null>(null);
   // splashVisible: whether the splash overlay is still mounted
   // menuVisible: whether the main menu should be shown (after splash fully hidden)
   const [splashVisible, setSplashVisible] = useState(true);
@@ -335,6 +344,40 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
+    if (!IOS_BOTTOM_GAP_DEBUG) return;
+    const win = (globalThis as {
+      window?: {
+        addEventListener: (type: string, fn: () => void) => void;
+        removeEventListener: (type: string, fn: () => void) => void;
+        visualViewport?: {
+          addEventListener: (type: string, fn: () => void) => void;
+          removeEventListener: (type: string, fn: () => void) => void;
+        } | null;
+      };
+    }).window;
+    if (!win) return;
+
+    const logViewport = () => {
+      logIosBottomGapMetrics(
+        appRootProbeRef.current
+          ? [{ label: "appRoot", ...appRootProbeRef.current }]
+          : [],
+        layoutInsets,
+      );
+    };
+
+    logViewport();
+    win.addEventListener("resize", logViewport);
+    win.visualViewport?.addEventListener("resize", logViewport);
+    win.visualViewport?.addEventListener("scroll", logViewport);
+    return () => {
+      win.removeEventListener("resize", logViewport);
+      win.visualViewport?.removeEventListener("resize", logViewport);
+      win.visualViewport?.removeEventListener("scroll", logViewport);
+    };
+  }, [layoutInsets]);
+
+  useEffect(() => {
     (async () => {
       try {
         const svc = require("./src/services/wallpaper");
@@ -556,6 +599,7 @@ function AppContent() {
     <View
       style={[
         { flex: 1 },
+        debugBg(IOS_GAP_DEBUG_COLORS.rootApp),
         Platform.OS === "web" &&
           (isMobileWeb()
             ? ({
@@ -573,6 +617,15 @@ function AppContent() {
                 maxHeight: viewport.height,
               }),
       ]}
+      onLayout={(event) => {
+        if (!IOS_BOTTOM_GAP_DEBUG) return;
+        const { width, height } = event.nativeEvent.layout;
+        appRootProbeRef.current = { width, height };
+        logIosBottomGapMetrics(
+          [{ label: "appRoot", width, height }],
+          layoutInsets,
+        );
+      }}
     >
         {/* Persistent felt wallpaper — one instance for the whole app */}
         <FeltBackground
