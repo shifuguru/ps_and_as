@@ -382,6 +382,28 @@ export default function GameScreen({
   } | null>(null);
   const [activeTrade, setActiveTrade] = useState<ClientPendingTrade | null>(null);
   const [tradeReturnPick, setTradeReturnPick] = useState<CardType[]>([]);
+  const [roundOver, setRoundOver] = useState(false);
+  const [playerReadyStates, setPlayerReadyStates] = useState<{
+    [playerId: string]: boolean;
+  }>({});
+  const [lastTrickWinner, setLastTrickWinner] = useState<string | null>(null);
+  const [showWinnerBanner, setShowWinnerBanner] = useState(false);
+  const [stackCollecting, setStackCollecting] = useState(false);
+  const [trickPauseActive, setTrickPauseActive] = useState(false);
+  const [trickPauseSnapshot, setTrickPauseSnapshot] =
+    useState<TrickPauseSnapshot | null>(null);
+  const [roomNotice, setRoomNotice] = useState<string | null>(null);
+  const [awayPlayers, setAwayPlayers] = useState<Record<string, AwayPlayer>>({});
+  const [awayTick, setAwayTick] = useState(0);
+  const [debugLogs, setDebugLogs] = useState<any[]>([]);
+  const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
+  const [showGameLog, setShowGameLog] = useState<boolean>(false);
+  const [leaveConfirmVisible, setLeaveConfirmVisible] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]); // indices in hand
+  const [focused, setFocused] = useState<number | null>(null);
+  const [revealedHands, setRevealedHands] = useState<{
+    [playerId: string]: boolean;
+  }>({});
   const awaitingDealCeremonyRef = useRef(false);
   const ceremonyDoneForRoundRef = useRef<string | null>(null);
   const ceremonyStartedForRoundRef = useRef<string | null>(null);
@@ -392,21 +414,38 @@ export default function GameScreen({
   const pendingTradesCompleteRef = useRef<Record<string, CardType[]> | null>(null);
   const pendingDealSeedRef = useRef<number | undefined>(undefined);
   const myPlayerIdRef = useRef<string | null>(null);
-  const [roomNotice, setRoomNotice] = useState<string | null>(null);
   const roomNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [awayPlayers, setAwayPlayers] = useState<Record<string, AwayPlayer>>({});
-  const [awayTick, setAwayTick] = useState(0);
-  const [debugLogs, setDebugLogs] = useState<any[]>([]);
-  const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
-  const [showGameLog, setShowGameLog] = useState<boolean>(false);
-  const [leaveConfirmVisible, setLeaveConfirmVisible] = useState(false);
-  const [selected, setSelected] = useState<number[]>([]); // indices in hand
-  const [focused, setFocused] = useState<number | null>(null);
   const handRef = useRef<PlayerHandHandle>(null);
-  const [revealedHands, setRevealedHands] = useState<{
-    [playerId: string]: boolean;
-  }>({});
   const fallbackAdapterRef = useRef<MockAdapter | null>(null);
+  const lastTrickLenRef = React.useRef<number>(0);
+  const lastRecordedTrickXpRef = React.useRef(0);
+  const roundStatsRecordedRef = React.useRef(false);
+  const trickPauseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const trickBannerTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const trickCollectTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const stateSyncedRef = useRef(false);
+  const syncRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const gameplayLockedRef = useRef(gameplayLocked);
+  gameplayLockedRef.current = gameplayLocked;
+  const roundOverRef = useRef(roundOver);
+  roundOverRef.current = roundOver;
+  const startNextRoundRef = useRef<(seed?: number) => void>(() => {});
+  const finalizeCeremonyRoundRef = useRef<
+    (
+      players: GameState["players"],
+      baseState: GameState,
+      serverHands?: Record<string, CardType[]> | null,
+    ) => void
+  >(() => {});
+
   if (!networkAdapter && !fallbackAdapterRef.current) {
     fallbackAdapterRef.current = new MockAdapter();
   }
@@ -419,29 +458,22 @@ export default function GameScreen({
   const readOnlyOnline = onlineMultiplayer && spectatorMode;
   const readOnlyGame = gameplayLocked || readOnlyOnline;
 
-  useEffect(() => {
-    setSpectatorMode(isSpectator);
-  }, [isSpectator]);
+  const insets = useLayoutInsets();
+  const { colors } = useAppTheme();
 
-  useEffect(() => {
-    if (Object.keys(awayPlayers).length === 0) return;
-    const id = setInterval(() => {
-      setAwayTick((t) => t + 1);
-      setAwayPlayers((prev) => {
-        const now = Date.now();
-        let changed = false;
-        const next: Record<string, AwayPlayer> = { ...prev };
-        for (const [pid, info] of Object.entries(prev)) {
-          if (info.until <= now) {
-            delete next[pid];
-            changed = true;
-          }
-        }
-        return changed ? next : prev;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [awayPlayers]);
+  const humanPlayer = state
+    ? resolveLocalHumanPlayer(
+        state.players,
+        localPlayerName,
+        localPlayerId,
+        networkAdapter,
+      )
+    : null;
+  const myPlayerId =
+    humanPlayer?.id ??
+    localPlayerId ??
+    (isSocketAdapter(networkAdapter) ? networkAdapter.getProfileId() : null);
+  myPlayerIdRef.current = myPlayerId;
 
   const awayNotice = useMemo(() => {
     void awayTick;
@@ -461,209 +493,58 @@ export default function GameScreen({
     [awayPlayers],
   );
 
-  const bannerNotice = awayNotice ?? roomNotice;
-
-  function showRoomNotice(message: string) {
-    setRoomNotice(message);
-    if (roomNoticeTimerRef.current) {
-      clearTimeout(roomNoticeTimerRef.current);
+  const roleById = useMemo(() => {
+    const src =
+      tradePhase?.players ?? ceremonyPrep?.players ?? state?.players ?? [];
+    const map: Record<string, GameState["players"][number]["role"]> = {};
+    for (const p of src) {
+      map[p.id] = p.role;
     }
-    roomNoticeTimerRef.current = setTimeout(() => {
-      setRoomNotice(null);
-      roomNoticeTimerRef.current = null;
-    }, 4500);
-  }
+    return map;
+  }, [tradePhase, ceremonyPrep, state?.players]);
 
-  function roomEventMessage(
-    playerName: string | undefined,
-    eventType: string,
-    reason?: string,
-  ): string | null {
-    const name = playerName?.trim();
-    if (!name) return null;
-    if (eventType === "playerDisconnected") {
-      return `${name} disconnected — waiting to reconnect…`;
-    }
-    if (reason === "kicked") {
-      return `${name} was removed from the room`;
-    }
-    if (eventType === "playerLeft" || reason === "left") {
-      return `${name} left the game`;
-    }
-    if (reason === "disconnected") {
-      return `${name} left the room`;
-    }
-    return `${name} left the room`;
-  }
-
-  function broadcastGameAction(action: Record<string, unknown>) {
-    if (!onlineMultiplayer || !isSocketAdapter(networkAdapter) || !roomId) return;
-    networkAdapter.sendGameAction(roomId, action);
-  }
-
-  // UX pacing: centralized CPU turn delay for a more relaxed feel
-  const CPU_DELAY_MS = 1100;
-  const TRICK_SPREAD_HOLD_MS = 380;
-  const TRICK_STACK_COLLECT_MS = 520;
-  const TRICK_WINNER_SHOW_MS = 800;
-  const TRICK_PAUSE_TOTAL_MS =
-    TRICK_SPREAD_HOLD_MS + TRICK_STACK_COLLECT_MS + TRICK_WINNER_SHOW_MS;
-
-  // End-game state: track round completion and player ready status
-  const [roundOver, setRoundOver] = useState(false);
-  const [playerReadyStates, setPlayerReadyStates] = useState<{
-    [playerId: string]: boolean;
-  }>({});
-  const [lastTrickWinner, setLastTrickWinner] = useState<string | null>(null);
-  const [showWinnerBanner, setShowWinnerBanner] = useState(false);
-  const [stackCollecting, setStackCollecting] = useState(false);
-  const [trickPauseActive, setTrickPauseActive] = useState(false);
-  const [trickPauseSnapshot, setTrickPauseSnapshot] =
-    useState<TrickPauseSnapshot | null>(null);
-  const lastTrickLenRef = React.useRef<number>(0);
-  const lastRecordedTrickXpRef = React.useRef(0);
-  const roundStatsRecordedRef = React.useRef(false);
-  const trickPauseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
+  const tableSeats = useMemo(
+    () => buildTableSeatConfig(state?.players ?? [], myPlayerId),
+    [state?.players, myPlayerId],
   );
-  const trickBannerTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const trickCollectTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const insets = useLayoutInsets();
-  const { colors } = useAppTheme();
 
-  function snapshotState(s: GameState | null) {
-    if (!s) return null;
-    return {
-      id: s.id,
-      currentPlayerIndex: s.currentPlayerIndex,
-      currentPlayerId: s.players[s.currentPlayerIndex]?.id,
-      pileCount: s.pile.length,
-      pileTop: s.pile[0]?.value ?? null,
-      passCount: s.passCount,
-      mustPlay: !!s.mustPlay,
-      lastPlayPlayerIndex: s.lastPlayPlayerIndex,
-      players: s.players.map((p) => ({
-        id: p.id,
-        name: p.name,
-        handCount: p.hand.length,
-      })),
-    };
-  }
+  const playAreaLayout = useMemo(() => {
+    const playAreaGameHeight = Math.max(
+      0,
+      playAreaSize.height -
+        reservedBottomHeight(
+          insets.bottom || 0,
+          (humanPlayer?.hand.length ?? 0) > 0 && !gameplayLocked,
+        ),
+    );
+    if (playAreaSize.width <= 0 || playAreaGameHeight <= 0 || !state) return null;
+    return computePlayAreaLayout(
+      playAreaSize.width,
+      playAreaGameHeight,
+      tableSeats.layoutSeatCount,
+    );
+  }, [
+    playAreaSize.width,
+    playAreaSize.height,
+    insets.bottom,
+    humanPlayer?.hand.length,
+    gameplayLocked,
+    tableSeats.layoutSeatCount,
+    state,
+  ]);
 
-  // Detect trick wins (pause briefly) and round completion
-  useEffect(() => {
-    if (!state) return;
-    const len = state.trickHistory ? state.trickHistory.length : 0;
-    if (len > (lastTrickLenRef.current || 0)) {
-      const last =
-        state.trickHistory && state.trickHistory[state.trickHistory.length - 1];
-      if (last && last.winnerName) {
-        setTrickPauseSnapshot({
-          plays: buildPlaysFromTrick(last),
-          passedPlayerIds: passedIdsFromTrick(last),
-          winnerName: last.winnerName,
-          winnerId: last.winnerId ?? "",
-        });
-        setLastTrickWinner(last.winnerName);
-        setShowWinnerBanner(false);
-        setStackCollecting(false);
-        setTrickPauseActive(true);
-
-        if (trickBannerTimerRef.current) {
-          clearTimeout(trickBannerTimerRef.current);
-        }
-        if (trickPauseTimerRef.current) {
-          clearTimeout(trickPauseTimerRef.current);
-        }
-        if (trickCollectTimerRef.current) {
-          clearTimeout(trickCollectTimerRef.current);
-        }
-
-        trickCollectTimerRef.current = setTimeout(() => {
-          setStackCollecting(true);
-          trickCollectTimerRef.current = null;
-        }, TRICK_SPREAD_HOLD_MS);
-
-        trickBannerTimerRef.current = setTimeout(() => {
-          setShowWinnerBanner(true);
-          trickBannerTimerRef.current = null;
-        }, TRICK_SPREAD_HOLD_MS + TRICK_STACK_COLLECT_MS);
-
-        trickPauseTimerRef.current = setTimeout(() => {
-          setShowWinnerBanner(false);
-          setStackCollecting(false);
-          setTrickPauseActive(false);
-          setTrickPauseSnapshot(null);
-          setLastTrickWinner(null);
-          trickPauseTimerRef.current = null;
-        }, TRICK_PAUSE_TOTAL_MS);
-      }
-      lastTrickLenRef.current = len;
-    }
-    const allPlayersFinished = isRoundCompleteForLiving(state);
-    if (allPlayersFinished && !roundOver) {
-      setRoundOver(true);
-      if (!roundStatsRecordedRef.current) {
-        roundStatsRecordedRef.current = true;
-        const human = resolveLocalHumanPlayer(
-          state.players,
-          localPlayerName,
-          localPlayerId,
-          networkAdapter,
-        );
-        if (human) {
-          const placement = state.finishedOrder.indexOf(human.id);
-          if (placement >= 0) {
-            void recordRoundResult(placement, livingPlayerIds(state.players).length);
-          }
-        }
-      }
-      // Auto-ready all CPU players only (not human players)
-      const newReady: { [playerId: string]: boolean } = {};
-      state.players.filter((p) => !isDeadHandPlayer(p)).forEach((p) => {
-        const isLocalHuman =
-          (humanPlayer && p.id === humanPlayer.id) ||
-          (localPlayerId && p.id === localPlayerId);
-        // Only auto-ready CPU players; human players start as not ready
-        newReady[p.id] = !isLocalHuman; // CPU players: true, human players: false
-      });
-      setPlayerReadyStates(newReady);
-    }
-  }, [state, roundOver, localPlayerId, localPlayerName]);
-
-  useEffect(() => {
-    return () => {
-      if (trickPauseTimerRef.current) {
-        clearTimeout(trickPauseTimerRef.current);
-      }
-      if (trickBannerTimerRef.current) {
-        clearTimeout(trickBannerTimerRef.current);
-      }
-      if (trickCollectTimerRef.current) {
-        clearTimeout(trickCollectTimerRef.current);
-      }
-      if (roomNoticeTimerRef.current) {
-        clearTimeout(roomNoticeTimerRef.current);
-      }
-    };
+  const requestLeaveGame = useCallback(() => {
+    setLeaveConfirmVisible(true);
   }, []);
 
-  // When all players are marked ready, start the next round (local / hotseat only).
-  useEffect(() => {
-    if (!roundOver || onlineMultiplayer) return;
-    if (!state) return;
-    const readyIds = Object.keys(playerReadyStates);
-    if (readyIds.length === 0) return;
-    const allReady = state.players
-      .filter((p) => !isDeadHandPlayer(p))
-      .every((p) => !!playerReadyStates[p.id]);
-    if (!allReady) return;
-    startNextRound();
-  }, [playerReadyStates, roundOver, state, onlineMultiplayer]);
+  const cancelLeaveGame = useCallback(() => {
+    setLeaveConfirmVisible(false);
+  }, []);
+
+  const confirmLeaveGame = useCallback(() => {
+    setLeaveConfirmVisible(false);
+    onBack?.();
+  }, [onBack]);
 
   const finalizeCeremonyRound = useCallback(
     (
@@ -792,11 +673,108 @@ export default function GameScreen({
     [resolvedHostId],
   );
 
+  const handleTradeConfirm = useCallback(
+    (selected: CardType[]) => {
+      if (!tradePhase || !activeTrade) return;
+      const ok = completeWinnerReturn(tradePhase.players, activeTrade, selected);
+      if (!ok) return;
+      if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
+        networkAdapter.submitTradeSelection(roomId, selected);
+      }
+      const remaining = tradePhase.trades.filter((t) => !t.completed);
+      if (remaining.length === 0) {
+        if (!onlineMultiplayer) {
+          finalizeCeremonyRound(tradePhase.players, tradePhase.baseState);
+        }
+      } else {
+        setActiveTrade(remaining[0]);
+      }
+    },
+    [
+      tradePhase,
+      activeTrade,
+      onlineMultiplayer,
+      networkAdapter,
+      roomId,
+      finalizeCeremonyRound,
+    ],
+  );
+
   function startNextRound(nextDealSeed?: number) {
     if (!state) return;
     const living = livingPlayerIds(state.players);
     const finishedOrder = state.finishedOrder.filter((id) => living.includes(id));
     startRoundCeremony(state, finishedOrder, nextDealSeed);
+  }
+
+  startNextRoundRef.current = startNextRound;
+  finalizeCeremonyRoundRef.current = finalizeCeremonyRound;
+
+  const bannerNotice = awayNotice ?? roomNotice;
+
+  function showRoomNotice(message: string) {
+    setRoomNotice(message);
+    if (roomNoticeTimerRef.current) {
+      clearTimeout(roomNoticeTimerRef.current);
+    }
+    roomNoticeTimerRef.current = setTimeout(() => {
+      setRoomNotice(null);
+      roomNoticeTimerRef.current = null;
+    }, 4500);
+  }
+
+  function roomEventMessage(
+    playerName: string | undefined,
+    eventType: string,
+    reason?: string,
+  ): string | null {
+    const name = playerName?.trim();
+    if (!name) return null;
+    if (eventType === "playerDisconnected") {
+      return `${name} disconnected — waiting to reconnect…`;
+    }
+    if (reason === "kicked") {
+      return `${name} was removed from the room`;
+    }
+    if (eventType === "playerLeft" || reason === "left") {
+      return `${name} left the game`;
+    }
+    if (reason === "disconnected") {
+      return `${name} left the room`;
+    }
+    return `${name} left the room`;
+  }
+
+  function broadcastGameAction(action: Record<string, unknown>) {
+    if (!onlineMultiplayer || !isSocketAdapter(networkAdapter) || !roomId) return;
+    networkAdapter.sendGameAction(roomId, action);
+  }
+
+  // UX pacing: centralized CPU turn delay for a more relaxed feel
+  const CPU_DELAY_MS = 1100;
+  const TRICK_SPREAD_HOLD_MS = 380;
+  const TRICK_STACK_COLLECT_MS = 520;
+  const TRICK_WINNER_SHOW_MS = 800;
+  const TRICK_PAUSE_TOTAL_MS =
+    TRICK_SPREAD_HOLD_MS + TRICK_STACK_COLLECT_MS + TRICK_WINNER_SHOW_MS;
+
+  function snapshotState(s: GameState | null) {
+    if (!s) return null;
+    return {
+      id: s.id,
+      currentPlayerIndex: s.currentPlayerIndex,
+      currentPlayerId: s.players[s.currentPlayerIndex]?.id,
+      pileCount: s.pile.length,
+      pileTop: s.pile[0]?.value ?? null,
+      passCount: s.passCount,
+      mustPlay: !!s.mustPlay,
+      lastPlayPlayerIndex: s.lastPlayPlayerIndex,
+      players: s.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        handCount: p.hand.length,
+      })),
+    };
   }
 
   function summarizeState(s: any) {
@@ -810,7 +788,6 @@ export default function GameScreen({
     };
   }
 
-  // Emit a structured debug log: console JSON + keep recent in memory for on-screen view
   function emitDebug(event: string, details: any) {
     const entry = {
       ts: new Date().toISOString(),
@@ -825,23 +802,141 @@ export default function GameScreen({
     }
     setDebugLogs((d) => {
       const next = d.concat([entry]);
-      // keep last 200 entries to avoid memory blowup
       return next.slice(-200);
     });
   }
 
-  const startNextRoundRef = useRef(startNextRound);
-  startNextRoundRef.current = startNextRound;
-  const stateSyncedRef = useRef(false);
-  const stateRef = useRef(state);
-  stateRef.current = state;
-  const gameplayLockedRef = useRef(gameplayLocked);
-  gameplayLockedRef.current = gameplayLocked;
-  const roundOverRef = useRef(roundOver);
-  roundOverRef.current = roundOver;
-  const finalizeCeremonyRoundRef = useRef(finalizeCeremonyRound);
-  finalizeCeremonyRoundRef.current = finalizeCeremonyRound;
-  const syncRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    setSpectatorMode(isSpectator);
+  }, [isSpectator]);
+
+  useEffect(() => {
+    if (Object.keys(awayPlayers).length === 0) return;
+    const id = setInterval(() => {
+      setAwayTick((t) => t + 1);
+      setAwayPlayers((prev) => {
+        const now = Date.now();
+        let changed = false;
+        const next: Record<string, AwayPlayer> = { ...prev };
+        for (const [pid, info] of Object.entries(prev)) {
+          if (info.until <= now) {
+            delete next[pid];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [awayPlayers]);
+
+  // Detect trick wins (pause briefly) and round completion
+  useEffect(() => {
+    if (!state) return;
+    const len = state.trickHistory ? state.trickHistory.length : 0;
+    if (len > (lastTrickLenRef.current || 0)) {
+      const last =
+        state.trickHistory && state.trickHistory[state.trickHistory.length - 1];
+      if (last && last.winnerName) {
+        setTrickPauseSnapshot({
+          plays: buildPlaysFromTrick(last),
+          passedPlayerIds: passedIdsFromTrick(last),
+          winnerName: last.winnerName,
+          winnerId: last.winnerId ?? "",
+        });
+        setLastTrickWinner(last.winnerName);
+        setShowWinnerBanner(false);
+        setStackCollecting(false);
+        setTrickPauseActive(true);
+
+        if (trickBannerTimerRef.current) {
+          clearTimeout(trickBannerTimerRef.current);
+        }
+        if (trickPauseTimerRef.current) {
+          clearTimeout(trickPauseTimerRef.current);
+        }
+        if (trickCollectTimerRef.current) {
+          clearTimeout(trickCollectTimerRef.current);
+        }
+
+        trickCollectTimerRef.current = setTimeout(() => {
+          setStackCollecting(true);
+          trickCollectTimerRef.current = null;
+        }, TRICK_SPREAD_HOLD_MS);
+
+        trickBannerTimerRef.current = setTimeout(() => {
+          setShowWinnerBanner(true);
+          trickBannerTimerRef.current = null;
+        }, TRICK_SPREAD_HOLD_MS + TRICK_STACK_COLLECT_MS);
+
+        trickPauseTimerRef.current = setTimeout(() => {
+          setShowWinnerBanner(false);
+          setStackCollecting(false);
+          setTrickPauseActive(false);
+          setTrickPauseSnapshot(null);
+          setLastTrickWinner(null);
+          trickPauseTimerRef.current = null;
+        }, TRICK_PAUSE_TOTAL_MS);
+      }
+      lastTrickLenRef.current = len;
+    }
+    const allPlayersFinished = isRoundCompleteForLiving(state);
+    if (allPlayersFinished && !roundOver) {
+      setRoundOver(true);
+      if (!roundStatsRecordedRef.current) {
+        roundStatsRecordedRef.current = true;
+        const human = resolveLocalHumanPlayer(
+          state.players,
+          localPlayerName,
+          localPlayerId,
+          networkAdapter,
+        );
+        if (human) {
+          const placement = state.finishedOrder.indexOf(human.id);
+          if (placement >= 0) {
+            void recordRoundResult(placement, livingPlayerIds(state.players).length);
+          }
+        }
+      }
+      const newReady: { [playerId: string]: boolean } = {};
+      state.players.filter((p) => !isDeadHandPlayer(p)).forEach((p) => {
+        const isLocalHuman =
+          (humanPlayer && p.id === humanPlayer.id) ||
+          (localPlayerId && p.id === localPlayerId);
+        newReady[p.id] = !isLocalHuman;
+      });
+      setPlayerReadyStates(newReady);
+    }
+  }, [state, roundOver, localPlayerId, localPlayerName, humanPlayer]);
+
+  useEffect(() => {
+    return () => {
+      if (trickPauseTimerRef.current) {
+        clearTimeout(trickPauseTimerRef.current);
+      }
+      if (trickBannerTimerRef.current) {
+        clearTimeout(trickBannerTimerRef.current);
+      }
+      if (trickCollectTimerRef.current) {
+        clearTimeout(trickCollectTimerRef.current);
+      }
+      if (roomNoticeTimerRef.current) {
+        clearTimeout(roomNoticeTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!roundOver || onlineMultiplayer) return;
+    if (!state) return;
+    const readyIds = Object.keys(playerReadyStates);
+    if (readyIds.length === 0) return;
+    const allReady = state.players
+      .filter((p) => !isDeadHandPlayer(p))
+      .every((p) => !!playerReadyStates[p.id]);
+    if (!allReady) return;
+    startNextRound();
+  }, [playerReadyStates, roundOver, state, onlineMultiplayer]);
 
   useEffect(() => {
     if (!onlineMultiplayer) {
@@ -1236,28 +1331,6 @@ export default function GameScreen({
     };
   }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId]);
 
-  // Determine which players are controlled locally on this device (hotseat).
-  // For mock/local games (MockAdapter or no network adapter provided) we treat
-  // any non-CPU-named players as local humans. For multiplayer we only treat
-  // the player matching `localPlayerId` or `localPlayerName` as the local human.
-  const humanPlayer = state
-    ? resolveLocalHumanPlayer(
-        state.players,
-        localPlayerName,
-        localPlayerId,
-        networkAdapter,
-      )
-    : null;
-
-  const localControlledIds = humanPlayer ? [humanPlayer.id] : [];
-  const myPlayerId =
-    humanPlayer?.id ??
-    localPlayerId ??
-    (isSocketAdapter(networkAdapter) ? networkAdapter.getProfileId() : null);
-
-  myPlayerIdRef.current = myPlayerId;
-
-  // Persist +15 XP when the local human wins a trick (checkered flag moment).
   useEffect(() => {
     if (!showWinnerBanner || !trickPauseSnapshot?.winnerId || !myPlayerId) return;
     if (trickPauseSnapshot.winnerId !== myPlayerId) return;
@@ -1271,59 +1344,6 @@ export default function GameScreen({
     myPlayerId,
     state?.trickHistory?.length,
   ]);
-
-  const tableSeats = useMemo(
-    () => buildTableSeatConfig(state?.players ?? [], myPlayerId),
-    [state?.players, myPlayerId],
-  );
-
-  const deadHandGraveyard =
-    !gameplayLocked && !ceremonyPrep && !tradePhase;
-
-  const playAreaGameHeight = Math.max(
-    0,
-    playAreaSize.height -
-      reservedBottomHeight(
-        insets.bottom || 0,
-        (humanPlayer?.hand.length ?? 0) > 0 && !gameplayLocked,
-      ),
-  );
-
-  const playAreaLayout = useMemo(() => {
-    if (playAreaSize.width <= 0 || playAreaGameHeight <= 0 || !state) return null;
-    return computePlayAreaLayout(
-      playAreaSize.width,
-      playAreaGameHeight,
-      tableSeats.layoutSeatCount,
-    );
-  }, [playAreaSize.width, playAreaGameHeight, tableSeats.layoutSeatCount]);
-
-  const handleTradeConfirm = useCallback(
-    (selected: CardType[]) => {
-      if (!tradePhase || !activeTrade) return;
-      const ok = completeWinnerReturn(tradePhase.players, activeTrade, selected);
-      if (!ok) return;
-      if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
-        networkAdapter.submitTradeSelection(roomId, selected);
-      }
-      const remaining = tradePhase.trades.filter((t) => !t.completed);
-      if (remaining.length === 0) {
-        if (!onlineMultiplayer) {
-          finalizeCeremonyRound(tradePhase.players, tradePhase.baseState);
-        }
-      } else {
-        setActiveTrade(remaining[0]);
-      }
-    },
-    [
-      tradePhase,
-      activeTrade,
-      onlineMultiplayer,
-      networkAdapter,
-      roomId,
-      finalizeCeremonyRound,
-    ],
-  );
 
   useEffect(() => {
     if (!tradePhase || onlineMultiplayer || !myPlayerId) return;
@@ -1434,28 +1454,17 @@ export default function GameScreen({
     return () => clearTimeout(timer);
   }, [state, trickPauseActive, gameplayLocked, roundOver, humanPlayer?.id]);
 
-  const roleById = useMemo(() => {
-    const src =
-      tradePhase?.players ?? ceremonyPrep?.players ?? state?.players ?? [];
-    const map: Record<string, GameState["players"][number]["role"]> = {};
-    for (const p of src) {
-      map[p.id] = p.role;
-    }
-    return map;
-  }, [tradePhase, ceremonyPrep, state?.players]);
-
-  const requestLeaveGame = useCallback(() => {
-    setLeaveConfirmVisible(true);
-  }, []);
-
-  const cancelLeaveGame = useCallback(() => {
-    setLeaveConfirmVisible(false);
-  }, []);
-
-  const confirmLeaveGame = useCallback(() => {
-    setLeaveConfirmVisible(false);
-    onBack?.();
-  }, [onBack]);
+  const localControlledIds = humanPlayer ? [humanPlayer.id] : [];
+  const deadHandGraveyard =
+    !gameplayLocked && !ceremonyPrep && !tradePhase;
+  const playAreaGameHeight = Math.max(
+    0,
+    playAreaSize.height -
+      reservedBottomHeight(
+        insets.bottom || 0,
+        (humanPlayer?.hand.length ?? 0) > 0 && !gameplayLocked,
+      ),
+  );
 
   if (!state) {
     if (onlineMultiplayer) {
