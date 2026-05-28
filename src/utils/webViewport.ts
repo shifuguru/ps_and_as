@@ -47,10 +47,10 @@ function attachViewportCacheListeners(): void {
 
 function readWebSafeAreaInsetsUncached(): SafeAreaInsets {
   return {
-    top: measureCssLength("paddingTop", "env(safe-area-inset-top, 0px)"),
-    bottom: measureCssLength("paddingBottom", "env(safe-area-inset-bottom, 0px)"),
-    left: measureCssLength("paddingLeft", "env(safe-area-inset-left, 0px)"),
-    right: measureCssLength("paddingRight", "env(safe-area-inset-right, 0px)"),
+    top: measureSafeAreaInset("top"),
+    bottom: measureSafeAreaInset("bottom"),
+    left: measureSafeAreaInset("left"),
+    right: measureSafeAreaInset("right"),
   };
 }
 
@@ -94,6 +94,25 @@ function measureCssLength(
   return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
+function measureSafeAreaInset(
+  edge: "top" | "bottom" | "left" | "right",
+): number {
+  const prop =
+    edge === "top"
+      ? "paddingTop"
+      : edge === "bottom"
+        ? "paddingBottom"
+        : edge === "left"
+          ? "paddingLeft"
+          : "paddingRight";
+  const envKey = `env(safe-area-inset-${edge}, 0px)`;
+  const legacyKey = `constant(safe-area-inset-${edge})`;
+  return Math.max(
+    measureCssLength(prop, envKey),
+    measureCssLength(prop, legacyKey),
+  );
+}
+
 export function readWebSafeAreaInsets(): SafeAreaInsets {
   if (Platform.OS !== "web") {
     return { top: 0, bottom: 0, left: 0, right: 0 };
@@ -123,12 +142,15 @@ export function readWebShellHeight(win: WebWindow): number {
     return Math.round(vv.height);
   }
 
-  // Standalone PWA has no Safari URL bar — match the visible viewport, not innerHeight.
+  // Standalone PWA: visualViewport can be shorter than innerHeight (home-indicator
+  // band), which leaves a strip below #root and fixed bottom bars. Prefer layout
+  // viewport height so felt and chrome reach the physical bottom.
   if (isStandaloneWebApp()) {
-    if (vv) {
-      return Math.round(vv.height + (vv.offsetTop ?? 0));
-    }
-    return layoutH;
+    const visualFull = vv
+      ? Math.round(vv.height + (vv.offsetTop ?? 0))
+      : layoutH;
+    const lvh = measureCssLength("height", "100lvh");
+    return Math.max(layoutH, visualFull, lvh);
   }
 
   if (Platform.OS === "web" && cachedShellHeight > 0 && !keyboardLikelyOpen(win)) {
@@ -157,12 +179,25 @@ export function applyMobileWebShellHeight(win: WebWindow): number {
   const h = readWebShellHeight(win);
   const px = `${h}px`;
   const prev = doc.documentElement.style.getPropertyValue(APP_SHELL_HEIGHT_VAR);
-  const root = doc.getElementById("root");
-  if (prev === px && doc.documentElement.style.height === px && root?.style.height === px) {
+  if (prev !== px) {
+    doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, px);
+  }
+
+  // Home-screen PWA: position:fixed + inset:0 on html/body/#root fills the screen.
+  // Locking pixel height to visualViewport leaves a gap below fixed bottom bars.
+  if (isStandaloneWebApp()) {
     return h;
   }
 
-  doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, px);
+  const root = doc.getElementById("root");
+  if (
+    prev === px &&
+    doc.documentElement.style.height === px &&
+    root?.style.height === px
+  ) {
+    return h;
+  }
+
   doc.documentElement.style.height = px;
   doc.documentElement.style.minHeight = px;
   doc.body.style.height = px;

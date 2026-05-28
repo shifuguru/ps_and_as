@@ -768,6 +768,34 @@ console.log("Dead hand role/trade tests passed");
   base.lastRoundOrder = lastOrder;
   const players = clonePlayersForRound(base.players);
   applyFinishOrderRoles(players, lastOrder);
+  players[0].hand = [{ suit: "hearts", value: 14 }, { suit: "clubs", value: 3 }];
+  players[1].hand = [{ suit: "diamonds", value: 4 }];
+  const trades = applyMandatoryTrades(players);
+  assert.strictEqual(trades.length, 1);
+  completeWinnerReturn(players, trades[0], [{ suit: "clubs", value: 3 }]);
+  assert.ok(
+    players[1].hand.some((c) => c.suit === "clubs" && c.value === 3),
+    "Asshole receives 3♣ when president returns it",
+  );
+  assert.strictEqual(
+    resolveLeadPlayerIndexAfterTrades(players, { lastRoundOrder: lastOrder }),
+    1,
+    "Asshole leads when 3♣ was traded back to them",
+  );
+  const next = buildFreshRoundState(base, players, { lastRoundOrder: lastOrder });
+  assert.strictEqual(
+    next.currentPlayerIndex,
+    1,
+    "buildFreshRoundState opens on asshole after 3♣ trade return",
+  );
+}
+
+{
+  const base = createGame(["Pres", "Ass"]);
+  const lastOrder = ["1", "2"];
+  base.lastRoundOrder = lastOrder;
+  const players = clonePlayersForRound(base.players);
+  applyFinishOrderRoles(players, lastOrder);
   players[0].hand = [{ suit: "hearts", value: 14 }, { suit: "diamonds", value: 4 }];
   players[1].hand = [{ suit: "clubs", value: 3 }];
   const trades = applyMandatoryTrades(players);

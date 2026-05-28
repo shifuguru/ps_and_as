@@ -4,7 +4,6 @@ import {
   DEFAULT_FELT_COLOR,
   FELT_WALLPAPER,
 } from "../services/wallpaper";
-import { APP_SHELL_HEIGHT_VAR } from "../utils/webViewport";
 
 /** Fixed layer that paints edge-to-edge on mobile Safari / standalone PWA. */
 export const WEB_FULL_BLEED_FIXED =
@@ -17,8 +16,6 @@ export const WEB_FULL_BLEED_FIXED =
         right: 0,
         bottom: 0,
         width: "100%",
-        height: `var(${APP_SHELL_HEIGHT_VAR}, 100dvh)`,
-        minHeight: `var(${APP_SHELL_HEIGHT_VAR}, 100dvh)`,
       } as object)
     : null;
 
@@ -32,8 +29,6 @@ export const WEB_SPLASH_OVERLAY =
         right: 0,
         bottom: 0,
         width: "100%",
-        height: `var(${APP_SHELL_HEIGHT_VAR}, 100dvh)`,
-        minHeight: `var(${APP_SHELL_HEIGHT_VAR}, 100dvh)`,
         backgroundColor: "#000000",
       } as object)
     : null;
@@ -68,9 +63,9 @@ export function ensureWebFeltBackdrop(tint = DEFAULT_FELT_COLOR): void {
       background-repeat: no-repeat;
       background-attachment: fixed;
     }
-    @supports (height: 100dvh) {
+    @supports (height: 100lvh) {
       html, body {
-        min-height: var(${APP_SHELL_HEIGHT_VAR}, 100dvh);
+        min-height: 100lvh;
       }
     }
     #root {

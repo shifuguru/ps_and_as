@@ -42,6 +42,7 @@ import {
   applyMandatoryTrades,
   allTradesCompleted,
   autoCompleteCpuWinnerTrades,
+  applyServerPlayerHands,
   applyServerRolesToPlayers,
   buildFreshRoundState,
   clonePlayersForRound,
@@ -147,17 +148,6 @@ function selectSameRankNearTap(
   let start = Math.max(0, pos - take + 1);
   if (start + take > sameAll.length) start = sameAll.length - take;
   return sameAll.slice(start, start + take);
-}
-
-function mergeLocalHandFromServer(
-  players: GameState["players"],
-  playerHands: Record<string, CardType[]> | null | undefined,
-  localId: string | null | undefined,
-): GameState["players"] {
-  if (!playerHands || !localId || !playerHands[localId]) return players;
-  return players.map((p) =>
-    p.id === localId ? { ...p, hand: playerHands[localId] } : p,
-  );
 }
 
 // Helper: check if a card value can be part of any valid play
@@ -542,12 +532,11 @@ function GameScreen({
       baseState: GameState,
       serverHands?: Record<string, CardType[]> | null,
     ) => {
-      const localId = myPlayerIdRef.current;
-      const merged = mergeLocalHandFromServer(
-        players,
-        serverHands ?? pendingTradesCompleteRef.current,
-        localId,
-      );
+      const handsSource =
+        serverHands ?? pendingTradesCompleteRef.current ?? null;
+      const merged = handsSource
+        ? applyServerPlayerHands(players, handsSource)
+        : players;
       pendingTradesCompleteRef.current = null;
       const next = buildFreshRoundState(baseState, merged, {
         hostId: resolvedHostId,
@@ -690,12 +679,13 @@ function GameScreen({
         finishOrder: finishedOrder,
       });
       const hiddenPlayers = players.map((p) => ({ ...p, hand: [] }));
+      const priorRound = finishedOrder.length >= 2;
       setState(
         buildFreshRoundState(
           baseState,
           hiddenPlayers,
           dealerContext,
-          openingPlayerIndex,
+          priorRound ? undefined : openingPlayerIndex,
         ),
       );
     },
@@ -1127,16 +1117,13 @@ function GameScreen({
           finishOrder,
         });
         const hiddenPlayers = players.map((p) => ({ ...p, hand: [] }));
-        const openingPlayerIndex = resolveOpeningPlayerIndex(
-          players,
-          dealerContext,
-        );
+        const priorRound = finishOrder.length >= 2;
         setState(
           buildFreshRoundState(
             parsed,
             hiddenPlayers,
             dealerContext,
-            openingPlayerIndex,
+            priorRound ? undefined : resolveOpeningPlayerIndex(players, dealerContext),
           ),
         );
         stateSyncedRef.current = true;

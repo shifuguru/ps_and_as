@@ -204,6 +204,34 @@ export function clonePlayersForRound(players: Player[]): Player[] {
   }));
 }
 
+/** Apply authoritative post-trade hands from server (all seats, not just local). */
+export function applyServerPlayerHands(
+  players: Player[],
+  playerHands: Record<string, Card[]> | null | undefined,
+): Player[] {
+  if (!playerHands) return players;
+  return players.map((p) =>
+    playerHands[p.id] ? { ...p, hand: [...playerHands[p.id]] } : p,
+  );
+}
+
+/** Who leads after mandatory trades: 3♣ holder among living players when prior round. */
+export function resolveOpenerAfterRoleTrades(
+  players: Player[],
+  dealerOptions?: DealerContext,
+): number {
+  const dealerContext: DealerContext = dealerOptions ?? {};
+  const priorRound =
+    (dealerContext.lastRoundOrder?.length ?? 0) >= 2 ||
+    (dealerContext.finishedOrder?.length ?? 0) >= 2;
+  if (!priorRound) {
+    return resolveOpeningPlayerIndex(players, dealerContext);
+  }
+  const afterTrades = resolveLeadPlayerIndexAfterTrades(players, dealerContext);
+  if (afterTrades >= 0) return afterTrades;
+  return resolveOpeningPlayerIndex(players, dealerContext);
+}
+
 export function buildFreshRoundState(
   prev: GameState,
   players: Player[],
@@ -223,24 +251,9 @@ export function buildFreshRoundState(
         ? lastRoundOrder
         : dealerOptions?.lastRoundOrder ?? prev.lastRoundOrder,
   };
-  const priorRound =
-    (dealerContext.lastRoundOrder?.length ?? 0) >= 2 ||
-    (dealerContext.finishedOrder?.length ?? 0) >= 2;
-
   let openerIdx = openingPlayerIndex;
   if (openerIdx == null) {
-    if (priorRound) {
-      const afterTrades = resolveLeadPlayerIndexAfterTrades(
-        players,
-        dealerContext,
-      );
-      openerIdx =
-        afterTrades >= 0
-          ? afterTrades
-          : resolveOpeningPlayerIndex(players, dealerContext);
-    } else {
-      openerIdx = resolveOpeningPlayerIndex(players, dealerContext);
-    }
+    openerIdx = resolveOpenerAfterRoleTrades(players, dealerContext);
   }
   if (openerIdx < 0 || openerIdx >= players.length) {
     const fallback = players.findIndex((p) => !isDeadHandPlayer(p));

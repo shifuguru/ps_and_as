@@ -78,8 +78,8 @@ export function bottomOuterPad(safeBottom = 0): number {
   const chrome = Math.max(0, safeBottom);
   if (Platform.OS === "web") {
     if (isStandaloneWebApp()) {
-      // PWA: safeBottom already includes env(safe-area-inset-bottom) via useLayoutInsets.
-      return (chrome > 0 ? chrome : 20) + 14;
+      // PWA: pad for home indicator only; shell fills to screen bottom via inset:0.
+      return (chrome > 0 ? chrome : 12) + 12;
     }
     if (isMobileWeb()) {
       return Math.max(chrome, 20) + 14;

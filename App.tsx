@@ -305,8 +305,15 @@ function AppContent() {
       }
       @media (pointer: coarse) and (max-width: 900px), (max-width: 768px) {
         html, body, #root {
-          height: var(${APP_SHELL_HEIGHT_VAR}, 100dvh) !important;
-          min-height: var(${APP_SHELL_HEIGHT_VAR}, 100dvh) !important;
+          height: var(${APP_SHELL_HEIGHT_VAR}, 100lvh) !important;
+          min-height: var(${APP_SHELL_HEIGHT_VAR}, 100lvh) !important;
+          max-height: none !important;
+        }
+      }
+      @media (display-mode: standalone) {
+        html, body, #root {
+          height: auto !important;
+          min-height: 0 !important;
           max-height: none !important;
         }
       }
@@ -340,7 +347,25 @@ function AppContent() {
 
     if (isMobileWeb()) {
       applyMobileWebShellHeight(win);
-      return;
+      const w = win as unknown as {
+        addEventListener: (type: string, fn: () => void) => void;
+        removeEventListener: (type: string, fn: () => void) => void;
+        visualViewport?: {
+          addEventListener: (type: string, fn: () => void) => void;
+          removeEventListener: (type: string, fn: () => void) => void;
+        } | null;
+      };
+      const onViewportChange = () => applyMobileWebShellHeight(win);
+      w.addEventListener("resize", onViewportChange);
+      w.visualViewport?.addEventListener("resize", onViewportChange);
+      w.visualViewport?.addEventListener("scroll", onViewportChange);
+      w.addEventListener("orientationchange", onViewportChange);
+      return () => {
+        w.removeEventListener("resize", onViewportChange);
+        w.visualViewport?.removeEventListener("resize", onViewportChange);
+        w.visualViewport?.removeEventListener("scroll", onViewportChange);
+        w.removeEventListener("orientationchange", onViewportChange);
+      };
     }
 
     const px = `${viewport.height}px`;
@@ -585,9 +610,8 @@ function AppContent() {
                 top: 0,
                 left: 0,
                 right: 0,
+                bottom: 0,
                 width: "100%",
-                height: viewport.height,
-                minHeight: viewport.height,
               } as object)
             : {
                 width: "100%",
