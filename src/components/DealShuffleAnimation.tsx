@@ -201,7 +201,7 @@ export default function DealShuffleAnimation({
         { translateY },
         { rotate: `${rotateDeg}deg` },
       ],
-    };
+    } as any;
   });
 
   const rightStyle = useAnimatedStyle(() => {
@@ -217,7 +217,7 @@ export default function DealShuffleAnimation({
         { translateY },
         { rotate: `${rotateDeg}deg` },
       ],
-    };
+    } as any;
   });
 
   if (!running) return null;

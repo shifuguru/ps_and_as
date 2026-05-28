@@ -127,7 +127,10 @@ export default function ShimmerText({
             backgroundImage: gradient,
             backgroundSize: "220% 100%",
             backgroundPosition: webBgPos,
-          },
+            backgroundClip: "text",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          } as object,
         ]}
         numberOfLines={1}
         onLayout={onLayout}
@@ -194,11 +197,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   webText: {
-    backgroundClip: "text",
-    // @ts-expect-error web-only
-    WebkitBackgroundClip: "text",
-    // @ts-expect-error web-only
-    WebkitTextFillColor: "transparent",
     color: "transparent",
   },
   band: {

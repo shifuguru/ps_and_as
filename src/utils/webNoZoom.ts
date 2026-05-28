@@ -10,11 +10,11 @@ let noZoomInstalled = false;
 /** Lock mobile web viewport scaling (pinch, focus-zoom, double-tap). */
 export function ensureWebNoZoom(): void {
   if (Platform.OS !== "web" || noZoomInstalled) return;
-  const doc = (globalThis as { document?: Document }).document;
+  const doc = (globalThis as { document?: any }).document;
   if (!doc) return;
   noZoomInstalled = true;
 
-  let meta = doc.querySelector('meta[name="viewport"]') as HTMLMetaElement | null;
+  let meta = doc.querySelector('meta[name="viewport"]');
   if (!meta) {
     meta = doc.createElement("meta");
     meta.name = "viewport";
@@ -46,8 +46,8 @@ export function ensureWebNoZoom(): void {
   );
 }
 
-function hostElement(ref: RefObject<View | null>): HTMLElement | null {
-  return (ref.current as unknown as HTMLElement | null) ?? null;
+function hostElement(ref: RefObject<View | null>): any {
+  return (ref.current as unknown as any) ?? null;
 }
 
 /** Prevent parent ScrollViews from scrolling while dragging inside a touch target. */

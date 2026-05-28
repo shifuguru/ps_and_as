@@ -77,7 +77,7 @@ function measureCssLength(
   value: string,
 ): number {
   if (Platform.OS !== "web") return 0;
-  const doc = (globalThis as { document?: Document }).document;
+  const doc = (globalThis as { document?: any }).document;
   if (!doc?.body) return 0;
 
   const probe = doc.createElement("div");
@@ -86,7 +86,7 @@ function measureCssLength(
   probe.style.pointerEvents = "none";
   probe.style[property] = value;
   doc.body.appendChild(probe);
-  const styles = getComputedStyle(probe);
+  const styles = (globalThis as { getComputedStyle?: (el: any) => any }).getComputedStyle!(probe);
   const raw =
     property === "height"
       ? styles.height
@@ -139,7 +139,7 @@ export function resolveWebBottomInset(measured = 0): number {
   return 0;
 }
 
-function clearStandaloneShellInlineHeights(doc: Document): void {
+function clearStandaloneShellInlineHeights(doc: any): void {
   if (!isStandaloneWebApp()) return;
   doc.documentElement.style.removeProperty("height");
   doc.documentElement.style.removeProperty("min-height");
@@ -205,7 +205,7 @@ export function readWebShellHeight(win: WebWindow): number {
 export function applyMobileWebShellHeight(win: WebWindow): number {
   if (Platform.OS !== "web" || !isMobileWeb()) return readWebShellHeight(win);
 
-  const doc = (globalThis as { document?: Document }).document;
+  const doc = (globalThis as { document?: any }).document;
   if (!doc) return readWebShellHeight(win);
 
   const h = readWebShellHeight(win);
@@ -232,10 +232,10 @@ export function applyMobileWebShellHeight(win: WebWindow): number {
 export function installWebShellCss(feltTint: string): () => void {
   if (Platform.OS !== "web") return () => undefined;
 
-  const doc = (globalThis as { document?: Document }).document;
+  const doc = (globalThis as { document?: any }).document;
   if (!doc) return () => undefined;
 
-  let style = doc.getElementById(WEB_SHELL_STYLE_ID) as HTMLStyleElement | null;
+  let style = doc.getElementById(WEB_SHELL_STYLE_ID);
   if (!style) {
     style = doc.createElement("style");
     style.id = WEB_SHELL_STYLE_ID;
