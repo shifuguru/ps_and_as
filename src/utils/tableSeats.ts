@@ -5,7 +5,7 @@ import {
 } from "../game/deadHand";
 import type { Player } from "../game/ruleset";
 
-/** Dead hand avatar is always pinned to the right side of the table. */
+/** @deprecated Dead hand uses the same ring slot as any other seat (see ringAngleForSeat). */
 export const DEAD_HAND_RING_ANGLE = 90;
 
 export type TableSeatConfig = {

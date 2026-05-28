@@ -59,7 +59,6 @@ import ScreenContainer from "../components/ScreenContainer";
 import EndGamePanel from "../components/EndGamePanel";
 import BottomBar, {
   BottomBarControls,
-  BottomBarHand,
   BottomBarLeave,
   localSeatBottomOffset,
   reservedBottomHeight,
@@ -106,6 +105,17 @@ function selectSameRankNearTap(
   let start = Math.max(0, pos - take + 1);
   if (start + take > sameAll.length) start = sameAll.length - take;
   return sameAll.slice(start, start + take);
+}
+
+function mergeLocalHandFromServer(
+  players: GameState["players"],
+  playerHands: Record<string, CardType[]> | null | undefined,
+  localId: string | null | undefined,
+): GameState["players"] {
+  if (!playerHands || !localId || !playerHands[localId]) return players;
+  return players.map((p) =>
+    p.id === localId ? { ...p, hand: playerHands[localId] } : p,
+  );
 }
 
 // Helper: check if a card value can be part of any valid play
@@ -345,6 +355,8 @@ export default function GameScreen({
   ceremonyPrepRef.current = ceremonyPrep;
   const tradePhaseRef = useRef(tradePhase);
   tradePhaseRef.current = tradePhase;
+  const pendingTradesCompleteRef = useRef<Record<string, CardType[]> | null>(null);
+  const myPlayerIdRef = useRef<string | null>(null);
   const [roomNotice, setRoomNotice] = useState<string | null>(null);
   const roomNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
@@ -571,8 +583,19 @@ export default function GameScreen({
   }, [playerReadyStates, roundOver, state, onlineMultiplayer]);
 
   const finalizeCeremonyRound = useCallback(
-    (players: GameState["players"], baseState: GameState) => {
-      const next = buildFreshRoundState(baseState, players);
+    (
+      players: GameState["players"],
+      baseState: GameState,
+      serverHands?: Record<string, CardType[]> | null,
+    ) => {
+      const localId = myPlayerIdRef.current;
+      const merged = mergeLocalHandFromServer(
+        players,
+        serverHands ?? pendingTradesCompleteRef.current,
+        localId,
+      );
+      pendingTradesCompleteRef.current = null;
+      const next = buildFreshRoundState(baseState, merged);
       setState(next);
       setRoundOver(false);
       roundStatsRecordedRef.current = false;
@@ -606,9 +629,24 @@ export default function GameScreen({
 
   const handleDealComplete = useCallback(() => {
     const prep = ceremonyPrepRef.current;
-    if (!prep) return;
-    beginTradePhase(prep.baseState, prep.players, prep.trades);
-  }, [beginTradePhase]);
+    if (prep) {
+      beginTradePhase(prep.baseState, prep.players, prep.trades);
+      return;
+    }
+    const pending = pendingTradesCompleteRef.current;
+    const tp = tradePhaseRef.current;
+    if (tp && pending) {
+      for (const p of tp.players) {
+        if (pending[p.id]) p.hand = pending[p.id];
+      }
+      finalizeCeremonyRound(tp.players, tp.baseState, pending);
+      return;
+    }
+    if (pending && stateRef.current) {
+      const players = clonePlayersForRound(stateRef.current.players);
+      finalizeCeremonyRound(players, stateRef.current, pending);
+    }
+  }, [beginTradePhase, finalizeCeremonyRound]);
 
   const startRoundCeremony = useCallback(
     (baseState: GameState, finishedOrder: string[], nextDealSeed?: number) => {
@@ -685,6 +723,10 @@ export default function GameScreen({
   const startNextRoundRef = useRef(startNextRound);
   startNextRoundRef.current = startNextRound;
   const stateSyncedRef = useRef(false);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const finalizeCeremonyRoundRef = useRef(finalizeCeremonyRound);
+  finalizeCeremonyRoundRef.current = finalizeCeremonyRound;
   const syncRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -698,6 +740,12 @@ export default function GameScreen({
       if (cached) {
         stateSyncedRef.current = true;
         setState(cached);
+      }
+      const cachedHands = networkAdapter.getCachedTradesComplete() as
+        | Record<string, CardType[]>
+        | null;
+      if (cachedHands) {
+        pendingTradesCompleteRef.current = cachedHands;
       }
     }
 
@@ -758,6 +806,27 @@ export default function GameScreen({
           }
           }
         }
+
+        const pendingHands = pendingTradesCompleteRef.current;
+        const unlockId =
+          localPlayerId ??
+          (isSocketAdapter(networkAdapter)
+            ? networkAdapter.getProfileId()
+            : null);
+        if (pendingHands) {
+          ceremonyDoneForRoundRef.current = parsed.id;
+          finalizeCeremonyRoundRef.current(
+            mergeLocalHandFromServer(players, pendingHands, unlockId),
+            parsed,
+            pendingHands,
+          );
+          stateSyncedRef.current = true;
+          if (typeof spectator === "boolean") {
+            setSpectatorMode(spectator);
+          }
+          return;
+        }
+
         setGameplayLocked(true);
         setCeremonyPrep({
           baseState: parsed,
@@ -963,15 +1032,26 @@ export default function GameScreen({
         const hands = ev.state.playerHands as
           | Record<string, CardType[]>
           | undefined;
+        if (hands) {
+          pendingTradesCompleteRef.current = hands;
+        }
         const tp = tradePhaseRef.current;
         const prep = ceremonyPrepRef.current;
         if (tp && hands) {
           for (const p of tp.players) {
             if (hands[p.id]) p.hand = hands[p.id];
           }
-          finalizeCeremonyRound(tp.players, tp.baseState);
-        } else if (prep) {
-          finalizeCeremonyRound(prep.players, prep.baseState);
+          finalizeCeremonyRoundRef.current(tp.players, tp.baseState, hands);
+        } else if (prep && hands) {
+          finalizeCeremonyRoundRef.current(
+            mergeLocalHandFromServer(
+              prep.players,
+              hands,
+              myPlayerIdRef.current,
+            ),
+            prep.baseState,
+            hands,
+          );
         }
       }
       // Legacy support for MockAdapter — only apply full game snapshots.
@@ -1013,6 +1093,8 @@ export default function GameScreen({
     localPlayerId ??
     (isSocketAdapter(networkAdapter) ? networkAdapter.getProfileId() : null);
 
+  myPlayerIdRef.current = myPlayerId;
+
   const hostPlayerId =
     (isSocketAdapter(networkAdapter) ? networkAdapter.getHostId() : null) ??
     initialLobbyPlayers?.[0]?.id ??
@@ -1026,14 +1108,20 @@ export default function GameScreen({
   const deadHandGraveyard =
     !gameplayLocked && !ceremonyPrep && !tradePhase;
 
+  const playAreaGameHeight = Math.max(
+    0,
+    playAreaSize.height -
+      reservedBottomHeight(insets.bottom || 0, false),
+  );
+
   const playAreaLayout = useMemo(() => {
-    if (playAreaSize.width <= 0 || playAreaSize.height <= 0 || !state) return null;
+    if (playAreaSize.width <= 0 || playAreaGameHeight <= 0 || !state) return null;
     return computePlayAreaLayout(
       playAreaSize.width,
-      playAreaSize.height,
+      playAreaGameHeight,
       tableSeats.layoutSeatCount,
     );
-  }, [playAreaSize.width, playAreaSize.height, state, tableSeats.layoutSeatCount]);
+  }, [playAreaSize.width, playAreaGameHeight, state, tableSeats.layoutSeatCount]);
 
   const handleTradeConfirm = useCallback(
     (selected: CardType[]) => {
@@ -1559,8 +1647,14 @@ export default function GameScreen({
   };
 
   const handVisible = hand.length > 0;
-  const bottomBarHeight = reservedBottomHeight(insets.bottom || 0, handVisible);
-  const localSeatBottom = localSeatBottomOffset(insets.bottom || 0, handVisible);
+  const bottomBarHeight = reservedBottomHeight(insets.bottom || 0, false);
+  const localSeatBottom = localSeatBottomOffset(
+    insets.bottom || 0,
+    handVisible && !gameplayLocked,
+    HAND_FAN_HEIGHT,
+  );
+  const localSeatStackHeight =
+    handVisible && !gameplayLocked ? HAND_FAN_HEIGHT + LOCAL_SEAT_BAND + 8 : LOCAL_SEAT_BAND;
   const contentTopPadding = insets.top + 8;
   const trickPlays = buildTrickPlayDisplays(state);
   const activeLastPlayId = lastPlayPlayerId(state);
@@ -1982,10 +2076,30 @@ export default function GameScreen({
         <View
           style={[
             local.localSeatOverlay,
-            { bottom: localSeatBottom, height: LOCAL_SEAT_BAND },
+            { bottom: localSeatBottom, minHeight: localSeatStackHeight },
           ]}
           pointerEvents="box-none"
         >
+          {handVisible && !gameplayLocked ? (
+            <View style={local.localHandAboveSeat} pointerEvents="box-none">
+              {!isHumanTurn ? (
+                <View style={local.waitingPill}>
+                  <Text style={local.waitingPillText}>
+                    Waiting for {current.name}…
+                  </Text>
+                </View>
+              ) : null}
+              <PlayerHand
+                ref={handRef}
+                cards={hand}
+                selectedIndices={selected}
+                playableIndices={playableIndices}
+                startingCardIndex={startingCardIndex}
+                disabled={!isHumanTurn}
+                onCardPress={handleCardPress}
+              />
+            </View>
+          ) : null}
           <OpponentSeat
             player={localSeatPlayer}
             isActive={
@@ -2006,30 +2120,8 @@ export default function GameScreen({
         </View>
       ) : null}
 
-      {/* Player hand + actions — sticky bottom sheet */}
+      {/* Action bar — sticky bottom sheet (hand sits above local avatar) */}
       <BottomBar>
-        {handVisible && !gameplayLocked ? (
-          <BottomBarHand height={HAND_FAN_HEIGHT}>
-            {!isHumanTurn && (
-              <View style={local.waitingPill}>
-                <Text style={local.waitingPillText}>
-                  Waiting for {current.name}…
-                </Text>
-              </View>
-            )}
-
-            <PlayerHand
-              ref={handRef}
-              cards={hand}
-              selectedIndices={selected}
-              playableIndices={playableIndices}
-              startingCardIndex={startingCardIndex}
-              disabled={!isHumanTurn}
-              onCardPress={handleCardPress}
-            />
-          </BottomBarHand>
-        ) : null}
-
         <BottomBarControls>
           {readOnlyOnline ? (
             <>
@@ -2119,7 +2211,9 @@ export default function GameScreen({
         })}
         deadHandId={tableSeats.deadHandId}
         layout={playAreaLayout}
-        playAreaHeight={playAreaSize.height}
+        playAreaHeight={playAreaGameHeight}
+        playAreaOffsetTop={contentTopPadding}
+        playAreaOffsetLeft={12}
         cardsPerPlayer={
           ceremonyPrep
             ? Math.max(
@@ -2226,6 +2320,12 @@ const local = StyleSheet.create({
     zIndex: 44,
     alignItems: "center",
     justifyContent: "flex-end",
+    overflow: "visible",
+  },
+  localHandAboveSeat: {
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 4,
     overflow: "visible",
   },
   playTypeOverlay: {

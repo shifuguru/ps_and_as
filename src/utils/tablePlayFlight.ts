@@ -6,7 +6,6 @@ import {
   ringAngleForSeat,
   LOCAL_SEAT_TABLE_LIFT,
 } from "./tableLayout";
-import { DEAD_HAND_RING_ANGLE } from "./tableSeats";
 import {
   type FrozenPlaySpot,
   layoutPlayBundle,
@@ -34,19 +33,24 @@ export function seatOriginInPlayArea(
   const seatIndex = layoutSeatIds.indexOf(playerId);
   if (seatIndex < 0) return null;
 
+  const compact = layoutSeatIds.length >= 6;
+  const avatarCenterY = compact
+    ? layout.seatDimensions.avatarCenterYCompact
+    : layout.seatDimensions.avatarCenterY;
+
   if (localPlayerIds.includes(playerId)) {
     return {
       x: layout.width / 2,
-      y: playAreaHeight - layout.localBandHeight * 0.42 - LOCAL_SEAT_TABLE_LIFT,
+      y:
+        playAreaHeight -
+        layout.localBandHeight * 0.12 -
+        LOCAL_SEAT_TABLE_LIFT -
+        avatarCenterY * 0.35,
     };
   }
 
-  const deadHandId = options?.deadHandId;
   const { opponentRing: ring } = layout;
-  const angle =
-    deadHandId && playerId === deadHandId
-      ? DEAD_HAND_RING_ANGLE
-      : ringAngleForSeat(seatIndex, layoutSeatIds.length);
+  const angle = ringAngleForSeat(seatIndex, layoutSeatIds.length);
   const pos = opponentSeatPosition(angle, {
     cx: ring.cx,
     cy: ring.cy,
@@ -56,10 +60,6 @@ export function seatOriginInPlayArea(
     footprintH: layout.seatFootprintH,
     sideAnchorMargin: layout.sideAnchorMargin,
   });
-  const compact = layoutSeatIds.length >= 6;
-  const avatarCenterY = compact
-    ? layout.seatDimensions.avatarCenterYCompact
-    : layout.seatDimensions.avatarCenterY;
 
   return {
     x: pos.left + layout.seatFootprintW / 2,

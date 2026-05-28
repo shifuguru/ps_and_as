@@ -69,17 +69,20 @@ export function reservedBottomHeight(
 }
 
 /** How far below the top of the bottom sheet the local seat sits (tune for felt/hand gap). */
-export const LOCAL_SEAT_DROP_FROM_BAR_TOP = 52;
+export const LOCAL_SEAT_DROP_FROM_BAR_TOP = 36;
 
-/** Screen-bottom offset for the local player seat — above the hand fan, toward the table. */
+/** Screen-bottom offset for the local player seat — avatar sits above the action bar. */
 export function localSeatBottomOffset(
   safeBottom = 0,
   handVisible = true,
+  handFanHeight = HAND_FAN_HEIGHT,
 ): number {
+  const handStack = handVisible ? handFanHeight + 10 : 0;
   return (
-    reservedBottomHeight(safeBottom, handVisible) -
+    reservedBottomHeight(safeBottom, false) -
     LOCAL_SEAT_DROP_FROM_BAR_TOP +
-    LOCAL_SEAT_TABLE_LIFT
+    LOCAL_SEAT_TABLE_LIFT +
+    handStack
   );
 }
 

@@ -19,6 +19,7 @@ export class SocketAdapter implements NetworkAdapter {
   private connectPromise: Promise<void> | null = null;
   private discoverQueued = false;
   private cachedGameState: unknown = null;
+  private cachedTradesComplete: Record<string, unknown> | null = null;
   /** Room the client belongs to — used to rejoin after socket reconnect. */
   private activeRoomId: string | null = null;
   private cachedHostId: string | null = null;
@@ -81,8 +82,16 @@ export class SocketAdapter implements NetworkAdapter {
     return this.cachedGameState;
   }
 
+  getCachedTradesComplete(): Record<string, unknown> | null {
+    return this.cachedTradesComplete;
+  }
+
   clearCachedGameState() {
     this.cachedGameState = null;
+  }
+
+  clearCachedTradesComplete() {
+    this.cachedTradesComplete = null;
   }
 
   private waitForConnect(timeoutMs = 15000): Promise<void> {
@@ -453,6 +462,9 @@ export class SocketAdapter implements NetworkAdapter {
     });
 
     this.socket.on("tradesComplete", (data: any) => {
+      if (data?.playerHands) {
+        this.cachedTradesComplete = data.playerHands;
+      }
       this.handlers.forEach((h) =>
         h({
           type: "state",
@@ -474,6 +486,7 @@ export class SocketAdapter implements NetworkAdapter {
     });
 
     this.socket.on("nextRoundStarting", (data: any) => {
+      this.cachedTradesComplete = null;
       this.handlers.forEach((h) =>
         h({
           type: "state",

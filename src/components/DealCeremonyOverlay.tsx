@@ -28,6 +28,9 @@ type Props = {
   deadHandId?: string | null;
   layout: PlayAreaLayout | null;
   playAreaHeight: number;
+  /** Screen offset of the play area (for full-screen overlay alignment). */
+  playAreaOffsetTop?: number;
+  playAreaOffsetLeft?: number;
   cardsPerPlayer: number;
   pendingTrades?: ClientPendingTrade[];
   onDealComplete: () => void;
@@ -51,6 +54,8 @@ export default function DealCeremonyOverlay({
   deadHandId = null,
   layout,
   playAreaHeight,
+  playAreaOffsetTop = 0,
+  playAreaOffsetLeft = 0,
   cardsPerPlayer,
   pendingTrades = [],
   onDealComplete,
@@ -78,6 +83,16 @@ export default function DealCeremonyOverlay({
   const dealRoundRef = useRef(dealRound);
   dealRoundRef.current = dealRound;
   const dealStepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dealWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shuffleGenRef = useRef(0);
+
+  const offsetPoint = useCallback(
+    (x: number, y: number) => ({
+      x: x + playAreaOffsetLeft,
+      y: y + playAreaOffsetTop,
+    }),
+    [playAreaOffsetLeft, playAreaOffsetTop],
+  );
 
   const finishCeremony = () => {
     if (ceremonyFinishedRef.current) return;
@@ -151,6 +166,7 @@ export default function DealCeremonyOverlay({
 
   useEffect(() => {
     if (!visible) return;
+    const gen = ++shuffleGenRef.current;
     ceremonyFinishedRef.current = false;
     setPhase("shuffle");
     setDealRound(0);
@@ -192,11 +208,14 @@ export default function DealCeremonyOverlay({
     ]);
 
     shuffleAnim.start(({ finished }) => {
-      if (!finished) return;
+      if (!finished || gen !== shuffleGenRef.current) return;
       setPhase("deal");
     });
 
-    return () => shuffleAnim.stop();
+    return () => {
+      shuffleGenRef.current += 1;
+      shuffleAnim.stop();
+    };
   }, [visible, shuffleSpin, shuffleScale]);
 
   useEffect(() => {
@@ -204,6 +223,10 @@ export default function DealCeremonyOverlay({
       if (dealStepTimerRef.current) {
         clearTimeout(dealStepTimerRef.current);
         dealStepTimerRef.current = null;
+      }
+      if (dealWatchdogRef.current) {
+        clearTimeout(dealWatchdogRef.current);
+        dealWatchdogRef.current = null;
       }
     };
   }, []);
@@ -254,16 +277,28 @@ export default function DealCeremonyOverlay({
     }
 
     const flightId = `deal-${dealRound}`;
+    const from = offsetPoint(deckCenter.x, deckCenter.y);
+    const to = offsetPoint(target.x, target.y);
     const flight: CardFlightSpec = {
       id: flightId,
       cards: [{ suit: "spades", value: 0, hidden: true }],
-      fromX: deckCenter.x,
-      fromY: deckCenter.y,
-      toX: target.x,
-      toY: target.y,
+      fromX: from.x,
+      fromY: from.y,
+      toX: to.x,
+      toY: to.y,
       cardW: dims.width * 0.72,
       cardH: dims.height * 0.72,
     };
+
+    if (dealWatchdogRef.current) {
+      clearTimeout(dealWatchdogRef.current);
+    }
+    const roundAtStart = dealRound;
+    dealWatchdogRef.current = setTimeout(() => {
+      dealWatchdogRef.current = null;
+      if (dealRoundRef.current !== roundAtStart) return;
+      handleDealFlightComplete(flightId);
+    }, DEAL_FLIGHT_MS + DEAL_STEP_GAP_MS + 120);
 
     setActiveFlights([flight]);
   }, [
@@ -280,6 +315,8 @@ export default function DealCeremonyOverlay({
     pendingTrades.length,
     seatOptions,
     advanceDealRound,
+    offsetPoint,
+    handleDealFlightComplete,
   ]);
 
   useEffect(() => {
@@ -310,15 +347,17 @@ export default function DealCeremonyOverlay({
         seatOptions,
       );
       if (!from || !to) return;
+      const fromPt = offsetPoint(from.x, from.y);
+      const toPt = offsetPoint(to.x, to.y);
       flights.push({
         id: `trade-${idx}`,
         cards: trade.incoming.length
           ? trade.incoming
           : [{ suit: "hearts", value: 10 }],
-        fromX: from.x,
-        fromY: from.y,
-        toX: to.x,
-        toY: to.y,
+        fromX: fromPt.x,
+        fromY: fromPt.y,
+        toX: toPt.x,
+        toY: toPt.y,
         cardW: dims.width * 0.65,
         cardH: dims.height * 0.65,
       });
@@ -347,9 +386,12 @@ export default function DealCeremonyOverlay({
     localPlayerIds,
     dims,
     seatOptions,
+    offsetPoint,
   ]);
 
   if (!visible || phase === "done") return null;
+
+  const deckScreen = offsetPoint(deckCenter.x, deckCenter.y);
 
   const shuffleRotate = shuffleSpin.interpolate({
     inputRange: [-1, 1],
@@ -374,8 +416,8 @@ export default function DealCeremonyOverlay({
           style={[
             styles.deckStack,
             {
-              left: deckCenter.x - dims.width / 2,
-              top: deckCenter.y - dims.height / 2,
+              left: deckScreen.x - dims.width / 2,
+              top: deckScreen.y - dims.height / 2,
               transform: [{ rotate: shuffleRotate }, { scale: shuffleScale }],
             },
           ]}
@@ -436,14 +478,15 @@ export default function DealCeremonyOverlay({
             const miniW = dims.width * 0.36;
             const miniH = dims.height * 0.36;
             const stackCount = Math.min(3, count);
+            const screenPos = offsetPoint(pos.x, pos.y);
             return (
               <View
                 key={`stack-${id}`}
                 style={[
                   styles.dealtStack,
                   {
-                    left: pos.x - miniW / 2,
-                    top: pos.y - miniH / 2,
+                    left: screenPos.x - miniW / 2,
+                    top: screenPos.y - miniH - 8,
                     width: miniW + (stackCount - 1) * 4,
                     height: miniH + (stackCount - 1) * 2,
                   },

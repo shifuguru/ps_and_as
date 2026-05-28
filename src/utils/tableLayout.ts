@@ -9,8 +9,8 @@ import {
 
 /** @deprecated Use layout.localBandHeight from computePlayAreaLayout. */
 export const LOCAL_SEAT_BAND = 88;
-/** Pushes the local player avatar up toward the table center (away from the hand). */
-export const LOCAL_SEAT_TABLE_LIFT = 44;
+/** Pushes the local player avatar up toward the table center (away from the action bar). */
+export const LOCAL_SEAT_TABLE_LIFT = 72;
 export const PLAY_TYPE_PILL_BAND = 12;
 /** @deprecated Use layout seat footprint from computePlayAreaLayout. */
 export const SEAT_FOOTPRINT_H = 92;

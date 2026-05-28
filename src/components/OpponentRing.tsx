@@ -8,7 +8,6 @@ import {
   opponentSeatPosition,
 } from "../utils/tableLayout";
 import { isDeadHandPlayer } from "../game/deadHand";
-import { DEAD_HAND_RING_ANGLE } from "../utils/tableSeats";
 
 type Props = {
   players: OpponentSeatPlayer[];
@@ -111,10 +110,8 @@ export default function OpponentRing({
   return (
     <View style={styles.arena} pointerEvents="box-none">
       {opponents.map((player, index) => {
-        const ringAngle = angles[index];
-        if (ringAngle === undefined && !(deadHandId && player.id === deadHandId)) {
-          return null;
-        }
+        const angle = angles[index];
+        if (angle === undefined) return null;
 
         const isOut = finishedSet.has(player.id);
         const isActive = !isOut && player.id === currentPlayerId;
@@ -124,12 +121,6 @@ export default function OpponentRing({
           !!lastPlayPlayerId && player.id === lastPlayPlayerId && !isOut;
         const celebrateTrickWin =
           !!trickWinnerPlayerId && player.id === trickWinnerPlayerId && !isOut;
-
-        const angle =
-          (deadHandId && player.id === deadHandId) || isDeadHandPlayer(player)
-            ? DEAD_HAND_RING_ANGLE
-            : angles[index];
-        if (angle === undefined) return null;
 
         const pos = opponentSeatPosition(angle, {
           cx: ringLayout.cx,
