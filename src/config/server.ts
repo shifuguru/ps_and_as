@@ -50,14 +50,15 @@ export function getServerUrl(override?: string): string {
     if (loc?.origin) return loc.origin;
   }
 
-  // Native dev: localhost in .env only works on simulators — prefer Expo LAN host on device.
+  // Native dev: use an explicit public .env URL (Railway, ngrok) when set;
+  // otherwise fall back to Expo LAN host for a local npm run server.
   if (__DEV__ && Platform.OS !== "web") {
+    if (envUrl && !isLoopbackUrl(envUrl)) {
+      return envUrl;
+    }
     const lanHost = devLanHostFromExpo();
     if (lanHost) {
       return `http://${lanHost}:${port}`;
-    }
-    if (envUrl && !isLoopbackUrl(envUrl)) {
-      return envUrl;
     }
     if (Platform.OS === "android") {
       return `http://10.0.2.2:${port}`;
