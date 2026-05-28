@@ -13,6 +13,7 @@ import type { BlurPreset } from "../styles/themeColors";
 type Props = {
   children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  className?: string;
   /** Blur strength on native (0–100). */
   intensity?: number;
   /** Dark scrim over blur — lower = more see-through. */
@@ -26,6 +27,7 @@ type Props = {
 export default function BlurPanel({
   children,
   style,
+  className,
   intensity,
   scrimOpacity,
   webOpacity,
@@ -42,6 +44,8 @@ export default function BlurPanel({
   if (Platform.OS === "web") {
     return (
       <View
+        // @ts-expect-error className is supported on RN Web
+        className={className}
         style={[
           styles.fallback,
           { backgroundColor: `rgba(${scrimRgb}, ${resolvedWebOpacity})` },

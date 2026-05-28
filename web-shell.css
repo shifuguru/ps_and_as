@@ -1,0 +1,94 @@
+/**
+ * iOS PWA / mobile Safari shell — loaded LAST in production index.html so it
+ * overrides Expo's #expo-reset (height: 100% breaks viewport-fit=cover).
+ * Do not use height: 100vh. Prefer min-height: 100dvh + inset: 0.
+ */
+:root {
+  --ps-felt-tint: #0f5132;
+}
+
+html,
+body {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: manipulation !important;
+  /* inset:0 defines height — avoid height:100% from expo-reset */
+  height: auto !important;
+  min-height: 100dvh !important;
+  min-height: -webkit-fill-available !important;
+  background-color: var(--ps-felt-tint) !important;
+}
+
+html::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--ps-felt-tint);
+  pointer-events: none;
+}
+
+#root {
+  position: fixed !important;
+  inset: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  height: auto !important;
+  min-height: 100dvh !important;
+  min-height: -webkit-fill-available !important;
+  background-color: transparent !important;
+}
+
+#ps-body-portal {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 100dvh !important;
+  min-height: -webkit-fill-available !important;
+  pointer-events: none !important;
+  z-index: 50 !important;
+  overflow: visible !important;
+}
+
+#ps-body-portal > * {
+  pointer-events: auto;
+}
+
+/* Home-screen PWA: full physical screen including home-indicator band */
+@media (display-mode: standalone) {
+  html,
+  body,
+  #root,
+  #ps-body-portal {
+    min-height: 100dvh !important;
+    min-height: -webkit-fill-available !important;
+  }
+}
+
+.ps-felt-fixed {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  min-height: 100dvh !important;
+  min-height: -webkit-fill-available !important;
+}
+
+/* Bottom bar: body portal positions at viewport bottom; safe-area on inner wrapper */
+.ps-bottom-bar-shell {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  box-sizing: border-box !important;
+}

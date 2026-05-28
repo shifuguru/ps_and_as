@@ -31,7 +31,7 @@ import { DEFAULT_FELT_COLOR, getWallpaperTint } from "./src/services/wallpaper";
 import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
 import { tryCollapseSafariChrome } from "./src/utils/safariChrome";
 import { useVisualViewportSize } from "./src/hooks/useVisualViewportSize";
-import { isMobileWeb, applyMobileWebShellHeight, APP_SHELL_HEIGHT_VAR } from "./src/utils/webViewport";
+import { isMobileWeb, applyMobileWebShellHeight, installWebShellCss } from "./src/utils/webViewport";
 import { useAppFonts } from "./src/hooks/useAppFonts";
 import { useBuildUpdateCheck } from "./src/hooks/useBuildUpdateCheck";
 import UpdateRequiredOverlay from "./src/components/UpdateRequiredOverlay";
@@ -277,46 +277,12 @@ function AppContent() {
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
+    const cleanupShell = installWebShellCss(feltTint);
     const doc: any = (globalThis as { document?: any }).document;
-    if (!doc) return;
+    if (!doc) return cleanupShell;
     const style = doc.createElement("style");
     style.setAttribute("data-app", "no-text-select");
     style.textContent = `
-      html, body, #root {
-        position: fixed;
-        inset: 0;
-        width: 100%;
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        overscroll-behavior: none;
-        touch-action: manipulation;
-      }
-      html, body {
-        background-color: ${feltTint};
-      }
-      #root {
-        background-color: transparent;
-      }
-      @supports (height: 100dvh) {
-        html, body, #root {
-          min-height: 100dvh;
-        }
-      }
-      @media (pointer: coarse) and (max-width: 900px), (max-width: 768px) {
-        html, body, #root {
-          height: var(${APP_SHELL_HEIGHT_VAR}, 100lvh) !important;
-          min-height: var(${APP_SHELL_HEIGHT_VAR}, 100lvh) !important;
-          max-height: none !important;
-        }
-      }
-      @media (display-mode: standalone) {
-        html, body, #root {
-          height: auto !important;
-          min-height: 0 !important;
-          max-height: none !important;
-        }
-      }
       html, body, #root, #root * {
         user-select: none !important;
         -webkit-user-select: none !important;
@@ -335,6 +301,7 @@ function AppContent() {
     `;
     doc.head.appendChild(style);
     return () => {
+      cleanupShell();
       doc.head.removeChild(style);
     };
   }, [feltTint]);
@@ -343,43 +310,29 @@ function AppContent() {
     if (Platform.OS !== "web") return;
     const doc: any = (globalThis as { document?: any }).document;
     const win = (globalThis as { window?: Parameters<typeof applyMobileWebShellHeight>[0] }).window;
-    if (!doc || !win) return;
+    if (!doc || !win || !isMobileWeb()) return;
 
-    if (isMobileWeb()) {
-      applyMobileWebShellHeight(win);
-      const w = win as unknown as {
+    applyMobileWebShellHeight(win);
+    const w = win as unknown as {
+      addEventListener: (type: string, fn: () => void) => void;
+      removeEventListener: (type: string, fn: () => void) => void;
+      visualViewport?: {
         addEventListener: (type: string, fn: () => void) => void;
         removeEventListener: (type: string, fn: () => void) => void;
-        visualViewport?: {
-          addEventListener: (type: string, fn: () => void) => void;
-          removeEventListener: (type: string, fn: () => void) => void;
-        } | null;
-      };
-      const onViewportChange = () => applyMobileWebShellHeight(win);
-      w.addEventListener("resize", onViewportChange);
-      w.visualViewport?.addEventListener("resize", onViewportChange);
-      w.visualViewport?.addEventListener("scroll", onViewportChange);
-      w.addEventListener("orientationchange", onViewportChange);
-      return () => {
-        w.removeEventListener("resize", onViewportChange);
-        w.visualViewport?.removeEventListener("resize", onViewportChange);
-        w.visualViewport?.removeEventListener("scroll", onViewportChange);
-        w.removeEventListener("orientationchange", onViewportChange);
-      };
-    }
-
-    const px = `${viewport.height}px`;
-    doc.documentElement.style.height = px;
-    doc.documentElement.style.minHeight = px;
-    doc.body.style.height = px;
-    doc.body.style.minHeight = px;
-    const root = doc.getElementById("root");
-    if (root) {
-      root.style.height = px;
-      root.style.minHeight = px;
-      root.style.maxHeight = px;
-    }
-  }, [viewport.height]);
+      } | null;
+    };
+    const onViewportChange = () => applyMobileWebShellHeight(win);
+    w.addEventListener("resize", onViewportChange);
+    w.visualViewport?.addEventListener("resize", onViewportChange);
+    w.visualViewport?.addEventListener("scroll", onViewportChange);
+    w.addEventListener("orientationchange", onViewportChange);
+    return () => {
+      w.removeEventListener("resize", onViewportChange);
+      w.visualViewport?.removeEventListener("resize", onViewportChange);
+      w.visualViewport?.removeEventListener("scroll", onViewportChange);
+      w.removeEventListener("orientationchange", onViewportChange);
+    };
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -980,7 +933,7 @@ export default function App() {
   if (!fontsReady) {
     return (
       <SafeAreaProvider>
-        <View style={appStyles.fontBoot} />
+        <View style={[appStyles.fontBoot, Platform.OS === "web" && appStyles.webFontBoot]} />
       </SafeAreaProvider>
     );
   }
@@ -999,11 +952,12 @@ export default function App() {
 const appStyles = StyleSheet.create({
   fontBoot: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: DEFAULT_FELT_COLOR,
   },
-  webRoot: {
+  webFontBoot: {
+    position: "fixed",
+    inset: 0,
     minHeight: "100dvh",
-    height: "100dvh",
     width: "100%",
   } as object,
   appContent: {

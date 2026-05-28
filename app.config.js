@@ -4,6 +4,11 @@ const appJson = require("./app.json");
 module.exports = {
   expo: {
     ...appJson.expo,
+    web: {
+      ...(appJson.expo.web ?? {}),
+      themeColor: "#0f5132",
+      backgroundColor: "#0f5132",
+    },
     extra: {
       ...(appJson.expo.extra ?? {}),
       serverUrl: process.env.EXPO_PUBLIC_SERVER_URL?.trim() || null,

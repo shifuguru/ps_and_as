@@ -29,6 +29,47 @@ function rewriteHtmlPaths(html) {
   return html;
 }
 
+function patchExpoReset(html) {
+  const reset = `<style id="expo-reset">
+      /* Patched for iOS PWA — do not use height:100% (breaks viewport-fit=cover) */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        overflow: hidden;
+        min-height: 100dvh;
+        min-height: -webkit-fill-available;
+      }
+      #root {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        width: 100%;
+        min-height: 100dvh;
+        min-height: -webkit-fill-available;
+      }
+    </style>`;
+  if (/id="expo-reset"/i.test(html)) {
+    return html.replace(/<style id="expo-reset">[\s\S]*?<\/style>/i, reset);
+  }
+  return html.replace("</head>", `  ${reset}\n  </head>`);
+}
+
+function patchShellAssets(html, basePath) {
+  const cssHref = `${basePath}/web-shell.css`;
+  const linkTag = `<link rel="stylesheet" href="${cssHref}" id="ps-web-shell-link" />`;
+
+  html = html.replace(/\s*<style id="ps-web-shell-static">[\s\S]*?<\/style>/i, "");
+  html = html.replace(/\s*<link rel="stylesheet" href="[^"]*web-shell\.css"[^>]*>/i, "");
+
+  if (!html.includes('id="ps-web-shell-link"')) {
+    html = html.replace("</head>", `  ${linkTag}\n  </head>`);
+  }
+
+  return html;
+}
+
 function patchViewport(html) {
   const viewport =
     "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, viewport-fit=cover, user-scalable=no, shrink-to-fit=no";
@@ -43,6 +84,9 @@ function patchViewport(html) {
       `<head>\n    <meta name="viewport" content="${viewport}" />`,
     );
   }
+
+  html = patchExpoReset(html);
+  html = patchShellAssets(html, basePath);
 
   const themeColor = '<meta name="theme-color" content="#0f5132" />';
   if (/name="theme-color"/i.test(html)) {
@@ -185,6 +229,15 @@ html = injectBuildMeta(html, buildMeta);
 html = rewriteHtmlPaths(html);
 html = patchViewport(html);
 fs.writeFileSync(buildIndex, html, "utf8");
+
+const shellCssSrc = path.resolve(__dirname, "..", "web-shell.css");
+const shellCssDst = path.join(buildDir, "web-shell.css");
+if (fs.existsSync(shellCssSrc)) {
+  fs.copyFileSync(shellCssSrc, shellCssDst);
+} else {
+  console.warn("web-shell.css not found — skipping copy");
+}
+
 writeWebManifest();
 writeVersionJson(buildMeta);
 

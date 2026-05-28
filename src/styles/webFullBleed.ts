@@ -4,6 +4,7 @@ import {
   DEFAULT_FELT_COLOR,
   FELT_WALLPAPER,
 } from "../services/wallpaper";
+export { WEB_FELT_FIXED_CLASS } from "../utils/webViewport";
 
 /** Fixed layer that paints edge-to-edge on mobile Safari / standalone PWA. */
 export const WEB_FULL_BLEED_FIXED =
@@ -62,10 +63,12 @@ export function ensureWebFeltBackdrop(tint = DEFAULT_FELT_COLOR): void {
       background-position: center center;
       background-repeat: no-repeat;
       background-attachment: fixed;
+      min-height: 100lvh;
+      min-height: -webkit-fill-available;
     }
-    @supports (height: 100lvh) {
+    @supports (height: 100dvh) {
       html, body {
-        min-height: 100lvh;
+        min-height: 100dvh;
       }
     }
     #root {

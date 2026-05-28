@@ -10,7 +10,12 @@ import {
   DEFAULT_FELT_COLOR,
   FELT_WALLPAPER,
 } from "../services/wallpaper";
-import { WEB_FULL_BLEED_FIXED, ensureWebFeltBackdrop } from "../styles/webFullBleed";
+import {
+  WEB_FULL_BLEED_FIXED,
+  WEB_FELT_FIXED_CLASS,
+  ensureWebFeltBackdrop,
+} from "../styles/webFullBleed";
+import { isMobileWeb } from "../utils/webViewport";
 
 type Props = {
   tint?: string;
@@ -28,6 +33,12 @@ export default function FeltBackground({
     }
   }, [tint, fullBleed]);
 
+  // Mobile web: paint felt on html/body via CSS (full device viewport including
+  // home-indicator band). An in-root fixed layer is clipped on iOS PWA.
+  if (Platform.OS === "web" && fullBleed && isMobileWeb()) {
+    return null;
+  }
+
   const tintOverlay = (
     <View
       style={[
@@ -41,6 +52,8 @@ export default function FeltBackground({
     const bleed = fullBleed ? WEB_FULL_BLEED_FIXED : null;
     return (
       <View
+        // @ts-expect-error className is supported on RN Web
+        className={fullBleed ? WEB_FELT_FIXED_CLASS : undefined}
         style={[
           bleed ?? {
             position: "fixed",

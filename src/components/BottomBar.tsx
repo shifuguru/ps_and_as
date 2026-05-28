@@ -4,17 +4,21 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ViewStyle,
   StyleProp,
   Platform,
 } from "react-native";
+import { createPortal } from "react-dom";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import BlurPanel from "./BlurPanel";
 import { ACTION_BAR_HEIGHT } from "./ActionBar";
 import { HAND_FAN_HEIGHT } from "./PlayerHand";
 import { LOCAL_SEAT_TABLE_LIFT } from "../utils/tableLayout";
-import { isStandaloneWebApp } from "../utils/safariChrome";
-import { isMobileWeb } from "../utils/webViewport";
+import { getWebBodyPortalHost } from "../utils/webBodyPortal";
+import {
+  isMobileWeb,
+  resolveWebBottomInset,
+  WEB_BOTTOM_BAR_SHELL_CLASS,
+} from "../utils/webViewport";
 import { useAppTheme } from "../context/ThemeContext";
 
 /** Height of controls below the hand (ActionBar + padding). Keep in sync with ActionBar. */
@@ -29,43 +33,29 @@ export const HAND_CONTROLS_GAP = 14;
 /** Empty space above the fan inside the hand zone (clears the status pill). */
 export const HAND_ZONE_TOP_CLEARANCE = 8;
 
-function bottomBarPositionStyle(): ViewStyle {
-  if (Platform.OS === "web" && isMobileWeb()) {
-    return {
-      position: "fixed",
-      left: 0,
-      right: 0,
-      bottom: 0,
-      width: "100%",
-    } as object as ViewStyle;
-  }
-  return {};
+const CONTENT_MARGIN = 8;
+
+function useWebBottomBarShell(): boolean {
+  return Platform.OS === "web" && isMobileWeb();
 }
 
-/**
- * Safe-area padding for interactive content inside the bottom bar.
- * Applied to the inner wrapper only — the outer bar shell extends to bottom: 0.
- */
+/** Inner padding below controls inside the bar shell (above home indicator). */
 export function bottomContentInset(safeBottom = 0): number {
-  const chrome = Math.max(0, safeBottom);
-  const contentMargin = 8;
-  if (Platform.OS === "web") {
-    if (isStandaloneWebApp()) {
-      return (chrome > 0 ? chrome : 12) + contentMargin;
-    }
-    if (isMobileWeb()) {
-      return Math.max(chrome, 12) + contentMargin;
-    }
-    return Math.max(12, chrome + contentMargin);
+  if (Platform.OS === "web" && isMobileWeb()) {
+    return CONTENT_MARGIN + resolveWebBottomInset(safeBottom);
   }
+  const chrome = resolveWebBottomInset(safeBottom);
   if (Platform.OS === "ios") {
-    return Math.max(chrome, 12) + contentMargin;
+    return Math.max(chrome, 12) + CONTENT_MARGIN;
   }
   return chrome + 12;
 }
 
 /** Total bottom chrome height for layout reservation above the screen edge. */
 export function bottomOuterPad(safeBottom = 0): number {
+  if (Platform.OS === "web" && isMobileWeb()) {
+    return resolveWebBottomInset(safeBottom) + CONTENT_MARGIN;
+  }
   return bottomContentInset(safeBottom);
 }
 
@@ -103,7 +93,7 @@ export function localSeatBottomOffset(
 
 type Props = {
   children?: React.ReactNode;
-  style?: StyleProp<ViewStyle>;
+  style?: StyleProp<object>;
   bottomOffset?: number;
   minHeight?: number;
 };
@@ -115,17 +105,19 @@ export default function BottomBar({
 }: Props) {
   const { colors, blur } = useAppTheme();
   const insets = useLayoutInsets();
-  const bottomInset = insets.bottom || 0;
-  const contentInset = bottomContentInset(bottomInset);
+  const contentInset = bottomContentInset(insets.bottom);
+  const webShell = useWebBottomBarShell();
+  const portalHost = webShell ? getWebBodyPortalHost() : null;
 
-  return (
+  const bar = (
     <BlurPanel
+      className={webShell ? WEB_BOTTOM_BAR_SHELL_CLASS : undefined}
       style={[
         styles.bar,
         { borderTopColor: colors.panelBorder },
         style,
         minHeight ? { minHeight } : undefined,
-        bottomBarPositionStyle(),
+        webShell ? (styles.webShell as object) : null,
       ]}
       preset={blur.chrome}
     >
@@ -134,6 +126,12 @@ export default function BottomBar({
       </View>
     </BlurPanel>
   );
+
+  if (webShell && portalHost) {
+    return createPortal(bar, portalHost);
+  }
+
+  return bar;
 }
 
 /** Full-width zone for the card fan — no horizontal padding. */
@@ -144,7 +142,7 @@ export function BottomBarHand({
 }: {
   children?: React.ReactNode;
   height: number;
-  style?: StyleProp<ViewStyle>;
+  style?: StyleProp<object>;
 }) {
   return (
     <View
@@ -165,7 +163,7 @@ export function BottomBarControls({
   style,
 }: {
   children?: React.ReactNode;
-  style?: StyleProp<ViewStyle>;
+  style?: StyleProp<object>;
 }) {
   return <View style={[styles.controls, style]}>{children}</View>;
 }
@@ -180,7 +178,6 @@ export function BottomBarLeave({
   onPress: () => void;
   label?: string;
   accessibilityLabel?: string;
-  /** Red destructive tint for leaving an active game. */
   live?: boolean;
 }) {
   const { ui } = useAppTheme();
@@ -223,6 +220,13 @@ const styles = StyleSheet.create({
       android: { elevation: 24 },
     }),
   },
+  webShell: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: "100%",
+  } as object,
   inner: {
     width: "100%",
   },

@@ -7,6 +7,11 @@ import App from "./App";
 
 if (Platform.OS === "web") {
   require("./src/utils/webNoZoom").ensureWebNoZoom();
+  const { installWebShellCss } = require("./src/utils/webViewport");
+  const { getWebBodyPortalHost } = require("./src/utils/webBodyPortal");
+  const { DEFAULT_FELT_COLOR } = require("./src/services/wallpaper");
+  installWebShellCss(DEFAULT_FELT_COLOR);
+  getWebBodyPortalHost();
 }
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);

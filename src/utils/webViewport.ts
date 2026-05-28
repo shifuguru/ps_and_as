@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { isStandaloneWebApp } from "./safariChrome";
+import { getWebShellCssText } from "./webShellCssContent";
 
 type WebWindow = {
   innerWidth?: number;
@@ -13,6 +14,13 @@ type WebWindow = {
 
 const WEB_KEYBOARD_GAP_THRESHOLD = 120;
 export const APP_SHELL_HEIGHT_VAR = "--app-shell-h";
+export const WEB_SHELL_STYLE_ID = "ps-web-shell";
+export const WEB_BODY_PORTAL_ID = "ps-body-portal";
+export const WEB_BOTTOM_BAR_SHELL_CLASS = "ps-bottom-bar-shell";
+export const WEB_FELT_FIXED_CLASS = "ps-felt-fixed";
+
+/** iOS home-indicator fallback when env(safe-area-inset-bottom) reads 0 in RN Web. */
+export const IOS_HOME_INDICATOR_FALLBACK = 34;
 
 type SafeAreaInsets = { top: number; bottom: number; left: number; right: number };
 
@@ -121,6 +129,30 @@ export function readWebSafeAreaInsets(): SafeAreaInsets {
   return cachedSafeArea;
 }
 
+/** Bottom inset with iOS PWA fallback when CSS env probes report 0. */
+export function resolveWebBottomInset(measured = 0): number {
+  if (Platform.OS !== "web") return Math.max(0, measured);
+  const n = Math.max(0, measured);
+  if (n > 0) return n;
+  if (isStandaloneWebApp() && isMobileWeb()) return IOS_HOME_INDICATOR_FALLBACK;
+  if (isMobileWeb()) return 20;
+  return 0;
+}
+
+function clearStandaloneShellInlineHeights(doc: Document): void {
+  if (!isStandaloneWebApp()) return;
+  doc.documentElement.style.removeProperty("height");
+  doc.documentElement.style.removeProperty("min-height");
+  doc.documentElement.style.removeProperty("max-height");
+  doc.body.style.removeProperty("height");
+  doc.body.style.removeProperty("min-height");
+  doc.body.style.removeProperty("max-height");
+  const root = doc.getElementById("root");
+  root?.style.removeProperty("height");
+  root?.style.removeProperty("min-height");
+  root?.style.removeProperty("max-height");
+}
+
 function keyboardLikelyOpen(win: WebWindow): boolean {
   const vv = win.visualViewport;
   if (!vv) return false;
@@ -169,7 +201,7 @@ export function readWebShellHeight(win: WebWindow): number {
   return h;
 }
 
-/** Keep html/body/#root and --app-shell-h aligned on mobile web (iOS Safari). */
+/** Keep html/body/#root aligned on mobile Safari (non-standalone tab only). */
 export function applyMobileWebShellHeight(win: WebWindow): number {
   if (Platform.OS !== "web" || !isMobileWeb()) return readWebShellHeight(win);
 
@@ -177,37 +209,45 @@ export function applyMobileWebShellHeight(win: WebWindow): number {
   if (!doc) return readWebShellHeight(win);
 
   const h = readWebShellHeight(win);
-  const px = `${h}px`;
-  const prev = doc.documentElement.style.getPropertyValue(APP_SHELL_HEIGHT_VAR);
-  if (prev !== px) {
-    doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, px);
-  }
+  clearStandaloneShellInlineHeights(doc);
 
-  // Home-screen PWA: position:fixed + inset:0 on html/body/#root fills the screen.
-  // Locking pixel height to visualViewport leaves a gap below fixed bottom bars.
+  // Standalone PWA: shell CSS (web-shell.css) owns layout — never set pixel heights.
   if (isStandaloneWebApp()) {
     return h;
   }
 
-  const root = doc.getElementById("root");
-  if (
-    prev === px &&
-    doc.documentElement.style.height === px &&
-    root?.style.height === px
-  ) {
-    return h;
-  }
-
-  doc.documentElement.style.height = px;
-  doc.documentElement.style.minHeight = px;
-  doc.body.style.height = px;
-  doc.body.style.minHeight = px;
-
-  if (root) {
-    root.style.height = px;
-    root.style.minHeight = px;
-    root.style.maxHeight = px;
+  // Safari tab: expose shell height var for any legacy consumers only.
+  const px = `${h}px`;
+  if (doc.documentElement.style.getPropertyValue(APP_SHELL_HEIGHT_VAR) !== px) {
+    doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, px);
   }
 
   return h;
+}
+
+/**
+ * Global mobile-web shell CSS: full device viewport (not 100vh), viewport-fit safe
+ * areas, and bottom-bar extension into the home-indicator band.
+ */
+export function installWebShellCss(feltTint: string): () => void {
+  if (Platform.OS !== "web") return () => undefined;
+
+  const doc = (globalThis as { document?: Document }).document;
+  if (!doc) return () => undefined;
+
+  let style = doc.getElementById(WEB_SHELL_STYLE_ID) as HTMLStyleElement | null;
+  if (!style) {
+    style = doc.createElement("style");
+    style.id = WEB_SHELL_STYLE_ID;
+    doc.head.appendChild(style);
+  }
+
+  clearStandaloneShellInlineHeights(doc);
+  doc.documentElement.style.setProperty("--ps-felt-tint", feltTint);
+
+  style.textContent = getWebShellCssText(feltTint);
+
+  return () => {
+    style?.remove();
+  };
 }

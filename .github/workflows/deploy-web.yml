@@ -57,7 +57,12 @@ jobs:
         run: |
           test -f web-build/index.html
           test -f web-build/version.json
+          test -f web-build/web-shell.css
           grep -q 'id="root"' web-build/index.html
+          grep -q 'viewport-fit=cover' web-build/index.html
+          grep -q 'web-shell.css' web-build/index.html
+          grep -q 'min-height: 100dvh' web-build/web-shell.css
+          ! grep -q 'height: 100vh' web-build/web-shell.css
           echo "Build artifact looks valid."
 
       - name: Upload GitHub Pages artifact

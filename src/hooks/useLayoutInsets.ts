@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isStandaloneWebApp } from "../utils/safariChrome";
-import { isMobileWeb, readWebSafeAreaInsets } from "../utils/webViewport";
+import { isMobileWeb, readWebSafeAreaInsets, resolveWebBottomInset } from "../utils/webViewport";
 
 type ChromeInsets = { top: number; bottom: number };
 type SafeAreaInsets = { top: number; bottom: number; left: number; right: number };
@@ -108,7 +108,7 @@ export function useLayoutInsets() {
     return {
       ...insets,
       top: Math.max(insets.top, mergedCss.top),
-      bottom: Math.max(insets.bottom, mergedCss.bottom),
+      bottom: resolveWebBottomInset(Math.max(insets.bottom, mergedCss.bottom)),
       left: Math.max(insets.left, mergedCss.left),
       right: Math.max(insets.right, mergedCss.right),
     };
@@ -119,7 +119,7 @@ export function useLayoutInsets() {
   return {
     ...insets,
     top: Math.max(insets.top, webChrome.top, mergedCss.top),
-    bottom: Math.max(insets.bottom, mergedCss.bottom),
+    bottom: resolveWebBottomInset(Math.max(insets.bottom, mergedCss.bottom)),
     left: Math.max(insets.left, mergedCss.left),
     right: Math.max(insets.right, mergedCss.right),
   };
