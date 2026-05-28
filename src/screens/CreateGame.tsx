@@ -151,8 +151,20 @@ export default function CreateGame({
   const usingMock = !adapter || !isSocketAdapter(adapter);
   const onlineLobby = isSocketAdapter(adapter);
   const isHost = usingMock || (localId != null && hostId != null && localId === hostId);
+
+  const seatMembers = useMemo((): LobbyMember[] => {
+    if (usingMock) {
+      return names.map((name, index) => ({
+        id: `mock-${index}-${name}`,
+        name,
+      }));
+    }
+    return lobbyMembers;
+  }, [usingMock, names, lobbyMembers]);
+
+  const seatCount = seatMembers.length;
   const canEditRoom = isHost;
-  const canStart = names.length >= MIN_PLAYERS && isHost;
+  const canStart = seatCount >= MIN_PLAYERS && isHost;
 
   const statusLabel = usingMock ? "Local" : isHost ? "You" : "Lobby";
   const statusValue = usingMock
@@ -169,27 +181,23 @@ export default function CreateGame({
     [contentMaxWidth],
   );
   const ringPositions = useMemo(
-    () => lobbyRingSlotPositions(ringSize.width, ringSize.height, names.length),
-    [ringSize.width, ringSize.height, names.length],
+    () => lobbyRingSlotPositions(ringSize.width, ringSize.height, seatCount),
+    [ringSize.width, ringSize.height, seatCount],
   );
 
   const lobbyPlayers = useMemo(
     () =>
-      names.map((name, index) => {
-        const isCPU = name.startsWith("CPU ");
-        const isLocalPlayer =
-          !isCPU &&
-          (name.toLowerCase() === playerName.trim().toLowerCase() ||
-            (usingMock && index === 0));
+      seatMembers.map((member, index) => {
+        const isCPU = member.name.startsWith("CPU ");
+        const isLocalPlayer = usingMock
+          ? !isCPU && index === 0
+          : localId != null && member.id === localId;
         const isHostSeat = usingMock
           ? index === 0
-          : !!hostId &&
-            lobbyMembers.some(
-              (m) => m.id === hostId && m.name.toLowerCase() === name.toLowerCase(),
-            );
+          : hostId != null && member.id === hostId;
         return {
-          id: `lobby-${index}-${name}`,
-          name,
+          id: member.id,
+          name: member.name,
           handCount: 0,
           role: "Neutral" as const,
           isCPU,
@@ -197,7 +205,7 @@ export default function CreateGame({
           isLocalPlayer,
         };
       }),
-    [names, usingMock, playerName, hostId, lobbyMembers],
+    [seatMembers, usingMock, localId, hostId],
   );
 
   useEffect(() => {
@@ -242,68 +250,71 @@ export default function CreateGame({
 
   useEffect(() => {
     let mounted = true;
+    const applyLobbyFromServer = (
+      players: LobbyMember[],
+      host: string | null,
+    ) => {
+      const active = players.filter((p) => !p.disconnected);
+      setLobbyMembers(active);
+      lobbyMembersRef.current = active;
+      setNames(active.map((p) => p.name));
+      setHostId(host ?? null);
+      setConnectionStatus("connected");
+    };
+
     net.on("message", (ev) => {
       if (!mounted) return;
       if (ev.type === "state" && ev.state?.type === "lobby") {
-        // Local mock lobby is driven by React state, not MockAdapter room events.
-        if (adapter) {
-          const members = ev.state.players as LobbyMember[];
-          setLobbyMembers(members);
-          lobbyMembersRef.current = members;
-          setNames(members.map((p) => p.name));
-          setHostId(ev.state.host ?? null);
-          setConnectionStatus("connected");
+        if (onlineLobby) {
+          applyLobbyFromServer(
+            ev.state.players as LobbyMember[],
+            ev.state.host ?? null,
+          );
         }
       }
       if (ev.type === "state" && ev.state?.type === "startGame") {
-        const fromEvent: LobbyMember[] = Array.isArray(ev.state.players)
-          ? ev.state.players.map((p: string | LobbyMember, i: number) =>
-              typeof p === "string"
-                ? { id: String(i + 1), name: p }
-                : { id: p.id, name: p.name, ready: p.ready },
-            )
-          : [];
-        const members =
-          lobbyMembersRef.current.length > 0
-            ? lobbyMembersRef.current
-            : fromEvent;
+        // Navigation is handled globally in App.tsx so guests still in the lobby receive it.
         if (adapter && isSocketAdapter(adapter) && actualRoomId) {
           adapter.requestGameState(actualRoomId);
         }
-        onStart(
-          members,
-          playerNameRef.current,
-          usingMock
-            ? undefined
-            : localIdRef.current ?? playerIdRef.current ?? undefined,
-          typeof ev.state.dealSeed === "number" ? ev.state.dealSeed : undefined,
-        );
       }
       if (ev.type === "state" && ev.state?.type === "connected") {
         const myProfileId = playerIdRef.current;
-        const myName = playerNameRef.current.trim();
-        const isSelf =
-          (myProfileId && ev.state.id === myProfileId) ||
-          ev.state.name === myName ||
-          ev.state.name === playerNameRef.current;
-        if (isSelf) {
+        if (myProfileId && ev.state.id === myProfileId) {
           setLocalId(ev.state.id);
           localIdRef.current = ev.state.id;
           if (usingMock) setHostId(ev.state.id);
           setConnectionStatus("connected");
         } else if (
-          (net as any)?.constructor?.name === "MockAdapter" &&
+          usingMock &&
           typeof ev.state.name === "string" &&
           ev.state.name.startsWith("CPU ") &&
           actualRoomId
         ) {
-          (net as any).toggleReady(actualRoomId, ev.state.id, true);
+          (net as MockAdapter).toggleReady(actualRoomId, ev.state.id, true);
+        }
+      }
+      if (ev.type === "state" && ev.state?.type === "playerRemoved") {
+        if (onlineLobby) {
+          setLobbyMembers((prev) => {
+            const next = prev.filter((p) => p.id !== ev.state.playerId);
+            lobbyMembersRef.current = next;
+            setNames(next.map((p) => p.name));
+            return next;
+          });
         }
       }
       if (ev.type === "state" && ev.state?.type === "kicked") {
         Alert.alert(
           "Removed from Game",
           ev.state.message || "You have been removed from the game",
+          [{ text: "OK", onPress: () => onBack() }],
+        );
+      }
+      if (ev.type === "state" && ev.state?.type === "roomDismissed") {
+        Alert.alert(
+          "Room Closed",
+          "The host closed this lobby.",
           [{ text: "OK", onPress: () => onBack() }],
         );
       }
@@ -314,7 +325,7 @@ export default function CreateGame({
     return () => {
       mounted = false;
     };
-  }, [adapter, net, usingMock, onStart, onBack, actualRoomId]);
+  }, [adapter, net, usingMock, onlineLobby, onStart, onBack, actualRoomId]);
 
   useEffect(() => {
     if (!playerNameReady) return;
@@ -368,30 +379,26 @@ export default function CreateGame({
       cpuName = `CPU ${i}`;
     }
     setNames((s) => [...s, cpuName]);
-    if (adapter && actualRoomId && (adapter as any).joinRoom) {
-      try {
-        (adapter as any).joinRoom(actualRoomId, cpuName);
-      } catch {
-        /* ignore */
-      }
-    }
   };
 
-  const canRemovePlayer = (index: number, isCPU: boolean) =>
-    isCPU ? usingMock : isHost && index !== 0;
+  const canRemovePlayer = (member: LobbyMember, isCPU: boolean) => {
+    if (isCPU) return usingMock;
+    if (!isHost || !localId) return false;
+    return member.id !== localId;
+  };
 
   const removePlayerAt = (index: number) => {
-    const seat = names[index];
-    if (!seat) return;
+    const member = seatMembers[index];
+    if (!member) return;
 
-    const isCPU = seat.startsWith("CPU ");
-    if (!canRemovePlayer(index, isCPU)) return;
+    const isCPU = member.name.startsWith("CPU ");
+    if (!canRemovePlayer(member, isCPU)) return;
 
     triggerHaptic("light");
     if (isCPU) {
       setNames((s) => s.filter((_, i) => i !== index));
     } else if (adapter && isSocketAdapter(adapter) && actualRoomId) {
-      adapter.kickPlayer(actualRoomId, seat);
+      adapter.kickPlayer(actualRoomId, member.name);
     } else {
       setNames((s) => s.filter((_, i) => i !== index));
     }
@@ -407,6 +414,17 @@ export default function CreateGame({
     }
   };
 
+  const handleLeave = () => {
+    if (onlineLobby && actualRoomId && isSocketAdapter(adapter)) {
+      if (isHost) {
+        adapter.dismissRoom(actualRoomId);
+      } else {
+        adapter.leaveRoom(actualRoomId);
+      }
+    }
+    onBack();
+  };
+
   const handleStart = () => {
     triggerHaptic("heavy");
     if (usingMock) {
@@ -419,21 +437,13 @@ export default function CreateGame({
     }
     if ((net as any).startGame && isHost && actualRoomId) {
       (net as any).startGame(actualRoomId);
-    } else {
-      onStart(
-        lobbyMembers.length > 0
-          ? lobbyMembers
-          : names.map((name, i) => ({ id: String(i + 1), name })),
-        playerName,
-        localId ?? undefined,
-      );
     }
   };
 
   const startLabel = usingMock
     ? "Start Game"
-    : names.length < MIN_PLAYERS
-      ? `Need ${MIN_PLAYERS - names.length} More`
+    : seatCount < MIN_PLAYERS
+      ? `Need ${MIN_PLAYERS - seatCount} More`
       : isHost
         ? "Start Game"
         : "Waiting For Host…";
@@ -441,7 +451,7 @@ export default function CreateGame({
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
       <LobbyStatusBar
-        playerCount={names.length}
+        playerCount={seatCount}
         roomName={roomName}
         statusLabel={statusLabel}
         statusValue={statusValue}
@@ -515,12 +525,12 @@ export default function CreateGame({
                 <View style={local.tableArea}>
                   <Text style={local.tableHint}>
                     {onlineLobby
-                      ? names.length < MIN_PLAYERS
+                      ? seatCount < MIN_PLAYERS
                         ? "Share the room code — waiting for players"
-                        : `${names.length} players in lobby`
-                      : names.length < MIN_PLAYERS
+                        : `${seatCount} players in lobby`
+                      : seatCount < MIN_PLAYERS
                         ? `Add at least ${MIN_PLAYERS} players to start`
-                        : `${names.length} players at the table`}
+                        : `${seatCount} players at the table`}
                   </Text>
 
                   <View
@@ -551,7 +561,10 @@ export default function CreateGame({
                       if (!pos) return null;
 
                       const isCPU = seat.isCPU;
-                      const canRemove = canRemovePlayer(index, isCPU);
+                      const canRemove = canRemovePlayer(
+                        { id: seat.id, name: seat.name },
+                        isCPU,
+                      );
 
                       return (
                         <View
@@ -708,7 +721,7 @@ export default function CreateGame({
               </TouchableOpacity>
             </View>
 
-            <BottomBarLeave onPress={onBack} />
+            <BottomBarLeave onPress={handleLeave} />
           </View>
         </BottomBarControls>
       </BottomBar>

@@ -37,17 +37,36 @@ function devLanHostFromExpo(): string | null {
   }
 }
 
+/** Runtime override injected into index.html on GitHub Pages builds. */
+function webRuntimeServerUrl(): string | null {
+  if (Platform.OS !== "web") return null;
+  try {
+    const url = (globalThis as { __PS_AND_AS_SERVER_URL__?: string })
+      .__PS_AND_AS_SERVER_URL__;
+    return url?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Resolve the multiplayer server URL for the current platform / environment. */
 export function getServerUrl(override?: string): string {
   if (override) return override;
 
   const port = DEFAULT_SERVER_PORT;
   const envUrl = process.env.EXPO_PUBLIC_SERVER_URL?.trim();
+  const runtimeWebUrl = webRuntimeServerUrl();
 
   // Web dev: same-origin via Metro proxy (/socket.io → backend). Avoids CORS.
   if (__DEV__ && Platform.OS === "web") {
     const loc = (globalThis as { location?: { origin?: string } }).location;
     if (loc?.origin) return loc.origin;
+  }
+
+  // Production web (GitHub Pages): connect directly to Railway — no Metro proxy.
+  if (!__DEV__ && Platform.OS === "web") {
+    if (envUrl && !isLoopbackUrl(envUrl)) return envUrl;
+    if (runtimeWebUrl && !isLoopbackUrl(runtimeWebUrl)) return runtimeWebUrl;
   }
 
   // Native dev: use an explicit public .env URL (Railway, ngrok) when set;

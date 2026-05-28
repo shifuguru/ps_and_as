@@ -337,14 +337,12 @@ export default function FindGame({
 
             <View style={styles.listHeader}>
               <View style={styles.listHeaderLeft}>
-                {isSearching ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={colors.gold}
-                    style={{ marginRight: 8 }}
-                  />
-                ) : null}
                 <Text style={styles.listTitle}>Open Games</Text>
+                <View style={styles.listHeaderSpinnerSlot}>
+                  {isSearching ? (
+                    <ActivityIndicator size="small" color={colors.gold} />
+                  ) : null}
+                </View>
               </View>
               <TouchableOpacity onPress={refreshRooms} disabled={isSearching}>
                 <Text style={styles.refreshLink}>
@@ -535,6 +533,12 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
+  },
+  listHeaderSpinnerSlot: {
+    width: 22,
+    marginLeft: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
   listTitle: {
     color: colors.textSecondary,

@@ -117,7 +117,16 @@ function writeWebManifest() {
   );
 }
 
+function injectServerUrl(html) {
+  const serverUrl = process.env.EXPO_PUBLIC_SERVER_URL?.trim();
+  if (!serverUrl) return html;
+  const script = `<script>window.__PS_AND_AS_SERVER_URL__=${JSON.stringify(serverUrl)};</script>`;
+  if (html.includes("__PS_AND_AS_SERVER_URL__")) return html;
+  return html.replace("<head>", `<head>\n    ${script}`);
+}
+
 let html = fs.readFileSync(buildIndex, "utf8");
+html = injectServerUrl(html);
 html = rewriteHtmlPaths(html);
 html = patchViewport(html);
 fs.writeFileSync(buildIndex, html, "utf8");

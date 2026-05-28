@@ -7,7 +7,8 @@ export function isSocketAdapter(adapter: unknown): adapter is SocketAdapter {
   return (
     !!adapter &&
     typeof adapter === "object" &&
-    (adapter as SocketAdapter).constructor?.name === "SocketAdapter"
+    typeof (adapter as SocketAdapter).joinRoom === "function" &&
+    typeof (adapter as SocketAdapter).dismissRoom === "function"
   );
 }
 
@@ -245,6 +246,16 @@ export class SocketAdapter implements NetworkAdapter {
       );
     });
 
+    this.socket.on("roomDismissed", (data: any) => {
+      console.log("[SocketAdapter] Room dismissed:", data?.roomId);
+      this.handlers.forEach((h) =>
+        h({
+          type: "state",
+          state: { type: "roomDismissed", roomId: data?.roomId },
+        }),
+      );
+    });
+
     this.socket.on("hostMigrated", (data: any) => {
       console.log("[SocketAdapter] Host migrated to:", data.newHostName);
       this.handlers.forEach((h) =>
@@ -457,6 +468,11 @@ export class SocketAdapter implements NetworkAdapter {
   leaveRoom(roomId: string) {
     if (!this.socket) return;
     this.socket.emit("leaveRoom", { roomId });
+  }
+
+  dismissRoom(roomId: string) {
+    if (!this.socket) return;
+    this.socket.emit("dismissRoom", { roomId });
   }
 
   startGame(roomId: string) {

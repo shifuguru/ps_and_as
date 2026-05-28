@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { View, Animated, StyleSheet, Text, TouchableOpacity, Platform, Alert } from "react-native";
 import SplashScreen from "./src/screens/SplashScreen";
 import CreateGame from "./src/screens/CreateGame";
@@ -316,6 +316,73 @@ function AppContent() {
 
   const closeAchievements = () => setAchievementsOpen(false);
 
+  const lobbyMembersRef = useRef(lobbyMembers);
+  lobbyMembersRef.current = lobbyMembers;
+  const screenRef = useRef(screen);
+  screenRef.current = screen;
+  const localPlayerNameRef = useRef(localPlayerName);
+  localPlayerNameRef.current = localPlayerName;
+  const localPlayerIdRef = useRef(localPlayerId);
+  localPlayerIdRef.current = localPlayerId;
+  const activeRoomIdRef = useRef(activeRoomId);
+  activeRoomIdRef.current = activeRoomId;
+  const joinedRoomIdRef = useRef(joinedRoomId);
+  joinedRoomIdRef.current = joinedRoomId;
+
+  const enterOnlineGame = useCallback(
+    (
+      members: LobbyMember[],
+      localName: string,
+      localSocketId?: string,
+    ) => {
+      console.log("[App] enterOnlineGame:", members.length, "players");
+      setLobbyMembers(members);
+      setLocalPlayerName(localName);
+      if (localSocketId) setLocalPlayerId(localSocketId);
+      setDealSeed(undefined);
+      setIsOnlineGame(true);
+      setLocalAdapter(null);
+      setScreen("game");
+    },
+    [],
+  );
+
+  // All clients must react to startGame here — CreateGame may unmount before guests receive it.
+  useEffect(() => {
+    if (!roomAdapter || !isSocketAdapter(roomAdapter)) return;
+
+    const onMessage = (ev: { type: string; state?: { type?: string; players?: unknown } }) => {
+      if (ev.type !== "state" || ev.state?.type !== "startGame") return;
+      if (screenRef.current === "game") return;
+
+      const rawPlayers = ev.state.players;
+      const fromEvent: LobbyMember[] = Array.isArray(rawPlayers)
+        ? rawPlayers.map((p: string | LobbyMember, i: number) =>
+            typeof p === "string"
+              ? { id: String(i + 1), name: p }
+              : { id: p.id, name: p.name, ready: p.ready },
+          )
+        : [];
+      const members =
+        lobbyMembersRef.current && lobbyMembersRef.current.length > 0
+          ? lobbyMembersRef.current
+          : fromEvent;
+
+      const roomId = activeRoomIdRef.current ?? joinedRoomIdRef.current;
+      if (roomId) {
+        roomAdapter.requestGameState(roomId);
+      }
+
+      enterOnlineGame(
+        members,
+        localPlayerNameRef.current ?? "Player",
+        localPlayerIdRef.current ?? undefined,
+      );
+    };
+
+    roomAdapter.on("message", onMessage);
+  }, [roomAdapter, enterOnlineGame]);
+
   return (
     <>
       <StatusBar style={colors.statusBarStyle} />
@@ -448,25 +515,23 @@ function AppContent() {
             }}
             onNavigateToSettings={openSettings}
             onNavigateToAchievements={openAchievements}
-            onStart={(members, localName, localSocketId, seed) => {
-              console.log("[App] CreateGame onStart:", members, localName, localSocketId);
+            onStart={(members, localName, localSocketId) => {
+              if (isSocketAdapter(roomAdapter)) {
+                enterOnlineGame(members, localName, localSocketId);
+                return;
+              }
               setLobbyMembers(members);
               setLocalPlayerName(localName);
               if (localSocketId) setLocalPlayerId(localSocketId);
-              setDealSeed(typeof seed === "number" ? seed : undefined);
-              const online = isSocketAdapter(roomAdapter);
-              setIsOnlineGame(online);
-              if (online) {
+              setDealSeed(undefined);
+              setIsOnlineGame(false);
+              disconnectRoom();
+              try {
+                const m = new MockAdapter();
+                setLocalAdapter(m);
+              } catch (e) {
+                console.warn("[App] Failed to create MockAdapter:", e);
                 setLocalAdapter(null);
-              } else {
-                disconnectRoom();
-                try {
-                  const m = new MockAdapter();
-                  setLocalAdapter(m);
-                } catch (e) {
-                  console.warn("[App] Failed to create MockAdapter:", e);
-                  setLocalAdapter(null);
-                }
               }
               setScreen("game");
             }} 

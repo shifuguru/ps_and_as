@@ -204,6 +204,69 @@ function allTradesComplete(gameState) {
 // Grace period for reconnection (60 seconds in-game, 2 minutes in lobby)
 const DISCONNECT_GRACE_PERIOD = 60 * 1000;
 const LOBBY_DISCONNECT_GRACE = 2 * 60 * 1000;
+/** How long an empty room shell stays joinable by code before auto-delete. */
+const EMPTY_ROOM_REJOIN_MS = 10 * 60 * 1000;
+const emptyRoomTimers = {};
+
+function activePlayerCount(room) {
+  return room.players.filter((p) => !p.disconnectedAt).length;
+}
+
+function isRoomListedPublic(room) {
+  return room.isPublic && activePlayerCount(room) > 0;
+}
+
+function clearEmptyRoomTimer(roomId) {
+  if (emptyRoomTimers[roomId]) {
+    clearTimeout(emptyRoomTimers[roomId]);
+    delete emptyRoomTimers[roomId];
+  }
+}
+
+function deleteRoom(roomId) {
+  clearEmptyRoomTimer(roomId);
+  if (rooms[roomId]) {
+    delete rooms[roomId];
+    console.log(`[Server] Room ${roomId} deleted`);
+  }
+}
+
+function onRoomEmptied(roomId) {
+  const room = rooms[roomId];
+  if (!room) return;
+  room.inGame = false;
+  room.gameState = null;
+  room.emptyAt = Date.now();
+  console.log(`[Server] Room ${roomId} is empty — hidden from open games, rejoin by code allowed`);
+  if (room.isPublic) broadcastAvailableRooms();
+  clearEmptyRoomTimer(roomId);
+  emptyRoomTimers[roomId] = setTimeout(() => {
+    if (rooms[roomId] && rooms[roomId].players.length === 0) {
+      deleteRoom(roomId);
+      broadcastAvailableRooms();
+    }
+    delete emptyRoomTimers[roomId];
+  }, EMPTY_ROOM_REJOIN_MS);
+}
+
+function afterPlayerLeftRoom(roomId) {
+  const room = rooms[roomId];
+  if (!room) return;
+  if (room.players.length === 0) {
+    onRoomEmptied(roomId);
+    return;
+  }
+  io.to(roomId).emit('lobbyUpdate', {
+    players: room.players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      ready: p.ready,
+      disconnected: !!p.disconnectedAt,
+    })),
+    host: room.host,
+  });
+  if (room.isPublic) broadcastAvailableRooms();
+}
 
 function getPlayerBySocket(room, socketId) {
   return room.players.find((p) => p.socketId === socketId);
@@ -284,34 +347,19 @@ function schedulePlayerRemoval(roomId, playerId, _socketId, graceMs = DISCONNECT
       reason: 'disconnected'
     });
     
-    io.to(roomId).emit('lobbyUpdate', { 
-      players: room.players.map(p => ({ 
-        id: p.id, 
-        name: p.name, 
-        ready: p.ready,
-        disconnected: !!p.disconnectedAt 
-      })), 
-      host: room.host 
-    });
-    
-    if (room.players.length === 0) {
-      console.log(`[Server] Room ${roomId} is now empty, deleting`);
-      delete rooms[roomId];
-    }
-    
-    if (room.isPublic) broadcastAvailableRooms();
+    afterPlayerLeftRoom(roomId);
   }, graceMs);
 }
 
 // Broadcast available public rooms to all searching clients
 function broadcastAvailableRooms() {
   const availableRooms = Object.entries(rooms)
-    .filter(([_, room]) => room.isPublic && room.players.length < 8)
+    .filter(([_, room]) => isRoomListedPublic(room))
     .map(([roomId, room]) => ({
       roomId,
       hostName: room.hostName,
       roomName: room.roomName || roomId,
-      playerCount: room.players.length,
+      playerCount: activePlayerCount(room),
       maxPlayers: 8,
       createdAt: room.createdAt
     }));
@@ -328,12 +376,12 @@ io.on('connection', (socket) => {
   // Send available rooms when client requests discovery
   socket.on('discoverRooms', () => {
     const availableRooms = Object.entries(rooms)
-      .filter(([_, room]) => room.isPublic && room.players.length < 8)
+      .filter(([_, room]) => isRoomListedPublic(room) && activePlayerCount(room) < 8)
       .map(([roomId, room]) => ({
         roomId,
         hostName: room.hostName,
         roomName: room.roomName || roomId,
-        playerCount: room.players.length,
+        playerCount: activePlayerCount(room),
         maxPlayers: 8,
         createdAt: room.createdAt
       }));
@@ -380,8 +428,12 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'Room not found' });
       return;
     }
+    const room = rooms[roomId];
     const pid = resolveProfileId(profileId, socket);
-    const existingPlayer = findReconnectPlayer(rooms[roomId], pid, name);
+    clearEmptyRoomTimer(roomId);
+    room.emptyAt = null;
+
+    const existingPlayer = findReconnectPlayer(room, pid, name);
     
     if (existingPlayer) {
       console.log(`[Server] Player ${name} (${pid}) reconnecting to room ${roomId}`);
@@ -396,7 +448,7 @@ io.on('connection', (socket) => {
         rooms[roomId].hostName = existingPlayer.name;
       }
     } else {
-      if (rooms[roomId].players.length >= 8) {
+      if (activePlayerCount(room) >= 8) {
         socket.emit('error', { message: 'Room is full' });
         return;
       }
@@ -428,6 +480,9 @@ io.on('connection', (socket) => {
         socket.emit('gameStateSync', {
           gameState: viewForPlayer(rooms[roomId].gameState, joined.id),
         });
+        socket.emit('startGame', {
+          players: rooms[roomId].players.map((p) => ({ id: p.id, name: p.name })),
+        });
       }
     }
     
@@ -436,11 +491,28 @@ io.on('connection', (socket) => {
 
   socket.on('leaveRoom', ({ roomId }) => {
     if (!rooms[roomId]) return;
-    const wasPublic = rooms[roomId].isPublic;
-    rooms[roomId].players = rooms[roomId].players.filter(p => p.socketId !== socket.id);
-    io.to(roomId).emit('lobbyUpdate', { players: rooms[roomId].players.map(p => ({ id: p.id, name: p.name, ready: p.ready })), host: rooms[roomId].host });
-    // broadcast updated room list
-    if (wasPublic) broadcastAvailableRooms();
+    const room = rooms[roomId];
+    const leaving = room.players.find((p) => p.socketId === socket.id);
+    if (!leaving) return;
+    const wasHost = room.host === leaving.id;
+    room.players = room.players.filter((p) => p.socketId !== socket.id);
+    if (wasHost && room.players.length > 0) {
+      migrateHost(roomId);
+    }
+    afterPlayerLeftRoom(roomId);
+  });
+
+  socket.on('dismissRoom', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (!room) return;
+    if (!isRoomHost(room, socket.id)) {
+      socket.emit('error', { message: 'Only the host can dismiss this room' });
+      return;
+    }
+    console.log(`[Server] Host dismissed room ${roomId}`);
+    io.to(roomId).emit('roomDismissed', { roomId });
+    deleteRoom(roomId);
+    broadcastAvailableRooms();
   });
 
   socket.on('startGame', ({ roomId }) => {
@@ -458,6 +530,16 @@ io.on('connection', (socket) => {
     const room = rooms[roomId];
     if (room.players.length < 2) {
       console.log('[Server] Not enough players:', room.players.length);
+      return;
+    }
+
+    // Game already running — sync clients without redealing (late join / missed broadcast).
+    if (room.inGame && room.gameState?.players) {
+      console.log('[Server] startGame: room already in game, syncing clients');
+      broadcastGameState(io, room);
+      io.to(roomId).emit('startGame', {
+        players: room.players.map((p) => ({ id: p.id, name: p.name })),
+      });
       return;
     }
     
@@ -693,17 +775,19 @@ io.on('connection', (socket) => {
     
     console.log('Host kicking player:', playerName);
     
+    const wasHost = rooms[roomId].host === playerToKick.id;
+    
     // Remove player from room
     rooms[roomId].players = rooms[roomId].players.filter(p => p.name !== playerName);
     
     // Notify the kicked player
     io.to(playerToKick.socketId).emit('kicked', { message: 'You have been removed from the game' });
     
-    // Update lobby for remaining players
-    io.to(roomId).emit('lobbyUpdate', { players: rooms[roomId].players.map(p => ({ id: p.id, name: p.name, ready: p.ready })), host: rooms[roomId].host });
+    if (wasHost && rooms[roomId].players.length > 0) {
+      migrateHost(roomId);
+    }
     
-    // Broadcast updated room list if public
-    if (rooms[roomId].isPublic) broadcastAvailableRooms();
+    afterPlayerLeftRoom(roomId);
   });
 
   socket.on('disconnect', () => {
@@ -732,6 +816,10 @@ io.on('connection', (socket) => {
             gracePeriod: graceMs
           });
           
+          if (wasHost) {
+            migrateHost(roomId);
+          }
+          
           io.to(roomId).emit('lobbyUpdate', { 
             players: room.players.map(p => ({ 
               id: p.id, 
@@ -741,15 +829,15 @@ io.on('connection', (socket) => {
             })), 
             host: room.host 
           });
-          
-          if (wasHost) {
-            migrateHost(roomId);
-          }
           
           schedulePlayerRemoval(roomId, player.id, socket.id, graceMs);
         } else {
           console.log(`[Server] Lobby disconnect for ${player.name}, grace period before removal`);
           
+          if (wasHost) {
+            migrateHost(roomId);
+          }
+          
           io.to(roomId).emit('lobbyUpdate', { 
             players: room.players.map(p => ({ 
               id: p.id, 
@@ -759,10 +847,6 @@ io.on('connection', (socket) => {
             })), 
             host: room.host 
           });
-          
-          if (wasHost) {
-            migrateHost(roomId);
-          }
           
           schedulePlayerRemoval(roomId, player.id, socket.id, graceMs);
         }
