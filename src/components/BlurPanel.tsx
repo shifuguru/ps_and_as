@@ -90,8 +90,8 @@ const styles = StyleSheet.create({
   content: {
     position: "relative",
     zIndex: 1,
-    flex: 1,
     alignSelf: "stretch",
+    width: "100%",
   },
   fallback: {
     overflow: "hidden",
