@@ -58,7 +58,10 @@ export function useLayoutInsets() {
     if (!win.window) return;
 
     const read = () => {
-      setWebChrome(readWebChromeInsets(win.window!));
+      setWebChrome((prev) => {
+        const next = readWebChromeInsets(win.window!);
+        return prev.top === next.top && prev.bottom === next.bottom ? prev : next;
+      });
     };
 
     read();

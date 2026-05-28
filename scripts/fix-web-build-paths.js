@@ -88,6 +88,12 @@ function patchViewport(html) {
     html = html.replace("<head>", `<head>\n    ${touchIcon}`);
   }
 
+  const noCache =
+    '<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />';
+  if (!/http-equiv="Cache-Control"/i.test(html)) {
+    html = html.replace("<head>", `<head>\n    ${noCache}`);
+  }
+
   return html;
 }
 
@@ -163,7 +169,12 @@ function writeVersionJson(meta) {
 
 function injectBuildMeta(html, meta) {
   const script = `<script>window.__PS_AND_AS_BUILD__=${JSON.stringify(meta)};</script>`;
-  if (html.includes("__PS_AND_AS_BUILD__")) return html;
+  if (html.includes("__PS_AND_AS_BUILD__")) {
+    return html.replace(
+      /<script>window\.__PS_AND_AS_BUILD__=[^<]*<\/script>/,
+      script,
+    );
+  }
   return html.replace("<head>", `<head>\n    ${script}`);
 }
 

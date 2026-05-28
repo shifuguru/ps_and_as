@@ -14,6 +14,7 @@ import type { PlayAreaLayout } from "../utils/tableLayout";
 import { seatOriginInPlayArea } from "../utils/tablePlayFlight";
 import type { ClientPendingTrade } from "../game/roundPrep";
 import { useAppTheme } from "../context/ThemeContext";
+import { FULL_DECK_SIZE } from "../game/ruleset";
 import {
   buildClockwiseDealSteps,
   dealRecipientOrder,
@@ -32,6 +33,8 @@ type Props = {
   playAreaOffsetTop?: number;
   playAreaOffsetLeft?: number;
   cardsPerPlayer: number;
+  /** Total cards in the deck being dealt (default 54). */
+  totalCards?: number;
   pendingTrades?: ClientPendingTrade[];
   onDealComplete: () => void;
   onMandatoryTradesAnimated?: () => void;
@@ -59,13 +62,14 @@ export default function DealCeremonyOverlay({
   playAreaOffsetTop = 0,
   playAreaOffsetLeft = 0,
   cardsPerPlayer,
+  totalCards = FULL_DECK_SIZE,
   pendingTrades = [],
   onDealComplete,
   onMandatoryTradesAnimated,
 }: Props) {
   const { colors } = useAppTheme();
   const { width: screenW } = useWindowDimensions();
-  const dims = tableCardDimensions();
+  const dims = useMemo(() => tableCardDimensions(), []);
   const labelOpacity = useRef(new Animated.Value(1)).current;
 
   const [phase, setPhase] = useState<"shuffle" | "deal" | "trade" | "done">(
@@ -84,6 +88,7 @@ export default function DealCeremonyOverlay({
   dealRoundRef.current = dealRound;
   const dealStepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dealWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dealFlightRoundRef = useRef<number | null>(null);
   const offsetPoint = useCallback(
     (x: number, y: number) => ({
       x: x + playAreaOffsetLeft,
@@ -130,8 +135,8 @@ export default function DealCeremonyOverlay({
 
   const dealSteps = useMemo(() => {
     const recipientOrder = dealRecipientOrder(playerIds, dealerId);
-    return buildClockwiseDealSteps(recipientOrder, cardsPerPlayer);
-  }, [cardsPerPlayer, playerIds, dealerId]);
+    return buildClockwiseDealSteps(recipientOrder, totalCards);
+  }, [totalCards, playerIds, dealerId]);
 
   const dealStepsRef = useRef(dealSteps);
   dealStepsRef.current = dealSteps;
@@ -167,6 +172,7 @@ export default function DealCeremonyOverlay({
   useEffect(() => {
     if (!visible) return;
     ceremonyFinishedRef.current = false;
+    dealFlightRoundRef.current = null;
     setPhase("shuffle");
     setDealRound(0);
     setDealtCounts({});
@@ -232,6 +238,9 @@ export default function DealCeremonyOverlay({
     }
 
     const flightId = `deal-${dealRound}`;
+    if (dealFlightRoundRef.current === dealRound) return;
+    dealFlightRoundRef.current = dealRound;
+
     const from = offsetPoint(deckCenter.x, deckCenter.y);
     const to = offsetPoint(target.x, target.y);
     const flight: CardFlightSpec = {
@@ -265,8 +274,10 @@ export default function DealCeremonyOverlay({
     playAreaHeight,
     layoutSeatIds,
     localPlayerIds,
-    deckCenter,
-    dims,
+    deckCenter.x,
+    deckCenter.y,
+    dims.width,
+    dims.height,
     pendingTrades.length,
     seatOptions,
     advanceDealRound,

@@ -19,7 +19,12 @@ export default function ScreenContainer({ children, style, ignoreHeaderOffset }:
   // Game screen manages its own edge-to-edge top bar (blur under the notch).
   if (ignoreHeaderOffset) {
     return (
-      <View style={[{ flex: 1, backgroundColor: "transparent" }, style as any]}>
+      <View
+        style={[
+          { flex: 1, backgroundColor: "transparent", position: "relative" },
+          style as any,
+        ]}
+      >
         {children}
       </View>
     );

@@ -54,6 +54,9 @@ export function createDeck(): Card[] {
   return deck;
 }
 
+/** Standard deck size: 52 ranks + 2 jokers. */
+export const FULL_DECK_SIZE = 54;
+
 // Shuffle the deck using Fisher-Yates algorithm
 export function shuffleDeck(deck: Card[]): Card[] {
   const copy = deck.slice();

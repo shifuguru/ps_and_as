@@ -158,12 +158,13 @@ export function dealRecipientOrder(
 
 export function buildClockwiseDealSteps(
   recipientOrder: string[],
-  cardsPerPlayer: number,
+  totalCards: number,
 ): { playerId: string; round: number }[] {
-  if (recipientOrder.length === 0 || cardsPerPlayer <= 0) return [];
-  return Array.from({ length: cardsPerPlayer }, (_, round) =>
-    recipientOrder.map((playerId) => ({ playerId, round })),
-  ).flat();
+  if (recipientOrder.length === 0 || totalCards <= 0) return [];
+  return Array.from({ length: totalCards }, (_, i) => ({
+    playerId: recipientOrder[i % recipientOrder.length],
+    round: Math.floor(i / recipientOrder.length),
+  }));
 }
 
 export function isDeadHandSeatId(playerId: string): boolean {

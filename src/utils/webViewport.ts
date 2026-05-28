@@ -13,6 +13,46 @@ type WebWindow = {
 const WEB_KEYBOARD_GAP_THRESHOLD = 120;
 export const APP_SHELL_HEIGHT_VAR = "--app-shell-h";
 
+type SafeAreaInsets = { top: number; bottom: number; left: number; right: number };
+
+let cachedSafeArea: SafeAreaInsets = { top: 0, bottom: 0, left: 0, right: 0 };
+let cachedShellHeight = 0;
+let viewportCacheListenersAttached = false;
+
+function attachViewportCacheListeners(): void {
+  if (viewportCacheListenersAttached || Platform.OS !== "web") return;
+  const win = (globalThis as {
+    window?: {
+      addEventListener: (type: string, fn: () => void) => void;
+      visualViewport?: {
+        addEventListener: (type: string, fn: () => void) => void;
+      } | null;
+    };
+  }).window;
+  if (!win) return;
+
+  const refresh = () => {
+    cachedSafeArea = readWebSafeAreaInsetsUncached();
+    cachedShellHeight = 0;
+  };
+
+  win.addEventListener("resize", refresh);
+  win.addEventListener("orientationchange", refresh);
+  win.visualViewport?.addEventListener("resize", refresh);
+  win.visualViewport?.addEventListener("scroll", refresh);
+  viewportCacheListenersAttached = true;
+  refresh();
+}
+
+function readWebSafeAreaInsetsUncached(): SafeAreaInsets {
+  return {
+    top: measureCssLength("paddingTop", "env(safe-area-inset-top, 0px)"),
+    bottom: measureCssLength("paddingBottom", "env(safe-area-inset-bottom, 0px)"),
+    left: measureCssLength("paddingLeft", "env(safe-area-inset-left, 0px)"),
+    right: measureCssLength("paddingRight", "env(safe-area-inset-right, 0px)"),
+  };
+}
+
 /** Touch-first / narrow layouts where Safari dvh vs innerHeight gaps appear. */
 export function isMobileWeb(): boolean {
   if (Platform.OS !== "web") return false;
@@ -53,16 +93,12 @@ function measureCssLength(
   return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
-export function readWebSafeAreaInsets(): { top: number; bottom: number; left: number; right: number } {
+export function readWebSafeAreaInsets(): SafeAreaInsets {
   if (Platform.OS !== "web") {
     return { top: 0, bottom: 0, left: 0, right: 0 };
   }
-  return {
-    top: measureCssLength("paddingTop", "env(safe-area-inset-top, 0px)"),
-    bottom: measureCssLength("paddingBottom", "env(safe-area-inset-bottom, 0px)"),
-    left: measureCssLength("paddingLeft", "env(safe-area-inset-left, 0px)"),
-    right: measureCssLength("paddingRight", "env(safe-area-inset-right, 0px)"),
-  };
+  attachViewportCacheListeners();
+  return cachedSafeArea;
 }
 
 function keyboardLikelyOpen(win: WebWindow): boolean {
@@ -86,12 +122,20 @@ export function readWebShellHeight(win: WebWindow): number {
     return Math.round(vv.height);
   }
 
+  if (Platform.OS === "web" && cachedShellHeight > 0 && !keyboardLikelyOpen(win)) {
+    return cachedShellHeight;
+  }
+
   const dvh = measureCssLength("height", "100dvh");
   const svh = measureCssLength("height", "100svh");
   const lvh = measureCssLength("height", "100lvh");
   const visualBottom = vv ? Math.round(vv.height + (vv.offsetTop ?? 0)) : 0;
 
-  return Math.max(layoutH, visualBottom, dvh, svh, lvh);
+  const h = Math.max(layoutH, visualBottom, dvh, svh, lvh);
+  if (Platform.OS === "web") {
+    cachedShellHeight = h;
+  }
+  return h;
 }
 
 /** Keep html/body/#root and --app-shell-h aligned on mobile web (iOS Safari). */
@@ -103,13 +147,18 @@ export function applyMobileWebShellHeight(win: WebWindow): number {
 
   const h = readWebShellHeight(win);
   const px = `${h}px`;
+  const prev = doc.documentElement.style.getPropertyValue(APP_SHELL_HEIGHT_VAR);
+  const root = doc.getElementById("root");
+  if (prev === px && doc.documentElement.style.height === px && root?.style.height === px) {
+    return h;
+  }
+
   doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, px);
   doc.documentElement.style.height = px;
   doc.documentElement.style.minHeight = px;
   doc.body.style.height = px;
   doc.body.style.minHeight = px;
 
-  const root = doc.getElementById("root");
   if (root) {
     root.style.height = px;
     root.style.minHeight = px;

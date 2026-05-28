@@ -326,7 +326,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     const clamped = clampScroll(value, min, max);
     scrollRef.current = clamped;
     scrollX.setValue(clamped);
-    setScrollOffset(clamped);
+    setScrollOffset((prev) => (prev === clamped ? prev : clamped));
     return clamped;
   };
 

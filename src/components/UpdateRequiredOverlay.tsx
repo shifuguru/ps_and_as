@@ -5,7 +5,7 @@ import BlurPanel from "./BlurPanel";
 import { useAppTheme } from "../context/ThemeContext";
 import {
   APP_VERSION,
-  CLIENT_BUILD_ID,
+  resolveClientBuildId,
   formatBuildLabel,
   type BuildVersionInfo,
 } from "../config/buildVersion";
@@ -49,7 +49,7 @@ export default function UpdateRequiredOverlay({ latestBuild }: Props) {
           </View>
           <TouchableOpacity
             style={[ui.actionPrimary, styles.primaryBtn]}
-            onPress={applyBuildUpdate}
+            onPress={() => applyBuildUpdate(latestBuild?.buildId)}
             activeOpacity={0.88}
             accessibilityRole="button"
             accessibilityLabel="Refresh to update"

@@ -28,6 +28,8 @@ type Props = {
   passDisabled: boolean;
   isPlayerTurn?: boolean;
   noValidPlays?: boolean;
+  /** Hide play/pass during deal ceremony — leave stays visible. */
+  leaveOnly?: boolean;
 };
 
 export default function ActionBar({
@@ -39,6 +41,7 @@ export default function ActionBar({
   passDisabled,
   isPlayerTurn = false,
   noValidPlays = false,
+  leaveOnly = false,
 }: Props) {
   const { colors, ui } = useAppTheme();
   const isLight = colors.mode === "light";
@@ -190,6 +193,7 @@ export default function ActionBar({
 
   return (
     <View style={[styles.container, { width: barWidth, maxWidth: barWidth }]}>
+      {!leaveOnly ? (
       <View
         style={[
           styles.actionTrack,
@@ -302,6 +306,7 @@ export default function ActionBar({
           )}
         </AnimatedTouchable>
       </View>
+      ) : null}
 
       <TouchableOpacity
         style={ui.leaveButton}

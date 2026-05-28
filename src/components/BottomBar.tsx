@@ -24,7 +24,7 @@ import BlurPanel from "./BlurPanel";
 import { ACTION_BAR_HEIGHT } from "./ActionBar";
 import { HAND_FAN_HEIGHT } from "./PlayerHand";
 import { LOCAL_SEAT_TABLE_LIFT } from "../utils/tableLayout";
-import { isMobileWeb, readWebSafeAreaInsets } from "../utils/webViewport";
+import { isMobileWeb } from "../utils/webViewport";
 import { useAppTheme } from "../context/ThemeContext";
 
 
@@ -43,9 +43,30 @@ export const HAND_CONTROLS_GAP = 20;
 export const BOTTOM_SHEET_BLEED = 32;
 
 function bottomSheetBleed(safeBottom = 0): number {
-  if (Platform.OS === "web" && !isMobileWeb()) return BOTTOM_SHEET_BLEED;
-  const cssSafe = Platform.OS === "web" && isMobileWeb() ? readWebSafeAreaInsets().bottom : 0;
-  return BOTTOM_SHEET_BLEED + Math.max(safeBottom, cssSafe);
+  // Mobile web shell is position:fixed with overflow:hidden — negative bottom
+  // would push controls below the clip edge (safe-area belongs in padding only).
+  if (Platform.OS === "web") return 0;
+  return BOTTOM_SHEET_BLEED + Math.max(0, safeBottom);
+}
+
+function bottomBarOffset(safeBottom = 0): number {
+  if (Platform.OS === "web") return 0;
+  return -bottomSheetBleed(safeBottom);
+}
+
+function bottomBarPositionStyle(
+  safeBottom = 0,
+): ViewStyle {
+  if (Platform.OS === "web" && isMobileWeb()) {
+    return {
+      position: "fixed",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: "100%",
+    } as object as ViewStyle;
+  }
+  return { bottom: bottomBarOffset(safeBottom) };
 }
 
 function bottomOuterPad(safeBottom = 0): number {
@@ -53,8 +74,7 @@ function bottomOuterPad(safeBottom = 0): number {
   const homeClearance =
     Platform.OS === "ios" ? Math.max(chrome, 20) + 14 : chrome + 16;
   if (Platform.OS === "web") {
-    const cssSafe = isMobileWeb() ? readWebSafeAreaInsets().bottom : 0;
-    return Math.max(12, chrome, cssSafe);
+    return Math.max(12, chrome);
   }
   return homeClearance;
 }
@@ -135,7 +155,7 @@ export default function BottomBar({
         style,
         minHeight ? { minHeight } : undefined,
 
-        { paddingBottom, bottom: Platform.OS === "web" && !isMobileWeb() ? 0 : -bottomSheetBleed(bottomInset) },
+        { paddingBottom, ...bottomBarPositionStyle(bottomInset) },
 
       ]}
 

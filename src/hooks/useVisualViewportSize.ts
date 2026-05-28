@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Platform, ScaledSize, useWindowDimensions } from "react-native";
 import {
-  applyMobileWebShellHeight,
   isMobileWeb,
   readWebShellHeight,
 } from "../utils/webViewport";
@@ -44,7 +43,7 @@ function readVisualViewport(win: WebWindow): ScaledSize {
     width: Math.round(win.innerWidth ?? 0),
     height: Math.round(
       isMobileWeb()
-        ? applyMobileWebShellHeight(win)
+        ? readWebShellHeight(win)
         : win.innerHeight ?? 0,
     ),
     scale: 1,

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
-import { CLIENT_BUILD_ID, type BuildVersionInfo } from "../config/buildVersion";
+import {
+  resolveClientBuildId,
+  type BuildVersionInfo,
+} from "../config/buildVersion";
 import {
   fetchLatestBuildInfo,
   isRemoteBuildNewer,
@@ -21,14 +24,23 @@ export function useBuildUpdateCheck(
   const checkForUpdate = useCallback(async () => {
     if (!enabled || __DEV__) return;
     if (checkingRef.current) return;
-    if (CLIENT_BUILD_ID === "dev" || CLIENT_BUILD_ID === "unknown") return;
+    const clientId = resolveClientBuildId();
+    if (clientId === "dev" || clientId === "unknown") return;
 
     checkingRef.current = true;
     try {
       const remote = await fetchLatestBuildInfo();
-      if (remote && isRemoteBuildNewer(remote)) {
+      if (!remote) return;
+      if (remote.buildId === clientId) {
+        setUpdateAvailable(false);
+        setLatestBuild(null);
+        return;
+      }
+      if (isRemoteBuildNewer(remote)) {
         setLatestBuild(remote);
         setUpdateAvailable(true);
+      } else {
+        setUpdateAvailable(false);
       }
     } finally {
       checkingRef.current = false;
@@ -98,7 +110,7 @@ export function useBuildUpdateCheck(
   return {
     updateAvailable,
     latestBuild,
-    currentBuildId: CLIENT_BUILD_ID,
+    currentBuildId: resolveClientBuildId(),
     checkForUpdate,
   };
 }

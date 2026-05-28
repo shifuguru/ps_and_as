@@ -55,7 +55,7 @@ import {
 import { recordRoundResult, recordTrickWin } from "../services/playerStats";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import DebugViewer from "../components/DebugViewer";
-import { Card as CardType } from "../game/ruleset";
+import { Card as CardType, FULL_DECK_SIZE } from "../game/ruleset";
 import Header from "../components/Header";
 import ScreenContainer from "../components/ScreenContainer";
 import EndGamePanel from "../components/EndGamePanel";
@@ -73,6 +73,7 @@ import PlayerHand, {
 import ActionBar from "../components/ActionBar";
 import MenuIcon from "../components/MenuIcon";
 import RoundCompleteModal from "../components/RoundCompleteModal";
+import LeaveGameConfirmModal from "../components/LeaveGameConfirmModal";
 import TenRuleModal from "../components/TenRuleModal";
 import GameTable from "../components/GameTable";
 import GamePlayArea from "../components/GamePlayArea";
@@ -378,6 +379,7 @@ export default function GameScreen({
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
   const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
   const [showGameLog, setShowGameLog] = useState<boolean>(false);
+  const [leaveConfirmVisible, setLeaveConfirmVisible] = useState(false);
   const [selected, setSelected] = useState<number[]>([]); // indices in hand
   const [focused, setFocused] = useState<number | null>(null);
   const handRef = useRef<PlayerHandHandle>(null);
@@ -1263,7 +1265,7 @@ export default function GameScreen({
       playAreaGameHeight,
       tableSeats.layoutSeatCount,
     );
-  }, [playAreaSize.width, playAreaGameHeight, state, tableSeats.layoutSeatCount, insets.bottom, gameplayLocked, humanPlayer?.hand.length]);
+  }, [playAreaSize.width, playAreaGameHeight, tableSeats.layoutSeatCount]);
 
   const handleTradeConfirm = useCallback(
     (selected: CardType[]) => {
@@ -1309,7 +1311,12 @@ export default function GameScreen({
       finalizeCeremonyRound(tradePhase.players, tradePhase.baseState);
       return;
     }
-    setActiveTrade(tradePhase.trades.find((t) => !t.completed) ?? null);
+    const nextTrade = tradePhase.trades.find((t) => !t.completed) ?? null;
+    setActiveTrade((prev) =>
+      prev?.winnerId === nextTrade?.winnerId && prev?.loserId === nextTrade?.loserId
+        ? prev
+        : nextTrade,
+    );
   }, [tradePhase, onlineMultiplayer, myPlayerId, finalizeCeremonyRound]);
 
   // CPU auto-play effect
@@ -1395,6 +1402,29 @@ export default function GameScreen({
 
     return () => clearTimeout(timer);
   }, [state, trickPauseActive, gameplayLocked, roundOver, humanPlayer?.id]);
+
+  const roleById = useMemo(() => {
+    const src =
+      tradePhase?.players ?? ceremonyPrep?.players ?? state?.players ?? [];
+    const map: Record<string, GameState["players"][number]["role"]> = {};
+    for (const p of src) {
+      map[p.id] = p.role;
+    }
+    return map;
+  }, [tradePhase, ceremonyPrep, state?.players]);
+
+  const requestLeaveGame = useCallback(() => {
+    setLeaveConfirmVisible(true);
+  }, []);
+
+  const cancelLeaveGame = useCallback(() => {
+    setLeaveConfirmVisible(false);
+  }, []);
+
+  const confirmLeaveGame = useCallback(() => {
+    setLeaveConfirmVisible(false);
+    onBack?.();
+  }, [onBack]);
 
   if (!state) {
     if (onlineMultiplayer) {
@@ -1699,16 +1729,6 @@ export default function GameScreen({
         ? []
         : trickPauseSnapshot.plays
       : trickPlays;
-
-  const roleById = useMemo(() => {
-    const src =
-      tradePhase?.players ?? ceremonyPrep?.players ?? state?.players ?? [];
-    const map: Record<string, GameState["players"][number]["role"]> = {};
-    for (const p of src) {
-      map[p.id] = p.role;
-    }
-    return map;
-  }, [tradePhase, ceremonyPrep, state?.players]);
 
   const opponentPlayers = state.players
     .filter((p) => p.id !== humanPlayer?.id)
@@ -2198,7 +2218,7 @@ export default function GameScreen({
                 </Text>
               </View>
               {onBack ? (
-                <BottomBarLeave onPress={onBack} label="Leave" />
+                <BottomBarLeave onPress={requestLeaveGame} label="Leave" />
               ) : null}
             </>
           ) : gameplayLocked ? (
@@ -2212,17 +2232,16 @@ export default function GameScreen({
               </Text>
             </View>
           ) : null}
-          {!readOnlyOnline && !tradePhase && !gameplayLocked ? (
+          {!readOnlyOnline && !tradePhase ? (
           <ActionBar
+            leaveOnly={gameplayLocked}
             selectedCount={selected.length}
             onPlay={handlePlayPress}
             onPass={handlePassPress}
-            onQuit={() => {
-              if (onBack) onBack();
-            }}
-            playDisabled={!isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id) || selected.length === 0}
-            passDisabled={!isHumanTurn || roundOver}
-            isPlayerTurn={isHumanTurn && !roundOver}
+            onQuit={requestLeaveGame}
+            playDisabled={gameplayLocked || !isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id) || selected.length === 0}
+            passDisabled={gameplayLocked || !isHumanTurn || roundOver}
+            isPlayerTurn={isHumanTurn && !roundOver && !gameplayLocked}
             noValidPlays={noValidPlays}
           />
           ) : null}
@@ -2298,6 +2317,18 @@ export default function GameScreen({
               )
             : 13
         }
+        totalCards={
+          ceremonyPrep
+            ? ceremonyPrep.players.reduce(
+                (sum, p) =>
+                  sum +
+                  (isDeadHandPlayer(p)
+                    ? (p.sidelinedHand?.length ?? p.hand.length)
+                    : p.hand.length),
+                0,
+              )
+            : FULL_DECK_SIZE
+        }
         pendingTrades={ceremonyPrep?.trades.filter((t) => !t.completed) ?? []}
         onDealComplete={handleDealComplete}
       />
@@ -2326,9 +2357,7 @@ export default function GameScreen({
         localPlayerId={humanPlayer?.id ?? myPlayerId ?? undefined}
         spectatorMode={spectatorMode}
         deadHandSeatOpen={state.players.some(isDeadHandPlayer)}
-        onQuit={() => {
-          if (onBack) onBack();
-        }}
+        onQuit={requestLeaveGame}
         onToggleReady={() => {
           const id =
             humanPlayer?.id ??
@@ -2348,6 +2377,12 @@ export default function GameScreen({
           }
           setPlayerReadyStates((prev) => ({ ...prev, [id]: true }));
         }}
+      />
+
+      <LeaveGameConfirmModal
+        visible={leaveConfirmVisible}
+        onCancel={cancelLeaveGame}
+        onConfirm={confirmLeaveGame}
       />
       
     </ScreenContainer>

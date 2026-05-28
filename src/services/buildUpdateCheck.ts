@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import {
   APP_VERSION,
-  CLIENT_BUILD_ID,
+  resolveClientBuildId,
   WEB_BASE_PATH,
   type BuildVersionInfo,
 } from "../config/buildVersion";
@@ -50,6 +50,8 @@ export async function fetchLatestBuildInfo(): Promise<BuildVersionInfo | null> {
       );
       if (fromWeb) return fromWeb;
     }
+    // Web clients must compare against the deployed bundle, not the game server.
+    return null;
   }
 
   const serverBase = getServerUrl().replace(/\/$/, "");
@@ -60,19 +62,40 @@ export async function fetchLatestBuildInfo(): Promise<BuildVersionInfo | null> {
 }
 
 export function isRemoteBuildNewer(remote: BuildVersionInfo): boolean {
-  if (!remote.buildId || remote.buildId === CLIENT_BUILD_ID) return false;
-  if (CLIENT_BUILD_ID === "dev" || CLIENT_BUILD_ID === "unknown") return false;
+  const clientId = resolveClientBuildId();
+  if (!remote.buildId || remote.buildId === clientId) return false;
+  if (clientId === "dev" || clientId === "unknown") return false;
   return true;
 }
 
-export function applyBuildUpdate(): void {
-  if (Platform.OS === "web") {
-    const loc = (globalThis as { location?: { href: string; replace: (url: string) => void; reload: () => void } }).location;
-    if (loc) {
-      const url = new URL(loc.href);
-      url.searchParams.set("_refresh", String(Date.now()));
-      loc.replace(url.toString());
-      loc.reload();
+export function applyBuildUpdate(latestBuildId?: string): void {
+  if (Platform.OS !== "web") return;
+
+  const loc = (globalThis as {
+    location?: { href: string; replace: (url: string) => void };
+    caches?: { keys: () => Promise<string[]>; delete: (n: string) => Promise<boolean> };
+  }).location;
+  if (!loc) return;
+
+  void (async () => {
+    try {
+      const caches = (globalThis as {
+        caches?: { keys: () => Promise<string[]>; delete: (n: string) => Promise<boolean> };
+      }).caches;
+      if (caches) {
+        for (const name of await caches.keys()) {
+          await caches.delete(name);
+        }
+      }
+    } catch {
+      /* ignore */
     }
-  }
+
+    const url = new URL(loc.href);
+    url.searchParams.delete("_refresh");
+    url.searchParams.delete("b");
+    const bust = (latestBuildId || String(Date.now())).slice(0, 40);
+    url.searchParams.set("b", bust);
+    loc.replace(url.toString());
+  })();
 }
