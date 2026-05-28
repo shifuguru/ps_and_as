@@ -29,12 +29,12 @@ export const APP_VERSION =
   runtimeBuild()?.version ||
   "0.0.0";
 
-/** Resolve build id — on web prefer inline HTML meta over baked bundle env (Android cache). */
+/** Resolve build id — on web prefer the baked bundle id so stale cached JS still compares correctly against version.json. */
 export function resolveClientBuildId(): string {
   const runtime = runtimeBuild()?.buildId?.trim();
   const env = process.env.EXPO_PUBLIC_BUILD_ID?.trim();
   if (Platform.OS === "web") {
-    return runtime || env || (__DEV__ ? "dev" : "unknown");
+    return env || runtime || (__DEV__ ? "dev" : "unknown");
   }
   return env || runtime || (__DEV__ ? "dev" : "unknown");
 }

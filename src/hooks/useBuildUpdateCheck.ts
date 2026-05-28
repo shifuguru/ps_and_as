@@ -11,7 +11,7 @@ import {
 import type { NetworkAdapter } from "../game/network";
 import { isSocketAdapter } from "../game/socketAdapter";
 
-const POLL_MS = 5 * 60 * 1000;
+const POLL_MS = 2 * 60 * 1000;
 
 export function useBuildUpdateCheck(
   enabled = true,

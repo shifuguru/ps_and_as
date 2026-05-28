@@ -67,7 +67,7 @@ function AppContent() {
   const [gameInstanceKey, setGameInstanceKey] = useState(0);
 
   const { updateAvailable, latestBuild } = useBuildUpdateCheck(
-    menuVisible && !splashVisible,
+    !splashVisible,
     roomAdapter,
   );
 

@@ -21,7 +21,7 @@ export default function UpdateRequiredOverlay({ latestBuild }: Props) {
 
   const currentLabel = formatBuildLabel({
     version: APP_VERSION,
-    buildId: CLIENT_BUILD_ID,
+    buildId: resolveClientBuildId(),
   });
   const latestLabel = formatBuildLabel(latestBuild);
 

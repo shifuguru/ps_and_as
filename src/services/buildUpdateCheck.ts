@@ -19,10 +19,36 @@ function parseVersionPayload(raw: unknown): BuildVersionInfo | null {
 
 function webVersionJsonUrl(): string | null {
   if (Platform.OS !== "web") return null;
-  const loc = (globalThis as { location?: { origin?: string } }).location;
+  const loc = (globalThis as {
+    location?: { origin?: string; pathname?: string };
+  }).location;
   if (!loc?.origin) return null;
   const base = WEB_BASE_PATH ? `${WEB_BASE_PATH}/` : "/";
   return `${loc.origin}${base}version.json`;
+}
+
+async function fetchLatestWebBuildInfo(): Promise<BuildVersionInfo | null> {
+  const primary = webVersionJsonUrl();
+  const urls: string[] = [];
+  if (primary) urls.push(primary);
+
+  const loc = (globalThis as { location?: { origin?: string; pathname?: string } })
+    .location;
+  if (loc?.origin && loc.pathname) {
+    const segments = loc.pathname.split("/").filter(Boolean);
+    if (segments.length > 0) {
+      const derived = `${loc.origin}/${segments[0]}/version.json`;
+      if (!urls.includes(derived)) urls.push(derived);
+    }
+  }
+
+  for (const url of urls) {
+    const parsed = parseVersionPayload(
+      await fetchJson(`${url}?t=${Date.now()}`),
+    );
+    if (parsed) return parsed;
+  }
+  return null;
 }
 
 async function fetchJson(url: string): Promise<unknown | null> {
@@ -43,15 +69,7 @@ export async function fetchLatestBuildInfo(): Promise<BuildVersionInfo | null> {
   const cacheBust = `t=${Date.now()}`;
 
   if (Platform.OS === "web" && !__DEV__) {
-    const webUrl = webVersionJsonUrl();
-    if (webUrl) {
-      const fromWeb = parseVersionPayload(
-        await fetchJson(`${webUrl}?${cacheBust}`),
-      );
-      if (fromWeb) return fromWeb;
-    }
-    // Web clients must compare against the deployed bundle, not the game server.
-    return null;
+    return fetchLatestWebBuildInfo();
   }
 
   const serverBase = getServerUrl().replace(/\/$/, "");
