@@ -11,6 +11,8 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   StyleSheet,
+  Animated,
+  Easing,
   type TextStyle,
   type ViewStyle,
 } from "react-native";
@@ -39,6 +41,7 @@ import { ACTION_BAR_HEIGHT } from "../components/ActionBar";
 import { useAppTheme } from "../context/ThemeContext";
 import { copyToClipboard } from "../utils/clipboard";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
+import { hexToRgba } from "../utils/colorTheory";
 import { polarSeatPosition, ringAngleForSeat, sideAnchorMarginForWidth } from "../utils/tableLayout";
 const MIN_PLAYERS = 2;
 const MIN_PLAYERS_FULL_TABLE = 3;
@@ -48,6 +51,13 @@ const LOBBY_SEAT_H = 92;
 const LOBBY_RING_R = 104;
 const LOBBY_ADD_CPU_W = 76;
 const LOBBY_ADD_CPU_H = 92;
+
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+
+function playersNeededLabel(count: number): string {
+  if (count === 1) return "1 More Person";
+  return `Need ${count} More`;
+}
 
 /** Evenly spaced circle — seat 0 at bottom, then clockwise. */
 function lobbyRingSlotPositions(
@@ -391,6 +401,8 @@ export default function CreateGame({
   const showGuestReadyAction = onlineLobby && !isHost && lobbyFullEnough;
   const showHostReadyAction = hostWaitingForGuest;
   const showReadyAction = showGuestReadyAction || showHostReadyAction;
+
+  const readyFlash = useRef(new Animated.Value(0)).current;
 
   const handleRoomNameCommit = useCallback(
     (name: string) => {
@@ -806,25 +818,52 @@ export default function CreateGame({
 
   const primaryDisabled = usingMock
     ? !canStart
-    : isHost
-      ? anyGuestReady
-        ? !lobbyFullEnough
-        : false
+    : showReadyAction
+      ? false
       : !lobbyFullEnough;
+
+  const showReadyFlash = showReadyAction && !isLocalReady && !primaryDisabled;
+
+  useEffect(() => {
+    if (!showReadyFlash) {
+      readyFlash.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(readyFlash, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,
+        }),
+        Animated.timing(readyFlash, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [showReadyFlash, readyFlash]);
 
   const primaryLabel = usingMock
     ? "Start Game"
     : isHost
       ? anyGuestReady
         ? "Start Game"
+        : !lobbyFullEnough
+          ? playersNeededLabel(playersNeeded)
+          : isLocalReady
+            ? "Unready"
+            : "Ready"
+      : !lobbyFullEnough
+        ? playersNeededLabel(playersNeeded)
         : isLocalReady
           ? "Unready"
-          : "Ready"
-      : lobbyFullEnough
-        ? isLocalReady
-          ? "Unready"
-          : "Ready"
-        : `Need ${playersNeeded} More`;
+          : "Ready";
 
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
@@ -1159,7 +1198,7 @@ export default function CreateGame({
               ) : (
                 <View style={local.lobbySideBtn} />
               )}
-              <TouchableOpacity
+              <AnimatedTouchable
                 style={[
                   ui.btnGoldFill,
                   local.lobbyPrimaryBtn,
@@ -1167,24 +1206,69 @@ export default function CreateGame({
                   showReadyAction &&
                     isLocalReady &&
                     local.lobbyPrimaryReady,
+                  showReadyFlash && local.lobbyPrimaryFlash,
+                  showReadyFlash && {
+                    backgroundColor: readyFlash.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [
+                        colors.gold,
+                        colors.mode === "light"
+                          ? "rgba(255,255,255,0.96)"
+                          : "rgba(255,255,255,0.92)",
+                      ],
+                    }),
+                    borderColor: readyFlash.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [
+                        hexToRgba(colors.gold, 0.55),
+                        colors.mode === "light"
+                          ? "rgba(255,255,255,0.95)"
+                          : "rgba(255,255,255,0.95)",
+                      ],
+                    }),
+                    borderWidth: 1,
+                  },
                 ]}
                 onPress={handlePrimaryAction}
                 disabled={primaryDisabled}
                 activeOpacity={0.88}
+                accessibilityRole="button"
+                accessibilityLabel={primaryLabel}
+                accessibilityState={{ disabled: primaryDisabled }}
               >
-                <Text
-                  style={[
-                    ui.btnGoldFillText,
-                    local.lobbyPrimaryBtnText,
-                    primaryDisabled && local.lobbyPrimaryTextDisabled,
-                    showReadyAction &&
-                      isLocalReady &&
-                      local.lobbyPrimaryReadyText,
-                  ]}
-                >
-                  {primaryLabel}
-                </Text>
-              </TouchableOpacity>
+                {showReadyFlash ? (
+                  <Animated.Text
+                    style={[
+                      ui.btnGoldFillText,
+                      local.lobbyPrimaryBtnText,
+                      {
+                        color: readyFlash.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [
+                            colors.textOnGold,
+                            "#111111",
+                          ],
+                        }),
+                      },
+                    ]}
+                  >
+                    {primaryLabel}
+                  </Animated.Text>
+                ) : (
+                  <Text
+                    style={[
+                      ui.btnGoldFillText,
+                      local.lobbyPrimaryBtnText,
+                      primaryDisabled && local.lobbyPrimaryTextDisabled,
+                      showReadyAction &&
+                        isLocalReady &&
+                        local.lobbyPrimaryReadyText,
+                    ]}
+                  >
+                    {primaryLabel}
+                  </Text>
+                )}
+              </AnimatedTouchable>
               {onNavigateToSettings ? (
                 <TouchableOpacity
                   style={[ui.actionSecondary, local.lobbySideBtn]}
@@ -1490,6 +1574,17 @@ const local = StyleSheet.create({
   },
   lobbyPrimaryReadyText: {
     color: "#ffffff",
+  },
+  lobbyPrimaryFlash: {
+    ...Platform.select({
+      ios: {
+        shadowColor: "#fff",
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+      },
+      android: { elevation: 5 },
+    }),
   },
   bottomInner: {
     width: "100%",
