@@ -107,6 +107,7 @@ import {
   resolveDealerId,
   resolveOpeningPlayerIndex,
 } from "../utils/tableSeats";
+import { useSlowTurnBell } from "../hooks/useSlowTurnBell";
 
 type GameStateWithDealSeed = GameState & { dealSeed?: number };
 
@@ -507,6 +508,30 @@ function GameScreen({
     [awayPlayers],
   );
 
+  const turnPlayerId = state?.players[state.currentPlayerIndex]?.id ?? null;
+  const turnPlayerName = state?.players[state.currentPlayerIndex]?.name;
+  const turnPlayerIsCpu =
+    typeof turnPlayerName === "string" && turnPlayerName.startsWith("CPU");
+  const bellPaused =
+    !state ||
+    trickPauseActive ||
+    gameplayLocked ||
+    roundOver ||
+    !!ceremonyPrep ||
+    !!tradePhase ||
+    !!state?.tenRulePending;
+
+  const { slowTurnActive, canRingBell, registerBellRing } = useSlowTurnBell({
+    currentPlayerId: turnPlayerId,
+    paused: bellPaused,
+    isCpuPlayer: turnPlayerIsCpu,
+  });
+
+  const turnBellPlayerId =
+    slowTurnActive && turnPlayerId && turnPlayerId !== myPlayerId
+      ? turnPlayerId
+      : null;
+
   const requestLeaveGame = useCallback(() => {
     setLeaveConfirmVisible(true);
   }, []);
@@ -755,6 +780,22 @@ function GameScreen({
     if (!onlineMultiplayer || !isSocketAdapter(networkAdapter) || !roomId) return;
     networkAdapter.sendGameAction(roomId, action);
   }
+
+  const handleTurnBellPress = useCallback(
+    (targetPlayerId: string) => {
+      if (!canRingBell(targetPlayerId, myPlayerId)) return;
+      registerBellRing();
+      const targetName =
+        state?.players.find((p) => p.id === targetPlayerId)?.name ?? "Player";
+      showRoomNotice(`🔔 Hurry up, ${targetName}!`);
+      broadcastGameAction({
+        type: "turnNudge",
+        targetPlayerId,
+        fromPlayerId: myPlayerId,
+      });
+    },
+    [canRingBell, myPlayerId, registerBellRing, state?.players],
+  );
 
   // UX pacing: centralized CPU turn delay for a more relaxed feel
   const CPU_DELAY_MS = 1100;
@@ -1195,6 +1236,10 @@ function GameScreen({
         if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
           networkAdapter.requestGameState(roomId);
         }
+      } else if (ev.type === "state" && ev.state?.type === "turnNudge") {
+        const fromName = ev.state.fromPlayerName ?? "Someone";
+        const targetName = ev.state.targetPlayerName ?? "Player";
+        showRoomNotice(`🔔 ${fromName}: Hurry up, ${targetName}!`);
       } else if (ev.type === "state" && ev.state?.type === "error") {
         setSyncError(ev.state.message ?? "Could not sync with server");
       } else if (
@@ -1601,6 +1646,8 @@ function GameScreen({
         tradeReturnPick,
         readOnlyOnline,
         onBack,
+        turnBellPlayerId,
+        handleTurnBellPress,
       }}
     >
       <GameScreenBoard />
@@ -1671,6 +1718,8 @@ function GameScreenBoard() {
     tradeReturnPick,
     readOnlyOnline,
     onBack,
+    turnBellPlayerId,
+    handleTurnBellPress,
   } = useContext(GameScreenRuntimeContext)! as {
     state: GameState;
     setState: React.Dispatch<React.SetStateAction<GameState | null>>;
@@ -1749,6 +1798,8 @@ function GameScreenBoard() {
     tradeReturnPick: CardType[];
     readOnlyOnline: boolean;
     onBack: (() => void) | undefined;
+    turnBellPlayerId: string | null;
+    handleTurnBellPress: (playerId: string) => void;
   };
 
   // const windowDimensions = useWindowDimensions();
@@ -2247,6 +2298,11 @@ function GameScreenBoard() {
   function getPlayTypeLabel(): string | null {
     if (!state) return null;
 
+    if (state.fourOfAKindChallenge?.active) {
+      if (state.fourOfAKindChallenge.completedAcrossTurns) return "Quads — Pass!";
+      return "Quads!";
+    }
+
     // If a 10 was just played and direction is pending
     if (state.tenRulePending) return "10 - Choose!";
 
@@ -2266,7 +2322,6 @@ function GameScreenBoard() {
 
     // Joker detection
     if (state.pile.some((c) => isJoker(c))) return "Joker!";
-    if (state.pile.some((c) => c.value === 15 || c.value === 2)) return "2!";
 
     // Determine if the active pile is a run. Use the engine helpers so we
     // recognize runs formed across recent single-card plays in the current
@@ -2306,6 +2361,8 @@ function GameScreenBoard() {
                 : `${m}x`;
       return `${kind} - Runs!`;
     }
+
+    if (state.pile.some((c) => c.value === 15 || c.value === 2)) return "2!";
 
     // Otherwise show by count (non-run)
     const count = state.pile.length;
@@ -2463,6 +2520,8 @@ function GameScreenBoard() {
           layoutSeatIds={tableSeats.layoutSeatIds}
           deadHandGraveyard={deadHandGraveyard}
           disconnectedPlayerIds={disconnectedPlayerIds}
+          turnBellPlayerId={turnBellPlayerId}
+          onTurnBellPress={handleTurnBellPress}
         >
           <GameTable
             plays={displayPlays}
@@ -2575,7 +2634,7 @@ function GameScreenBoard() {
             onPlay={handlePlayPress}
             onPass={handlePassPress}
             onQuit={requestLeaveGame}
-            playDisabled={gameplayLocked || !isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id) || selected.length === 0}
+            playDisabled={gameplayLocked || !isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id) || selected.length === 0 || !selectedCanPlay}
             passDisabled={gameplayLocked || !isHumanTurn || roundOver}
             isPlayerTurn={isHumanTurn && !roundOver && !gameplayLocked}
             noValidPlays={noValidPlays}

@@ -125,6 +125,29 @@ assert.strictEqual(
   "9 should NOT be allowed on 10 when only 9-10 played — not yet a run"
 );
 
+// K-A-2 consecutive singles form a run; Ace is valid adjacency on 2
+const ka2King: Card = { suit: "hearts", value: 13 };
+const ka2Ace: Card = { suit: "diamonds", value: 14 };
+const ka2Two: Card = { suit: "clubs", value: 15 };
+const trickKA2 = {
+  trickNumber: 0,
+  actions: [
+    { type: "play" as const, playerId: "1", playerName: "P1", cards: [ka2King], timestamp: 1 },
+    { type: "play" as const, playerId: "2", playerName: "P2", cards: [ka2Ace], timestamp: 2 },
+    { type: "play" as const, playerId: "3", playerName: "P3", cards: [ka2Two], timestamp: 3 },
+  ],
+};
+assert.strictEqual(
+  isRunContextSequence([ka2King, ka2Ace, ka2Two]),
+  true,
+  "K-A-2 should be a run context sequence"
+);
+assert.strictEqual(
+  isValidPlay([ka2Ace], [ka2Two], undefined, undefined, undefined, undefined, trickKA2),
+  true,
+  "Ace should be valid adjacency on 2 after K-A-2 run"
+);
+
 // Two singles 3-4: normal play — must beat 4, not wrap back to 3
 const history34: Card[][] = [[{ suit: "hearts", value: 3 }], [{ suit: "hearts", value: 4 }]];
 const threeAgain: Card[] = [{ suit: "spades", value: 3 }];
@@ -325,7 +348,7 @@ function makeEmptyGame(names: string[]): GameState {
   assert.ok(isPlayerStillIn(after, g.players[0].id) === false, "A should no longer be active");
 }
 
-// Joker beats a pair on the pile even when the trick has an earlier run context
+// Joker beats a pair on the pile when the trick had an earlier run but the pile is not in run context
 {
   const joker: Card = { suit: "joker", value: 16 };
   const double7: Card[] = [
@@ -339,7 +362,7 @@ function makeEmptyGame(names: string[]): GameState {
   ];
   assert.ok(
     isValidPlay([joker], double7, undefined, pileHistory),
-    "Single joker should beat double 7s despite run history in the trick",
+    "Single joker should beat double 7s when pile is not an active run",
   );
   const doubleJ: Card[] = [
     { suit: "hearts", value: 11 },
@@ -347,7 +370,113 @@ function makeEmptyGame(names: string[]): GameState {
   ];
   assert.ok(
     isValidPlay([joker], doubleJ, undefined, pileHistory),
-    "Single joker should beat double jacks despite run history in the trick",
+    "Single joker should beat double jacks when pile is not an active run",
+  );
+}
+
+// Joker cannot be played during an active run
+{
+  const joker: Card = { suit: "joker", value: 16 };
+  const runPile: Card[] = [
+    { suit: "hearts", value: 5 },
+    { suit: "diamonds", value: 6 },
+    { suit: "clubs", value: 7 },
+  ];
+  assert.ok(
+    !isValidPlay([joker], runPile),
+    "Joker should not be playable on an active singles run",
+  );
+}
+
+// Completed four-of-a-kind across turns is unbeatable — everyone must pass
+{
+  const joker: Card = { suit: "joker", value: 16 };
+  const four3s: Card[] = [
+    { suit: "hearts", value: 3 },
+    { suit: "diamonds", value: 3 },
+    { suit: "clubs", value: 3 },
+    { suit: "spades", value: 3 },
+  ];
+  const quadChallenge = { active: true, value: 3, starterIndex: 0, completedAcrossTurns: true };
+  assert.ok(
+    !isValidPlay([joker], four3s, undefined, undefined, undefined, quadChallenge),
+    "Joker cannot beat a cross-turn completed quad",
+  );
+  const higherPair: Card[] = [
+    { suit: "hearts", value: 8 },
+    { suit: "diamonds", value: 8 },
+  ];
+  assert.ok(
+    !isValidPlay(higherPair, four3s, undefined, undefined, undefined, quadChallenge),
+    "Higher pair cannot beat a cross-turn completed quad",
+  );
+}
+
+// Single-play four-of-a-kind bomb is beatable by higher quads or joker
+{
+  const joker: Card = { suit: "joker", value: 16 };
+  const four5s: Card[] = [
+    { suit: "hearts", value: 5 },
+    { suit: "diamonds", value: 5 },
+    { suit: "clubs", value: 5 },
+    { suit: "spades", value: 5 },
+  ];
+  const bombChallenge = { active: true, value: 5, starterIndex: 0, completedAcrossTurns: false };
+  const four8s: Card[] = [
+    { suit: "hearts", value: 8 },
+    { suit: "diamonds", value: 8 },
+    { suit: "clubs", value: 8 },
+    { suit: "spades", value: 8 },
+  ];
+  assert.ok(
+    isValidPlay(four8s, four5s, undefined, undefined, undefined, bombChallenge),
+    "Higher quads should beat a single-play quad bomb",
+  );
+  assert.ok(
+    isValidPlay([joker], four5s, undefined, undefined, undefined, bombChallenge),
+    "Joker should beat a single-play quad bomb when not in a quads run",
+  );
+  assert.ok(
+    !isValidPlay(four5s, four5s, undefined, undefined, undefined, bombChallenge),
+    "Same-rank quads cannot beat a single-play quad bomb",
+  );
+}
+
+// Joker blocked during an active quads run
+{
+  const joker: Card = { suit: "joker", value: 16 };
+  const four5s: Card[] = [
+    { suit: "hearts", value: 5 },
+    { suit: "diamonds", value: 5 },
+    { suit: "clubs", value: 5 },
+    { suit: "spades", value: 5 },
+  ];
+  const four6s: Card[] = [
+    { suit: "hearts", value: 6 },
+    { suit: "diamonds", value: 6 },
+    { suit: "clubs", value: 6 },
+    { suit: "spades", value: 6 },
+  ];
+  const four7s: Card[] = [
+    { suit: "hearts", value: 7 },
+    { suit: "diamonds", value: 7 },
+    { suit: "clubs", value: 7 },
+    { suit: "spades", value: 7 },
+  ];
+  const pileHistory: Card[][] = [four5s, four6s];
+  assert.ok(
+    !isValidPlay([joker], four7s, undefined, pileHistory),
+    "Joker should not be playable during an active quads run",
+  );
+  const four8s: Card[] = [
+    { suit: "hearts", value: 8 },
+    { suit: "diamonds", value: 8 },
+    { suit: "clubs", value: 8 },
+    { suit: "spades", value: 8 },
+  ];
+  assert.ok(
+    isValidPlay(four8s, four7s, undefined, pileHistory),
+    "Next-rank quads should extend an active quads run",
   );
 }
 

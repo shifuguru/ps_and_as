@@ -28,6 +28,9 @@ type Props = {
   deadHandId?: string | null;
   deadHandGraveyard?: boolean;
   disconnectedPlayerIds?: string[];
+  /** Show nudge bell on seats taking too long. */
+  turnBellPlayerId?: string | null;
+  onTurnBellPress?: (playerId: string) => void;
 };
 
 /** Clockwise from the seat after the local player. */
@@ -73,6 +76,8 @@ export default function OpponentRing({
   deadHandId = null,
   deadHandGraveyard = false,
   disconnectedPlayerIds = [],
+  turnBellPlayerId = null,
+  onTurnBellPress,
 }: Props) {
   const disconnectedSet = useMemo(
     () => new Set(disconnectedPlayerIds),
@@ -157,6 +162,17 @@ export default function OpponentRing({
               layoutWidth={arenaWidth}
               graveyardMode={deadHandGraveyard && isDeadHandPlayer(player)}
               isDisconnected={disconnectedSet.has(player.id)}
+              showTurnBell={
+                !!turnBellPlayerId &&
+                player.id === turnBellPlayerId &&
+                !isOut &&
+                !isCPU
+              }
+              onTurnBellPress={
+                onTurnBellPress
+                  ? () => onTurnBellPress(player.id)
+                  : undefined
+              }
             />
           </View>
         );

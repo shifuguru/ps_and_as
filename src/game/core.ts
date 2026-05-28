@@ -71,6 +71,8 @@ export type GameState = {
     active: boolean;
     value: number; // rank value of the four-of-a-kind that started the challenge
     starterIndex: number; // player index who started the 4-of-a-kind
+    /** Cross-turn completion (e.g. one 3 + three 3s) — unbeatable, must pass. */
+    completedAcrossTurns?: boolean;
   };
   // Tracks the last clearing play type within the current trick so we can
   // enforce precedence (joker > four-of-a-kind challenge > two)
@@ -386,8 +388,17 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   }
 
   // Special rules first — 2s behave as high cards (not instant pile clears).
-  if (isFourOfAKind(cards)) {
-    // Four-of-a-kind: set as last clear, add to pile, and continue play
+  const extendingQuadsRun = isExtendingQuadsRun(
+    cards,
+    state.pile,
+    state.pileHistory,
+    state.currentTrick,
+    state.players,
+    state.finishedOrder || [],
+  );
+
+  if (isFourOfAKind(cards) && !extendingQuadsRun) {
+    // Single-play four-of-a-kind bomb — beatable by higher quads or joker
     state.lastClear = { type: "four", value: cards[0].value, playerIndex: pIndex };
     state.pile = cards;
     state.pileHistory = state.pileHistory || [];
@@ -395,8 +406,12 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.pileOwners = state.pileOwners || [];
     state.pileOwners.push(player.id);
     syncPassCountFromTrick(state);
-    // Activate challenge for validation purposes (so only higher quads or Joker can beat)
-    state.fourOfAKindChallenge = { active: true, value: cards[0].value, starterIndex: pIndex };
+    state.fourOfAKindChallenge = {
+      active: true,
+      value: cards[0].value,
+      starterIndex: pIndex,
+      completedAcrossTurns: false,
+    };
     // Advance to next player
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
     state.mustPlay = false;
@@ -418,8 +433,13 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.pileOwners.push(player.id);
     state.pile = combined;
     syncPassCountFromTrick(state);
-    // Activate challenge
-    state.fourOfAKindChallenge = { active: true, value: cards[0].value, starterIndex: pIndex };
+    // Cross-turn completion — unbeatable until everyone else passes
+    state.fourOfAKindChallenge = {
+      active: true,
+      value: cards[0].value,
+      starterIndex: pIndex,
+      completedAcrossTurns: true,
+    };
     state.lastClear = { type: "four", value: cards[0].value, playerIndex: pIndex };
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
     state.mustPlay = false;
@@ -448,6 +468,9 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.pileOwners = state.pileOwners || [];
     state.pileOwners.push(player.id);
     syncPassCountFromTrick(state);
+    if (extendingQuadsRun) {
+      state.fourOfAKindChallenge = undefined;
+    }
     // advance from the player who just played
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
     state.mustPlay = false;
@@ -511,6 +534,67 @@ export const RANK_ORDER = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
 /** Consecutive plays required before run/adjacency rules replace beat-the-pile. */
 export const MIN_RUN_CONTEXT_LENGTH = 3;
+
+function resolveRunContext(
+  pile: Card[],
+  pileHistory?: Card[][],
+  currentTrick?: TrickHistory,
+  players?: Player[],
+  finishedOrder: string[] = [],
+): { runSeq: Card[]; runMultiplicity: number; inRunContext: boolean } {
+  const trickRunInfo = runFromCurrentTrickInfo(currentTrick, players, finishedOrder);
+  const seqInfo = consecutiveSequenceInfo(
+    pile,
+    pileHistory,
+    currentTrick,
+    players,
+    finishedOrder,
+  );
+  const runSeq =
+    seqInfo.repCards.length >= trickRunInfo.repCards.length
+      ? seqInfo.repCards
+      : trickRunInfo.repCards;
+  let runMultiplicity = 1;
+  if (runSeq.length >= MIN_RUN_CONTEXT_LENGTH) {
+    runMultiplicity =
+      seqInfo.repCards.length >= trickRunInfo.repCards.length
+        ? seqInfo.multiplicity
+        : trickRunInfo.multiplicity || 1;
+  } else if (runSeq.length >= 2) {
+    runMultiplicity =
+      seqInfo.repCards.length >= trickRunInfo.repCards.length
+        ? seqInfo.multiplicity
+        : trickRunInfo.multiplicity || 1;
+  }
+  return {
+    runSeq,
+    runMultiplicity,
+    inRunContext: isRunContextSequence(runSeq),
+  };
+}
+
+/** Playing four-of-a-kind to extend an active quads run (multiplicity 4). */
+function isExtendingQuadsRun(
+  cards: Card[],
+  pile: Card[],
+  pileHistory?: Card[][],
+  currentTrick?: TrickHistory,
+  players?: Player[],
+  finishedOrder: string[] = [],
+): boolean {
+  if (!isFourOfAKind(cards)) return false;
+  const { runSeq, runMultiplicity, inRunContext } = resolveRunContext(
+    pile,
+    pileHistory,
+    currentTrick,
+    players,
+    finishedOrder,
+  );
+  if (!inRunContext || runMultiplicity !== 4) return false;
+  const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
+  const playRank = rankIndex(cards[0].value);
+  return Math.abs(playRank - lastRank) === 1;
+}
 
 export function rankIndex(value: number) {
   const idx = RANK_ORDER.indexOf(value);
@@ -648,7 +732,7 @@ export function consecutiveSequenceInfo(
   }
   for (const src of sources) {
     if (src.repCards.length >= MIN_RUN_CONTEXT_LENGTH && pile && pile.length === src.multiplicity) {
-      // Only consider non-joker/2 adjacency which is validated by isRunContextSequence
+      // Only consider non-joker adjacency which is validated by isRunContextSequence
       const last = src.repCards[src.repCards.length - 1];
       const candidate = pile[0];
       if (Math.abs(rankIndex(candidate.value) - rankIndex(last.value)) === 1) {
@@ -795,19 +879,22 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
     allSameValue(cards) &&
     cards[0].value === pile[0].value &&
     playCount + pileCount === 4;
-  // 6. Four-of-a-kind challenge: only higher quads or Joker allowed
+  // 6. Four-of-a-kind challenge
   if (fourOfAKindChallenge?.active) {
-    const challengeVal = fourOfAKindChallenge.value;
-    if (isSingleJoker(cards)) return true;
-    if (isFourOfAKind(cards)) {
-      const playRank = rankIndex(cards[0].value);
-      const challengeRank = rankIndex(challengeVal);
-      return playRank > challengeRank;
+    if (fourOfAKindChallenge.completedAcrossTurns) {
+      return false;
     }
-    return false;
+    // Single-play bomb — beatable by higher quads or joker (joker rules below)
+    if (isFourOfAKind(cards)) {
+      return rankIndex(cards[0].value) > rankIndex(fourOfAKindChallenge.value);
+    }
+    if (!isSingleJoker(cards)) {
+      return false;
+    }
   }
-  // 7. Joker rules — a single joker beats any set on the pile (pair, triple, etc.)
+  // 7. Joker rules — a single joker beats any set on the pile (not during an active run)
   if (isSingleJoker(cards) && pileCount > 0) {
+    if (inRunContext) return false;
     const pileItselfIsRun =
       pile.length >= MIN_RUN_CONTEXT_LENGTH && isRunContextSequence(pile);
     if (pileItselfIsRun) return false;
@@ -839,8 +926,9 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
     const playRank = rankIndex(cards[0].value);
     return Math.abs(playRank - lastRank) === 1;
   }
-  // 11. Twos rule: only Joker or completing quad can beat 2s
-  const pileIsTwos = pileIsUniform && pile.length > 0 && pile[0].value === 15;
+  // 11. Twos rule: only Joker or completing quad can beat 2s (not when 2 is run tail)
+  const pileIsTwos =
+    pileIsUniform && pile.length > 0 && pile[0].value === 15 && !inRunContext;
   if (pileIsTwos) {
     if (isSingleJoker(cards)) return true;
     if (allSameValue(cards) && cards[0].value === 15 && pileCount + playCount === 4) {
@@ -857,16 +945,11 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
 }
 
 // Context-only run detection for sequences formed via consecutive single-card plays.
-// Allows 10s to appear in the sequence (they do not break the run), but still
-// disallows Jokers and 2s. Requires at least 3 distinct consecutive ranks so
-// ten-rule oscillations (e.g. 10-lower, 9, 10-lower, 9) are not misclassified.
+// Allows 10s and 2s (e.g. K-A-2) in the sequence; jokers still break runs.
 export function isRunContextSequence(cards: Card[]): boolean {
   if (!cards || cards.length < MIN_RUN_CONTEXT_LENGTH) return false;
-  // Disallow jokers and twos from participating in run contexts
   for (let i = 0; i < cards.length; i++) {
-    const c = cards[i];
-    if (isJoker(c)) return false;
-    if (c.value === 15 || c.value === 2) return false;
+    if (isJoker(cards[i])) return false;
   }
 
   // All adjacent ranks must differ by exactly 1 in rankIndex space
@@ -914,9 +997,9 @@ export function isFourOfAKind(cards: Card[]) {
 // Validate a run according to the project's SPEC:
 // - A run consists of L >= 3 distinct consecutive ranks
 // - Each rank must appear with the same multiplicity m (e.g., singles, pairs, trips)
-// - 2s, 10s and Jokers are not allowed in runs
+// - Jokers are not allowed in runs; 2s may cap a sequence after Ace (K-A-2)
 // - Suits are irrelevant
-// - No wrapping beyond Ace (K-A is allowed because rankIndex reflects A after K)
+// - No wrapping beyond 2 (K-A-2 is the high end of the ladder)
 export function isRun(cards: Card[]): boolean {
   if (!cards || cards.length === 0) return false;
 
@@ -1147,15 +1230,8 @@ export function findCPUPlay(
     }
   }
 
-  // Four-of-a-kind challenge: try higher quads, else Joker
-  if (fourOfAKindChallenge?.active) {
-    const challengeRank = rankIndex(fourOfAKindChallenge.value);
-    const values = Object.keys(grouped).map(Number).sort((a, b) => rankIndex(a) - rankIndex(b));
-    for (const v of values) {
-      const cards = grouped[v];
-      if (cards.length >= 4 && rankIndex(v) > challengeRank) return cards.slice(0, 4);
-    }
-    if (jokerCard && !pile.some(c => isJoker(c))) return [jokerCard];
+  // Completed four-of-a-kind across turns: unbeatable — CPU must pass
+  if (fourOfAKindChallenge?.active && fourOfAKindChallenge.completedAcrossTurns) {
     return null;
   }
 
@@ -1163,9 +1239,10 @@ export function findCPUPlay(
   const pileRankIndex = rankIndex(pile[0].value);
   const validPlays: Card[][] = [];
 
-  // Special: pile is uniform 2s — only Joker or completing quad allowed
+  // Special: pile is uniform 2s — only Joker or completing quad allowed (not run tail)
   const pileIsUniform = allSameValue(pile);
-  const pileIsTwos = pileIsUniform && pile.length > 0 && pile[0].value === 15;
+  const pileIsTwos =
+    pileIsUniform && pile.length > 0 && pile[0].value === 15 && !inRunContext;
   if (pileIsTwos) {
     const twos = grouped[15];
     // Only allow completing quad (pile has 1-3 twos, play remaining to reach 4)

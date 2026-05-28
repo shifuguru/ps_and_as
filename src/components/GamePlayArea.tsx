@@ -41,6 +41,8 @@ type Props = RingProps & {
   deadHandId?: string | null;
   layoutSeatIds?: string[];
   deadHandGraveyard?: boolean;
+  turnBellPlayerId?: string | null;
+  onTurnBellPress?: (playerId: string) => void;
 };
 
 export default function GamePlayArea({
@@ -60,6 +62,8 @@ export default function GamePlayArea({
   layoutSeatIds,
   deadHandGraveyard = false,
   disconnectedPlayerIds = [],
+  turnBellPlayerId = null,
+  onTurnBellPress,
   children,
 }: Props & { children: React.ReactNode }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -325,6 +329,8 @@ export default function GamePlayArea({
             deadHandId={deadHandId}
             deadHandGraveyard={deadHandGraveyard}
             disconnectedPlayerIds={disconnectedPlayerIds}
+            turnBellPlayerId={turnBellPlayerId}
+            onTurnBellPress={onTurnBellPress}
           />
         </View>
       )}

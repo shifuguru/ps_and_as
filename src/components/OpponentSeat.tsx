@@ -22,6 +22,7 @@ import { onFeltTextStyle } from "../utils/onFeltTypography";
 import type { FeltPalette } from "../styles/feltPalette";
 import type { AppThemeColors } from "../styles/themeColors";
 import { normalizePlayerRole, roleEmoji as sharedRoleEmoji } from "../utils/roundRoles";
+import TurnBellButton from "./TurnBellButton";
 
 function seatColor(playerId: string, seatColors: readonly string[]): string {
   let n = 0;
@@ -67,6 +68,9 @@ type Props = {
   graveyardMode?: boolean;
   /** Temporarily away — seat reserved while waiting to reconnect. */
   isDisconnected?: boolean;
+  /** Show nudge bell when this player has taken too long. */
+  showTurnBell?: boolean;
+  onTurnBellPress?: () => void;
 };
 
 export default function OpponentSeat({
@@ -85,6 +89,8 @@ export default function OpponentSeat({
   isReady = false,
   graveyardMode = false,
   isDisconnected = false,
+  showTurnBell = false,
+  onTurnBellPress,
 }: Props) {
   const { colors, palette } = useAppTheme();
   const styles = useMemo(() => createStyles(colors, palette), [colors, palette]);
@@ -368,6 +374,12 @@ export default function OpponentSeat({
       ) : isLocal ? (
         <Text style={[styles.statusPill, styles.youPill]}>You</Text>
       ) : null}
+
+      {showTurnBell && onTurnBellPress ? (
+        <View style={styles.bellSlot}>
+          <TurnBellButton visible onPress={onTurnBellPress} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -584,6 +596,12 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
     ...onFeltTextStyle(onFelt, "accent", {
       color: hexToRgba(onFelt.accent, 0.82),
     }),
+  },
+  bellSlot: {
+    position: "absolute",
+    top: -6,
+    right: -4,
+    zIndex: 12,
   },
   awayPill: {
     ...onFeltTextStyle(onFelt, "accent", {

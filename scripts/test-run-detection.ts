@@ -126,6 +126,17 @@ const cases: Case[] = [
     expectValues: [12, 13, 14],
   },
   {
+    name: "K-A-2 singles",
+    actions: [
+      makeAction("play", 0, [card(13)]),
+      makeAction("play", 1, [card(14)]),
+      makeAction("play", 2, [card(15)]),
+    ],
+    pile: [card(15)],
+    expectRun: true,
+    expectValues: [13, 14, 15],
+  },
+  {
     name: "broken by double play mid-sequence",
     actions: [
       makeAction("play", 0, [card(3)]),

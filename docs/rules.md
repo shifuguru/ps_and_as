@@ -20,15 +20,18 @@ Empty your hand first. Next round, ranks: President, VP, ... Arsehole.
 
 ## Runs (this variant)
 - **Definition:** A consecutive sequence of 3+ cards of the *same count* (e.g., 3-4-5-6 singles; or 5♦-5♣ + 6♦-6♣ + 7♦-7♣ as doubles).
-- **No wraps** (K-A-2 is invalid unless house rule).
-- **To beat a run:** same length & count; strictly higher sequence.
-- **Bombs (optional):** four-of-a-kind beats any set/run; clears the pile.
+- **High end:** K-A-2 is a valid run (2 follows Ace on the rank ladder).
+- **No wraps** below 3 (e.g. A-2-3 is invalid).
+- **To beat a run:** same length & count; strictly higher sequence, or extend with an adjacent rank while the run is active.
+- **Completed quads:** when a rank is completed across turns (e.g. one 3 then three more 3s), that play is unbeatable — everyone else must pass until the trick clears.
+- **Single-play quads:** playing all four of a rank at once is a bomb — beatable by higher quads or a joker.
+- **Quads run:** three or more consecutive ranks each played as four-of-a-kind (e.g. 5555 → 6666 → 7777). Jokers cannot be played during any active run, including quads runs; extend with the next rank’s quad.
 
 ## Passing
 - You may pass; you’re locked out until the pile clears.
 
 ## Edge cases
-- 2s are highest singles; cannot be in runs.
+- 2s are highest singles; a lone 2 on the pile (not part of a run) still follows the twos rule.
 - Reset on clear; next player may lead any legal set.
 
 ## Examples

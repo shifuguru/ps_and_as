@@ -1136,6 +1136,20 @@ io.on('connection', (socket) => {
     const room = rooms[roomId];
     if (!room || !room.inGame || !room.gameState?.players) return;
 
+    if (action?.type === 'turnNudge') {
+      const nudger = room.players.find(p => p.socketId === socket.id);
+      if (!nudger) return;
+      const target = room.players.find(p => p.id === action.targetPlayerId);
+      if (!target) return;
+      io.to(roomId).emit('turnNudge', {
+        fromPlayerId: nudger.id,
+        fromPlayerName: nudger.name,
+        targetPlayerId: target.id,
+        targetPlayerName: target.name,
+      });
+      return;
+    }
+
     const pendingKeys = Object.keys(room.gameState.pendingTrades || {});
     if (pendingKeys.length > 0 && !allTradesComplete(room.gameState)) {
       socket.emit('error', { message: 'Complete role trades before playing' });

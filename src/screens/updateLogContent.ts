@@ -16,6 +16,18 @@ export const UPDATE_LOG_TAGLINE =
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
     date: "May 2026",
+    title: "Rules & table nudge",
+    items: [
+      "Turn bell — after ~12 seconds on someone's turn, a 🔔 appears on their seat; tap to nudge them (works in multiplayer too)",
+      "Quads across turns — completing four of a kind over multiple plays (e.g. one 3, then three more 3s) is unbeatable; everyone must pass",
+      "Quad bomb — playing all four of a rank at once can be beaten by higher quads or a joker",
+      "Quads run — three or more consecutive ranks each played as four-of-a-kind (e.g. 5555 → 6666 → 7777); jokers can't be played during the run — extend with the next rank's quad",
+      "Jokers can't be played during any active run (singles, doubles, triples, or quads)",
+      "K-A-2 counts as a valid run (King → Ace → Two as consecutive singles)",
+    ],
+  },
+  {
+    date: "May 2026",
     title: "Stability & Quick Game",
     items: [
       "Quick Game — fixed deal ceremony getting stuck on “Setting up table…”; opening player is resolved from the dealt hands before cards are hidden for the animation",

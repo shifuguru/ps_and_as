@@ -435,6 +435,21 @@ export class SocketAdapter implements NetworkAdapter {
       );
     });
 
+    this.socket.on("turnNudge", (data: any) => {
+      this.handlers.forEach((h) =>
+        h({
+          type: "state",
+          state: {
+            type: "turnNudge",
+            fromPlayerId: data.fromPlayerId,
+            fromPlayerName: data.fromPlayerName,
+            targetPlayerId: data.targetPlayerId,
+            targetPlayerName: data.targetPlayerName,
+          },
+        }),
+      );
+    });
+
     this.socket.on("gameAction", (data: any) => {
       console.log(
         "[SocketAdapter] Game action from",
