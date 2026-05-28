@@ -6,6 +6,7 @@ import FindGame from "./src/screens/FindGame";
 import GameScreen from "./src/screens/GameScreen";
 import Achievements from "./src/screens/Achievements";
 import Settings from "./src/screens/Settings";
+import UpdateLog from "./src/screens/UpdateLog";
 import MainMenu from "./src/screens/MainMenu";
 import ScreenContainer from "./src/components/ScreenContainer";
 import BlurPanel from "./src/components/BlurPanel";
@@ -46,6 +47,7 @@ function AppContent() {
   >("menu");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [achievementsOpen, setAchievementsOpen] = useState(false);
+  const [updateLogOpen, setUpdateLogOpen] = useState(false);
   const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[] | null>(null);
   const [dealSeed, setDealSeed] = useState<number | undefined>(undefined);
   const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
@@ -175,7 +177,7 @@ function AppContent() {
 
   const primaryButtons: {
     label: string;
-    icon: "plus" | "shuffle" | "person" | "globe" | "multiplayer" | "trophy" | "gear";
+    icon: "plus" | "shuffle" | "person" | "globe" | "multiplayer" | "trophy" | "gear" | "list";
     action: () => void;
   }[] = [
     {
@@ -211,6 +213,11 @@ function AppContent() {
       label: "Achievements",
       icon: "trophy",
       action: () => openAchievements(),
+    },
+    {
+      label: "What's New",
+      icon: "list",
+      action: () => openUpdateLog(),
     },
     {
       label: "Settings",
@@ -317,6 +324,10 @@ function AppContent() {
   const openAchievements = () => setAchievementsOpen(true);
 
   const closeAchievements = () => setAchievementsOpen(false);
+
+  const openUpdateLog = () => setUpdateLogOpen(true);
+
+  const closeUpdateLog = () => setUpdateLogOpen(false);
 
   const lobbyMembersRef = useRef(lobbyMembers);
   lobbyMembersRef.current = lobbyMembers;
@@ -592,7 +603,7 @@ function AppContent() {
             adapter={roomAdapter || undefined} 
             isJoining={!!roomAdapter && !!joinedRoomId}
             joinRoomId={joinedRoomId || undefined}
-            onRoomReady={(roomId) => {
+            onRoomReady={(roomId, displayRoomName) => {
               setActiveRoomId(roomId);
               if (isSocketAdapter(roomAdapter)) {
                 roomAdapter.setActiveRoomId(roomId);
@@ -604,7 +615,7 @@ function AppContent() {
                   profileId: profile.id,
                   playerName: profile.displayName,
                   isHost: !joinedRoomId,
-                  roomName: roomId,
+                  roomName: displayRoomName || roomId,
                 });
                 setPendingRejoin(null);
               })();
@@ -790,6 +801,14 @@ function AppContent() {
                   openSettings();
                 }}
               />
+            </View>
+          </View>
+        )}
+        {menuVisible && updateLogOpen && (
+          <View style={appStyles.settingsOverlay}>
+            <FullscreenBlurScrim />
+            <View style={appStyles.settingsForeground}>
+              <UpdateLog onBack={closeUpdateLog} />
             </View>
           </View>
         )}

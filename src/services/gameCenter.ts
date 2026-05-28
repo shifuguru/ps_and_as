@@ -272,10 +272,15 @@ export async function getCachedPlayerName(): Promise<string | null> {
 }
 
 export async function cachePlayerName(name: string): Promise<void> {
+  const { validateDisplayText, isValidDisplayText } = require("../utils/profanityFilter") as typeof import("../utils/profanityFilter");
+  const check = validateDisplayText(name, "Player name");
+  if (!isValidDisplayText(check)) {
+    throw new Error(check.reason);
+  }
   try {
     const AsyncStorage =
       require("@react-native-async-storage/async-storage").default;
-    await AsyncStorage.setItem("@player_name", name);
+    await AsyncStorage.setItem("@player_name", check.value);
   } catch {
     // ignore
   }

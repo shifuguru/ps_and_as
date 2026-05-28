@@ -37,6 +37,7 @@ import {
   getOrCreatePlayerId,
   type PlayerInfo,
 } from "../services/gameCenter";
+import { validateDisplayText, displayTextError, isValidDisplayText } from "../utils/profanityFilter";
 
 export default function Settings({
   onWallpaperPreview,
@@ -97,18 +98,18 @@ export default function Settings({
   const hasUnsavedChanges = nameDirty || tintDirty;
 
   const handleSaveName = async () => {
-    const trimmed = playerName.trim();
-    if (!trimmed) {
-      Alert.alert("Invalid Name", "Please enter a valid name.");
+    const check = validateDisplayText(playerName, "Player name");
+    if (!isValidDisplayText(check)) {
+      Alert.alert("Not Allowed", check.reason);
       return;
     }
 
     try {
-      await cachePlayerName(trimmed);
-      setSavedName(trimmed);
-      setPlayerName(trimmed);
+      await cachePlayerName(check.value);
+      setSavedName(check.value);
+      setPlayerName(check.value);
       if (playerInfo) {
-        setPlayerInfo({ ...playerInfo, displayName: trimmed });
+        setPlayerInfo({ ...playerInfo, displayName: check.value });
       }
       setSaveFlash(true);
       setTimeout(() => setSaveFlash(false), 2000);
@@ -166,9 +167,10 @@ export default function Settings({
 
   const handleSaveAll = async () => {
     if (nameDirty) {
-      const trimmed = playerName.trim();
-      if (!trimmed) {
-        Alert.alert("Invalid Name", "Please enter a valid name.");
+      const check = validateDisplayText(playerName, "Player name");
+      const err = displayTextError(check);
+      if (err) {
+        Alert.alert("Not Allowed", err);
         return;
       }
       await handleSaveName();

@@ -1,6 +1,23 @@
 // core.ts
 // Core game state and logic for Presidents & Assholes
 import { Card, Player, createDeck, shuffleDeck, shuffleDeckSeeded, dealCards } from "./ruleset";
+import {
+  applyDeadHandAfterDeal,
+  createDeadHandPlayer,
+  isDeadHandPlayer,
+  isRoundCompleteForLiving,
+} from "./deadHand";
+
+export {
+  DEAD_HAND_ID,
+  DEAD_HAND_NAME,
+  createDeadHandPlayer,
+  isDeadHandPlayer,
+  livingPlayers,
+  livingPlayerIds,
+  isRoundCompleteForLiving,
+  applyDeadHandAfterDeal,
+} from "./deadHand";
 
 // RULE: Single-rank-per-turn variant (no multi-card straights as a single play)
 export const SINGLE_RANK_PER_TURN = true;
@@ -84,7 +101,7 @@ export function syncFinishedFromEmptyHands(state: GameState): void {
 
 export function isPlayerStillIn(state: GameState, playerId: string): boolean {
   const player = state.players.find((p) => p.id === playerId);
-  if (!player) return false;
+  if (!player || isDeadHandPlayer(player)) return false;
   return !state.finishedOrder.includes(playerId) && player.hand.length > 0;
 }
 
@@ -132,6 +149,7 @@ export function createGame(playerNames: string[]): GameState {
 export function createGameFromLobby(
   lobbyPlayers: { id: string; name: string }[],
   dealSeed?: number,
+  options?: { deadHand?: boolean },
 ): GameState {
   const players: Player[] = lobbyPlayers.map((p) => ({
     id: p.id,
@@ -139,7 +157,14 @@ export function createGameFromLobby(
     hand: [],
     role: "Neutral",
   }));
-  return buildInitialGameState(players, dealSeed);
+  if (options?.deadHand && players.length === 2) {
+    players.push(createDeadHandPlayer());
+  }
+  const state = buildInitialGameState(players, dealSeed);
+  if (options?.deadHand) {
+    applyDeadHandAfterDeal(state);
+  }
+  return state;
 }
 
 function removeCardsFromHand(hand: Card[], cards: Card[]): Card[] {

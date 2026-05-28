@@ -11,6 +11,8 @@ type Props = {
   statusLabel: string;
   statusValue: string;
   topInset?: number;
+  /** Label for the left stat pill — defaults to "Party" in lobbies. */
+  countLabel?: string;
 };
 
 export default function LobbyStatusBar({
@@ -19,6 +21,7 @@ export default function LobbyStatusBar({
   statusLabel,
   statusValue,
   topInset = 0,
+  countLabel = "Party",
 }: Props) {
   const { colors, blur } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -32,7 +35,7 @@ export default function LobbyStatusBar({
         <View style={styles.centerSection}>
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Text style={styles.label}>Players</Text>
+              <Text style={styles.label}>{countLabel}</Text>
               <Text style={styles.value}>{playerCount}</Text>
             </View>
             <View style={[styles.statCard, styles.roomCard]}>

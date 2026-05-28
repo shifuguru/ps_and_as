@@ -199,6 +199,8 @@ export class SocketAdapter implements NetworkAdapter {
             players: data.players,
             host: data.host,
             roomName: data.roomName,
+            deadHandSeatOpen: !!data.deadHandSeatOpen,
+            spectatorCount: data.spectatorCount ?? 0,
           },
         }),
       );
@@ -468,6 +470,7 @@ export class SocketAdapter implements NetworkAdapter {
             type: "nextRoundStarting",
             gameState: data.gameState,
             dealSeed: data.dealSeed,
+            promotedPlayerId: data.promotedPlayerId ?? null,
           },
         }),
       );
@@ -503,23 +506,24 @@ export class SocketAdapter implements NetworkAdapter {
       console.warn("[SocketAdapter] createRoom: socket not connected");
       return;
     }
+    const code = roomId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
     const previousRoomId = this.activeRoomId;
-    if (previousRoomId && previousRoomId !== roomId) {
+    if (previousRoomId && previousRoomId !== code) {
       console.log(
         "[SocketAdapter] Dismissing previous room before create:",
         previousRoomId,
       );
       this.socket.emit("dismissRoom", { roomId: previousRoomId });
     }
-    this.setActiveRoomId(roomId);
+    this.setActiveRoomId(code);
     this.name = name;
-    console.log("[SocketAdapter] Creating room:", roomId, "with host:", name);
+    console.log("[SocketAdapter] Creating room:", code, "with host:", name);
     this.socket.emit("createRoom", {
-      roomId,
+      roomId: code,
       name,
       profileId: this.profileId,
       isPublic: true,
-      roomName: roomName || roomId,
+      roomName: roomName || "Game Room",
     });
   }
 
@@ -556,9 +560,10 @@ export class SocketAdapter implements NetworkAdapter {
 
   joinRoom(roomId: string, name: string) {
     if (!this.socket) return;
-    this.setActiveRoomId(roomId);
+    const code = roomId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    this.setActiveRoomId(code);
     this.name = name;
-    this.socket.emit("joinRoom", { roomId, name, profileId: this.profileId });
+    this.socket.emit("joinRoom", { roomId: code, name, profileId: this.profileId });
   }
 
   leaveRoom(roomId: string) {

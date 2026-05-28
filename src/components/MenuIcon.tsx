@@ -10,7 +10,8 @@ type IconName =
   | "person"
   | "trophy"
   | "gear"
-  | "ellipsis";
+  | "ellipsis"
+  | "list";
 
 type Props = {
   name: IconName;
@@ -113,6 +114,17 @@ export default function MenuIcon({ name, size = 20, color = "#d4af37" }: Props) 
           <Circle cx="5" cy="12" r="1.5" fill={c} />
           <Circle cx="12" cy="12" r="1.5" fill={c} />
           <Circle cx="19" cy="12" r="1.5" fill={c} />
+        </Svg>
+      );
+    case "list":
+      return (
+        <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+          <Line x1="8" y1="6" x2="21" y2="6" stroke={c} strokeWidth={sw} strokeLinecap="round" />
+          <Line x1="8" y1="12" x2="21" y2="12" stroke={c} strokeWidth={sw} strokeLinecap="round" />
+          <Line x1="8" y1="18" x2="21" y2="18" stroke={c} strokeWidth={sw} strokeLinecap="round" />
+          <Circle cx="4" cy="6" r="1.2" fill={c} />
+          <Circle cx="4" cy="12" r="1.2" fill={c} />
+          <Circle cx="4" cy="18" r="1.2" fill={c} />
         </Svg>
       );
     default:

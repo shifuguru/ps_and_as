@@ -10,36 +10,76 @@ const {
   setTenRuleDirection,
 } = require('./gameBridge');
 const { viewForPlayer, broadcastGameState } = require('./gameStateView');
+const {
+  validateDisplayText,
+  normalizeRoomCode,
+  isValidRoomCode,
+} = require('./profanityFilter');
 
 function cloneGameState(state) {
   return JSON.parse(JSON.stringify(state));
 }
 
 function isRoundComplete(state) {
-  return (
-    !!state &&
-    Array.isArray(state.players) &&
-    Array.isArray(state.finishedOrder) &&
-    state.finishedOrder.length === state.players.length &&
-    state.players.length > 0
-  );
+  if (!state || !Array.isArray(state.players) || !Array.isArray(state.finishedOrder)) {
+    return false;
+  }
+  const living = state.players.filter((p) => !p.isDeadHand && p.id !== '__dead_hand__');
+  if (living.length === 0) return false;
+  return living.every((p) => state.finishedOrder.includes(p.id));
 }
 
 function beginAuthoritativeRound(room, dealSeed) {
   const lobbyPlayers = room.players
     .filter((p) => !p.disconnectedAt && !p.isSpectator)
     .map((p) => ({ id: p.id, name: p.name }));
-  const nextState = createGameFromLobby(lobbyPlayers, dealSeed);
+  const useDeadHand = lobbyPlayers.length === 2;
+  const nextState = createGameFromLobby(lobbyPlayers, dealSeed, { deadHand: useDeadHand });
   nextState.readyForNextRound = {};
   room.gameState = nextState;
+  room.deadHand = useDeadHand;
+}
+
+function gameHasDeadHandSlot(room) {
+  return !!room?.gameState?.players?.some(
+    (p) => p.isDeadHand || p.id === '__dead_hand__',
+  );
+}
+
+function deadHandSeatOpen(room) {
+  if (!room) return false;
+  if (!room.inGame) return activePlayerCount(room) === 2;
+  return gameHasDeadHandSlot(room) && activePlayerCount(room) === 2;
+}
+
+function spectatorCount(room) {
+  if (!room) return 0;
+  return room.players.filter((p) => !p.disconnectedAt && p.isSpectator).length;
+}
+
+function shouldJoinAsSpectator(room) {
+  if (!room?.inGame) return false;
+  const seated = activePlayerCount(room);
+  if (seated >= 3) return false;
+  return seated >= 2;
+}
+
+function promoteReadySpectator(room) {
+  const readyMap = room.gameState?.readyForNextRound || {};
+  const spectator = room.players.find(
+    (p) => p.isSpectator && !p.disconnectedAt && readyMap[p.id] === true,
+  );
+  if (spectator) {
+    spectator.isSpectator = false;
+    console.log(`[Server] ${spectator.name} is replacing the dead hand next round`);
+  }
+  return spectator;
 }
 
 function startNextRound(roomId) {
   const room = rooms[roomId];
   if (!room) return;
-  room.players.forEach((p) => {
-    p.isSpectator = false;
-  });
+  const promoted = promoteReadySpectator(room);
   const dealSeed = Math.floor(Math.random() * 2147483647);
   const lastOrder = room.gameState?.lastRoundOrder;
   beginAuthoritativeRound(room, dealSeed);
@@ -61,7 +101,10 @@ function startNextRound(roomId) {
 
   room.gameState.readyForNextRound = {};
   broadcastGameState(io, room);
-  io.to(roomId).emit('nextRoundStarting', { dealSeed });
+  io.to(roomId).emit('nextRoundStarting', {
+    dealSeed,
+    promotedPlayerId: promoted?.id ?? null,
+  });
 }
 
 const app = express();
@@ -275,7 +318,9 @@ function finalizePendingTrades(gameState, playerHands) {
 function activeRoundPlayerIds(room) {
   const gs = room.gameState;
   if (gs?.players?.length) {
-    return gs.players.map((p) => p.id);
+    return gs.players
+      .filter((p) => !p.isDeadHand && p.id !== '__dead_hand__')
+      .map((p) => p.id);
   }
   return room.players
     .filter((p) => !p.disconnectedAt && !p.isSpectator)
@@ -286,6 +331,11 @@ function initReadyForNextRound(room) {
   room.gameState.readyForNextRound = {};
   for (const id of activeRoundPlayerIds(room)) {
     room.gameState.readyForNextRound[id] = false;
+  }
+  if (gameHasDeadHandSlot(room)) {
+    for (const s of room.players.filter((p) => p.isSpectator && !p.disconnectedAt)) {
+      room.gameState.readyForNextRound[s.id] = false;
+    }
   }
 }
 
@@ -315,20 +365,26 @@ function activePlayerCount(room) {
 
 function isRoundInProgress(room) {
   if (!room?.inGame || !room.gameState?.players?.length) return false;
-  const finished = room.gameState.finishedOrder?.length ?? 0;
-  return finished < room.gameState.players.length;
+  const living = room.gameState.players.filter(
+    (p) => !p.isDeadHand && p.id !== '__dead_hand__',
+  );
+  if (living.length === 0) return false;
+  const finished = room.gameState.finishedOrder || [];
+  return !living.every((p) => finished.includes(p.id));
 }
 
 function roomListingPayload(roomId, room) {
   return {
     roomId,
     hostName: room.hostName,
-    roomName: room.roomName || roomId,
+    roomName: room.roomName || 'Game Room',
     playerCount: activePlayerCount(room),
     maxPlayers: 8,
     createdAt: room.createdAt,
     inGame: !!room.inGame,
     roundInProgress: isRoundInProgress(room),
+    deadHandSeatOpen: deadHandSeatOpen(room),
+    spectatorCount: spectatorCount(room),
   };
 }
 
@@ -405,6 +461,8 @@ function buildLobbyUpdate(room) {
     })),
     host: room.host,
     roomName: room.roomName || '',
+    deadHandSeatOpen: deadHandSeatOpen(room),
+    spectatorCount: spectatorCount(room),
   };
 }
 
@@ -614,119 +672,165 @@ io.on('connection', (socket) => {
 
   socket.on('createRoom', ({ roomId, name, profileId, isPublic = true, roomName }) => {
     const pid = resolveProfileId(profileId, socket);
-    removeSocketFromOtherRooms(socket, pid, roomId);
+    const code = normalizeRoomCode(roomId);
+    if (!isValidRoomCode(code)) {
+      socket.emit('error', { message: 'Invalid room code.' });
+      return;
+    }
+    if (rooms[code]) {
+      socket.emit('error', { message: 'Room code already in use. Try again.' });
+      return;
+    }
 
-    rooms[roomId] = rooms[roomId] || {
-      players: [], 
+    const nameCheck = validateDisplayText(name, 'Player name');
+    if (!nameCheck.ok) {
+      socket.emit('error', { message: nameCheck.reason });
+      return;
+    }
+
+    const displayName = typeof roomName === 'string' ? roomName.trim() : '';
+    const roomTitle = displayName || 'Game Room';
+    const roomNameCheck = validateDisplayText(roomTitle, 'Room name');
+    if (!roomNameCheck.ok) {
+      socket.emit('error', { message: roomNameCheck.reason });
+      return;
+    }
+
+    removeSocketFromOtherRooms(socket, pid, code);
+
+    rooms[code] = {
+      players: [],
       host: pid,
       creatorId: pid,
-      hostName: name,
-      roomName: roomName || roomId,
+      hostName: nameCheck.value,
+      roomName: roomNameCheck.value,
       createdAt: Date.now(),
       isPublic: isPublic,
+      deadHand: false,
       gameState: null,
       inGame: false
     };
-    rooms[roomId].players.push({ 
+    rooms[code].players.push({
       id: pid,
       profileId: pid,
-      name, 
-      socketId: socket.id, 
+      name: nameCheck.value,
+      socketId: socket.id,
       ready: false,
-      disconnectedAt: null 
+      disconnectedAt: null
     });
-    socket.join(roomId);
-    io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(rooms[roomId]));
-    socket.emit('connected', { id: pid, profileId: pid, socketId: socket.id, name });
+    socket.join(code);
+    io.to(code).emit('lobbyUpdate', buildLobbyUpdate(rooms[code]));
+    socket.emit('connected', { id: pid, profileId: pid, socketId: socket.id, name: nameCheck.value });
     if (isPublic) broadcastAvailableRooms();
   });
 
   socket.on('updateRoomName', ({ roomId, roomName }) => {
-    const room = rooms[roomId];
+    const code = normalizeRoomCode(roomId);
+    const room = rooms[code];
     if (!room || !isRoomHost(room, socket.id)) return;
     const trimmed = typeof roomName === 'string' ? roomName.trim() : '';
     if (!trimmed) return;
-    room.roomName = trimmed.slice(0, 64);
-    io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
+    const roomNameCheck = validateDisplayText(trimmed.slice(0, 64), 'Room name');
+    if (!roomNameCheck.ok) {
+      socket.emit('error', { message: roomNameCheck.reason });
+      return;
+    }
+    room.roomName = roomNameCheck.value;
+    io.to(code).emit('lobbyUpdate', buildLobbyUpdate(room));
     if (room.isPublic) broadcastAvailableRooms();
   });
 
   socket.on('joinRoom', ({ roomId, name, profileId }) => {
-    if (!rooms[roomId]) {
+    const code = normalizeRoomCode(roomId);
+    if (!rooms[code]) {
       socket.emit('error', { message: 'Room not found' });
       return;
     }
+    const nameCheck = validateDisplayText(name, 'Player name');
+    if (!nameCheck.ok) {
+      socket.emit('error', { message: nameCheck.reason });
+      return;
+    }
     const pid = resolveProfileId(profileId, socket);
-    removeSocketFromOtherRooms(socket, pid, roomId);
+    removeSocketFromOtherRooms(socket, pid, code);
 
-    const room = rooms[roomId];
-    clearEmptyRoomTimer(roomId);
+    const room = rooms[code];
+    clearEmptyRoomTimer(code);
     room.emptyAt = null;
 
-    const existingPlayer = findReconnectPlayer(room, pid, name);
+    const existingPlayer = findReconnectPlayer(room, pid, nameCheck.value);
     
     if (existingPlayer) {
-      console.log(`[Server] Player ${name} (${pid}) reconnecting to room ${roomId}`);
-      attachPlayerSocket(existingPlayer, socket, name);
+      console.log(`[Server] Player ${nameCheck.value} (${pid}) reconnecting to room ${code}`);
+      attachPlayerSocket(existingPlayer, socket, nameCheck.value);
       if (existingPlayer.id !== pid) {
         existingPlayer.id = pid;
         existingPlayer.profileId = pid;
       }
       
-      if (rooms[roomId].hostName === existingPlayer.name || rooms[roomId].host === existingPlayer.id) {
-        rooms[roomId].host = existingPlayer.id;
-        rooms[roomId].hostName = existingPlayer.name;
-      } else if (rooms[roomId].creatorId === existingPlayer.id) {
-        rooms[roomId].host = existingPlayer.id;
-        rooms[roomId].hostName = existingPlayer.name;
+      if (room.hostName === existingPlayer.name || room.host === existingPlayer.id) {
+        room.host = existingPlayer.id;
+        room.hostName = existingPlayer.name;
+      } else if (room.creatorId === existingPlayer.id) {
+        room.host = existingPlayer.id;
+        room.hostName = existingPlayer.name;
       }
     } else {
-      const joiningMidRound = room.inGame && isRoundInProgress(room);
-      const seatedCount = room.players.filter(
-        (p) => !p.disconnectedAt && !p.isSpectator,
-      ).length;
-      if (!joiningMidRound && seatedCount >= 8) {
+      const seated = activePlayerCount(room);
+      if (!room.inGame && seated >= 8) {
         socket.emit('error', { message: 'Room is full' });
         return;
       }
-      rooms[roomId].players.push({
+      if (!room.inGame && seated >= 3) {
+        socket.emit('error', { message: 'Room is full' });
+        return;
+      }
+      if (room.inGame && seated >= 3) {
+        socket.emit('error', { message: 'Game is full' });
+        return;
+      }
+      const joinAsSpectator = shouldJoinAsSpectator(room);
+      room.players.push({
         id: pid,
         profileId: pid,
-        name,
+        name: nameCheck.value,
         socketId: socket.id,
         ready: false,
         disconnectedAt: null,
-        isSpectator: joiningMidRound,
+        isSpectator: joinAsSpectator,
       });
+      if (joinAsSpectator) {
+        console.log(`[Server] ${nameCheck.value} joined room ${code} as spectator (dead hand seat open)`);
+      }
     }
-    
-    socket.join(roomId);
-    const joined = rooms[roomId].players.find((p) => p.socketId === socket.id);
-    io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(rooms[roomId]));
+
+    socket.join(code);
+    const joined = room.players.find((p) => p.socketId === socket.id);
+    io.to(code).emit('lobbyUpdate', buildLobbyUpdate(room));
     socket.emit('connected', {
       id: pid,
       profileId: pid,
       socketId: socket.id,
-      name,
+      name: nameCheck.value,
       isSpectator: !!joined?.isSpectator,
     });
     
-    if (rooms[roomId].inGame && rooms[roomId].gameState?.players) {
+    if (room.inGame && room.gameState?.players) {
       if (joined) {
-        const inRound = joined.isSpectator || !rooms[roomId].gameState.players.some(
+        const inRound = joined.isSpectator || !room.gameState.players.some(
           (p) => p.id === joined.id,
         );
         const viewId = inRound
-          ? rooms[roomId].gameState.players[0]?.id
+          ? room.gameState.players[0]?.id
           : joined.id;
         if (viewId) {
           socket.emit('gameStateSync', {
-            gameState: viewForPlayer(rooms[roomId].gameState, viewId),
+            gameState: viewForPlayer(room.gameState, viewId),
             spectator: inRound,
           });
         }
         socket.emit('startGame', {
-          players: rooms[roomId].gameState.players.map((p) => ({
+          players: room.gameState.players.map((p) => ({
             id: p.id,
             name: p.name,
           })),
@@ -735,7 +839,7 @@ io.on('connection', (socket) => {
       }
     }
     
-    if (rooms[roomId].isPublic) broadcastAvailableRooms();
+    if (room.isPublic) broadcastAvailableRooms();
   });
 
   socket.on('leaveRoom', ({ roomId }) => {
@@ -795,8 +899,10 @@ io.on('connection', (socket) => {
     }
     // require at least 2 players
     const room = rooms[roomId];
-    if (activePlayerCount(room) < 2) {
-      console.log('[Server] Not enough connected players:', activePlayerCount(room));
+    const seated = activePlayerCount(room);
+    if (seated < 2) {
+      console.log('[Server] Not enough players to start:', seated);
+      socket.emit('error', { message: 'Need at least two players to start.' });
       return;
     }
 
@@ -929,15 +1035,19 @@ io.on('connection', (socket) => {
 
     room.gameState.lastRoundOrder = finishOrder || [];
     const playersCount =
+      activeRoundPlayerIds(room).length ||
       (finishOrder && finishOrder.length) ||
-      room.gameState.players?.length ||
-      activeRoundPlayerIds(room).length;
+      room.gameState.players?.filter((p) => !p.isDeadHand && p.id !== '__dead_hand__').length ||
+      0;
     const roles = assignRolesFromFinishOrder(room.gameState, playersCount);
 
     initReadyForNextRound(room);
     room.gameState.roles = roles;
 
     io.to(roomId).emit('roundEnded', { finishOrder, roles });
+    io.to(roomId).emit('playerReadyUpdate', {
+      readyForNextRound: room.gameState.readyForNextRound,
+    });
   }
 
   // Winner selects cards to send back to loser
@@ -976,7 +1086,9 @@ io.on('connection', (socket) => {
     if (!room || !room.gameState) return;
     const player = room.players.find(p => p.socketId === socket.id);
     if (!player) return;
-    if (!activeRoundPlayerIds(room).includes(player.id)) return;
+    const inRound = activeRoundPlayerIds(room).includes(player.id);
+    const canSpectatorReady = player.isSpectator && gameHasDeadHandSlot(room);
+    if (!inRound && !canSpectatorReady) return;
     room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
     room.gameState.readyForNextRound[player.id] = true;
 

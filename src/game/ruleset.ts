@@ -25,6 +25,8 @@ export type Player = {
   name: string;
   hand: Card[];
   role: "President" | "Vice President" | "Neutral" | "Vice Asshole" | "Asshole";
+  /** Imaginary third seat — dealt in but never plays (two-player mode). */
+  isDeadHand?: boolean;
 };
 
 // Create a standard 52-card deck

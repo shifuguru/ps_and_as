@@ -18,7 +18,7 @@ import { useAppTheme } from "../context/ThemeContext";
 
 export type MainMenuButton = {
   label: string;
-  icon: "plus" | "shuffle" | "person" | "globe" | "multiplayer" | "trophy" | "gear";
+  icon: "plus" | "shuffle" | "person" | "globe" | "multiplayer" | "trophy" | "gear" | "list";
   action: () => void;
 };
 

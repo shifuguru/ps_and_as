@@ -7,6 +7,7 @@ import {
   shuffleDeck,
   shuffleDeckSeeded,
 } from "./ruleset";
+import { DEAD_HAND_ID, livingPlayers } from "./deadHand";
 
 export type ClientPendingTrade = {
   key: "president" | "vicePresident";
@@ -23,17 +24,21 @@ export function assignPlayerRoles(
   players: Player[],
   finishedOrder: string[],
 ): void {
-  players.forEach((p) => {
+  const activePlayers = livingPlayers(players);
+  activePlayers.forEach((p) => {
     p.role = "Neutral";
   });
+  const livingOrder = finishedOrder.filter((id) =>
+    activePlayers.some((p) => p.id === id),
+  );
   const order =
-    finishedOrder.length === players.length
-      ? finishedOrder
-      : players.map((p) => p.id);
-  const count = players.length;
+    livingOrder.length === activePlayers.length
+      ? livingOrder
+      : activePlayers.map((p) => p.id);
+  const count = activePlayers.length;
 
   const setRole = (id: string, role: Player["role"]) => {
-    const pl = players.find((x) => x.id === id);
+    const pl = activePlayers.find((x) => x.id === id);
     if (pl) pl.role = role;
   };
 
@@ -81,11 +86,12 @@ function removeCardsFromHand(hand: Card[], cards: Card[]) {
 /** Asshole / Vice Asshole give best cards — president picks return separately. */
 export function applyMandatoryTrades(players: Player[]): ClientPendingTrade[] {
   const pending: ClientPendingTrade[] = [];
+  const activePlayers = livingPlayers(players);
   const { president: presCount, vice: viceCount } = mandatoryTradeCounts(
-    players.length,
+    activePlayers.length,
   );
   const byRole = (role: Player["role"]) =>
-    players.find((p) => p.role === role);
+    activePlayers.find((p) => p.role === role);
 
   const president = byRole("President");
   const asshole = byRole("Asshole");
@@ -200,9 +206,10 @@ export function allTradesCompleted(trades: ClientPendingTrade[]): boolean {
 
 /** Round-robin deal order for animation: [p0,p1,p2,..., p0,p1,...] */
 export function dealAnimationSteps(playerIds: string[], cardsEach: number): string[] {
+  const activeIds = playerIds.filter((id) => id !== DEAD_HAND_ID);
   const steps: string[] = [];
   for (let round = 0; round < cardsEach; round += 1) {
-    for (const id of playerIds) {
+    for (const id of activeIds) {
       steps.push(id);
     }
   }

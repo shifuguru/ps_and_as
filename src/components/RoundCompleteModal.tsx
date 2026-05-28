@@ -22,6 +22,9 @@ type Props = {
   readyStates: Record<string, boolean>;
   /** Local human on this device — used to highlight row and toggle ready. */
   localPlayerId?: string;
+  /** Watching in dead-hand mode — can claim the open seat between rounds. */
+  spectatorMode?: boolean;
+  deadHandSeatOpen?: boolean;
   onQuit: () => void;
   onToggleReady: () => void;
 };
@@ -32,6 +35,8 @@ export default function RoundCompleteModal({
   players,
   readyStates,
   localPlayerId,
+  spectatorMode = false,
+  deadHandSeatOpen = false,
   onQuit,
   onToggleReady,
 }: Props) {
@@ -41,6 +46,10 @@ export default function RoundCompleteModal({
   const cardWidth = Math.min(width - 48, 420);
   const readyCount = Object.values(readyStates).filter(Boolean).length;
   const isReady = localPlayerId ? !!readyStates[localPlayerId] : false;
+  const canClaimSeat = spectatorMode && deadHandSeatOpen;
+  const readyDenominator = canClaimSeat
+    ? players.length + 1
+    : players.length;
 
   return (
     <Modal visible={visible} transparent animationType="fade">
@@ -88,8 +97,15 @@ export default function RoundCompleteModal({
           </View>
 
           <Text style={styles.readyCount}>
-            {readyCount} / {players.length} Players Ready
+            {readyCount} / {readyDenominator}{" "}
+            {canClaimSeat ? "Ready (incl. open seat)" : "Players Ready"}
           </Text>
+
+          {canClaimSeat ? (
+            <Text style={styles.spectatorHint}>
+              Tap below to take the dead hand&apos;s seat next round.
+            </Text>
+          ) : null}
 
           <View style={ui.actionTrack}>
             <TouchableOpacity
@@ -114,7 +130,13 @@ export default function RoundCompleteModal({
               }}
               accessibilityRole="button"
               accessibilityLabel={
-                isReady ? "Mark Unready For Next Round" : "Ready For Next Round"
+                canClaimSeat
+                  ? isReady
+                    ? "Give up open seat"
+                    : "Take open seat next round"
+                  : isReady
+                    ? "Mark Unready For Next Round"
+                    : "Ready For Next Round"
               }
             >
               <Text
@@ -123,7 +145,13 @@ export default function RoundCompleteModal({
                   isReady && { color: colors.textOnGold },
                 ]}
               >
-                {isReady ? "Not Ready" : "Next Round"}
+                {canClaimSeat
+                  ? isReady
+                    ? "Give Up Seat"
+                    : "Take Open Seat"
+                  : isReady
+                    ? "Not Ready"
+                    : "Next Round"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -200,6 +228,14 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     letterSpacing: 0.2,
     textAlign: "center",
     marginBottom: 14,
+  },
+  spectatorHint: {
+    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: "center",
+    marginBottom: 12,
+    paddingHorizontal: 8,
   },
   });
 }

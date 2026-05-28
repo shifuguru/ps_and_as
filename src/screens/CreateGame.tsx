@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   TextInput,
-  ScrollView,
   Alert,
   useWindowDimensions,
   Modal,
@@ -28,10 +27,15 @@ import { NetworkAdapter, MockAdapter, type LobbyMember } from "../game/network";
 import { isSocketAdapter } from "../game/socketAdapter";
 import { getOrCreatePlayerId } from "../services/gameCenter";
 import { triggerHaptic } from "../utils/haptics";
+import { validateDisplayText, displayTextError, isValidDisplayText } from "../utils/profanityFilter";
+import { generateRoomCode } from "../utils/roomCode";
+import { DEAD_HAND_ID, DEAD_HAND_NAME } from "../game/deadHand";
 import { ACTION_BAR_HEIGHT } from "../components/ActionBar";
 import { useAppTheme } from "../context/ThemeContext";
+import { copyToClipboard } from "../utils/clipboard";
 import { polarSeatPosition, ringAngleForSeat, sideAnchorMarginForWidth } from "../utils/tableLayout";
 const MIN_PLAYERS = 2;
+const MIN_PLAYERS_FULL_TABLE = 3;
 const MAX_PLAYERS = 8;
 const LOBBY_SEAT_W = 88;
 const LOBBY_SEAT_H = 92;
@@ -44,15 +48,17 @@ function lobbyRingSlotPositions(
   containerW: number,
   containerH: number,
   totalPlayers: number,
+  seatW = LOBBY_SEAT_W,
+  seatH = LOBBY_SEAT_H,
 ): Array<{ left: number; top: number }> {
   if (totalPlayers <= 0) return [];
 
   const cx = containerW / 2;
   const cy = containerH / 2;
-  const margin = 8;
+  const margin = 6;
   const radius = Math.min(
-    containerW / 2 - LOBBY_SEAT_W / 2 - margin,
-    containerH / 2 - LOBBY_SEAT_H / 2 - margin,
+    containerW / 2 - seatW / 2 - margin,
+    containerH / 2 - seatH / 2 - margin,
   );
 
   const sideMargin = sideAnchorMarginForWidth(containerW, containerW >= 640);
@@ -67,17 +73,61 @@ function lobbyRingSlotPositions(
       0,
       containerW,
       containerH,
-      LOBBY_SEAT_W,
-      LOBBY_SEAT_H,
+      seatW,
+      seatH,
       { sideAnchorMargin: sideMargin, anchorSides: true },
     );
   });
 }
 
-function lobbyRingSize(contentWidth: number): { width: number; height: number } {
+type LobbyRingLayout = {
+  width: number;
+  height: number;
+  seatW: number;
+  seatH: number;
+  compactSeats: boolean;
+};
+
+function lobbyRingLayout(
+  contentWidth: number,
+  areaHeight: number,
+  totalPlayers: number,
+): LobbyRingLayout {
   const width = Math.min(contentWidth - 8, 320);
-  const height = LOBBY_RING_R * 2 + LOBBY_SEAT_H + 16;
-  return { width, height };
+  let seatScale = 1;
+  if (totalPlayers >= 8) seatScale = 0.68;
+  else if (totalPlayers >= 6) seatScale = 0.78;
+  else if (totalPlayers >= 5) seatScale = 0.86;
+  else if (totalPlayers >= 4) seatScale = 0.93;
+
+  const seatW = Math.round(LOBBY_SEAT_W * seatScale);
+  const seatH = Math.round(LOBBY_SEAT_H * seatScale);
+  const idealHeight = LOBBY_RING_R * 2 * seatScale + seatH + 12;
+
+  let height = idealHeight;
+  if (areaHeight > 0 && idealHeight > areaHeight) {
+    const fitScale = Math.max(
+      0.55,
+      (areaHeight - seatH - 12) / (LOBBY_RING_R * 2),
+    );
+    seatScale = Math.min(seatScale, fitScale);
+    height = areaHeight;
+  }
+
+  const finalSeatW = Math.round(LOBBY_SEAT_W * seatScale);
+  const finalSeatH = Math.round(LOBBY_SEAT_H * seatScale);
+  const finalHeight = Math.min(
+    areaHeight > 0 ? areaHeight : idealHeight,
+    LOBBY_RING_R * 2 * seatScale + finalSeatH + 12,
+  );
+
+  return {
+    width,
+    height: Math.max(finalHeight, finalSeatH + 24),
+    seatW: finalSeatW,
+    seatH: finalSeatH,
+    compactSeats: seatScale < 0.92,
+  };
 }
 
 const BOTTOM_CPU_ROW_HEIGHT = 78;
@@ -102,6 +152,7 @@ function RoomNameInput({
   value,
   onCommit,
   onEditingChange,
+  validate,
   inputStyle,
   wrapStyle,
   wrapFocusedStyle,
@@ -110,6 +161,7 @@ function RoomNameInput({
   value: string;
   onCommit: (name: string) => void;
   onEditingChange?: (editing: boolean) => void;
+  validate?: (text: string) => string | null;
   inputStyle: TextStyle;
   wrapStyle: ViewStyle;
   wrapFocusedStyle: ViewStyle;
@@ -135,12 +187,19 @@ function RoomNameInput({
 
   const commit = useCallback(() => {
     const trimmed = draftRef.current.trim() || "Game Room";
+    const err = validate?.(trimmed);
+    if (err) {
+      Alert.alert("Not Allowed", err);
+      setDraft(value);
+      draftRef.current = value;
+      return;
+    }
     if (trimmed !== draftRef.current) {
       setDraft(trimmed);
       draftRef.current = trimmed;
     }
     onCommit(trimmed);
-  }, [onCommit]);
+  }, [onCommit, validate, value]);
 
   return (
     <View style={[wrapStyle, focused && wrapFocusedStyle]}>
@@ -226,7 +285,7 @@ export default function CreateGame({
   onNavigateToSettings?: () => void;
   onNavigateToAchievements?: () => void;
   joinRoomId?: string;
-  onRoomReady?: (roomId: string) => void;
+  onRoomReady?: (roomId: string, roomName?: string) => void;
   onLobbyMembersChange?: (members: LobbyMember[]) => void;
 }) {
   const { colors, ui, blur } = useAppTheme();
@@ -247,6 +306,9 @@ export default function CreateGame({
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [selectedLobbyIndex, setSelectedLobbyIndex] = useState<number | null>(null);
   const [lobbyNotice, setLobbyNotice] = useState<string | null>(null);
+  const [tableAreaHeight, setTableAreaHeight] = useState(0);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const codeCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lobbyNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roomNameEditingRef = useRef(false);
   const roomCreatedRef = useRef(false);
@@ -267,6 +329,9 @@ export default function CreateGame({
       if (lobbyNoticeTimerRef.current) {
         clearTimeout(lobbyNoticeTimerRef.current);
       }
+      if (codeCopiedTimerRef.current) {
+        clearTimeout(codeCopiedTimerRef.current);
+      }
     };
   }, []);
 
@@ -276,7 +341,7 @@ export default function CreateGame({
   }
   const net = adapter ?? mockRef.current!;
 
-  const { width } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
   const insets = useLayoutInsets();
   const topBarHeight = insets.top + LOBBY_STATUS_BAR_HEIGHT;
   const bottomBarHeight = lobbyBottomReserve(insets.bottom || 0);
@@ -296,18 +361,38 @@ export default function CreateGame({
   }, [usingMock, names, lobbyMembers]);
 
   const seatCount = seatMembers.length;
+  const showDeadHandSeat = onlineLobby && seatCount === MIN_PLAYERS;
+  const displaySeatMembers = useMemo((): LobbyMember[] => {
+    if (!showDeadHandSeat) return seatMembers;
+    return [
+      ...seatMembers,
+      { id: DEAD_HAND_ID, name: DEAD_HAND_NAME },
+    ];
+  }, [seatMembers, showDeadHandSeat]);
+  const displaySeatCount = displaySeatMembers.length;
   const canEditRoom = isHost;
-  const canStart = seatCount >= MIN_PLAYERS && isHost;
+  const canStart =
+    isHost &&
+    (usingMock ? seatCount >= MIN_PLAYERS_FULL_TABLE : seatCount >= MIN_PLAYERS);
 
   const handleRoomNameCommit = useCallback(
     (name: string) => {
-      setRoomName(name);
+      const check = validateDisplayText(name, "Room name");
+      if (!isValidDisplayText(check)) {
+        Alert.alert("Not Allowed", check.reason);
+        return;
+      }
+      setRoomName(check.value);
       if (!usingMock && adapter && isSocketAdapter(adapter) && actualRoomId) {
-        adapter.updateRoomName(actualRoomId, name);
+        adapter.updateRoomName(actualRoomId, check.value);
       }
     },
     [adapter, actualRoomId, usingMock],
   );
+
+  const validateRoomName = useCallback((text: string) => {
+    return displayTextError(validateDisplayText(text, "Room name"));
+  }, []);
 
   const statusLabel = usingMock ? "Local" : isHost ? "You" : "Lobby";
   const statusValue = usingMock
@@ -319,25 +404,67 @@ export default function CreateGame({
         : "Connecting…";
 
   const contentMaxWidth = Math.min(520, Math.max(320, width - 24));
-  const ringSize = useMemo(
-    () => lobbyRingSize(contentMaxWidth),
-    [contentMaxWidth],
+  const estimatedTableHeight = Math.max(
+    140,
+    windowHeight - topBarHeight - bottomBarHeight - 240,
+  );
+  const effectiveTableHeight = tableAreaHeight || estimatedTableHeight;
+  const ringLayout = useMemo(
+    () =>
+      lobbyRingLayout(contentMaxWidth, effectiveTableHeight, displaySeatCount),
+    [contentMaxWidth, effectiveTableHeight, displaySeatCount],
   );
   const ringPositions = useMemo(
-    () => lobbyRingSlotPositions(ringSize.width, ringSize.height, seatCount),
-    [ringSize.width, ringSize.height, seatCount],
+    () =>
+      lobbyRingSlotPositions(
+        ringLayout.width,
+        ringLayout.height,
+        displaySeatCount,
+        ringLayout.seatW,
+        ringLayout.seatH,
+      ),
+    [
+      ringLayout.width,
+      ringLayout.height,
+      ringLayout.seatW,
+      ringLayout.seatH,
+      displaySeatCount,
+    ],
   );
+
+  const handleCopyRoomCode = useCallback(async () => {
+    if (!actualRoomId) return;
+    triggerHaptic("light");
+    const ok = await copyToClipboard(actualRoomId);
+    if (!ok) {
+      Alert.alert("Copy Failed", "Could not copy the room code.");
+      return;
+    }
+    setCodeCopied(true);
+    if (codeCopiedTimerRef.current) {
+      clearTimeout(codeCopiedTimerRef.current);
+    }
+    codeCopiedTimerRef.current = setTimeout(() => {
+      setCodeCopied(false);
+      codeCopiedTimerRef.current = null;
+    }, 1800);
+  }, [actualRoomId]);
 
   const lobbyPlayers = useMemo(
     () =>
-      seatMembers.map((member, index) => {
-        const isCPU = member.name.startsWith("CPU ");
-        const isLocalPlayer = usingMock
-          ? !isCPU && index === 0
-          : localId != null && member.id === localId;
-        const isHostSeat = usingMock
-          ? index === 0
-          : hostId != null && member.id === hostId;
+      displaySeatMembers.map((member, index) => {
+        const isDeadHandSeat = member.id === DEAD_HAND_ID;
+        const isCPU = !isDeadHandSeat && member.name.startsWith("CPU ");
+        const isLocalPlayer =
+          !isDeadHandSeat &&
+          (usingMock
+            ? !isCPU && index === 0
+            : localId != null && member.id === localId);
+        const isHostSeat =
+          !isDeadHandSeat &&
+          (usingMock
+            ? index === 0
+            : hostId != null && member.id === hostId);
         return {
           id: member.id,
           name: member.name,
@@ -346,9 +473,10 @@ export default function CreateGame({
           isCPU,
           isHostSeat,
           isLocalPlayer,
+          isDeadHandSeat,
         };
       }),
-    [seatMembers, usingMock, localId, hostId],
+    [displaySeatMembers, usingMock, localId, hostId],
   );
 
   useEffect(() => {
@@ -498,10 +626,22 @@ export default function CreateGame({
           await adapter.connect();
           if (!isJoining && (adapter as any).createRoom) {
             roomCreatedRef.current = true;
-            const rid = `${roomName.trim().replace(/\s+/g, "_")}-${Date.now()}`;
-            (adapter as any).createRoom(rid, playerName, roomName.trim());
-            setActualRoomId(rid);
-            onRoomReady?.(rid);
+            const code = generateRoomCode();
+            const displayName = roomName.trim() || "Game Room";
+            const roomTitleCheck = validateDisplayText(displayName, "Room name");
+            const title = roomTitleCheck.ok ? roomTitleCheck.value : "Game Room";
+            const nameCheck = validateDisplayText(playerName, "Player name");
+            if (!isValidDisplayText(nameCheck)) {
+              Alert.alert("Not Allowed", nameCheck.reason);
+              roomCreatedRef.current = false;
+              return;
+            }
+            (adapter as any).createRoom(code, nameCheck.value, title);
+            setActualRoomId(code);
+            if (!roomTitleCheck.ok) {
+              setRoomName("Game Room");
+            }
+            onRoomReady?.(code, title);
           } else if (joinRoomId) {
             setActualRoomId(joinRoomId);
             onRoomReady?.(joinRoomId);
@@ -511,7 +651,7 @@ export default function CreateGame({
           roomCreatedRef.current = true;
           setConnectionStatus("connecting");
           const m = mockRef.current!;
-          const rid = `${roomName.trim().replace(/\s+/g, "_")}-${Date.now()}`;
+          const rid = generateRoomCode();
           const hostName = playerName.trim() || "Player";
           m.createRoom(rid, hostName);
           setActualRoomId(rid);
@@ -606,7 +746,7 @@ export default function CreateGame({
 
   const startLabel = usingMock
     ? "Start Game"
-    : seatCount < MIN_PLAYERS
+    : !canStart
       ? `Need ${MIN_PLAYERS - seatCount} More`
       : isHost
         ? "Start Game"
@@ -640,29 +780,33 @@ export default function CreateGame({
             paddingHorizontal: 12,
           }}
         >
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{
-              flexGrow: 1,
+          <View
+            style={{
+              flex: 1,
               alignItems: "center",
-              paddingBottom: 12,
+              paddingBottom: 4,
             }}
-            keyboardShouldPersistTaps={
-              Platform.OS === "web" ? "always" : "handled"
-            }
-            showsVerticalScrollIndicator={false}
           >
             <View style={{ width: contentMaxWidth, flex: 1 }}>
               <BlurPanel style={local.roomPanel} intensity={48}>
                 {onlineLobby && actualRoomId ? (
-                  <>
-                    <Text style={[local.fieldLabel, local.fieldLabelSpaced]}>
-                      Room Code
-                    </Text>
-                    <Text style={local.roomCodeValue} selectable>
-                      {actualRoomId}
-                    </Text>
-                  </>
+                  <View style={local.roomCodeRow}>
+                    <Text style={local.roomCodeLabel}>Room Code:</Text>
+                    <TouchableOpacity
+                      style={[
+                        local.roomCodeButton,
+                        codeCopied && local.roomCodeButtonCopied,
+                      ]}
+                      onPress={handleCopyRoomCode}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Copy room code ${actualRoomId}`}
+                    >
+                      <Text style={local.roomCodeButtonText} numberOfLines={1}>
+                        {codeCopied ? "Copied!" : actualRoomId}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : null}
                 {canEditRoom ? (
                   <>
@@ -677,9 +821,13 @@ export default function CreateGame({
                     >
                       Room Name
                     </Text>
+                    <Text style={local.roomNameHint}>
+                      Shown in Open Games — guests join with the room code.
+                    </Text>
                     <RoomNameInput
                       value={roomName}
                       onCommit={handleRoomNameCommit}
+                      validate={validateRoomName}
                       onEditingChange={(editing) => {
                         roomNameEditingRef.current = editing;
                       }}
@@ -690,23 +838,56 @@ export default function CreateGame({
                     />
                   </>
                 ) : null}
+                {onlineLobby && seatCount === MIN_PLAYERS ? (
+                  <>
+                    <Text
+                      style={[
+                        local.fieldLabel,
+                        local.fieldLabelSpaced,
+                        local.fieldLabelAfterCode,
+                      ]}
+                    >
+                      Open Seat
+                    </Text>
+                    <Text style={local.deadHandInfo}>
+                      A dead hand is dealt automatically with two players. A
+                      third person can spectate from Open Games and take that
+                      seat after the round.
+                    </Text>
+                  </>
+                ) : null}
               </BlurPanel>
 
-                <View style={local.tableArea}>
+                <View
+                  style={local.tableArea}
+                  onLayout={(e) => {
+                    const h = e.nativeEvent.layout.height;
+                    if (h > 0) {
+                      setTableAreaHeight((prev) =>
+                        Math.abs(prev - h) > 2 ? h : prev,
+                      );
+                    }
+                  }}
+                >
                   <Text style={local.tableHint}>
                     {onlineLobby
                       ? seatCount < MIN_PLAYERS
                         ? "Share the room code — waiting for players"
-                        : `${seatCount} players in lobby`
-                      : seatCount < MIN_PLAYERS
-                        ? `Add at least ${MIN_PLAYERS} players to start`
+                        : showDeadHandSeat
+                          ? "Dead hand active — third player can spectate & join next round"
+                          : `${seatCount} players in lobby`
+                      : seatCount < MIN_PLAYERS_FULL_TABLE
+                        ? `Add at least ${MIN_PLAYERS_FULL_TABLE} players to start`
                         : `${seatCount} players at the table`}
                   </Text>
 
                   <View
                     style={[
                       local.seatRing,
-                      { width: ringSize.width, height: ringSize.height },
+                      {
+                        width: ringLayout.width,
+                        height: ringLayout.height,
+                      },
                     ]}
                   >
                     {usingMock && names.length < MAX_PLAYERS ? (
@@ -714,8 +895,16 @@ export default function CreateGame({
                         style={[
                           local.emptySeat,
                           {
-                            left: (ringSize.width - LOBBY_ADD_CPU_W) / 2,
-                            top: (ringSize.height - LOBBY_ADD_CPU_H) / 2,
+                            width: Math.round(LOBBY_ADD_CPU_W * (ringLayout.seatW / LOBBY_SEAT_W)),
+                            height: Math.round(LOBBY_ADD_CPU_H * (ringLayout.seatH / LOBBY_SEAT_H)),
+                            left:
+                              (ringLayout.width -
+                                Math.round(LOBBY_ADD_CPU_W * (ringLayout.seatW / LOBBY_SEAT_W))) /
+                              2,
+                            top:
+                              (ringLayout.height -
+                                Math.round(LOBBY_ADD_CPU_H * (ringLayout.seatH / LOBBY_SEAT_H))) /
+                              2,
                           },
                         ]}
                         onPress={addCpu}
@@ -731,7 +920,8 @@ export default function CreateGame({
                       if (!pos) return null;
 
                       const isCPU = seat.isCPU;
-                      const canRemove = canRemovePlayer(
+                      const isDeadHandSeat = seat.isDeadHandSeat;
+                      const canRemove = !isDeadHandSeat && canRemovePlayer(
                         { id: seat.id, name: seat.name },
                         isCPU,
                       );
@@ -741,9 +931,28 @@ export default function CreateGame({
                           key={seat.id}
                           style={[
                             local.seatSlot,
-                            { left: pos.left, top: pos.top },
+                            {
+                              left: pos.left,
+                              top: pos.top,
+                              width: ringLayout.seatW,
+                            },
                           ]}
                         >
+                          {isDeadHandSeat ? (
+                            <View
+                              style={[
+                                local.deadHandSeat,
+                                {
+                                  width: ringLayout.seatW,
+                                  minHeight: ringLayout.seatH,
+                                },
+                              ]}
+                            >
+                              <Text style={local.deadHandSeatIcon}>🃏</Text>
+                              <Text style={local.deadHandSeatLabel}>Dead Hand</Text>
+                              <Text style={local.deadHandSeatHint}>Open seat</Text>
+                            </View>
+                          ) : (
                           <TouchableOpacity
                             activeOpacity={0.85}
                             onPress={() => {
@@ -789,11 +998,14 @@ export default function CreateGame({
                               isOut={false}
                               hasPassed={false}
                               isThinking={isCPU}
+                              compact={ringLayout.compactSeats}
+                              layoutWidth={ringLayout.width}
                             />
                             {seat.isHostSeat && (
                               <Text style={[local.hostBadge, { color: colors.gold }]}>Host</Text>
                             )}
                           </TouchableOpacity>
+                          )}
 
                           {canRemove ? (
                             <TouchableOpacity
@@ -811,8 +1023,8 @@ export default function CreateGame({
                     })}
                   </View>
                 </View>
-              </View>
-            </ScrollView>
+            </View>
+          </View>
         </DismissKeyboardArea>
       </KeyboardAvoidingView>
 
@@ -989,33 +1201,97 @@ const local = StyleSheet.create({
     marginLeft: 8,
   },
   fieldLabelAfterCode: {
-    marginTop: 14,
+    marginTop: 6,
   },
-  roomCodeValue: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
-    letterSpacing: 0.5,
+  roomNameHint: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 11,
+    lineHeight: 15,
     textAlign: "center",
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  deadHandInfo: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: "center",
+    paddingHorizontal: 4,
+  },
+  deadHandSeat: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    backgroundColor: "rgba(255,255,255,0.03)",
+  },
+  deadHandSeatIcon: {
+    fontSize: 20,
+    marginBottom: 4,
+  },
+  deadHandSeatLabel: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 11,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  deadHandSeatHint: {
+    color: "rgba(255,255,255,0.35)",
+    fontSize: 9,
+    fontWeight: "600",
+    marginTop: 2,
+    textAlign: "center",
+  },
+  roomCodeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  roomCodeLabel: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 13,
+    fontWeight: "600",
+    flexShrink: 0,
+  },
+  roomCodeButton: {
+    marginLeft: "auto",
+    minWidth: 96,
+    maxWidth: "56%",
     paddingVertical: 8,
     paddingHorizontal: 12,
     backgroundColor: "rgba(0,0,0,0.28)",
     borderWidth: 1,
     borderColor: "rgba(212,175,55,0.35)",
     borderRadius: 12,
-    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roomCodeButtonCopied: {
+    borderColor: "rgba(120,220,140,0.55)",
+    backgroundColor: "rgba(20,48,28,0.45)",
+  },
+  roomCodeButtonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    textAlign: "center",
   },
   tableArea: {
     flex: 1,
-    minHeight: LOBBY_RING_R * 2 + LOBBY_SEAT_H + 32,
+    minHeight: 0,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 8,
+    paddingTop: 4,
   },
   tableHint: {
     color: "rgba(255,255,255,0.55)",
     fontSize: 13,
-    marginBottom: 16,
+    marginBottom: 8,
     textAlign: "center",
   },
   seatRing: {
@@ -1024,7 +1300,6 @@ const local = StyleSheet.create({
   },
   seatSlot: {
     position: "absolute",
-    width: LOBBY_SEAT_W,
     alignItems: "center",
     zIndex: 1,
   },

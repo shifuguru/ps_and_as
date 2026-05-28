@@ -23,6 +23,10 @@ import {
   cardsNeededToPlay,
   TrickHistory,
   isJoker,
+  isRoundCompleteForLiving,
+  isDeadHandPlayer,
+  livingPlayerIds,
+  applyDeadHandAfterDeal,
 } from "../game/core";
 import {
   assignPlayerRoles,
@@ -497,7 +501,7 @@ export default function GameScreen({
       }
       lastTrickLenRef.current = len;
     }
-    const allPlayersFinished = state.finishedOrder.length === state.players.length;
+    const allPlayersFinished = isRoundCompleteForLiving(state);
     if (allPlayersFinished && !roundOver) {
       setRoundOver(true);
       if (!roundStatsRecordedRef.current) {
@@ -511,13 +515,13 @@ export default function GameScreen({
         if (human) {
           const placement = state.finishedOrder.indexOf(human.id);
           if (placement >= 0) {
-            void recordRoundResult(placement, state.finishedOrder.length);
+            void recordRoundResult(placement, livingPlayerIds(state.players).length);
           }
         }
       }
       // Auto-ready all CPU players only (not human players)
       const newReady: { [playerId: string]: boolean } = {};
-      state.players.forEach((p) => {
+      state.players.filter((p) => !isDeadHandPlayer(p)).forEach((p) => {
         const isLocalHuman =
           (humanPlayer && p.id === humanPlayer.id) ||
           (localPlayerId && p.id === localPlayerId);
@@ -551,7 +555,9 @@ export default function GameScreen({
     if (!state) return;
     const readyIds = Object.keys(playerReadyStates);
     if (readyIds.length === 0) return;
-    const allReady = state.players.every((p) => !!playerReadyStates[p.id]);
+    const allReady = state.players
+      .filter((p) => !isDeadHandPlayer(p))
+      .every((p) => !!playerReadyStates[p.id]);
     if (!allReady) return;
     startNextRound();
   }, [playerReadyStates, roundOver, state, onlineMultiplayer]);
@@ -596,6 +602,14 @@ export default function GameScreen({
         baseState.players.map((p) => ({ ...p, hand: [] })),
       );
       dealFreshHands(players, nextDealSeed);
+      if (players.some(isDeadHandPlayer)) {
+        applyDeadHandAfterDeal({
+          players,
+          finishedOrder: [],
+          currentPlayerIndex: 0,
+          mustPlay: false,
+        });
+      }
       let trades: ClientPendingTrade[] = [];
       if (finishedOrder.length >= 2) {
         assignPlayerRoles(players, finishedOrder);
@@ -616,10 +630,10 @@ export default function GameScreen({
 
   function startNextRound(nextDealSeed?: number) {
     if (!state) return;
-    const finishedOrder =
-      state.finishedOrder.length === state.players.length
-        ? state.finishedOrder
-        : state.players.map((p) => p.id);
+    const living = livingPlayerIds(state.players);
+    const finishedOrder = living.every((id) => state.finishedOrder.includes(id))
+      ? state.finishedOrder.filter((id) => living.includes(id))
+      : living;
     startRoundCeremony(state, finishedOrder, nextDealSeed);
   }
 
@@ -894,18 +908,27 @@ export default function GameScreen({
             return next;
           });
         }
-      }
-      else if (ev.type === "state" && ev.state?.type === "playerReadyUpdate") {
+      } else if (ev.type === "state" && ev.state?.type === "playerReadyUpdate") {
         const readyMap = ev.state.readyForNextRound;
         if (readyMap && typeof readyMap === "object") {
           setPlayerReadyStates({ ...readyMap });
         }
+      } else if (ev.type === "state" && ev.state?.type === "roundEnded") {
+        setRoundOver(true);
       } else if (ev.type === "state" && ev.state?.type === "nextRoundStarting") {
         if (onlineMultiplayer) {
           setRoundOver(false);
           roundStatsRecordedRef.current = false;
           setPlayerReadyStates({});
-          setSpectatorMode(false);
+          const promotedId = ev.state.promotedPlayerId as string | null | undefined;
+          const localId =
+            localPlayerId ??
+            (isSocketAdapter(networkAdapter)
+              ? networkAdapter.getProfileId()
+              : null);
+          if (promotedId && localId && promotedId === localId) {
+            setSpectatorMode(false);
+          }
           awaitingDealCeremonyRef.current = true;
           if (isSocketAdapter(networkAdapter) && roomId) {
             networkAdapter.requestGameState(roomId);
@@ -946,7 +969,7 @@ export default function GameScreen({
         void fallbackAdapterRef.current?.disconnect();
       }
     };
-  }, [onlineMultiplayer, roomId, networkAdapter]);
+  }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId]);
 
   // Determine which players are controlled locally on this device (hotseat).
   // For mock/local games (MockAdapter or no network adapter provided) we treat
@@ -969,12 +992,13 @@ export default function GameScreen({
 
   const playAreaLayout = useMemo(() => {
     if (playAreaSize.width <= 0 || playAreaSize.height <= 0 || !state) return null;
+    const tableSeats = state.players.filter((p) => !isDeadHandPlayer(p)).length;
     return computePlayAreaLayout(
       playAreaSize.width,
       playAreaSize.height,
-      state.players.length,
+      tableSeats,
     );
-  }, [playAreaSize.width, playAreaSize.height, state?.players.length]);
+  }, [playAreaSize.width, playAreaSize.height, state?.players]);
 
   const handleTradeConfirm = useCallback(
     (selected: CardType[]) => {
@@ -1030,8 +1054,8 @@ export default function GameScreen({
     const current = state.players[state.currentPlayerIndex];
 
     // If current player is out or has no cards, skip their turn.
-    if (state.finishedOrder.includes(current.id) || current.hand.length === 0) {
-      if (state.finishedOrder.length === state.players.length) return;
+    if (state.finishedOrder.includes(current.id) || current.hand.length === 0 || isDeadHandPlayer(current)) {
+      if (isRoundCompleteForLiving(state)) return;
       const nextState = passTurn(state, current.id);
       if (
         nextState.currentPlayerIndex !== state.currentPlayerIndex ||
@@ -1513,12 +1537,14 @@ export default function GameScreen({
         : trickPauseSnapshot.plays
       : trickPlays;
 
-  const opponentPlayers = state.players.map((p) => ({
-    id: p.id,
-    name: p.name,
-    handCount: p.hand.length,
-    role: p.role,
-  }));
+  const opponentPlayers = state.players
+    .filter((p) => !isDeadHandPlayer(p))
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      handCount: p.hand.length,
+      role: p.role,
+    }));
 
   const passedPlayerIds =
     state.currentTrick?.actions
@@ -2032,8 +2058,9 @@ export default function GameScreen({
       <DealCeremonyOverlay
         visible={!!ceremonyPrep}
         playerIds={
-          ceremonyPrep?.players.map((p) => p.id) ??
-          state.players.map((p) => p.id)
+          (ceremonyPrep?.players ?? state.players)
+            .filter((p) => !isDeadHandPlayer(p))
+            .map((p) => p.id)
         }
         localPlayerIds={localControlledIds}
         layout={playAreaLayout}
@@ -2070,15 +2097,26 @@ export default function GameScreen({
 
       <RoundCompleteModal
         visible={roundOver}
-        finishedOrder={state.finishedOrder}
-        players={state.players}
+        finishedOrder={state.finishedOrder.filter((id) =>
+          state.players.some(
+            (p) => p.id === id && !isDeadHandPlayer(p),
+          ),
+        )}
+        players={state.players.filter((p) => !isDeadHandPlayer(p))}
         readyStates={playerReadyStates}
         localPlayerId={humanPlayer?.id ?? myPlayerId ?? undefined}
+        spectatorMode={spectatorMode}
+        deadHandSeatOpen={state.players.some(isDeadHandPlayer)}
         onQuit={() => {
           if (onBack) onBack();
         }}
         onToggleReady={() => {
-          const id = humanPlayer?.id ?? myPlayerId ?? undefined;
+          const id =
+            humanPlayer?.id ??
+            myPlayerId ??
+            (isSocketAdapter(networkAdapter)
+              ? networkAdapter.getProfileId()
+              : undefined);
           if (!id) return;
           if (playerReadyStates[id]) {
             setPlayerReadyStates((prev) => ({ ...prev, [id]: false }));

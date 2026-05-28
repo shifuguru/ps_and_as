@@ -28,6 +28,8 @@ import { SocketAdapter } from "../game/socketAdapter";
 import { getOrCreatePlayerId } from "../services/gameCenter";
 import { triggerHaptic } from "../utils/haptics";
 import { playerInitials } from "../utils/playerDisplay";
+import { validateDisplayText, displayTextError } from "../utils/profanityFilter";
+import { isValidRoomCode, normalizeRoomCode } from "../utils/roomCode";
 import { contentMaxWidth } from "../styles/uiStandards";
 import { useAppTheme } from "../context/ThemeContext";
 
@@ -40,6 +42,8 @@ interface AvailableRoom {
   createdAt: number;
   inGame?: boolean;
   roundInProgress?: boolean;
+  deadHandSeatOpen?: boolean;
+  spectatorCount?: number;
 }
 
 function formatTimeAgo(timestamp: number) {
@@ -59,8 +63,8 @@ function connectionLabel(
   return "Offline";
 }
 
-function normalizeRoomCode(raw: string): string {
-  return raw.trim();
+function normalizeRoomCodeInput(raw: string): string {
+  return normalizeRoomCode(raw);
 }
 
 export default function FindGame({
@@ -183,9 +187,17 @@ export default function FindGame({
   }, [adapter, refreshRooms, socket]);
 
   const requireName = (): boolean => {
-    if (playerName.trim()) return true;
-    setError("Set your name in Settings first.");
-    return false;
+    if (!playerName.trim()) {
+      setError("Set your name in Settings first.");
+      return false;
+    }
+    const check = validateDisplayText(playerName, "Player name");
+    const err = displayTextError(check);
+    if (err) {
+      setError(err);
+      return false;
+    }
+    return true;
   };
 
   const handleJoinRoom = (roomId: string) => {
@@ -204,9 +216,13 @@ export default function FindGame({
   };
 
   const handleJoinWithCode = () => {
-    const code = normalizeRoomCode(roomCode);
+    const code = normalizeRoomCodeInput(roomCode);
     if (!code) {
       setError("Enter a room code from your host.");
+      return;
+    }
+    if (!isValidRoomCode(code)) {
+      setError("Room codes are 4–8 letters and numbers.");
       return;
     }
     handleJoinRoom(code);
@@ -227,6 +243,7 @@ export default function FindGame({
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
       <LobbyStatusBar
         playerCount={availableRooms.length}
+        countLabel="Open"
         roomName="Multiplayer"
         statusLabel="Server"
         statusValue={connectionLabel(connectionStatus)}
@@ -273,10 +290,12 @@ export default function FindGame({
                   ) : null}
                   {onNavigateToSettings ? (
                     <TouchableOpacity
-                      style={ui.btnSecondary}
+                      style={[ui.btnSecondary, styles.profileIconBtn]}
                       onPress={onNavigateToSettings}
+                      accessibilityRole="button"
+                      accessibilityLabel="Settings"
                     >
-                      <Text style={ui.btnSecondaryText}>Edit</Text>
+                      <MenuIcon name="gear" size={18} color={colors.gold} />
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -291,18 +310,22 @@ export default function FindGame({
                 disabled={connectionStatus !== "connected"}
               >
                 <BlurPanel style={styles.actionTileInner} intensity={50}>
-                  <MenuIcon name="plus" size={22} color={colors.gold} />
-                  <Text style={styles.actionTileTitle}>Host Game</Text>
+                  <Text style={styles.actionTileTitle}>Host Open Game</Text>
                   <Text style={styles.actionTileHint}>
-                    Create a lobby for friends
+                    Create an open lobby for anyone to join.
                   </Text>
+                  <View style={styles.actionTileIconHost}>
+                    <MenuIcon name="plus" size={28} color={colors.gold} />
+                  </View>
                 </BlurPanel>
               </TouchableOpacity>
 
               <View style={styles.actionTile}>
-                <BlurPanel style={styles.actionTileInner} intensity={50}>
-                  <MenuIcon name="multiplayer" size={22} color={colors.gold} />
-                  <Text style={styles.actionTileTitle}>Join With Code</Text>
+                <BlurPanel style={styles.actionTileInnerJoin} intensity={50}>
+                  <View style={styles.joinTitleRow}>
+                    <MenuIcon name="multiplayer" size={18} color={colors.gold} />
+                    <Text style={styles.actionTileTitle}>Join With Code</Text>
+                  </View>
                   <View
                     style={[
                       styles.codeInputWrap,
@@ -310,13 +333,15 @@ export default function FindGame({
                     ]}
                   >
                     <TextInput
-                      placeholder="Paste room code"
+                      placeholder="Enter room code"
                       placeholderTextColor={colors.textMuted}
                       value={roomCode}
-                      onChangeText={setRoomCode}
+                      onChangeText={(text) =>
+                        setRoomCode(normalizeRoomCodeInput(text))
+                      }
                       onFocus={() => setCodeFocused(true)}
                       onBlur={() => setCodeFocused(false)}
-                      autoCapitalize="none"
+                      autoCapitalize="characters"
                       autoCorrect={false}
                       spellCheck={false}
                       autoComplete="off"
@@ -338,10 +363,10 @@ export default function FindGame({
                     style={[
                       ui.btnGoldFill,
                       styles.codeJoinBtn,
-                      !normalizeRoomCode(roomCode) && styles.codeJoinBtnDisabled,
+                      !normalizeRoomCodeInput(roomCode) && styles.codeJoinBtnDisabled,
                     ]}
                     onPress={handleJoinWithCode}
-                    disabled={!normalizeRoomCode(roomCode)}
+                    disabled={!normalizeRoomCodeInput(roomCode)}
                   >
                     <Text style={ui.btnGoldFillText}>Join</Text>
                   </TouchableOpacity>
@@ -361,11 +386,13 @@ export default function FindGame({
               <TouchableOpacity
                 onPress={refreshRooms}
                 disabled={isSearching}
-                style={styles.refreshBtn}
+                style={[ui.btnSecondary, styles.refreshBtn]}
+                activeOpacity={0.85}
               >
                 <Text
                   style={[
-                    styles.refreshLink,
+                    ui.btnSecondaryText,
+                    styles.refreshBtnText,
                     isSearching && styles.refreshLinkDisabled,
                   ]}
                 >
@@ -392,8 +419,14 @@ export default function FindGame({
               availableRooms.map((room) => {
                 const inPlay = !!room.inGame && !!room.roundInProgress;
                 const betweenRounds = !!room.inGame && !room.roundInProgress;
-                const full = !inPlay && room.playerCount >= room.maxPlayers;
-                const showSpectate = inPlay && !!onSpectateRoom;
+                const seatOpen = !!room.deadHandSeatOpen;
+                const full =
+                  !inPlay && room.playerCount >= room.maxPlayers;
+                const showSpectate =
+                  !!onSpectateRoom &&
+                  !!room.inGame &&
+                  seatOpen &&
+                  room.playerCount >= 2;
                 const actionLabel = showSpectate
                   ? "Spectate"
                   : full
@@ -402,8 +435,7 @@ export default function FindGame({
                       ? "Join"
                       : "Join";
                 const actionDisabled =
-                  !playerName.trim() ||
-                  (showSpectate ? false : full);
+                  !playerName.trim() || (showSpectate ? false : full);
                 return (
                   <BlurPanel
                     key={room.roomId}
@@ -431,7 +463,7 @@ export default function FindGame({
                                   styles.roomMetaInPlay,
                                 ]}
                               >
-                                In Play
+                                {seatOpen ? "In Play · seat open" : "In Play"}
                               </Text>
                             </>
                           ) : betweenRounds ? (
@@ -526,8 +558,12 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   },
   profileActions: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     flexShrink: 0,
+  },
+  profileIconBtn: {
+    paddingHorizontal: 11,
   },
   playerName: {
     color: colors.textPrimary,
@@ -542,19 +578,44 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   actionTile: {
     flex: 1,
     minWidth: 0,
+    alignSelf: "stretch",
   },
   actionTileInner: {
     borderRadius: 16,
     padding: 14,
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     minHeight: 168,
+    flex: 1,
+  },
+  actionTileInnerJoin: {
+    borderRadius: 16,
+    padding: 14,
+    alignItems: "stretch",
+    minHeight: 168,
+    flex: 1,
+  },
+  actionTileIconHost: {
+    flex: 1,
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 40,
+    marginTop: 4,
+  },
+  joinTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    width: "100%",
   },
   actionTileTitle: {
     color: colors.textPrimary,
     fontSize: 15,
     fontWeight: "700",
     textAlign: "center",
+    flexShrink: 1,
   },
   actionTileHint: {
     color: colors.textMuted,
@@ -570,6 +631,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     backgroundColor: colors.inputBg,
     paddingHorizontal: 10,
     paddingVertical: Platform.OS === "ios" ? 10 : 6,
+    marginTop: 12,
   },
   codeInputWrapFocused: {
     borderColor: colors.btnGoldBorder,
@@ -582,7 +644,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   codeJoinBtn: {
     width: "100%",
     paddingVertical: 9,
-    marginTop: 2,
+    marginTop: 6,
   },
   codeJoinBtnDisabled: {
     opacity: 0.45,
@@ -613,14 +675,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     flexShrink: 0,
   },
   refreshBtn: {
-    minWidth: 64,
-    alignItems: "flex-end",
+    minWidth: 72,
     marginLeft: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
-  refreshLink: {
-    color: colors.gold,
+  refreshBtnText: {
     fontSize: 13,
-    fontWeight: "600",
   },
   refreshLinkDisabled: {
     opacity: 0.45,
