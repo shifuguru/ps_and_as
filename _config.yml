@@ -1,0 +1,5 @@
+# Suppress Jekyll site title link ("ps_and_as") when GitHub Pages renders from main.
+title: ""
+description: "Presidents & Assholes — card game"
+theme: jekyll-theme-minimal
+plugins: []
