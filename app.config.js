@@ -13,9 +13,7 @@ module.exports = {
         appJson.expo.version ||
         "0.0.0",
     },
-    plugins: [
-      ...(appJson.expo.plugins ?? []),
-      "expo-game-center",
-    ],
+    // Game Center entitlements live in app.json — expo-game-center has no Expo config plugin.
+    plugins: [...(appJson.expo.plugins ?? [])],
   },
 };
