@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Platform, LayoutChangeEvent } from "react-native";
 import {
   createGame,
   createGameFromLobby,
@@ -24,7 +24,17 @@ import {
   TrickHistory,
   isJoker,
 } from "../game/core";
-import { createDeck, shuffleDeck, shuffleDeckSeeded, dealCards } from "../game/ruleset";
+import {
+  assignPlayerRoles,
+  applyMandatoryTrades,
+  allTradesCompleted,
+  buildFreshRoundState,
+  clonePlayersForRound,
+  completeWinnerReturn,
+  dealFreshHands,
+  pickLowestCards,
+  type ClientPendingTrade,
+} from "../game/roundPrep";
 import Card from "../components/Card";
 import { ScrollView } from "react-native";
 import { MockAdapter, type NetworkAdapter } from "../game/network";
@@ -46,6 +56,7 @@ import EndGamePanel from "../components/EndGamePanel";
 import BottomBar, {
   BottomBarControls,
   BottomBarHand,
+  BottomBarLeave,
   localSeatBottomOffset,
   reservedBottomHeight,
 } from "../components/BottomBar";
@@ -59,6 +70,9 @@ import RoundCompleteModal from "../components/RoundCompleteModal";
 import TenRuleModal from "../components/TenRuleModal";
 import GameTable from "../components/GameTable";
 import GamePlayArea from "../components/GamePlayArea";
+import DealCeremonyOverlay from "../components/DealCeremonyOverlay";
+import RoleTradeModal from "../components/RoleTradeModal";
+import { computePlayAreaLayout } from "../utils/tableLayout";
 import OpponentSeat from "../components/OpponentSeat";
 import { LOCAL_SEAT_BAND } from "../utils/tableLayout";
 import {
@@ -302,6 +316,24 @@ export default function GameScreen({
   const [state, setState] = useState<GameState | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [spectatorMode, setSpectatorMode] = useState(isSpectator);
+  const [gameplayLocked, setGameplayLocked] = useState(false);
+  const [playAreaSize, setPlayAreaSize] = useState({ width: 0, height: 0 });
+  const [ceremonyPrep, setCeremonyPrep] = useState<{
+    baseState: GameState;
+    players: GameState["players"];
+    trades: ClientPendingTrade[];
+    dealSeed?: number;
+  } | null>(null);
+  const [tradePhase, setTradePhase] = useState<{
+    baseState: GameState;
+    players: GameState["players"];
+    trades: ClientPendingTrade[];
+  } | null>(null);
+  const [activeTrade, setActiveTrade] = useState<ClientPendingTrade | null>(null);
+  const awaitingDealCeremonyRef = useRef(false);
+  const ceremonyDoneForRoundRef = useRef<string | null>(null);
+  const [roomNotice, setRoomNotice] = useState<string | null>(null);
+  const roomNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
   const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
   const [showGameLog, setShowGameLog] = useState<boolean>(false);
@@ -317,11 +349,46 @@ export default function GameScreen({
   }
   const adapter = networkAdapter ?? fallbackAdapterRef.current!;
   const onlineMultiplayer = isSocketAdapter(networkAdapter) && !!roomId;
-  const readOnlyOnline = onlineMultiplayer && spectatorMode;
+  const readOnlyOnline =
+    onlineMultiplayer && (spectatorMode || gameplayLocked);
+  const readOnlyGame = gameplayLocked || readOnlyOnline;
 
   useEffect(() => {
     setSpectatorMode(isSpectator);
   }, [isSpectator]);
+
+  function showRoomNotice(message: string) {
+    setRoomNotice(message);
+    if (roomNoticeTimerRef.current) {
+      clearTimeout(roomNoticeTimerRef.current);
+    }
+    roomNoticeTimerRef.current = setTimeout(() => {
+      setRoomNotice(null);
+      roomNoticeTimerRef.current = null;
+    }, 4500);
+  }
+
+  function roomEventMessage(
+    playerName: string | undefined,
+    eventType: string,
+    reason?: string,
+  ): string | null {
+    const name = playerName?.trim();
+    if (!name) return null;
+    if (eventType === "playerDisconnected") {
+      return `${name} disconnected — waiting to reconnect…`;
+    }
+    if (reason === "kicked") {
+      return `${name} was removed from the room`;
+    }
+    if (eventType === "playerLeft" || reason === "left") {
+      return `${name} left the game`;
+    }
+    if (reason === "disconnected") {
+      return `${name} left the room`;
+    }
+    return `${name} left the room`;
+  }
 
   function broadcastGameAction(action: Record<string, unknown>) {
     if (!onlineMultiplayer || !isSocketAdapter(networkAdapter) || !roomId) return;
@@ -472,6 +539,9 @@ export default function GameScreen({
       if (trickCollectTimerRef.current) {
         clearTimeout(trickCollectTimerRef.current);
       }
+      if (roomNoticeTimerRef.current) {
+        clearTimeout(roomNoticeTimerRef.current);
+      }
     };
   }, []);
 
@@ -486,150 +556,72 @@ export default function GameScreen({
     startNextRound();
   }, [playerReadyStates, roundOver, state, onlineMultiplayer]);
 
+  const finalizeCeremonyRound = useCallback(
+    (players: GameState["players"], baseState: GameState) => {
+      const next = buildFreshRoundState(baseState, players);
+      setState(next);
+      setRoundOver(false);
+      roundStatsRecordedRef.current = false;
+      setPlayerReadyStates({});
+      setCeremonyPrep(null);
+      setTradePhase(null);
+      setActiveTrade(null);
+      setGameplayLocked(false);
+      ceremonyDoneForRoundRef.current = next.id;
+    },
+    [],
+  );
+
+  const beginTradePhase = useCallback(
+    (
+      baseState: GameState,
+      players: GameState["players"],
+      trades: ClientPendingTrade[],
+    ) => {
+      if (trades.length === 0 || trades.every((t) => t.completed)) {
+        finalizeCeremonyRound(players, baseState);
+        return;
+      }
+      setTradePhase({ baseState, players, trades });
+      setCeremonyPrep(null);
+      const first = trades.find((t) => !t.completed) ?? null;
+      setActiveTrade(first);
+    },
+    [finalizeCeremonyRound],
+  );
+
+  const startRoundCeremony = useCallback(
+    (baseState: GameState, finishedOrder: string[], nextDealSeed?: number) => {
+      const players = clonePlayersForRound(
+        baseState.players.map((p) => ({ ...p, hand: [] })),
+      );
+      dealFreshHands(players, nextDealSeed);
+      let trades: ClientPendingTrade[] = [];
+      if (finishedOrder.length >= 2) {
+        assignPlayerRoles(players, finishedOrder);
+        trades = applyMandatoryTrades(players);
+      }
+      setGameplayLocked(true);
+      setCeremonyPrep({
+        baseState,
+        players,
+        trades,
+        dealSeed: nextDealSeed,
+      });
+      const hiddenPlayers = players.map((p) => ({ ...p, hand: [] }));
+      setState(buildFreshRoundState(baseState, hiddenPlayers));
+    },
+    [],
+  );
+
   function startNextRound(nextDealSeed?: number) {
     if (!state) return;
-    const seed =
-      typeof nextDealSeed === "number"
-        ? nextDealSeed
-        : typeof dealSeed === "number"
-          ? dealSeed
-          : undefined;
-    // 1) Re-deal the cards to existing players
-    const deck =
-      seed != null
-        ? shuffleDeckSeeded(createDeck(), seed)
-        : shuffleDeck(createDeck());
-    // mutate a shallow copy of players array to avoid surprising refs
-    const playersCopy = state.players.map((p) => ({ ...p, hand: [] }));
-    dealCards(deck, playersCopy as any);
-
-    // 2) Assign roles according to previous finished order (state.finishedOrder)
-    // Default everyone to Neutral first
-    playersCopy.forEach((p) => (p.role = "Neutral"));
-    const order = state.finishedOrder && state.finishedOrder.length === state.players.length
-      ? state.finishedOrder
-      : state.players.map((p) => p.id);
-
-    // Helper to set role by player id
-    const setRole = (id: string, role: string) => {
-      const pl = playersCopy.find((x) => x.id === id);
-      if (pl) pl.role = role as any;
-    };
-    
-    // Role assignment based on player count
-    if (order.length >= 1) setRole(order[0], "President");
-    
-    if (order.length >= 5) {
-      // For 5+ players: President, Vice President, Neutral(s), Vice Asshole, Asshole
-      setRole(order[1], "Vice President");
-      setRole(order[order.length - 2], "Vice Asshole");
-      setRole(order[order.length - 1], "Asshole");
-    } else if (order.length >= 2) {
-      // For 2-4 players: President, Neutral(s), Asshole (no Vice roles)
-      setRole(order[order.length - 1], "Asshole");
-    }
-
-    // 3) Trading stage: losers give highest card(s) to winners
-    // Determine trade counts
-    const playerCount = playersCopy.length;
-    const presTradeCount = playerCount >= 5 ? 2 : 1;
-    const viceTradeCount = playerCount >= 5 ? 1 : 0;
-
-    // Helper: get player by role
-    const getByRole = (roleName: string) => playersCopy.find((p) => p.role === roleName);
-
-    const president = getByRole("President");
-    const vicePres = getByRole("Vice President");
-    const asshole = getByRole("Asshole");
-    const viceAss = getByRole("Vice Asshole");
-
-    // Utility to pick highest N cards from a hand
-    const pickHighest = (hand: any[], n: number) => {
-      const sorted = [...hand].sort((a, b) => rankIndex(b.value) - rankIndex(a.value));
-      return sorted.slice(0, n);
-    };
-    // Utility to remove specific cards from a hand (by suit+value)
-    const removeCards = (hand: any[], cardsToRemove: any[]) => {
-      for (const rc of cardsToRemove) {
-        const idx = hand.findIndex((h) => h.suit === rc.suit && h.value === rc.value);
-        if (idx >= 0) hand.splice(idx, 1);
-      }
-    };
-
-    // Map to hold cards moved from loser->winner
-    const transferred: { [toId: string]: any[] } = {};
-
-    // Process Asshole <-> President
-    if (asshole && president && presTradeCount > 0) {
-      const given = pickHighest(asshole.hand, presTradeCount);
-      removeCards(asshole.hand, given);
-      transferred[president.id] = (transferred[president.id] || []).concat(given);
-    }
-
-    // Process Vice pairs if present
-    if (viceAss && vicePres && viceTradeCount > 0) {
-      const given = pickHighest(viceAss.hand, viceTradeCount);
-      removeCards(viceAss.hand, given);
-      transferred[vicePres.id] = (transferred[vicePres.id] || []).concat(given);
-    }
-
-    // 4) Winners return cards (winners choose any; CPUs return lowest by default)
-    const doReturn = (winner: any, loserId: string, count: number) => {
-      if (!winner) return;
-      // If winner is local human, choose lowest as default (interactive UI TBD)
-      const toReturn = [...winner.hand]
-        .sort((a, b) => rankIndex(a.value) - rankIndex(b.value))
-        .slice(0, count);
-      removeCards(winner.hand, toReturn);
-      // Add returned cards to loser
-      const loser = playersCopy.find((p) => p.id === loserId);
-      if (loser) loser.hand = loser.hand.concat(toReturn);
-    };
-
-    if (president && asshole && transferred[president.id]) {
-      // president received transferred[president.id] from asshole
-      president.hand = president.hand.concat(transferred[president.id]);
-      // president returns same count to asshole (choose lowest)
-      doReturn(president, asshole.id, transferred[president.id].length);
-    }
-    if (vicePres && viceAss && transferred[vicePres.id]) {
-      vicePres.hand = vicePres.hand.concat(transferred[vicePres.id]);
-      doReturn(vicePres, viceAss.id, transferred[vicePres.id].length);
-    }
-
-    // 5) Finalize state: reset piles/history and set starter as player with 3 of clubs
-    const newState: GameState = {
-      ...state,
-      players: playersCopy,
-      pile: [],
-      pileHistory: [],
-      pileOwners: [],
-      tableStacks: [],
-      tableStackOwners: [],
-      passCount: 0,
-      finishedOrder: [],
-      started: true,
-      lastPlayPlayerIndex: null,
-      mustPlay: false,
-      trickHistory: [],
-      currentTrick: { trickNumber: 1, actions: [] },
-      tenRule: { active: false, direction: null },
-      tenRulePending: false,
-      fourOfAKindChallenge: undefined,
-      lastClear: undefined,
-    } as GameState;
-
-    // find player index with 3 of clubs
-    const starterIdx = newState.players.findIndex((p) => p.hand.some((c) => c.suit === 'clubs' && c.value === 3));
-    newState.currentPlayerIndex = starterIdx >= 0 ? starterIdx : 0;
-    newState.mustPlay = starterIdx >= 0 ? true : false;
-
-    setState(newState);
-    setRoundOver(false);
-    roundStatsRecordedRef.current = false;
-    setPlayerReadyStates({});
+    const finishedOrder =
+      state.finishedOrder.length === state.players.length
+        ? state.finishedOrder
+        : state.players.map((p) => p.id);
+    startRoundCeremony(state, finishedOrder, nextDealSeed);
   }
-  
 
   function summarizeState(s: any) {
     if (!s) return null;
@@ -672,7 +664,7 @@ export default function GameScreen({
       const g = initialLobbyPlayers?.length
         ? createGameFromLobby(initialLobbyPlayers, dealSeed)
         : createGame(normalizeLobbyNames(initialPlayers, localPlayerName));
-      setState(g);
+      startRoundCeremony(g, []);
     } else if (isSocketAdapter(networkAdapter)) {
       const cached = parseServerGameState(networkAdapter.getCachedGameState());
       if (cached) {
@@ -687,6 +679,67 @@ export default function GameScreen({
         console.warn("[GameScreen] Ignored invalid gameStateSync payload", raw);
         return;
       }
+
+      if (
+        onlineMultiplayer &&
+        (awaitingDealCeremonyRef.current ||
+          ceremonyDoneForRoundRef.current !== parsed.id)
+      ) {
+        awaitingDealCeremonyRef.current = false;
+        const serverPending = (parsed as GameState & { pendingTrades?: Record<string, { fromId: string; count: number; incoming: CardType[]; selected?: CardType[] | null }> }).pendingTrades;
+        const serverRoles = (parsed as GameState & { roles?: Record<string, string> }).roles;
+        const players = clonePlayersForRound(parsed.players);
+        let trades: ClientPendingTrade[] = [];
+        if (serverPending && serverRoles) {
+          if (serverPending.president) {
+            const presId = Object.keys(serverRoles).find((k) => serverRoles[k] === "president");
+            const trade = serverPending.president;
+            if (presId) {
+              trades.push({
+                key: "president",
+                winnerId: presId,
+                loserId: trade.fromId,
+                winnerName: players.find((p) => p.id === presId)?.name ?? "President",
+                loserName: players.find((p) => p.id === trade.fromId)?.name ?? "Asshole",
+                incoming: trade.incoming ?? [],
+                returnCount: trade.count ?? trade.incoming?.length ?? 1,
+                completed: !!trade.selected,
+              });
+            }
+          }
+          if (serverPending.vicePresident) {
+            const vpId = Object.keys(serverRoles).find((k) => serverRoles[k] === "vice_president");
+            const trade = serverPending.vicePresident;
+            if (vpId) {
+              trades.push({
+                key: "vicePresident",
+                winnerId: vpId,
+                loserId: trade.fromId,
+                winnerName: players.find((p) => p.id === vpId)?.name ?? "Vice President",
+                loserName: players.find((p) => p.id === trade.fromId)?.name ?? "Vice Asshole",
+                incoming: trade.incoming ?? [],
+                returnCount: trade.count ?? trade.incoming?.length ?? 1,
+                completed: !!trade.selected,
+              });
+            }
+          }
+        }
+        setGameplayLocked(true);
+        setCeremonyPrep({
+          baseState: parsed,
+          players,
+          trades,
+          dealSeed: undefined,
+        });
+        const hiddenPlayers = players.map((p) => ({ ...p, hand: [] }));
+        setState(buildFreshRoundState(parsed, hiddenPlayers));
+        stateSyncedRef.current = true;
+        if (typeof spectator === "boolean") {
+          setSpectatorMode(spectator);
+        }
+        return;
+      }
+
       stateSyncedRef.current = true;
       setState(parsed);
       if (typeof spectator === "boolean") {
@@ -739,9 +792,24 @@ export default function GameScreen({
         applyServerSync(ev.state.gameState, ev.state.spectator);
       } else if (
         ev.type === "state" &&
-        (ev.state?.type === "playerLeft" || ev.state?.type === "playerRemoved")
+        (ev.state?.type === "playerLeft" ||
+          ev.state?.type === "playerRemoved" ||
+          ev.state?.type === "playerDisconnected")
       ) {
-        if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
+        const notice = roomEventMessage(
+          ev.state.playerName,
+          ev.state.type,
+          ev.state.reason,
+        );
+        if (notice) {
+          showRoomNotice(notice);
+        }
+        if (
+          onlineMultiplayer &&
+          isSocketAdapter(networkAdapter) &&
+          roomId &&
+          ev.state?.type !== "playerDisconnected"
+        ) {
           networkAdapter.requestGameState(roomId);
         }
       } else if (ev.type === "state" && ev.state?.type === "error") {
@@ -838,10 +906,26 @@ export default function GameScreen({
           roundStatsRecordedRef.current = false;
           setPlayerReadyStates({});
           setSpectatorMode(false);
+          awaitingDealCeremonyRef.current = true;
+          if (isSocketAdapter(networkAdapter) && roomId) {
+            networkAdapter.requestGameState(roomId);
+          }
         } else {
           const seed =
             typeof ev.state.dealSeed === "number" ? ev.state.dealSeed : undefined;
           startNextRoundRef.current(seed);
+        }
+      } else if (ev.type === "state" && ev.state?.type === "tradesComplete") {
+        const hands = ev.state.playerHands as
+          | Record<string, CardType[]>
+          | undefined;
+        if (tradePhase && hands) {
+          for (const p of tradePhase.players) {
+            if (hands[p.id]) p.hand = hands[p.id];
+          }
+          finalizeCeremonyRound(tradePhase.players, tradePhase.baseState);
+        } else if (ceremonyPrep) {
+          finalizeCeremonyRound(ceremonyPrep.players, ceremonyPrep.baseState);
         }
       }
       // Legacy support for MockAdapter — only apply full game snapshots.
@@ -878,10 +962,70 @@ export default function GameScreen({
     : null;
 
   const localControlledIds = humanPlayer ? [humanPlayer.id] : [];
+  const myPlayerId =
+    humanPlayer?.id ??
+    localPlayerId ??
+    (isSocketAdapter(networkAdapter) ? networkAdapter.getProfileId() : null);
+
+  const playAreaLayout = useMemo(() => {
+    if (playAreaSize.width <= 0 || playAreaSize.height <= 0 || !state) return null;
+    return computePlayAreaLayout(
+      playAreaSize.width,
+      playAreaSize.height,
+      state.players.length,
+    );
+  }, [playAreaSize.width, playAreaSize.height, state?.players.length]);
+
+  const handleTradeConfirm = useCallback(
+    (selected: CardType[]) => {
+      if (!tradePhase || !activeTrade) return;
+      const ok = completeWinnerReturn(tradePhase.players, activeTrade, selected);
+      if (!ok) return;
+      if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
+        networkAdapter.submitTradeSelection(roomId, selected);
+      }
+      const remaining = tradePhase.trades.filter((t) => !t.completed);
+      if (remaining.length === 0) {
+        if (!onlineMultiplayer) {
+          finalizeCeremonyRound(tradePhase.players, tradePhase.baseState);
+        }
+      } else {
+        setActiveTrade(remaining[0]);
+      }
+    },
+    [
+      tradePhase,
+      activeTrade,
+      onlineMultiplayer,
+      networkAdapter,
+      roomId,
+      finalizeCeremonyRound,
+    ],
+  );
+
+  useEffect(() => {
+    if (!tradePhase || onlineMultiplayer || !myPlayerId) return;
+    let changed = false;
+    for (const trade of tradePhase.trades) {
+      if (trade.completed || trade.winnerId === myPlayerId) continue;
+      const winner = tradePhase.players.find((p) => p.id === trade.winnerId);
+      if (!winner) continue;
+      const selected = pickLowestCards(winner.hand, trade.returnCount);
+      if (completeWinnerReturn(tradePhase.players, trade, selected)) {
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    if (allTradesCompleted(tradePhase.trades)) {
+      finalizeCeremonyRound(tradePhase.players, tradePhase.baseState);
+      return;
+    }
+    setActiveTrade(tradePhase.trades.find((t) => !t.completed) ?? null);
+  }, [tradePhase, onlineMultiplayer, myPlayerId, finalizeCeremonyRound]);
 
   // CPU auto-play effect
   useEffect(() => {
-    if (!state || trickPauseActive) return;
+    if (!state || trickPauseActive || gameplayLocked) return;
 
     const current = state.players[state.currentPlayerIndex];
 
@@ -1107,25 +1251,27 @@ export default function GameScreen({
   
   const current = state.players[state.currentPlayerIndex];
 
-  const currentIsLocalHuman = localControlledIds.includes(current.id);
+  const currentIsLocalHuman = !!myPlayerId && current.id === myPlayerId;
   const currentIsOut =
     state.finishedOrder.includes(current.id) || current.hand.length === 0;
   const isTenRuleChoice =
-    currentIsLocalHuman && !!state.tenRulePending && !trickPauseActive;
+    !!state.tenRulePending &&
+    !trickPauseActive &&
+    !!myPlayerId &&
+    current.id === myPlayerId;
   const isHumanTurn =
-    currentIsLocalHuman && !trickPauseActive && !currentIsOut && !state.tenRulePending;
+    !!myPlayerId &&
+    current.id === myPlayerId &&
+    !trickPauseActive &&
+    !currentIsOut &&
+    !state.tenRulePending;
 
   let hand = [] as CardType[];
-  if (currentIsLocalHuman) {
-    hand = [...current.hand].sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
-  } else {
-    const fallbackPlayer =
-      (localPlayerId && state.players.find((p) => p.id === localPlayerId)) ||
-      (localPlayerName && state.players.find((p) => p.name === localPlayerName)) ||
-      state.players.find((p) => p.name === "You" || p.name === "You (Host)");
-    if (fallbackPlayer) {
-      hand = [...fallbackPlayer.hand].sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
-    }
+  const handPlayer =
+    (myPlayerId && state.players.find((p) => p.id === myPlayerId)) ??
+    humanPlayer;
+  if (handPlayer) {
+    hand = [...handPlayer.hand].sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
   }
 
   const selectedCards = selected.map((index) => hand[index]).filter(Boolean);
@@ -1177,7 +1323,7 @@ export default function GameScreen({
       : -1;
 
   const handleCardPress = (idx: number) => {
-    if (trickPauseActive || roundOver || readOnlyOnline) return;
+    if (trickPauseActive || roundOver || readOnlyGame) return;
     const card = hand[idx];
     const ownerIdForHand = currentIsLocalHuman ? current.id : humanPlayer?.id;
     if (ownerIdForHand && hasPassedInCurrentTrick(state, ownerIdForHand)) {
@@ -1232,7 +1378,7 @@ export default function GameScreen({
   };
 
   const handlePlayPress = () => {
-    if (roundOver || !isHumanTurn || trickPauseActive || readOnlyOnline) return;
+    if (roundOver || !isHumanTurn || trickPauseActive || readOnlyGame) return;
     const actor = current;
     if (!actor) return;
     if (hasPassedInCurrentTrick(state, actor.id)) {
@@ -1294,6 +1440,9 @@ export default function GameScreen({
           playerId: actor.id,
           cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
         });
+        if (next.tenRulePending) {
+          setState(next);
+        }
       } else {
         setState(next);
         broadcastGameAction({
@@ -1307,7 +1456,7 @@ export default function GameScreen({
   };
 
   const handlePassPress = () => {
-    if (roundOver || !isHumanTurn || trickPauseActive || readOnlyOnline) return;
+    if (roundOver || !isHumanTurn || trickPauseActive || readOnlyGame) return;
     const actor = current;
     if (!actor) return;
     if (hasPassedInCurrentTrick(state, actor.id)) {
@@ -1628,6 +1777,17 @@ export default function GameScreen({
   // Note: no appear animation here to avoid flashing on re-renders
   return (
     <ScreenContainer ignoreHeaderOffset={true} style={{ flex: 1 }}>
+      {roomNotice ? (
+        <View
+          style={[
+            local.roomNoticeBanner,
+            { top: contentTopPadding + 4 },
+          ]}
+          pointerEvents="none"
+        >
+          <Text style={local.roomNoticeText}>{roomNotice}</Text>
+        </View>
+      ) : null}
       {onNavigateToAchievements ? (
         <TouchableOpacity
           style={[
@@ -1703,6 +1863,7 @@ export default function GameScreen({
         onChoose={(direction) => {
           if (onlineMultiplayer) {
             broadcastGameAction({ type: "tenRule", direction });
+            setState(setTenRuleDirection(state, direction));
             return;
           }
           setState(setTenRuleDirection(state, direction));
@@ -1716,6 +1877,12 @@ export default function GameScreen({
           paddingHorizontal: 12,
           paddingTop: contentTopPadding,
           paddingBottom: bottomBarHeight,
+        }}
+        onLayout={(e: LayoutChangeEvent) => {
+          const { width, height } = e.nativeEvent.layout;
+          setPlayAreaSize((prev) =>
+            prev.width === width && prev.height === height ? prev : { width, height },
+          );
         }}
       >
         <GamePlayArea
@@ -1772,7 +1939,7 @@ export default function GameScreen({
 
       {/* Player hand + actions — sticky bottom sheet */}
       <BottomBar>
-        {handVisible ? (
+        {handVisible && !gameplayLocked ? (
           <BottomBarHand height={HAND_FAN_HEIGHT}>
             {!isHumanTurn && (
               <View style={local.waitingPill}>
@@ -1796,11 +1963,16 @@ export default function GameScreen({
 
         <BottomBarControls>
           {readOnlyOnline ? (
-            <View style={[local.waitingPill, local.waitingPillCollapsed]}>
-              <Text style={local.waitingPillText}>
-                Spectating — you can play the next round
-              </Text>
-            </View>
+            <>
+              <View style={[local.waitingPill, local.waitingPillCollapsed]}>
+                <Text style={local.waitingPillText}>
+                  Spectating — you can play the next round
+                </Text>
+              </View>
+              {onBack ? (
+                <BottomBarLeave onPress={onBack} label="Leave" />
+              ) : null}
+            </>
           ) : !handVisible && !isHumanTurn ? (
             <View style={[local.waitingPill, local.waitingPillCollapsed]}>
               <Text style={local.waitingPillText}>
@@ -1857,17 +2029,56 @@ export default function GameScreen({
 
       </BottomBar>
 
+      <DealCeremonyOverlay
+        visible={!!ceremonyPrep}
+        playerIds={
+          ceremonyPrep?.players.map((p) => p.id) ??
+          state.players.map((p) => p.id)
+        }
+        localPlayerIds={localControlledIds}
+        layout={playAreaLayout}
+        playAreaHeight={playAreaSize.height}
+        cardsPerPlayer={
+          ceremonyPrep
+            ? Math.max(
+                ...ceremonyPrep.players.map((p) => p.hand.length),
+                1,
+              )
+            : 13
+        }
+        pendingTrades={ceremonyPrep?.trades.filter((t) => !t.completed) ?? []}
+        onDealComplete={() => {
+          if (!ceremonyPrep) return;
+          beginTradePhase(
+            ceremonyPrep.baseState,
+            ceremonyPrep.players,
+            ceremonyPrep.trades,
+          );
+        }}
+      />
+
+      <RoleTradeModal
+        visible={!!tradePhase && !!activeTrade}
+        trade={activeTrade}
+        hand={
+          tradePhase?.players.find((p) => p.id === activeTrade?.winnerId)
+            ?.hand ?? []
+        }
+        isWinner={!!myPlayerId && activeTrade?.winnerId === myPlayerId}
+        onConfirm={handleTradeConfirm}
+      />
+
       <RoundCompleteModal
         visible={roundOver}
         finishedOrder={state.finishedOrder}
         players={state.players}
         readyStates={playerReadyStates}
-        localPlayerId={humanPlayer?.id}
+        localPlayerId={humanPlayer?.id ?? myPlayerId ?? undefined}
         onQuit={() => {
           if (onBack) onBack();
         }}
         onToggleReady={() => {
-          const id = humanPlayer?.id;
+          const id = humanPlayer?.id ?? myPlayerId ?? undefined;
           if (!id) return;
           if (playerReadyStates[id]) {
             setPlayerReadyStates((prev) => ({ ...prev, [id]: false }));
@@ -1875,6 +2086,7 @@ export default function GameScreen({
           }
           if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
             networkAdapter.playerReadyForNextRound(roomId);
+            setPlayerReadyStates((prev) => ({ ...prev, [id]: true }));
             return;
           }
           setPlayerReadyStates((prev) => ({ ...prev, [id]: true }));
@@ -1897,6 +2109,25 @@ const local = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  roomNoticeBanner: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    zIndex: 70,
+    alignSelf: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "rgba(0, 0, 0, 0.72)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(212, 175, 55, 0.45)",
+  },
+  roomNoticeText: {
+    color: "#f5e6b8",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
   },
   localSeatOverlay: {
     position: "absolute",

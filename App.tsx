@@ -361,7 +361,13 @@ function AppContent() {
     }) => {
       if (ev.type !== "state" || !ev.state?.type) return;
       const kind = ev.state.type;
-      if (kind !== "kicked" && kind !== "roomDismissed") return;
+      if (
+        kind !== "kicked" &&
+        kind !== "roomDismissed" &&
+        kind !== "gameAborted"
+      ) {
+        return;
+      }
 
       roomAdapter.clearRoomSession();
       void clearLobbySession();
@@ -378,6 +384,11 @@ function AppContent() {
         Alert.alert(
           "Removed from Game",
           ev.state.message || "You have been removed from the game",
+        );
+      } else if (kind === "gameAborted") {
+        Alert.alert(
+          "Game Ended",
+          ev.state.message || "The online game has ended.",
         );
       } else {
         Alert.alert("Room Closed", "The host closed this lobby.");
@@ -641,6 +652,14 @@ function AppContent() {
             onNavigateToAchievements={openAchievements}
               onHostGame={(name) => {
                 void (async () => {
+                  if (
+                    isSocketAdapter(roomAdapter) &&
+                    activeRoomId &&
+                    roomAdapter.isConnected()
+                  ) {
+                    roomAdapter.dismissRoom(activeRoomId);
+                  }
+                  disconnectRoom();
                   const profile = await getOrCreatePlayerId();
                   setLocalPlayerName(name);
                   setRoomAdapter(

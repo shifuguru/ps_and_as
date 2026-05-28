@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   StyleSheet,
+  type TextStyle,
+  type ViewStyle,
 } from "react-native";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import ScreenContainer from "../components/ScreenContainer";
@@ -83,7 +85,9 @@ const BOTTOM_BAR_TOP_PAD = 18;
 
 function lobbyBottomReserve(safeBottom = 0): number {
   const outerPad =
-    Platform.OS === "web" ? 12 + 32 : safeBottom + 10;
+    Platform.OS === "web"
+      ? 12 + 32 + Math.max(0, safeBottom)
+      : safeBottom + 10;
   return (
     ACTION_BAR_HEIGHT +
     BOTTOM_CPU_ROW_HEIGHT +
@@ -91,6 +95,111 @@ function lobbyBottomReserve(safeBottom = 0): number {
     16 +
     outerPad +
     8
+  );
+}
+
+function RoomNameInput({
+  value,
+  onCommit,
+  onEditingChange,
+  inputStyle,
+  wrapStyle,
+  wrapFocusedStyle,
+  hintStyle,
+}: {
+  value: string;
+  onCommit: (name: string) => void;
+  onEditingChange?: (editing: boolean) => void;
+  inputStyle: TextStyle;
+  wrapStyle: ViewStyle;
+  wrapFocusedStyle: ViewStyle;
+  hintStyle: TextStyle;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [focused, setFocused] = useState(false);
+  const focusedRef = useRef(false);
+  const draftRef = useRef(value);
+  const skipNextBlurCommitRef = useRef(false);
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    if (!focusedRef.current) {
+      setDraft(value);
+      draftRef.current = value;
+    }
+  }, [value]);
+
+  const commit = useCallback(() => {
+    const trimmed = draftRef.current.trim() || "Game Room";
+    if (trimmed !== draftRef.current) {
+      setDraft(trimmed);
+      draftRef.current = trimmed;
+    }
+    onCommit(trimmed);
+  }, [onCommit]);
+
+  return (
+    <View style={[wrapStyle, focused && wrapFocusedStyle]}>
+      <TextInput
+        ref={inputRef}
+        placeholder="Enter Room Name"
+        placeholderTextColor="rgba(255,255,255,0.4)"
+        value={draft}
+        onChangeText={setDraft}
+        onFocus={() => {
+          focusedRef.current = true;
+          setFocused(true);
+          onEditingChange?.(true);
+        }}
+        onBlur={() => {
+          focusedRef.current = false;
+          setFocused(false);
+          onEditingChange?.(false);
+          if (skipNextBlurCommitRef.current) {
+            skipNextBlurCommitRef.current = false;
+            return;
+          }
+          commit();
+        }}
+        onSubmitEditing={() => {
+          skipNextBlurCommitRef.current = true;
+          commit();
+          inputRef.current?.blur();
+          if (Platform.OS !== "web") {
+            Keyboard.dismiss();
+          }
+        }}
+        returnKeyType="done"
+        submitBehavior="blurAndSubmit"
+        selectTextOnFocus={Platform.OS !== "web"}
+        blurOnSubmit
+        style={inputStyle}
+      />
+      <Text style={hintStyle} pointerEvents="none">
+        ✎
+      </Text>
+    </View>
+  );
+}
+
+function DismissKeyboardArea({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: ViewStyle;
+}) {
+  if (Platform.OS === "web") {
+    return <View style={style}>{children}</View>;
+  }
+  return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={style}>{children}</View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -137,7 +246,29 @@ export default function CreateGame({
   const [actualRoomId, setActualRoomId] = useState<string | null>(null);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [selectedLobbyIndex, setSelectedLobbyIndex] = useState<number | null>(null);
-  const [roomInputFocused, setRoomInputFocused] = useState(false);
+  const [lobbyNotice, setLobbyNotice] = useState<string | null>(null);
+  const lobbyNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const roomNameEditingRef = useRef(false);
+  const roomCreatedRef = useRef(false);
+
+  const showLobbyNotice = (message: string) => {
+    setLobbyNotice(message);
+    if (lobbyNoticeTimerRef.current) {
+      clearTimeout(lobbyNoticeTimerRef.current);
+    }
+    lobbyNoticeTimerRef.current = setTimeout(() => {
+      setLobbyNotice(null);
+      lobbyNoticeTimerRef.current = null;
+    }, 4500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (lobbyNoticeTimerRef.current) {
+        clearTimeout(lobbyNoticeTimerRef.current);
+      }
+    };
+  }, []);
 
   const mockRef = useRef<MockAdapter | null>(null);
   if (!adapter && !mockRef.current) {
@@ -167,6 +298,16 @@ export default function CreateGame({
   const seatCount = seatMembers.length;
   const canEditRoom = isHost;
   const canStart = seatCount >= MIN_PLAYERS && isHost;
+
+  const handleRoomNameCommit = useCallback(
+    (name: string) => {
+      setRoomName(name);
+      if (!usingMock && adapter && isSocketAdapter(adapter) && actualRoomId) {
+        adapter.updateRoomName(actualRoomId, name);
+      }
+    },
+    [adapter, actualRoomId, usingMock],
+  );
 
   const statusLabel = usingMock ? "Local" : isHost ? "You" : "Lobby";
   const statusValue = usingMock
@@ -255,6 +396,7 @@ export default function CreateGame({
     const applyLobbyFromServer = (
       players: LobbyMember[],
       host: string | null,
+      serverRoomName?: string,
     ) => {
       const active = players.filter((p) => !p.disconnected);
       setLobbyMembers(active);
@@ -262,6 +404,13 @@ export default function CreateGame({
       setNames(active.map((p) => p.name));
       setHostId(host ?? null);
       setConnectionStatus("connected");
+      if (
+        typeof serverRoomName === "string" &&
+        serverRoomName &&
+        !roomNameEditingRef.current
+      ) {
+        setRoomName(serverRoomName);
+      }
       onLobbyMembersChange?.(active);
     };
 
@@ -272,6 +421,7 @@ export default function CreateGame({
           applyLobbyFromServer(
             ev.state.players as LobbyMember[],
             ev.state.host ?? null,
+            ev.state.roomName as string | undefined,
           );
         }
       }
@@ -298,6 +448,17 @@ export default function CreateGame({
         }
       }
       if (ev.type === "state" && ev.state?.type === "playerRemoved") {
+        const playerName = ev.state.playerName as string | undefined;
+        const reason = ev.state.reason as string | undefined;
+        if (playerName) {
+          showLobbyNotice(
+            reason === "kicked"
+              ? `${playerName} was removed from the lobby`
+              : reason === "disconnected"
+                ? `${playerName} left the room`
+                : `${playerName} left the lobby`,
+          );
+        }
         if (onlineLobby) {
           setLobbyMembers((prev) => {
             const next = prev.filter((p) => p.id !== ev.state.playerId);
@@ -305,6 +466,12 @@ export default function CreateGame({
             setNames(next.map((p) => p.name));
             return next;
           });
+        }
+      }
+      if (ev.type === "state" && ev.state?.type === "playerDisconnected") {
+        const playerName = ev.state.playerName as string | undefined;
+        if (playerName) {
+          showLobbyNotice(`${playerName} disconnected — waiting to reconnect…`);
         }
       }
       if (ev.type === "state" && ev.state?.type === "hostMigrated") {
@@ -322,7 +489,7 @@ export default function CreateGame({
   }, [adapter, actualRoomId]);
 
   useEffect(() => {
-    if (!playerNameReady) return;
+    if (!playerNameReady || roomCreatedRef.current) return;
     let mounted = true;
     (async () => {
       try {
@@ -330,6 +497,7 @@ export default function CreateGame({
           setConnectionStatus("connecting");
           await adapter.connect();
           if (!isJoining && (adapter as any).createRoom) {
+            roomCreatedRef.current = true;
             const rid = `${roomName.trim().replace(/\s+/g, "_")}-${Date.now()}`;
             (adapter as any).createRoom(rid, playerName, roomName.trim());
             setActualRoomId(rid);
@@ -339,6 +507,8 @@ export default function CreateGame({
             onRoomReady?.(joinRoomId);
           }
         } else {
+          if (roomCreatedRef.current) return;
+          roomCreatedRef.current = true;
           setConnectionStatus("connecting");
           const m = mockRef.current!;
           const rid = `${roomName.trim().replace(/\s+/g, "_")}-${Date.now()}`;
@@ -452,69 +622,75 @@ export default function CreateGame({
         topInset={insets.top}
       />
 
+      {lobbyNotice ? (
+        <View style={[local.lobbyNoticeBanner, { top: topBarHeight + 6 }]}>
+          <Text style={local.lobbyNoticeText}>{lobbyNotice}</Text>
+        </View>
+      ) : null}
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <View
-            style={{
-              flex: 1,
-              paddingTop: topBarHeight + 10,
-              paddingBottom: bottomBarHeight,
-              paddingHorizontal: 12,
+        <DismissKeyboardArea
+          style={{
+            flex: 1,
+            paddingTop: topBarHeight + 10,
+            paddingBottom: bottomBarHeight,
+            paddingHorizontal: 12,
+          }}
+        >
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              flexGrow: 1,
+              alignItems: "center",
+              paddingBottom: 12,
             }}
+            keyboardShouldPersistTaps={
+              Platform.OS === "web" ? "always" : "handled"
+            }
+            showsVerticalScrollIndicator={false}
           >
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{
-                flexGrow: 1,
-                alignItems: "center",
-                paddingBottom: 12,
-              }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={{ width: contentMaxWidth, flex: 1 }}>
-                <BlurPanel style={local.roomPanel} intensity={48}>
-                  <Text style={[local.fieldLabel, local.fieldLabelSpaced]}>
-                    Room Name
-                    {!canEditRoom ? (
-                      <Text style={local.hostOnlyHint}> · Host only</Text>
-                    ) : null}
-                  </Text>
-                  {canEditRoom ? (
-                    <View
+            <View style={{ width: contentMaxWidth, flex: 1 }}>
+              <BlurPanel style={local.roomPanel} intensity={48}>
+                {onlineLobby && actualRoomId ? (
+                  <>
+                    <Text style={[local.fieldLabel, local.fieldLabelSpaced]}>
+                      Room Code
+                    </Text>
+                    <Text style={local.roomCodeValue} selectable>
+                      {actualRoomId}
+                    </Text>
+                  </>
+                ) : null}
+                {canEditRoom ? (
+                  <>
+                    <Text
                       style={[
-                        local.roomInputWrap,
-                        roomInputFocused && local.roomInputWrapFocused,
+                        local.fieldLabel,
+                        local.fieldLabelSpaced,
+                        onlineLobby && actualRoomId
+                          ? local.fieldLabelAfterCode
+                          : null,
                       ]}
                     >
-                      <TextInput
-                        placeholder="Enter Room Name"
-                        placeholderTextColor="rgba(255,255,255,0.4)"
-                        value={roomName}
-                        onChangeText={setRoomName}
-                        onFocus={() => setRoomInputFocused(true)}
-                        onBlur={() => setRoomInputFocused(false)}
-                        selectTextOnFocus
-                        style={local.roomInput}
-                      />
-                      <Text style={local.roomInputHint} pointerEvents="none">
-                        ✎
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={local.roomNameReadOnly} numberOfLines={2}>
-                      {roomName.trim() || "Game Room"}
+                      Room Name
                     </Text>
-                  )}
-                  {onlineLobby && actualRoomId ? (
-                    <Text style={local.roomCodeHint} selectable>
-                      Room code: {actualRoomId}
-                    </Text>
-                  ) : null}
-                </BlurPanel>
+                    <RoomNameInput
+                      value={roomName}
+                      onCommit={handleRoomNameCommit}
+                      onEditingChange={(editing) => {
+                        roomNameEditingRef.current = editing;
+                      }}
+                      inputStyle={local.roomInput}
+                      wrapStyle={local.roomInputWrap}
+                      wrapFocusedStyle={local.roomInputWrapFocused}
+                      hintStyle={local.roomInputHint}
+                    />
+                  </>
+                ) : null}
+              </BlurPanel>
 
                 <View style={local.tableArea}>
                   <Text style={local.tableHint}>
@@ -637,8 +813,7 @@ export default function CreateGame({
                 </View>
               </View>
             </ScrollView>
-          </View>
-        </TouchableWithoutFeedback>
+        </DismissKeyboardArea>
       </KeyboardAvoidingView>
 
       <BottomBar>
@@ -750,6 +925,24 @@ export default function CreateGame({
 }
 
 const local = StyleSheet.create({
+  lobbyNoticeBanner: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    zIndex: 70,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "rgba(0, 0, 0, 0.72)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(212, 175, 55, 0.45)",
+  },
+  lobbyNoticeText: {
+    color: "#f5e6b8",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   roomPanel: {
     borderRadius: 16,
     paddingHorizontal: 14,
@@ -795,24 +988,22 @@ const local = StyleSheet.create({
     fontSize: 16,
     marginLeft: 8,
   },
-  hostOnlyHint: {
-    color: "rgba(255,255,255,0.35)",
-    fontSize: 11,
-    fontWeight: "500",
+  fieldLabelAfterCode: {
+    marginTop: 14,
   },
-  roomNameReadOnly: {
+  roomCodeValue: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "700",
-    paddingVertical: 10,
+    letterSpacing: 0.5,
     textAlign: "center",
-  },
-  roomCodeHint: {
-    color: "rgba(212,175,55,0.85)",
-    fontSize: 12,
-    marginTop: 10,
-    textAlign: "center",
-    lineHeight: 17,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(0,0,0,0.28)",
+    borderWidth: 1,
+    borderColor: "rgba(212,175,55,0.35)",
+    borderRadius: 12,
+    overflow: "hidden",
   },
   tableArea: {
     flex: 1,

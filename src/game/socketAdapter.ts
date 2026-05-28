@@ -198,6 +198,7 @@ export class SocketAdapter implements NetworkAdapter {
             type: "lobby",
             players: data.players,
             host: data.host,
+            roomName: data.roomName,
           },
         }),
       );
@@ -295,6 +296,21 @@ export class SocketAdapter implements NetworkAdapter {
         h({
           type: "state",
           state: { type: "roomDismissed", roomId: data?.roomId },
+        }),
+      );
+    });
+
+    this.socket.on("gameAborted", (data: any) => {
+      console.log("[SocketAdapter] Game aborted:", data?.message);
+      this.clearRoomSession();
+      this.handlers.forEach((h) =>
+        h({
+          type: "state",
+          state: {
+            type: "gameAborted",
+            roomId: data?.roomId,
+            message: data?.message,
+          },
         }),
       );
     });
@@ -487,6 +503,14 @@ export class SocketAdapter implements NetworkAdapter {
       console.warn("[SocketAdapter] createRoom: socket not connected");
       return;
     }
+    const previousRoomId = this.activeRoomId;
+    if (previousRoomId && previousRoomId !== roomId) {
+      console.log(
+        "[SocketAdapter] Dismissing previous room before create:",
+        previousRoomId,
+      );
+      this.socket.emit("dismissRoom", { roomId: previousRoomId });
+    }
     this.setActiveRoomId(roomId);
     this.name = name;
     console.log("[SocketAdapter] Creating room:", roomId, "with host:", name);
@@ -497,6 +521,13 @@ export class SocketAdapter implements NetworkAdapter {
       isPublic: true,
       roomName: roomName || roomId,
     });
+  }
+
+  updateRoomName(roomId: string, roomName: string) {
+    if (!this.socket?.connected) return;
+    const trimmed = roomName.trim();
+    if (!trimmed) return;
+    this.socket.emit("updateRoomName", { roomId, roomName: trimmed });
   }
 
   async discoverRooms(): Promise<void> {
@@ -574,6 +605,11 @@ export class SocketAdapter implements NetworkAdapter {
   playerReadyForNextRound(roomId: string) {
     if (!this.socket) return;
     this.socket.emit("playerReadyForNextRound", { roomId });
+  }
+
+  submitTradeSelection(roomId: string, selectedCardObjects: unknown[]) {
+    if (!this.socket) return;
+    this.socket.emit("playerTradeSelection", { roomId, selectedCardObjects });
   }
 
   on(_ev: "message", cb: (ev: NetworkEvent) => void) {

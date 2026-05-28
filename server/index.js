@@ -34,6 +34,36 @@ function beginAuthoritativeRound(room, dealSeed) {
   room.gameState = nextState;
 }
 
+function startNextRound(roomId) {
+  const room = rooms[roomId];
+  if (!room) return;
+  room.players.forEach((p) => {
+    p.isSpectator = false;
+  });
+  const dealSeed = Math.floor(Math.random() * 2147483647);
+  const lastOrder = room.gameState?.lastRoundOrder;
+  beginAuthoritativeRound(room, dealSeed);
+
+  if (lastOrder && lastOrder.length >= 2) {
+    assignRolesFromFinishOrder(room.gameState, lastOrder.length);
+    const playerHands = {};
+    for (const p of room.gameState.players) {
+      playerHands[p.id] = [...p.hand];
+    }
+    prepareCardTrades(room.gameState, playerHands);
+    for (const p of room.gameState.players) {
+      p.hand = playerHands[p.id] || [];
+    }
+    room.gameState.playerHands = playerHands;
+  } else {
+    room.gameState.pendingTrades = {};
+  }
+
+  room.gameState.readyForNextRound = {};
+  broadcastGameState(io, room);
+  io.to(roomId).emit('nextRoundStarting', { dealSeed });
+}
+
 const app = express();
 app.use(cors({ origin: true, credentials: false }));
 
@@ -203,6 +233,75 @@ function allTradesComplete(gameState) {
   return true;
 }
 
+function pickLowestCards(hand, count) {
+  if (!count || count <= 0) return [];
+  const sorted = (hand || []).slice().sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
+  return sorted.slice(0, Math.min(count, sorted.length));
+}
+
+/** Auto-finish trades (no client UI yet) so ready players can start the next deal. */
+function finalizePendingTrades(gameState, playerHands) {
+  const pending = gameState.pendingTrades || {};
+  const roles = gameState.roles || {};
+
+  for (const key of Object.keys(pending)) {
+    const trade = pending[key];
+    if (!trade || trade.selected) continue;
+
+    const roleName = key === 'president' ? 'president' : 'vice_president';
+    const winnerId = Object.keys(roles).find((k) => roles[k] === roleName);
+    if (!winnerId) {
+      trade.selected = [];
+      continue;
+    }
+
+    const need = trade.count || 0;
+    const winnerHand = playerHands[winnerId] || [];
+    const selected = pickLowestCards(winnerHand, need);
+
+    if (selected.length === need) {
+      const res = applyWinnerSelectedCards(gameState, playerHands, winnerId, selected);
+      if (!res.ok) {
+        playerHands[winnerId] = winnerHand.concat(trade.incoming || []);
+        trade.selected = selected;
+      }
+    } else {
+      playerHands[winnerId] = winnerHand.concat(trade.incoming || []);
+      trade.selected = selected;
+    }
+  }
+}
+
+function activeRoundPlayerIds(room) {
+  const gs = room.gameState;
+  if (gs?.players?.length) {
+    return gs.players.map((p) => p.id);
+  }
+  return room.players
+    .filter((p) => !p.disconnectedAt && !p.isSpectator)
+    .map((p) => p.id);
+}
+
+function initReadyForNextRound(room) {
+  room.gameState.readyForNextRound = {};
+  for (const id of activeRoundPlayerIds(room)) {
+    room.gameState.readyForNextRound[id] = false;
+  }
+}
+
+function allPlayersReadyForNextRound(room) {
+  const readyMap = room.gameState?.readyForNextRound || {};
+  const ids = activeRoundPlayerIds(room);
+  return ids.length > 0 && ids.every((id) => readyMap[id] === true);
+}
+
+function tryStartNextRoundIfReady(roomId) {
+  const room = rooms[roomId];
+  if (!room?.gameState) return;
+  if (!allPlayersReadyForNextRound(room)) return;
+  startNextRound(roomId);
+}
+
 // Testing timeouts — raise these for production (e.g. 60s in-game, 2m lobby, 10m empty shell).
 const DISCONNECT_GRACE_PERIOD = 15 * 1000;
 const LOBBY_DISCONNECT_GRACE = 15 * 1000;
@@ -295,14 +394,8 @@ function onRoomEmptied(roomId) {
   }, EMPTY_ROOM_REJOIN_MS);
 }
 
-function afterPlayerLeftRoom(roomId) {
-  const room = rooms[roomId];
-  if (!room) return;
-  if (room.players.length === 0) {
-    onRoomEmptied(roomId);
-    return;
-  }
-  io.to(roomId).emit('lobbyUpdate', {
+function buildLobbyUpdate(room) {
+  return {
     players: room.players.map((p) => ({
       id: p.id,
       name: p.name,
@@ -311,7 +404,18 @@ function afterPlayerLeftRoom(roomId) {
       isSpectator: !!p.isSpectator,
     })),
     host: room.host,
-  });
+    roomName: room.roomName || '',
+  };
+}
+
+function afterPlayerLeftRoom(roomId) {
+  const room = rooms[roomId];
+  if (!room) return;
+  if (room.players.length === 0) {
+    onRoomEmptied(roomId);
+    return;
+  }
+  io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
   if (room.isPublic) broadcastAvailableRooms();
 }
 
@@ -353,6 +457,63 @@ function attachPlayerSocket(player, socket, name) {
   }
 }
 
+/** Drop a socket/profile from every room except keepRoomId; destroy abandoned host lobbies. */
+function removeSocketFromOtherRooms(socket, profileId, keepRoomId) {
+  let listChanged = false;
+
+  for (const [roomId, room] of Object.entries(rooms)) {
+    if (roomId === keepRoomId) continue;
+
+    const player = room.players.find(
+      (p) =>
+        p.socketId === socket.id ||
+        (profileId && (p.id === profileId || p.profileId === profileId)),
+    );
+    if (!player) continue;
+
+    const wasCreator =
+      room.creatorId === profileId ||
+      room.creatorId === player.id ||
+      room.creatorId === player.profileId;
+    const wasHost = room.host === player.id;
+    const lobbyOnly = !room.inGame;
+
+    socket.leave(roomId);
+
+    if (wasCreator && lobbyOnly) {
+      console.log(
+        `[Server] Destroying previous lobby ${roomId} — creator started a new room`,
+      );
+      io.to(roomId).emit('roomDismissed', { roomId });
+      deleteRoom(roomId);
+      listChanged = true;
+      continue;
+    }
+
+    room.players = room.players.filter((p) => p.id !== player.id);
+
+    io.to(roomId).emit('playerRemoved', {
+      playerId: player.id,
+      playerName: player.name,
+      reason: 'left',
+    });
+
+    if (room.players.length === 0) {
+      onRoomEmptied(roomId);
+    } else {
+      if (wasHost) {
+        migrateHost(roomId);
+      }
+      afterPlayerLeftRoom(roomId);
+    }
+    listChanged = true;
+  }
+
+  if (listChanged) {
+    broadcastAvailableRooms();
+  }
+}
+
 // Host migration - transfer host to next available player
 function migrateHost(roomId) {
   const room = rooms[roomId];
@@ -375,29 +536,50 @@ function migrateHost(roomId) {
   return null;
 }
 
+/** End an in-progress online game for everyone — unfair to continue short-handed. */
+function abortOnlineGame(roomId, message) {
+  const room = rooms[roomId];
+  if (!room) return;
+  console.log(`[Server] Aborting online game in ${roomId}: ${message}`);
+  room.inGame = false;
+  room.gameState = null;
+  io.to(roomId).emit('gameAborted', { roomId, message });
+  deleteRoom(roomId);
+  broadcastAvailableRooms();
+}
+
 // Remove player after grace period expires
 function schedulePlayerRemoval(roomId, playerId, _socketId, graceMs = DISCONNECT_GRACE_PERIOD) {
   setTimeout(() => {
     const room = rooms[roomId];
     if (!room) return;
-    
+
     const player = room.players.find(p => p.id === playerId);
     if (!player || !player.disconnectedAt) return;
-    
+
     console.log(`[Server] Grace period expired for ${player.name}, removing from room ${roomId}`);
-    
+
+    if (room.inGame && !player.isSpectator) {
+      room.players = room.players.filter(p => p.id !== playerId);
+      abortOnlineGame(
+        roomId,
+        `${player.name} disconnected. The game has ended.`,
+      );
+      return;
+    }
+
     room.players = room.players.filter(p => p.id !== playerId);
-    
+
     if (room.host === playerId) {
       migrateHost(roomId);
     }
-    
-    io.to(roomId).emit('playerRemoved', { 
-      playerId, 
+
+    io.to(roomId).emit('playerRemoved', {
+      playerId,
       playerName: player.name,
-      reason: 'disconnected'
+      reason: 'disconnected',
     });
-    
+
     afterPlayerLeftRoom(roomId);
   }, graceMs);
 }
@@ -432,7 +614,9 @@ io.on('connection', (socket) => {
 
   socket.on('createRoom', ({ roomId, name, profileId, isPublic = true, roomName }) => {
     const pid = resolveProfileId(profileId, socket);
-    rooms[roomId] = rooms[roomId] || { 
+    removeSocketFromOtherRooms(socket, pid, roomId);
+
+    rooms[roomId] = rooms[roomId] || {
       players: [], 
       host: pid,
       creatorId: pid,
@@ -452,17 +636,19 @@ io.on('connection', (socket) => {
       disconnectedAt: null 
     });
     socket.join(roomId);
-    io.to(roomId).emit('lobbyUpdate', { 
-      players: rooms[roomId].players.map(p => ({ 
-        id: p.id, 
-        name: p.name, 
-        ready: p.ready,
-        disconnected: !!p.disconnectedAt 
-      })), 
-      host: rooms[roomId].host 
-    });
+    io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(rooms[roomId]));
     socket.emit('connected', { id: pid, profileId: pid, socketId: socket.id, name });
     if (isPublic) broadcastAvailableRooms();
+  });
+
+  socket.on('updateRoomName', ({ roomId, roomName }) => {
+    const room = rooms[roomId];
+    if (!room || !isRoomHost(room, socket.id)) return;
+    const trimmed = typeof roomName === 'string' ? roomName.trim() : '';
+    if (!trimmed) return;
+    room.roomName = trimmed.slice(0, 64);
+    io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
+    if (room.isPublic) broadcastAvailableRooms();
   });
 
   socket.on('joinRoom', ({ roomId, name, profileId }) => {
@@ -470,8 +656,10 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'Room not found' });
       return;
     }
-    const room = rooms[roomId];
     const pid = resolveProfileId(profileId, socket);
+    removeSocketFromOtherRooms(socket, pid, roomId);
+
+    const room = rooms[roomId];
     clearEmptyRoomTimer(roomId);
     room.emptyAt = null;
 
@@ -514,16 +702,7 @@ io.on('connection', (socket) => {
     
     socket.join(roomId);
     const joined = rooms[roomId].players.find((p) => p.socketId === socket.id);
-    io.to(roomId).emit('lobbyUpdate', { 
-      players: rooms[roomId].players.map(p => ({ 
-        id: p.id, 
-        name: p.name, 
-        ready: p.ready,
-        disconnected: !!p.disconnectedAt,
-        isSpectator: !!p.isSpectator,
-      })), 
-      host: rooms[roomId].host 
-    });
+    io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(rooms[roomId]));
     socket.emit('connected', {
       id: pid,
       profileId: pid,
@@ -566,28 +745,27 @@ io.on('connection', (socket) => {
     if (!leaving) return;
     const wasHost = room.host === leaving.id;
 
-    if (room.inGame && room.gameState?.players) {
-      removePlayerFromActiveGame(room, leaving.id);
-      io.to(roomId).emit('playerLeft', {
-        playerId: leaving.id,
-        playerName: leaving.name,
-        reason: 'left',
-      });
-      if (room.gameState?.players?.length) {
-        broadcastGameState(io, room);
-      }
-    } else {
-      io.to(roomId).emit('playerRemoved', {
-        playerId: leaving.id,
-        playerName: leaving.name,
-        reason: 'left',
-      });
+    if (room.inGame && !leaving.isSpectator) {
+      const message = wasHost
+        ? `${leaving.name} (host) left. The game has ended.`
+        : `${leaving.name} left. The game has ended.`;
+      room.players = room.players.filter((p) => p.socketId !== socket.id);
+      socket.leave(roomId);
+      abortOnlineGame(roomId, message);
+      return;
     }
+
+    io.to(roomId).emit('playerRemoved', {
+      playerId: leaving.id,
+      playerName: leaving.name,
+      reason: 'left',
+    });
 
     room.players = room.players.filter((p) => p.socketId !== socket.id);
     if (wasHost && room.players.length > 0) {
       migrateHost(roomId);
     }
+    socket.leave(roomId);
     afterPlayerLeftRoom(roomId);
   });
 
@@ -657,6 +835,12 @@ io.on('connection', (socket) => {
   socket.on('gameAction', ({ roomId, action }) => {
     const room = rooms[roomId];
     if (!room || !room.inGame || !room.gameState?.players) return;
+
+    const pendingKeys = Object.keys(room.gameState.pendingTrades || {});
+    if (pendingKeys.length > 0 && !allTradesComplete(room.gameState)) {
+      socket.emit('error', { message: 'Complete role trades before playing' });
+      return;
+    }
     
     const player = room.players.find(p => p.socketId === socket.id);
     if (!player) return;
@@ -743,49 +927,17 @@ io.on('connection', (socket) => {
     if (!room) return;
     if (!room.gameState) room.gameState = {};
 
-    // Persist finish order and prepare roles
     room.gameState.lastRoundOrder = finishOrder || [];
-    const playersCount = room.players.length;
+    const playersCount =
+      (finishOrder && finishOrder.length) ||
+      room.gameState.players?.length ||
+      activeRoundPlayerIds(room).length;
     const roles = assignRolesFromFinishOrder(room.gameState, playersCount);
 
-    // Use provided hands mapping (server expects clients to send reliable hands payload)
-    const playerHands = hands || {};
-
-    // Prepare trades (this will remove obligatory cards from losers and stash them for winners)
-    const prep = prepareCardTrades(room.gameState, playerHands);
-    room.gameState.playerHands = prep.playerHands;
-
-    // Mark everyone as not-yet-ready for next round
-    room.gameState.readyForNextRound = {};
-    for (const p of room.players) room.gameState.readyForNextRound[p.id] = false;
-
-    // Persist the hands and roles
+    initReadyForNextRound(room);
     room.gameState.roles = roles;
-    room.gameState.lastRoundOrder = finishOrder;
 
-    // Emit roundEnded to all with finish order and roles
     io.to(roomId).emit('roundEnded', { finishOrder, roles });
-
-    // Notify winners that trades have been prepared with their incoming cards and how many they must select
-    const pending = room.gameState.pendingTrades || {};
-    // Notify president
-    if (pending.president) {
-      const presId = Object.keys(roles).find(k => roles[k] === 'president');
-      const presSocket = room.players.find(p => p.id === presId)?.socketId;
-      if (presSocket) {
-        io.to(presSocket).emit('roundTradesPrepared', { role: 'president', incoming: pending.president.incoming, selectCount: pending.president.count });
-      }
-    }
-    if (pending.vicePresident) {
-      const vpId = Object.keys(roles).find(k => roles[k] === 'vice_president');
-      const vpSocket = room.players.find(p => p.id === vpId)?.socketId;
-      if (vpSocket) {
-        io.to(vpSocket).emit('roundTradesPrepared', { role: 'vice_president', incoming: pending.vicePresident.incoming, selectCount: pending.vicePresident.count });
-      }
-    }
-
-    // Broadcast updated hands to room (losers have had their mandatory cards removed already)
-    io.to(roomId).emit('playerHandsUpdate', { playerHands: room.gameState.playerHands });
   }
 
   // Winner selects cards to send back to loser
@@ -806,18 +958,15 @@ io.on('connection', (socket) => {
     // Save updated hands back to gameState
     room.gameState.playerHands = playerHands;
 
-    // Notify room about hands update
-    io.to(roomId).emit('playerHandsUpdate', { playerHands });
+    for (const p of room.gameState.players) {
+      p.hand = playerHands[p.id] || p.hand;
+    }
 
-    // If all trades are complete, emit tradesComplete
+    io.to(roomId).emit('playerHandsUpdate', { playerHands });
+    broadcastGameState(io, room);
+
     if (allTradesComplete(room.gameState)) {
       io.to(roomId).emit('tradesComplete', { playerHands });
-      // If everyone also already marked ready, start next round
-      const readyMap = room.gameState.readyForNextRound || {};
-      const allReady = Object.keys(readyMap).length > 0 && Object.values(readyMap).every(v => v === true);
-      if (allReady) {
-        startNextRound(roomId);
-      }
     }
   });
 
@@ -827,37 +976,21 @@ io.on('connection', (socket) => {
     if (!room || !room.gameState) return;
     const player = room.players.find(p => p.socketId === socket.id);
     if (!player) return;
+    if (!activeRoundPlayerIds(room).includes(player.id)) return;
     room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
     room.gameState.readyForNextRound[player.id] = true;
 
     io.to(roomId).emit('playerReadyUpdate', { readyForNextRound: room.gameState.readyForNextRound });
 
-    // If all players are ready and trades complete, start next round
-    const readyMap = room.gameState.readyForNextRound || {};
-    const allReady = Object.keys(readyMap).length > 0 && Object.values(readyMap).every(v => v === true);
-    const tradesDone = allTradesComplete(room.gameState);
-    if (allReady && tradesDone) startNextRound(roomId);
+    tryStartNextRoundIfReady(roomId);
   });
-
-  // Helper: start next round (minimal server-driven state reset)
-  function startNextRound(roomId) {
-    const room = rooms[roomId];
-    if (!room) return;
-    room.players.forEach((p) => {
-      p.isSpectator = false;
-    });
-    const dealSeed = Math.floor(Math.random() * 2147483647);
-    beginAuthoritativeRound(room, dealSeed);
-    broadcastGameState(io, room);
-    io.to(roomId).emit('nextRoundStarting', { dealSeed });
-  }
 
   socket.on('toggleReady', ({ roomId, ready }) => {
     if (!rooms[roomId]) return;
     const player = rooms[roomId].players.find(p => p.socketId === socket.id);
     if (!player) return;
     player.ready = !!ready;
-    io.to(roomId).emit('lobbyUpdate', { players: rooms[roomId].players.map(p => ({ id: p.id, name: p.name, ready: p.ready })), host: rooms[roomId].host });
+    io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(rooms[roomId]));
   });
 
   socket.on('kickPlayer', ({ roomId, playerName }) => {
@@ -874,23 +1007,24 @@ io.on('connection', (socket) => {
     const kickedId = playerToKick.id;
     const kickedSocketId = playerToKick.socketId;
 
-    if (room.inGame && room.gameState?.players) {
-      removePlayerFromActiveGame(room, kickedId);
-      io.to(roomId).emit('playerLeft', {
-        playerId: kickedId,
-        playerName: playerToKick.name,
-        reason: 'kicked',
-      });
-      if (room.gameState?.players?.length) {
-        broadcastGameState(io, room);
+    if (room.inGame && !playerToKick.isSpectator) {
+      room.players = room.players.filter(p => p.name !== playerName);
+      const kickedSocket = io.sockets.sockets.get(kickedSocketId);
+      if (kickedSocket) {
+        kickedSocket.leave(roomId);
       }
-    } else {
-      io.to(roomId).emit('playerRemoved', {
-        playerId: kickedId,
-        playerName: playerToKick.name,
-        reason: 'kicked',
-      });
+      abortOnlineGame(
+        roomId,
+        `${playerToKick.name} was removed. The game has ended.`,
+      );
+      return;
     }
+
+    io.to(roomId).emit('playerRemoved', {
+      playerId: kickedId,
+      playerName: playerToKick.name,
+      reason: 'kicked',
+    });
 
     room.players = room.players.filter(p => p.name !== playerName);
 
@@ -933,29 +1067,13 @@ io.on('connection', (socket) => {
             gracePeriod: graceMs
           });
           
-          io.to(roomId).emit('lobbyUpdate', { 
-            players: room.players.map(p => ({ 
-              id: p.id, 
-              name: p.name, 
-              ready: p.ready,
-              disconnected: !!p.disconnectedAt 
-            })), 
-            host: room.host 
-          });
+          io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
           
           schedulePlayerRemoval(roomId, player.id, socket.id, graceMs);
         } else {
           console.log(`[Server] Lobby disconnect for ${player.name}, grace period before removal`);
           
-          io.to(roomId).emit('lobbyUpdate', { 
-            players: room.players.map(p => ({ 
-              id: p.id, 
-              name: p.name, 
-              ready: p.ready,
-              disconnected: !!p.disconnectedAt 
-            })), 
-            host: room.host 
-          });
+          io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
           
           schedulePlayerRemoval(roomId, player.id, socket.id, graceMs);
         }

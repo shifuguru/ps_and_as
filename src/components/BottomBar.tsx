@@ -113,8 +113,6 @@ export default function BottomBar({
   const insets = useLayoutInsets();
   const bottomInset = insets.bottom || 0;
   const paddingBottom = bottomOuterPad(bottomInset);
-  const barBottom =
-    Platform.OS === "web" ? bottomInset - BOTTOM_SHEET_BLEED : -BOTTOM_SHEET_BLEED;
 
   return (
 
@@ -129,7 +127,7 @@ export default function BottomBar({
         style,
         minHeight ? { minHeight } : undefined,
 
-        { paddingBottom, bottom: barBottom },
+        { paddingBottom, bottom: -BOTTOM_SHEET_BLEED },
 
       ]}
 

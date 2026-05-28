@@ -14,15 +14,27 @@ export function resolveLocalHumanPlayer(
   if (players.length === 0) return null;
 
   const usingMock = isMockAdapter(adapter);
+  const profileId =
+    !usingMock &&
+    adapter &&
+    typeof (adapter as { getProfileId?: () => string }).getProfileId ===
+      "function"
+      ? (adapter as unknown as { getProfileId: () => string }).getProfileId()
+      : null;
 
-  if (localPlayerName) {
-    const byName = players.find((p) => p.name === localPlayerName);
-    if (byName) return byName;
+  if (profileId) {
+    const byProfile = players.find((p) => p.id === profileId);
+    if (byProfile) return byProfile;
   }
 
   if (localPlayerId) {
     const byId = players.find((p) => p.id === localPlayerId);
     if (byId) return byId;
+  }
+
+  if (localPlayerName) {
+    const byName = players.find((p) => p.name === localPlayerName);
+    if (byName) return byName;
   }
 
   if (usingMock) {
