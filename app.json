@@ -39,8 +39,7 @@
       "baseUrl": "/ps_and_as"
     },
     "plugins": [
-      "expo-font",
-      "react-native-reanimated/plugin"
+      "expo-font"
     ]
   }
 }

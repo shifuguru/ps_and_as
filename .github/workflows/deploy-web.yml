@@ -7,7 +7,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -65,6 +65,15 @@ jobs:
         with:
           path: web-build
 
+      - name: Publish to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: web-build
+          publish_branch: gh-pages
+          force_orphan: true
+          commit_message: "Deploy web app ${{ github.sha }}"
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -80,12 +89,15 @@ jobs:
         run: |
           URL="${{ steps.deployment.outputs.page_url }}"
           echo "Checking $URL"
-          BODY=$(curl -fsSL "$URL")
+          BODY=$(curl -fsSL "$URL" || true)
           if echo "$BODY" | grep -q 'id="root"'; then
             echo "OK: deployed app shell found at $URL"
           elif echo "$BODY" | grep -qi 'Presidents & Assholes'; then
-            echo "::error::GitHub Pages is still serving README.md instead of the app."
-            echo "Fix: repo Settings → Pages → Build and deployment → Source → GitHub Actions (not 'Deploy from branch')."
+            echo "::error::GitHub Pages is serving README.md instead of the app."
+            echo "Fix (pick one):"
+            echo "  • Settings → Pages → Source → GitHub Actions"
+            echo "  • Settings → Pages → Source → Deploy from branch → gh-pages → / (root)"
+            echo "Do NOT use main branch — that serves this README."
             exit 1
           else
             echo "::warning::Could not confirm app shell; check $URL manually"

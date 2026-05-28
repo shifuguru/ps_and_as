@@ -1,5 +1,8 @@
 # Presidents & Assholes (Ps & As)
 
+> **Play the game:** [shifuguru.github.io/ps_and_as](https://shifuguru.github.io/ps_and_as/)  
+> If that link shows this README instead of the table, open **Settings → Pages** and set the source to **GitHub Actions** or **branch `gh-pages` / (root)** — not `main`.
+
 > *A respectable card game for deeply disrespectful people.*
 
 Welcome.
