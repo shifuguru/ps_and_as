@@ -1,4 +1,5 @@
 import type { Player } from "../game/ruleset";
+import { livingPlayers } from "../game/deadHand";
 
 /** Placement role labels — keep in sync with ruleset role assignment. */
 export type RoundRoleLabel =
@@ -57,5 +58,40 @@ export function roleEmoji(role: RoundRoleLabel | Player["role"]): string | null 
       return "💩";
     default:
       return null;
+  }
+}
+
+/**
+ * Apply placement roles as players finish the round.
+ * First out → President (crown); last out → Asshole (💩); clears prior roles first.
+ */
+export function applyFinishOrderRoles(
+  players: Player[],
+  finishedOrder: string[],
+): void {
+  const activePlayers = livingPlayers(players);
+  activePlayers.forEach((p) => {
+    p.role = "Neutral";
+  });
+
+  const order = finishedOrder.filter((id) =>
+    activePlayers.some((p) => p.id === id),
+  );
+  const count = activePlayers.length;
+  const finished = order.length;
+  if (finished === 0) return;
+
+  const setRole = (id: string, role: Player["role"]) => {
+    const player = activePlayers.find((p) => p.id === id);
+    if (player) player.role = role;
+  };
+
+  setRole(order[0], "President");
+  if (count >= 5 && finished >= 2) setRole(order[1], "Vice President");
+  if (count >= 5 && finished >= count - 1) {
+    setRole(order[count - 2], "Vice Asshole");
+  }
+  if (finished >= count && count >= 2) {
+    setRole(order[count - 1], "Asshole");
   }
 }

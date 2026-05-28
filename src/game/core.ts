@@ -12,6 +12,7 @@ import {
   type DealerContext,
   resolveOpeningPlayerIndex,
 } from "../utils/tableSeats";
+import { applyFinishOrderRoles } from "../utils/roundRoles";
 
 export {
   DEAD_HAND_ID,
@@ -106,6 +107,7 @@ export function syncFinishedFromEmptyHands(state: GameState): void {
       state.finishedOrder.push(p.id);
     }
   }
+  applyFinishOrderRoles(state.players, state.finishedOrder);
 }
 
 export function isPlayerStillIn(state: GameState, playerId: string): boolean {

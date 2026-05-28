@@ -17,6 +17,7 @@ import {
   type DealerContext,
   resolveOpeningPlayerIndex,
 } from "../utils/tableSeats";
+import { applyFinishOrderRoles } from "../utils/roundRoles";
 
 export type ClientPendingTrade = {
   key: "president" | "vicePresident";
@@ -58,32 +59,7 @@ export function assignPlayerRoles(
   players: Player[],
   finishedOrder: string[],
 ): void {
-  const activePlayers = livingPlayers(players);
-  activePlayers.forEach((p) => {
-    p.role = "Neutral";
-  });
-  const livingOrder = finishedOrder.filter((id) =>
-    activePlayers.some((p) => p.id === id),
-  );
-  const order =
-    livingOrder.length === activePlayers.length
-      ? livingOrder
-      : activePlayers.map((p) => p.id);
-  const count = activePlayers.length;
-
-  const setRole = (id: string, role: Player["role"]) => {
-    const pl = activePlayers.find((x) => x.id === id);
-    if (pl) pl.role = role;
-  };
-
-  if (order.length >= 1) setRole(order[0], "President");
-  if (count >= 5) {
-    setRole(order[1], "Vice President");
-    setRole(order[count - 2], "Vice Asshole");
-    setRole(order[count - 1], "Asshole");
-  } else if (count >= 2) {
-    setRole(order[count - 1], "Asshole");
-  }
+  applyFinishOrderRoles(players, finishedOrder);
 }
 
 export function pickHighestCards(hand: Card[], n: number): Card[] {

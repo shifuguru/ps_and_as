@@ -861,6 +861,7 @@ function AppContent() {
             roomId={activeRoomId ?? joinedRoomId ?? undefined}
             isSpectator={isOnlineGame && isSpectator}
             onNavigateToAchievements={openAchievements}
+            onNavigateToSettings={openSettings}
             onBack={() => {
               if (isOnlineGame && activeRoomId && roomAdapter) {
                 roomAdapter.leaveRoom(activeRoomId);

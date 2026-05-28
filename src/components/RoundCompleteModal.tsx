@@ -10,6 +10,7 @@ import {
 import BlurPanel from "./BlurPanel";
 import { triggerHaptic } from "../utils/haptics";
 import { useAppTheme } from "../context/ThemeContext";
+import AccentBorderButton from "./AccentBorderButton";
 
 import { roleEmoji, roleForPlacement } from "../utils/roundRoles";
 
@@ -121,14 +122,21 @@ export default function RoundCompleteModal({
               <Text style={ui.actionSecondaryText}>Quit Game</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[ui.actionPrimary, isReady && { backgroundColor: colors.gold }]}
+            <AccentBorderButton
+              accentColor={colors.gold}
+              borderRadius={14}
+              animate={!isReady}
+              style={{ flex: 1.45 }}
+              contentStyle={[
+                ui.actionPrimary,
+                { borderWidth: 0 },
+                isReady && { backgroundColor: colors.gold },
+              ]}
               activeOpacity={0.82}
               onPress={() => {
                 triggerHaptic("medium");
                 onToggleReady();
               }}
-              accessibilityRole="button"
               accessibilityLabel={
                 canClaimSeat
                   ? isReady
@@ -153,7 +161,7 @@ export default function RoundCompleteModal({
                     ? "Not Ready"
                     : "Next Round"}
               </Text>
-            </TouchableOpacity>
+            </AccentBorderButton>
           </View>
         </BlurPanel>
       </View>

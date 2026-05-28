@@ -366,6 +366,7 @@ function GameScreen({
   isSpectator = false,
   onBack,
   onNavigateToAchievements,
+  onNavigateToSettings,
 }: {
   initialPlayers?: string[];
   initialLobbyPlayers?: LobbyMember[];
@@ -377,6 +378,7 @@ function GameScreen({
   isSpectator?: boolean;
   onBack?: () => void;
   onNavigateToAchievements?: () => void;
+  onNavigateToSettings?: () => void;
 } = {}) {
   const [state, setState] = useState<GameState | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -1633,6 +1635,7 @@ function GameScreen({
         activeTrade,
         spectatorMode,
         onNavigateToAchievements,
+        onNavigateToSettings,
         emitDebug,
         roleById,
         tableSeats,
@@ -1705,6 +1708,7 @@ function GameScreenBoard() {
     activeTrade,
     spectatorMode,
     onNavigateToAchievements,
+    onNavigateToSettings,
     emitDebug,
     roleById,
     tableSeats,
@@ -1785,6 +1789,7 @@ function GameScreenBoard() {
     activeTrade: ClientPendingTrade | null;
     spectatorMode: boolean;
     onNavigateToAchievements: (() => void) | undefined;
+    onNavigateToSettings: (() => void) | undefined;
     emitDebug: (event: string, details: any) => void;
     roleById: Record<string, GameState["players"][number]["role"]>;
     tableSeats: ReturnType<typeof buildTableSeatConfig>;
@@ -2104,8 +2109,17 @@ function GameScreenBoard() {
 
   const handVisible = hand.length > 0;
   const handInBottomBar = handVisible && !gameplayLocked;
-  const bottomBarHeight = reservedBottomHeight(insets.bottom || 0, handInBottomBar);
-  const localSeatBottom = localSeatBottomOffset(insets.bottom || 0, handInBottomBar);
+  const localPlayerOut =
+    !!humanPlayer && state.finishedOrder.includes(humanPlayer.id);
+  const localSeatHandReserve = handInBottomBar || localPlayerOut;
+  const bottomBarHeight = reservedBottomHeight(
+    insets.bottom || 0,
+    handInBottomBar,
+  );
+  const localSeatBottom = localSeatBottomOffset(
+    insets.bottom || 0,
+    localSeatHandReserve,
+  );
   const contentTopPadding = insets.top + 8;
   const trickPlays = buildTrickPlayDisplays(state);
   const activeLastPlayId = lastPlayPlayerId(state);
@@ -2405,26 +2419,52 @@ function GameScreenBoard() {
           <Text style={local.roomNoticeText}>{bannerNotice}</Text>
         </View>
       ) : null}
-      {onNavigateToAchievements ? (
-        <TouchableOpacity
-          style={[
-            local.statsFab,
-            {
-              top: contentTopPadding + 4,
-              backgroundColor:
-                colors.mode === "light"
-                  ? "rgba(255,255,255,0.72)"
-                  : "rgba(255,255,255,0.1)",
-              borderColor: colors.btnGoldBorder,
-            },
-          ]}
-          onPress={onNavigateToAchievements}
-          accessibilityRole="button"
-          accessibilityLabel="View player stats"
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      {onNavigateToSettings || onNavigateToAchievements ? (
+        <View
+          style={[local.topFabRow, { top: contentTopPadding + 4 }]}
+          pointerEvents="box-none"
         >
-          <MenuIcon name="trophy" size={18} color={colors.gold} />
-        </TouchableOpacity>
+          {onNavigateToSettings ? (
+            <TouchableOpacity
+              style={[
+                local.statsFab,
+                {
+                  backgroundColor:
+                    colors.mode === "light"
+                      ? "rgba(255,255,255,0.72)"
+                      : "rgba(255,255,255,0.1)",
+                  borderColor: colors.btnGoldBorder,
+                },
+              ]}
+              onPress={onNavigateToSettings}
+              accessibilityRole="button"
+              accessibilityLabel="Settings"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MenuIcon name="gear" size={18} color={colors.gold} />
+            </TouchableOpacity>
+          ) : null}
+          {onNavigateToAchievements ? (
+            <TouchableOpacity
+              style={[
+                local.statsFab,
+                {
+                  backgroundColor:
+                    colors.mode === "light"
+                      ? "rgba(255,255,255,0.72)"
+                      : "rgba(255,255,255,0.1)",
+                  borderColor: colors.btnGoldBorder,
+                },
+              ]}
+              onPress={onNavigateToAchievements}
+              accessibilityRole="button"
+              accessibilityLabel="View player stats"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MenuIcon name="trophy" size={18} color={colors.gold} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       ) : null}
       {/* Toggleable structured debug overlay (doesn't block bottom hand) */}
       {showDebugOverlay && (
@@ -2537,7 +2577,7 @@ function GameScreenBoard() {
         <View
           style={[
             local.localSeatOverlay,
-            { bottom: localSeatBottom, height: LOCAL_SEAT_BAND },
+            { bottom: localSeatBottom, minHeight: LOCAL_SEAT_BAND },
           ]}
           pointerEvents="box-none"
         >
@@ -2788,10 +2828,15 @@ export default GameScreen;
 
 const local = StyleSheet.create({
   container: { flex: 1 },
-  statsFab: {
+  topFabRow: {
     position: "absolute",
     right: 14,
     zIndex: 60,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  statsFab: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -2822,7 +2867,7 @@ const local = StyleSheet.create({
     position: "absolute",
     left: 12,
     right: 12,
-    zIndex: 44,
+    zIndex: 55,
     alignItems: "center",
     justifyContent: "flex-end",
     overflow: "visible",
