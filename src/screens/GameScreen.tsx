@@ -337,6 +337,10 @@ export default function GameScreen({
   const awaitingDealCeremonyRef = useRef(false);
   const ceremonyDoneForRoundRef = useRef<string | null>(null);
   const ceremonyStartedForRoundRef = useRef<string | null>(null);
+  const ceremonyPrepRef = useRef(ceremonyPrep);
+  ceremonyPrepRef.current = ceremonyPrep;
+  const tradePhaseRef = useRef(tradePhase);
+  tradePhaseRef.current = tradePhase;
   const [roomNotice, setRoomNotice] = useState<string | null>(null);
   const roomNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
@@ -595,6 +599,12 @@ export default function GameScreen({
     },
     [finalizeCeremonyRound],
   );
+
+  const handleDealComplete = useCallback(() => {
+    const prep = ceremonyPrepRef.current;
+    if (!prep) return;
+    beginTradePhase(prep.baseState, prep.players, prep.trades);
+  }, [beginTradePhase]);
 
   const startRoundCeremony = useCallback(
     (baseState: GameState, finishedOrder: string[], nextDealSeed?: number) => {
@@ -944,13 +954,15 @@ export default function GameScreen({
         const hands = ev.state.playerHands as
           | Record<string, CardType[]>
           | undefined;
-        if (tradePhase && hands) {
-          for (const p of tradePhase.players) {
+        const tp = tradePhaseRef.current;
+        const prep = ceremonyPrepRef.current;
+        if (tp && hands) {
+          for (const p of tp.players) {
             if (hands[p.id]) p.hand = hands[p.id];
           }
-          finalizeCeremonyRound(tradePhase.players, tradePhase.baseState);
-        } else if (ceremonyPrep) {
-          finalizeCeremonyRound(ceremonyPrep.players, ceremonyPrep.baseState);
+          finalizeCeremonyRound(tp.players, tp.baseState);
+        } else if (prep) {
+          finalizeCeremonyRound(prep.players, prep.baseState);
         }
       }
       // Legacy support for MockAdapter — only apply full game snapshots.
@@ -2084,14 +2096,7 @@ export default function GameScreen({
             : 13
         }
         pendingTrades={ceremonyPrep?.trades.filter((t) => !t.completed) ?? []}
-        onDealComplete={() => {
-          if (!ceremonyPrep) return;
-          beginTradePhase(
-            ceremonyPrep.baseState,
-            ceremonyPrep.players,
-            ceremonyPrep.trades,
-          );
-        }}
+        onDealComplete={handleDealComplete}
       />
 
       <RoleTradeModal

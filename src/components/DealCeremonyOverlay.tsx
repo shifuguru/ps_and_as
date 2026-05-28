@@ -56,6 +56,19 @@ export default function DealCeremonyOverlay({
   const [activeFlights, setActiveFlights] = useState<CardFlightSpec[]>([]);
   const [dealtCounts, setDealtCounts] = useState<Record<string, number>>({});
 
+  const onDealCompleteRef = useRef(onDealComplete);
+  onDealCompleteRef.current = onDealComplete;
+  const onMandatoryTradesAnimatedRef = useRef(onMandatoryTradesAnimated);
+  onMandatoryTradesAnimatedRef.current = onMandatoryTradesAnimated;
+  const ceremonyFinishedRef = useRef(false);
+
+  const finishCeremony = () => {
+    if (ceremonyFinishedRef.current) return;
+    ceremonyFinishedRef.current = true;
+    setPhase("done");
+    onDealCompleteRef.current();
+  };
+
   const deckCenter = useMemo(() => {
     if (!layout) return { x: screenW / 2, y: playAreaHeight / 2 };
     return { x: layout.playAnchorX, y: layout.playAnchorY };
@@ -71,6 +84,7 @@ export default function DealCeremonyOverlay({
 
   useEffect(() => {
     if (!visible) return;
+    ceremonyFinishedRef.current = false;
     setPhase("shuffle");
     setDealRound(0);
     setDealtCounts({});
@@ -118,29 +132,53 @@ export default function DealCeremonyOverlay({
     return () => shuffleAnim.stop();
   }, [visible, shuffleSpin, shuffleScale]);
 
+  // Belt-and-suspenders: never leave the table locked if layout or timers stall.
   useEffect(() => {
-    if (phase !== "deal" || !visible || !layout) return;
+    if (!visible) return;
+    const maxMs =
+      SHUFFLE_MS +
+      Math.max(dealSteps.length, 1) * DEAL_ROUND_MS +
+      (pendingTrades.length > 0 ? MANDATORY_TRADE_MS + 400 : 400);
+    const timer = setTimeout(() => finishCeremony(), maxMs + 800);
+    return () => clearTimeout(timer);
+  }, [visible, dealSteps.length, pendingTrades.length]);
+
+  useEffect(() => {
+    if (phase !== "deal" || !visible) return;
     if (dealRound >= dealSteps.length) {
       if (pendingTrades.length > 0) {
         setPhase("trade");
       } else {
-        setPhase("done");
-        onDealComplete();
+        finishCeremony();
       }
       return;
     }
 
     const step = dealSteps[dealRound];
-    const target = seatOriginInPlayArea(
-      layout,
-      playAreaHeight,
-      step.playerId,
-      playerIds,
-      localPlayerIds,
-    );
+    const target = layout
+      ? seatOriginInPlayArea(
+          layout,
+          playAreaHeight,
+          step.playerId,
+          playerIds,
+          localPlayerIds,
+        )
+      : { x: deckCenter.x, y: deckCenter.y };
+
     if (!target) {
       setDealRound((r) => r + 1);
       return;
+    }
+
+    if (!layout) {
+      const timer = setTimeout(() => {
+        setDealtCounts((prev) => ({
+          ...prev,
+          [step.playerId]: (prev[step.playerId] ?? 0) + 1,
+        }));
+        setDealRound((r) => r + 1);
+      }, 16);
+      return () => clearTimeout(timer);
     }
 
     const flightId = `deal-${dealRound}`;
@@ -178,11 +216,16 @@ export default function DealCeremonyOverlay({
     deckCenter,
     dims,
     pendingTrades.length,
-    onDealComplete,
   ]);
 
   useEffect(() => {
-    if (phase !== "trade" || !visible || !layout) return;
+    if (phase !== "trade" || !visible) return;
+
+    if (!layout) {
+      onMandatoryTradesAnimatedRef.current?.();
+      finishCeremony();
+      return;
+    }
 
     const flights: CardFlightSpec[] = [];
     pendingTrades.forEach((trade, idx) => {
@@ -216,17 +259,15 @@ export default function DealCeremonyOverlay({
     });
 
     if (flights.length === 0) {
-      setPhase("done");
-      onDealComplete();
-      onMandatoryTradesAnimated?.();
+      onMandatoryTradesAnimatedRef.current?.();
+      finishCeremony();
       return;
     }
 
     setActiveFlights(flights);
     const timer = setTimeout(() => {
-      setPhase("done");
-      onMandatoryTradesAnimated?.();
-      onDealComplete();
+      onMandatoryTradesAnimatedRef.current?.();
+      finishCeremony();
     }, MANDATORY_TRADE_MS + 120);
 
     return () => clearTimeout(timer);
@@ -239,8 +280,6 @@ export default function DealCeremonyOverlay({
     playerIds,
     localPlayerIds,
     dims,
-    onDealComplete,
-    onMandatoryTradesAnimated,
   ]);
 
   if (!visible || phase === "done") return null;

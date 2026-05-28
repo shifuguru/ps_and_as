@@ -105,6 +105,7 @@ function startNextRound(roomId) {
     dealSeed,
     promotedPlayerId: promoted?.id ?? null,
   });
+  emitTradesCompleteIfReady(io, roomId, room.gameState);
 }
 
 const app = express();
@@ -274,6 +275,23 @@ function allTradesComplete(gameState) {
     if (!pending[k].selected) return false;
   }
   return true;
+}
+
+function snapshotPlayerHands(gameState) {
+  const playerHands = {};
+  for (const p of gameState.players || []) {
+    playerHands[p.id] = [...(p.hand || [])];
+  }
+  return playerHands;
+}
+
+/** Round 1 (and any round with no pending trades) has no trade UI — tell clients they may unlock. */
+function emitTradesCompleteIfReady(io, roomId, gameState) {
+  const pendingKeys = Object.keys(gameState.pendingTrades || {});
+  if (pendingKeys.length > 0 && !allTradesComplete(gameState)) return;
+  const playerHands = gameState.playerHands || snapshotPlayerHands(gameState);
+  gameState.playerHands = playerHands;
+  io.to(roomId).emit('tradesComplete', { playerHands });
 }
 
 function pickLowestCards(hand, count) {
@@ -918,6 +936,7 @@ io.on('connection', (socket) => {
           .filter((p) => !p.isSpectator)
           .map(p => ({ id: p.id, name: p.name })),
       });
+      emitTradesCompleteIfReady(io, roomId, room.gameState);
       if (room.isPublic) broadcastAvailableRooms();
     } catch (err) {
       console.error('[Server] startGame failed:', err);
