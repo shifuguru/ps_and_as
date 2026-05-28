@@ -172,6 +172,27 @@ export function resolveFirstRoundLeadPlayerIndex(
 }
 
 /**
+ * After mandatory role trades, the living player holding 3♣ leads the round.
+ * If 3♣ is on the sidelined dead hand, fall back to round-1 alternate lead rules.
+ */
+export function resolveLeadPlayerIndexAfterTrades(
+  players: Pick<Player, "id" | "hand" | "isDeadHand" | "sidelinedHand">[],
+  options: DealerContext = {},
+): number {
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    if (isDeadHandPlayer(p)) continue;
+    if (p.hand?.some((c) => c.value === 3 && c.suit === "clubs")) {
+      return i;
+    }
+  }
+  if (deadHandHoldsThreeClubs(players)) {
+    return resolveFirstRoundLeadPlayerIndex(players, options);
+  }
+  return -1;
+}
+
+/**
  * First to act each round — one seat anticlockwise from the dealer
  * (same seat that receives the first card in deal order).
  * Round 1 uses {@link resolveFirstRoundLeadPlayerIndex} when no prior round order.

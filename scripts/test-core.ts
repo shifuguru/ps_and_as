@@ -26,10 +26,16 @@ import {
   isRoundCompleteForLiving,
   setTenRuleDirection,
 } from "../src/game/core";
-import { applyMandatoryTrades } from "../src/game/roundPrep";
+import {
+  applyMandatoryTrades,
+  buildFreshRoundState,
+  clonePlayersForRound,
+  completeWinnerReturn,
+} from "../src/game/roundPrep";
 import { applyFinishOrderRoles } from "../src/utils/roundRoles";
 import {
   resolveFirstRoundLeadPlayerIndex,
+  resolveLeadPlayerIndexAfterTrades,
   resolveOpeningPlayerIndex,
 } from "../src/utils/tableSeats";
 
@@ -718,6 +724,67 @@ console.log("Dead hand round-1 opening tests passed");
 }
 
 console.log("Dead hand role/trade tests passed");
+
+// After role trades, opener is whoever holds 3♣ (not dealer's left).
+{
+  const base = createGame(["Pres", "Mid", "Ass"]);
+  const lastOrder = ["1", "2", "3"];
+  base.lastRoundOrder = lastOrder;
+  const players = clonePlayersForRound(base.players);
+  applyFinishOrderRoles(players, lastOrder);
+  players[0].hand = [{ suit: "hearts", value: 14 }];
+  players[1].hand = [{ suit: "diamonds", value: 8 }];
+  players[2].hand = [
+    { suit: "clubs", value: 3 },
+    { suit: "spades", value: 5 },
+  ];
+
+  const dealerLeftIdx = resolveOpeningPlayerIndex(players, {
+    lastRoundOrder: lastOrder,
+  });
+  assert.notStrictEqual(
+    dealerLeftIdx,
+    2,
+    "Dealer's-left opener should differ from 3♣ holder in this layout",
+  );
+
+  assert.strictEqual(
+    resolveLeadPlayerIndexAfterTrades(players, { lastRoundOrder: lastOrder }),
+    2,
+    "Living 3♣ holder leads after trades",
+  );
+
+  const next = buildFreshRoundState(base, players, { lastRoundOrder: lastOrder });
+  assert.strictEqual(
+    next.currentPlayerIndex,
+    2,
+    "buildFreshRoundState should open on 3♣ after prior-round trades",
+  );
+}
+
+{
+  const base = createGame(["Pres", "Ass"]);
+  const lastOrder = ["1", "2"];
+  base.lastRoundOrder = lastOrder;
+  const players = clonePlayersForRound(base.players);
+  applyFinishOrderRoles(players, lastOrder);
+  players[0].hand = [{ suit: "hearts", value: 14 }, { suit: "diamonds", value: 4 }];
+  players[1].hand = [{ suit: "clubs", value: 3 }];
+  const trades = applyMandatoryTrades(players);
+  assert.strictEqual(trades.length, 1);
+  completeWinnerReturn(players, trades[0], [{ suit: "diamonds", value: 4 }]);
+  assert.ok(
+    players[1].hand.some((c) => c.suit === "clubs" && c.value === 3),
+    "Asshole keeps or receives 3♣ through trade returns",
+  );
+  assert.strictEqual(
+    resolveLeadPlayerIndexAfterTrades(players, { lastRoundOrder: lastOrder }),
+    1,
+    "Asshole leads when holding 3♣ after president trade return",
+  );
+}
+
+console.log("Post-trade 3♣ opener tests passed");
 
 // Last remaining player finishes the round even with cards left in hand.
 {

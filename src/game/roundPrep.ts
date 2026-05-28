@@ -15,6 +15,7 @@ import {
 } from "./deadHand";
 import {
   type DealerContext,
+  resolveLeadPlayerIndexAfterTrades,
   resolveOpeningPlayerIndex,
 } from "../utils/tableSeats";
 import { applyFinishOrderRoles } from "../utils/roundRoles";
@@ -222,9 +223,25 @@ export function buildFreshRoundState(
         ? lastRoundOrder
         : dealerOptions?.lastRoundOrder ?? prev.lastRoundOrder,
   };
-  let openerIdx =
-    openingPlayerIndex ??
-    resolveOpeningPlayerIndex(players, dealerContext);
+  const priorRound =
+    (dealerContext.lastRoundOrder?.length ?? 0) >= 2 ||
+    (dealerContext.finishedOrder?.length ?? 0) >= 2;
+
+  let openerIdx = openingPlayerIndex;
+  if (openerIdx == null) {
+    if (priorRound) {
+      const afterTrades = resolveLeadPlayerIndexAfterTrades(
+        players,
+        dealerContext,
+      );
+      openerIdx =
+        afterTrades >= 0
+          ? afterTrades
+          : resolveOpeningPlayerIndex(players, dealerContext);
+    } else {
+      openerIdx = resolveOpeningPlayerIndex(players, dealerContext);
+    }
+  }
   if (openerIdx < 0 || openerIdx >= players.length) {
     const fallback = players.findIndex((p) => !isDeadHandPlayer(p));
     openerIdx = fallback >= 0 ? fallback : 0;

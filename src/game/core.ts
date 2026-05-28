@@ -11,6 +11,7 @@ import {
 } from "./deadHand";
 import {
   type DealerContext,
+  resolveLeadPlayerIndexAfterTrades,
   resolveOpeningPlayerIndex,
 } from "../utils/tableSeats";
 import { applyFinishOrderRoles } from "../utils/roundRoles";
@@ -26,6 +27,11 @@ export {
   isRoundCompleteForLiving,
   applyDeadHandAfterDeal,
 } from "./deadHand";
+
+export {
+  resolveLeadPlayerIndexAfterTrades,
+  resolveOpeningPlayerIndex,
+} from "../utils/tableSeats";
 
 // RULE: Single-rank-per-turn variant (no multi-card straights as a single play)
 export const SINGLE_RANK_PER_TURN = true;

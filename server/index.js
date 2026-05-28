@@ -8,6 +8,8 @@ const {
   playCards,
   passTurn,
   setTenRuleDirection,
+  resolveLeadPlayerIndexAfterTrades,
+  resolveOpeningPlayerIndex,
 } = require('./gameBridge');
 const { viewForPlayer, viewForMember, broadcastGameState } = require('./gameStateView');
 const {
@@ -150,7 +152,7 @@ function startNextRound(roomId) {
     dealSeed,
     promotedPlayerId: promoted?.id ?? null,
   });
-  emitTradesCompleteIfReady(io, roomId, room.gameState);
+  emitTradesCompleteIfReady(io, roomId, room.gameState, room.host);
 }
 
 const app = express();
@@ -349,12 +351,34 @@ function snapshotPlayerHands(gameState) {
   return playerHands;
 }
 
+/** After role trades finish, opener is whoever holds 3♣ (not dealer's left). */
+function syncOpeningPlayerAfterTrades(gameState, hostId) {
+  const lastRoundOrder = gameState.lastRoundOrder;
+  if (!lastRoundOrder || lastRoundOrder.length < 2) return;
+
+  const playerHands = gameState.playerHands || {};
+  for (const p of gameState.players || []) {
+    if (playerHands[p.id]) p.hand = [...playerHands[p.id]];
+  }
+
+  const dealerContext = { hostId: hostId ?? null, lastRoundOrder };
+  let idx = resolveLeadPlayerIndexAfterTrades(gameState.players, dealerContext);
+  if (idx < 0) {
+    idx = resolveOpeningPlayerIndex(gameState.players, dealerContext);
+  }
+  if (idx >= 0 && idx < gameState.players.length) {
+    gameState.currentPlayerIndex = idx;
+    gameState.mustPlay = true;
+  }
+}
+
 /** Round 1 (and any round with no pending trades) has no trade UI — tell clients they may unlock. */
-function emitTradesCompleteIfReady(io, roomId, gameState) {
+function emitTradesCompleteIfReady(io, roomId, gameState, hostId) {
   const pendingKeys = Object.keys(gameState.pendingTrades || {});
   if (pendingKeys.length > 0 && !allTradesComplete(gameState)) return;
   const playerHands = gameState.playerHands || snapshotPlayerHands(gameState);
   gameState.playerHands = playerHands;
+  syncOpeningPlayerAfterTrades(gameState, hostId);
   io.to(roomId).emit('tradesComplete', { playerHands });
 }
 
@@ -1174,7 +1198,7 @@ io.on('connection', (socket) => {
         hostId: room.host,
         dealSeed,
       });
-      emitTradesCompleteIfReady(io, roomId, room.gameState);
+      emitTradesCompleteIfReady(io, roomId, room.gameState, room.host);
       if (room.isPublic) broadcastAvailableRooms();
     } catch (err) {
       console.error('[Server] startGame failed:', err);
@@ -1346,6 +1370,7 @@ io.on('connection', (socket) => {
     broadcastGameState(io, room);
 
     if (allTradesComplete(room.gameState)) {
+      syncOpeningPlayerAfterTrades(room.gameState, room.host);
       io.to(roomId).emit('tradesComplete', { playerHands });
     }
   });

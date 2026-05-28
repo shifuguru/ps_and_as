@@ -21,6 +21,7 @@ import {
   KNOWN_ISSUES,
   UPDATE_ENTRIES,
   UPDATE_LOG_TAGLINE,
+  formatUpdateTimestamp,
   type KnownIssue,
 } from "./updateLogContent";
 
@@ -62,19 +63,21 @@ export default function UpdateLog({ onBack }: { onBack: () => void }) {
             <Text style={styles.intro}>{UPDATE_LOG_TAGLINE}</Text>
             <Text style={styles.introHint}>
               We update this list when we ship big features or learn about bugs
-              worth knowing.
+              worth knowing. Times shown in your local timezone.
             </Text>
           </BlurPanel>
 
           <Text style={styles.sectionLabel}>Recent updates</Text>
           {UPDATE_ENTRIES.map((entry) => (
             <BlurPanel
-              key={`${entry.date}-${entry.title}`}
+              key={`${entry.publishedAt}-${entry.title}`}
               style={[ui.panel, styles.entryPanel]}
               intensity={46}
             >
               <View style={styles.entryHeader}>
-                <Text style={styles.entryDate}>{entry.date}</Text>
+                <Text style={styles.entryDate}>
+                  {formatUpdateTimestamp(entry.publishedAt)}
+                </Text>
                 <Text style={styles.entryTitle}>{entry.title}</Text>
               </View>
               {entry.items.map((item) => (
@@ -110,6 +113,11 @@ export default function UpdateLog({ onBack }: { onBack: () => void }) {
                   </Text>
                 </View>
               </View>
+              {issue.updatedAt ? (
+                <Text style={styles.issueUpdated}>
+                  Updated {formatUpdateTimestamp(issue.updatedAt)}
+                </Text>
+              ) : null}
               <Text style={styles.issueNote}>{issue.note}</Text>
             </BlurPanel>
           ))}
@@ -173,11 +181,10 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     entryDate: {
       color: colors.gold,
-      fontSize: 11,
-      fontWeight: "700",
-      letterSpacing: 0.4,
-      marginBottom: 2,
-      textTransform: "uppercase",
+      fontSize: 12,
+      fontWeight: "600",
+      letterSpacing: 0.2,
+      marginBottom: 4,
     },
     entryTitle: {
       color: colors.textPrimary,
@@ -232,6 +239,12 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "800",
       letterSpacing: 0.2,
       textTransform: "uppercase",
+    },
+    issueUpdated: {
+      color: colors.textMuted,
+      fontSize: 11,
+      lineHeight: 16,
+      marginBottom: 4,
     },
     issueNote: {
       color: colors.textMuted,
