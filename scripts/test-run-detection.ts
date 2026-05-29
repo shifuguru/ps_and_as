@@ -7,6 +7,7 @@ import {
   effectivePile,
   isRunContextSequence,
   isValidPlay,
+  resolveRunContext,
   createGame,
   playCards,
   passTurn,
@@ -499,7 +500,108 @@ console.log("\n=== Doubles run: extend 33-44-55 with 66 ===\n");
   }
 }
 
-console.log("\n=== Run direction: no reversing mid-run ===\n");
+console.log("\n=== Run adjacency: either direction from pile top ===\n");
+{
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(5)]),
+      makeAction("play", 1, [card(6)]),
+      makeAction("play", 2, [card(7)]),
+      makeAction("play", 3, [card(8)]),
+    ],
+  };
+  const pile = [card(8)];
+  const history: Card[][] = [
+    [card(5)],
+    [card(6)],
+    [card(7)],
+    [card(8)],
+  ];
+  const sevenValid = isValidPlay(
+    [card(7)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const nineValid = isValidPlay(
+    [card(9)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const sixInvalid = !isValidPlay(
+    [card(6)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  if (sevenValid && nineValid && sixInvalid) {
+    passed++;
+    console.log("PASS  5-6-7-8 run: 7 and 9 allowed on 8, 6 rejected");
+  } else {
+    failed++;
+    console.log("FAIL  5-6-7-8 run adjacency");
+    console.log(
+      `      sevenValid=${sevenValid} nineValid=${nineValid} sixInvalid=${sixInvalid}`,
+    );
+  }
+
+  const pileAfterSeven = [card(7)];
+  const historyAfterSeven: Card[][] = [
+    ...history,
+    [card(7)],
+  ];
+  const trickAfterSeven = {
+    ...trick,
+    actions: [...trick.actions, makeAction("play", 0, [card(7)])],
+  };
+  const runStillActive = resolveRunContext(
+    pileAfterSeven,
+    historyAfterSeven,
+    trickAfterSeven,
+    players,
+    [],
+  ).inRunContext;
+  const eightAfterSeven = isValidPlay(
+    [card(8)],
+    pileAfterSeven,
+    undefined,
+    historyAfterSeven,
+    undefined,
+    undefined,
+    trickAfterSeven,
+    players,
+    [],
+  );
+  if (runStillActive && eightAfterSeven) {
+    passed++;
+    console.log("PASS  5-6-7-8-7 keeps Runs! context; 8 allowed on 7");
+  } else {
+    failed++;
+    console.log("FAIL  run context after stepping back to 7");
+    console.log(
+      `      runStillActive=${runStillActive} eightAfterSeven=${eightAfterSeven}`,
+    );
+  }
+}
+
+console.log("\n=== Run direction: bidirectional from pile top ===\n");
 {
   const trick = {
     trickNumber: 1,
@@ -519,7 +621,7 @@ console.log("\n=== Run direction: no reversing mid-run ===\n");
     [card(7), card(7)],
     [card(8), card(8)],
   ];
-  const backwardSeven = !isValidPlay(
+  const backwardSeven = isValidPlay(
     [card(7), card(7)],
     pile,
     undefined,
@@ -543,10 +645,10 @@ console.log("\n=== Run direction: no reversing mid-run ===\n");
   );
   if (backwardSeven && forwardNine) {
     passed++;
-    console.log("PASS  ascending 44-88 rejects 77, accepts 99");
+    console.log("PASS  ascending 44-88 accepts 77 and 99 on 88");
   } else {
     failed++;
-    console.log("FAIL  ascending doubles run direction");
+    console.log("FAIL  ascending doubles run adjacency");
     console.log(`      backwardSeven=${backwardSeven} forwardNine=${forwardNine}`);
   }
 }
@@ -562,7 +664,7 @@ console.log("\n=== Run direction: no reversing mid-run ===\n");
   };
   const pile = [card(9)];
   const history: Card[][] = [[card(11)], [card(10)], [card(9)]];
-  const backwardTen = !isValidPlay(
+  const backwardTen = isValidPlay(
     [card(10)],
     pile,
     undefined,
@@ -586,10 +688,10 @@ console.log("\n=== Run direction: no reversing mid-run ===\n");
   );
   if (backwardTen && forwardEight) {
     passed++;
-    console.log("PASS  descending J-10-9 rejects 10, accepts 8");
+    console.log("PASS  descending J-10-9 accepts 10 and 8 on 9");
   } else {
     failed++;
-    console.log("FAIL  descending run direction");
+    console.log("FAIL  descending run adjacency");
     console.log(`      backwardTen=${backwardTen} forwardEight=${forwardEight}`);
   }
 }

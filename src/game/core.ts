@@ -728,7 +728,54 @@ export function getHighestValue(cards: Card[]) {
 // is already a run of length>=3, or the concatenation of last single-card plays
 // from pileHistory (chronological) if those form a run. This lets sequences like
 // [3],[4],[5] be treated as an active 3-card run even though state.pile is [5].
-function collectConsecutiveFromHistory(pileHistory?: Card[][]): { repCards: Card[]; multiplicity: number } {
+function longestRunSuffixEndingAt(repCards: Card[], endValue: number): Card[] {
+  if (!repCards?.length || repCards[repCards.length - 1]?.value !== endValue) {
+    return [];
+  }
+  const endIdx = repCards.length - 1;
+  let best: Card[] = [];
+  for (let start = 0; start <= endIdx; start++) {
+    const suffix = repCards.slice(start, endIdx + 1);
+    if (
+      suffix.length >= MIN_RUN_CONTEXT_LENGTH &&
+      isRunContextSequence(suffix)
+    ) {
+      if (suffix.length > best.length) best = suffix;
+    }
+  }
+  return best;
+}
+
+/** Longest valid run in chronology that still connects to the current pile top. */
+function runSeqForPile(chronology: Card[], pile: Card[]): Card[] {
+  if (!chronology?.length || !pile?.length || !allSameValue(pile)) return [];
+  const pileRank = rankIndex(pile[0].value);
+
+  const tailSuffix = longestRunSuffixEndingAt(chronology, pile[0].value);
+  if (tailSuffix.length >= MIN_RUN_CONTEXT_LENGTH) return tailSuffix;
+
+  let best: Card[] = [];
+  for (let start = 0; start < chronology.length; start++) {
+    for (
+      let end = start + MIN_RUN_CONTEXT_LENGTH - 1;
+      end < chronology.length;
+      end++
+    ) {
+      const sub = chronology.slice(start, end + 1);
+      if (!isRunContextSequence(sub)) continue;
+      const lastRank = rankIndex(sub[sub.length - 1].value);
+      if (Math.abs(lastRank - pileRank) <= 1 && sub.length > best.length) {
+        best = sub;
+      }
+    }
+  }
+  return best;
+}
+
+function collectConsecutiveFromHistory(
+  pileHistory?: Card[][],
+  pile?: Card[],
+): { repCards: Card[]; multiplicity: number } {
   if (!pileHistory || pileHistory.length === 0) return { repCards: [], multiplicity: 1 };
 
   const collected: Card[] = [];
@@ -750,8 +797,18 @@ function collectConsecutiveFromHistory(pileHistory?: Card[][]): { repCards: Card
     collected.push(candidate);
   }
   collected.reverse();
-  if (collected.length >= MIN_RUN_CONTEXT_LENGTH && isRunContextSequence(collected)) {
-    return { repCards: collected, multiplicity: multiplicity || 1 };
+  if (!pile || pile.length === 0 || !allSameValue(pile)) {
+    if (
+      collected.length >= MIN_RUN_CONTEXT_LENGTH &&
+      isRunContextSequence(collected)
+    ) {
+      return { repCards: collected, multiplicity: multiplicity || 1 };
+    }
+    return { repCards: [], multiplicity: 1 };
+  }
+  const suffix = runSeqForPile(collected, pile);
+  if (suffix.length >= MIN_RUN_CONTEXT_LENGTH) {
+    return { repCards: suffix, multiplicity: multiplicity || 1 };
   }
   return { repCards: [], multiplicity: 1 };
 }
@@ -760,6 +817,7 @@ function collectConsecutiveFromTrick(
   currentTrick?: TrickHistory,
   players?: Player[],
   finishedOrder: string[] = [],
+  pile?: Card[],
 ): { repCards: Card[]; multiplicity: number } {
   if (!currentTrick || !players) return { repCards: [], multiplicity: 1 };
   const actions = currentTrick.actions;
@@ -799,8 +857,18 @@ function collectConsecutiveFromTrick(
   }
 
   const repCards: Card[] = collectedActions.map((arr) => arr[0]);
-  if (repCards.length >= MIN_RUN_CONTEXT_LENGTH && isRunContextSequence(repCards)) {
-    return { repCards, multiplicity };
+  if (!pile || pile.length === 0 || !allSameValue(pile)) {
+    if (
+      repCards.length >= MIN_RUN_CONTEXT_LENGTH &&
+      isRunContextSequence(repCards)
+    ) {
+      return { repCards, multiplicity };
+    }
+    return { repCards: [], multiplicity: 1 };
+  }
+  const suffix = runSeqForPile(repCards, pile);
+  if (suffix.length >= MIN_RUN_CONTEXT_LENGTH) {
+    return { repCards: suffix, multiplicity };
   }
   return { repCards: [], multiplicity: 1 };
 }
@@ -813,8 +881,13 @@ export function consecutiveSequenceInfo(
   players?: Player[],
   finishedOrder: string[] = [],
 ): { repCards: Card[]; multiplicity: number } {
-  const fromTrick = collectConsecutiveFromTrick(currentTrick, players, finishedOrder);
-  const fromHist = collectConsecutiveFromHistory(pileHistory);
+  const fromTrick = collectConsecutiveFromTrick(
+    currentTrick,
+    players,
+    finishedOrder,
+    pile,
+  );
+  const fromHist = collectConsecutiveFromHistory(pileHistory, pile);
   const best =
     fromTrick.repCards.length >= fromHist.repCards.length ? fromTrick : fromHist;
   if (best.repCards.length >= MIN_RUN_CONTEXT_LENGTH) return best;
@@ -855,8 +928,9 @@ export function consecutiveSequenceInfo(
       const candidate = pile[0];
       if (Math.abs(rankIndex(candidate.value) - rankIndex(last.value)) === 1) {
         const combined = [...src.repCards, candidate];
-        if (isRunContextSequence(combined)) {
-          return { repCards: combined, multiplicity: src.multiplicity };
+        const suffix = runSeqForPile(combined, pile);
+        if (suffix.length >= MIN_RUN_CONTEXT_LENGTH) {
+          return { repCards: suffix, multiplicity: src.multiplicity };
         }
       }
     }
@@ -871,7 +945,7 @@ export function consecutiveSequenceInfo(
 export function effectivePile(pile: Card[], pileHistory?: Card[][]): Card[] {
   try {
     if (pile && pile.length >= 3 && isRun(pile)) return pile;
-    const fromHist = collectConsecutiveFromHistory(pileHistory);
+    const fromHist = collectConsecutiveFromHistory(pileHistory, pile);
     if (fromHist.repCards.length >= 3) {
       try {
         console.log(
@@ -1036,15 +1110,14 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
       return playRank < pileRank;
     }
   }
-  // 10. Run logic: extend with an adjacent rank (required on top! for runs).
+  // 10. Run logic: extend with an adjacent rank (either direction from pile top).
   // Tens do not activate or override runs — only adjacency applies here.
   if (inRunContext && !isJoker(cards[0])) {
     if (playCount !== runMultiplicity) return false;
-    const lastCard = runSeq[runSeq.length - 1];
-    const lastRank = rankIndex(lastCard.value);
+    if (!allSameValue(pile)) return false;
+    const pileRank = rankIndex(pile[0].value);
     const playRank = rankIndex(cards[0].value);
-    const dir = runDirection(runSeq);
-    return playRank - lastRank === dir;
+    return Math.abs(playRank - pileRank) === 1;
   }
   // 11. Twos rule: only Joker or completing quad can beat 2s (not when 2 is run tail)
   const pileIsTwos =
@@ -1338,13 +1411,12 @@ export function findCPUPlay(
       : trickRunInfo.multiplicity || 1;
   const inRunContext = isRunContextSequence(runSeq);
   if (inRunContext) {
-    const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
-    const dir = runDirection(runSeq);
+    const pileRank = rankIndex(pile[0].value);
     if (runMultiplicity === 1) {
       const adjCandidates = hand.filter((c) => {
         if (isJoker(c)) return false;
         const r = rankIndex(c.value);
-        return r - lastRank === dir;
+        return Math.abs(r - pileRank) === 1;
       });
       adjCandidates.sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
       for (const adjCard of adjCandidates) {
@@ -1357,7 +1429,7 @@ export function findCPUPlay(
         const cards = grouped[v];
         if (cards.length >= runMultiplicity) {
           const r = rankIndex(v);
-          if (r - lastRank === dir) {
+          if (Math.abs(r - pileRank) === 1) {
             const candidate = cards.slice(0, runMultiplicity);
             if (cpuPlayIsValid(hand, candidate, ctx)) return candidate;
           }
