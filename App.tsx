@@ -36,6 +36,7 @@ import { useVisualViewportSize, useWebShellLayout } from "./src/hooks/useVisualV
 import { isMobileWeb, installWebShellCss } from "./src/utils/webViewport";
 import { useAppFonts } from "./src/hooks/useAppFonts";
 import { useBuildUpdateCheck } from "./src/hooks/useBuildUpdateCheck";
+import { useWebEscapeKey } from "./src/hooks/useWebEscapeKey";
 import UpdateRequiredOverlay from "./src/components/UpdateRequiredOverlay";
 import AppErrorBoundary from "./src/components/AppErrorBoundary";
 import { StatusBar } from "expo-status-bar";
@@ -372,6 +373,30 @@ function AppContent() {
   const openReadMe = () => setReadmeOpen(true);
 
   const closeReadMe = () => setReadmeOpen(false);
+
+  const closeTopBackModal = useCallback(() => {
+    if (readmeOpen) {
+      closeReadMe();
+    } else if (updateLogOpen) {
+      closeUpdateLog();
+    } else if (achievementsOpen) {
+      closeAchievements();
+    } else if (settingsOpen) {
+      closeSettings();
+    }
+  }, [
+    readmeOpen,
+    updateLogOpen,
+    achievementsOpen,
+    settingsOpen,
+    closeSettings,
+  ]);
+
+  useWebEscapeKey(
+    closeTopBackModal,
+    menuVisible &&
+      (settingsOpen || achievementsOpen || updateLogOpen || readmeOpen),
+  );
 
   const lobbyMembersRef = useRef(lobbyMembers);
   lobbyMembersRef.current = lobbyMembers;

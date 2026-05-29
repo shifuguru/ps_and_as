@@ -53,8 +53,7 @@ The game includes:
 * Online multiplayer lobbies
 * Animated dealing and table presentation
 * Runs
-* Jokers
-* 2-clears
+* Jokers and high-ranking 2s
 * Four-of-a-kind challenges
 * Dead-hand rules
 * President / Asshole ranking system
@@ -90,7 +89,9 @@ Each play must beat the previous play on the table.
 
 If you cannot play, you must pass.
 
-When everybody else passes, the pile clears and the last successful player starts a new trick.
+**Nothing instantly or automatically clears the pile.** Even powerful finishing plays — 2s, Jokers, or four-of-a-kind — stay on the table until every other active player has passed. That pause lets everyone see what happened before the trick ends.
+
+When everybody else has passed, the pile clears and the last successful player starts a new trick.
 
 ---
 
@@ -115,7 +116,7 @@ Lowest to highest:
 | 2     |
 | Joker |
 
-Yes, 2s are powerful.
+The **Joker** is the highest card. **2s** are next — powerful, but not above a Joker.
 
 No, this is not negotiable.
 
@@ -125,15 +126,22 @@ No, this is not negotiable.
 
 ### 2s
 
-Playing a 2 instantly clears the pile.
+2s are the highest rank below Jokers. Play them like any other high card: match the pile count and beat what is showing.
 
-The player who used the 2 immediately starts the next trick.
+The only ways to beat a pile of 2s are:
+
+* a **Joker**, or
+* completing **four 2s** (when fewer than four are already on the pile).
+
+Playing 2s does **not** instantly clear the pile. The trick ends only after every other active player has passed — same as any other play.
 
 ---
 
 ### Jokers
 
-A Joker can beat any non-empty pile.
+The **Joker** is the highest card in the deck. A single Joker beats any non-empty pile (except during an active run).
+
+There are no instant or automatic trick endings. The Joker stays on the pile until every other active player has passed, so everyone can see how the trick resolved before play continues.
 
 Use responsibly.
 
@@ -143,23 +151,26 @@ Or irresponsibly. Both are valid.
 
 ### Four Of A Kind
 
-Playing four of a kind creates a challenge.
+Playing four of a kind is a strong finishing move, but it still does **not** auto-clear the pile.
 
-The next player must beat it with:
+If four of a kind is played in one go, the next player may beat it with:
 
-* a higher four of a kind,
-* or a Joker.
+* a higher four of a kind, or
+* a Joker.
 
-Otherwise they pass.
+If four of a kind is built across several plays in the same trick, it becomes unbeatable — everyone else must pass.
+
+In all cases, the trick ends only after every other active player has passed.
 
 ---
 
 ### 10 Rule
 
-After playing 10s, the player chooses whether the trick continues:
+When you play **10s**, you choose whether the **next card played** must be **higher** or **lower** than 10.
 
-* upward,
-* or downward.
+That choice applies to **one play only**. After someone answers under that constraint, normal beating rules resume for the rest of the trick.
+
+The 10 rule does not apply during runs.
 
 This rule exists primarily to create chaos.
 

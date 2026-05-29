@@ -24,7 +24,7 @@ import {
   removeReadmeMarkdownStyles,
   syncReadmeMarkdownStyles,
 } from "../utils/readmeMarkdown";
-import { installReadmeLinkHandlers } from "../utils/readmeAnchorScroll";
+import { installReadmeLinkHandlers, bindReadmeMarkdownLinks } from "../utils/readmeAnchorScroll";
 
 type Props = {
   onBack: () => void;
@@ -43,14 +43,23 @@ export default function ReadMeScreen({ onBack }: Props) {
       linkColor: colors.gold,
       linkBg: colors.btnGoldBg,
       linkBorder: colors.btnGoldBorder,
+      textPrimary: colors.textPrimary,
+      borderMuted: colors.panelBorder,
     }),
-    [colors.gold, colors.btnGoldBg, colors.btnGoldBorder],
+    [
+      colors.gold,
+      colors.btnGoldBg,
+      colors.btnGoldBorder,
+      colors.textPrimary,
+      colors.panelBorder,
+    ],
   );
 
   const [markdown, setMarkdown] = useState<string | null>(null);
   const [html, setHtml] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const [markdownRoot, setMarkdownRoot] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,68 +87,83 @@ export default function ReadMeScreen({ onBack }: Props) {
     return () => removeReadmeMarkdownStyles();
   }, [colors.mode, readmeTheme]);
 
+  useEffect(() => {
+    if (Platform.OS !== "web" || !html || !markdownRoot) return;
+    return bindReadmeMarkdownLinks(markdownRoot, { onDismiss: onBack });
+  }, [html, markdownRoot, onBack]);
+
   useEffect(
     () =>
       installReadmeLinkHandlers(
         scrollRef,
-        Platform.OS === "web" && !!html,
-        { onDismiss: onBack },
+        Platform.OS !== "web" && !!html,
+        { onDismiss: onBack, root: markdownRoot },
       ),
-    [html, onBack],
+    [html, markdownRoot, onBack],
   );
 
   const loading = !markdown && !loadError;
   const showHtml = Platform.OS === "web" && !!html && !loadError;
 
+  const readmeBody = (
+    <View style={[styles.content, { maxWidth: contentMax }]}>
+      <ScreenTopBar title="Read Me" />
+
+      {loading ? (
+        <ActivityIndicator
+          color={colors.gold}
+          size="large"
+          style={styles.loader}
+        />
+      ) : null}
+
+      {loadError ? (
+        <Text style={styles.errorText}>
+          {loadError}. Tap Back below to return to the game.
+        </Text>
+      ) : null}
+
+      {showHtml ? (
+        <View style={styles.markdownWrap}>
+          <article
+            // @ts-expect-error web article element
+            ref={setMarkdownRoot}
+            className="markdown-body"
+            dangerouslySetInnerHTML={{ __html: html }}
+            style={styles.markdownWeb}
+          />
+        </View>
+      ) : null}
+
+      {markdown && !showHtml && !loadError ? (
+        <Text style={styles.plainMarkdown} selectable>
+          {markdown}
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  const scrollPadding = {
+    paddingTop: insets.top + 12,
+    paddingBottom: bottomBarHeight,
+  };
+
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        contentContainerStyle={[
-          ui.scrollContent,
-          {
-            paddingTop: insets.top + 12,
-            paddingBottom: bottomBarHeight,
-          },
-        ]}
-        showsVerticalScrollIndicator
-      >
-        <View style={[styles.content, { maxWidth: contentMax }]}>
-          <ScreenTopBar title="Read Me" />
-
-          {loading ? (
-            <ActivityIndicator
-              color={colors.gold}
-              size="large"
-              style={styles.loader}
-            />
-          ) : null}
-
-          {loadError ? (
-            <Text style={styles.errorText}>
-              {loadError}. Tap Back below to return to the game.
-            </Text>
-          ) : null}
-
-          {showHtml ? (
-            <View style={styles.markdownWrap}>
-              <article
-                // @ts-expect-error web article element
-                className="markdown-body"
-                dangerouslySetInnerHTML={{ __html: html }}
-                style={styles.markdownWeb}
-              />
-            </View>
-          ) : null}
-
-          {markdown && !showHtml && !loadError ? (
-            <Text style={styles.plainMarkdown} selectable>
-              {markdown}
-            </Text>
-          ) : null}
+      {Platform.OS === "web" ? (
+        <View style={styles.webScroll}>
+          <View style={[ui.scrollContent, scrollPadding]}>{readmeBody}</View>
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          contentContainerStyle={[ui.scrollContent, scrollPadding]}
+          showsVerticalScrollIndicator
+        >
+          {readmeBody}
+        </ScrollView>
+      )}
 
       <BottomBar>
         <BottomBarControls style={styles.bottomControls}>
@@ -155,6 +179,11 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     scroll: {
       flex: 1,
     },
+    webScroll: {
+      flex: 1,
+      minHeight: 0,
+      overflow: "scroll",
+    } as object,
     content: {
       width: "100%",
       alignSelf: "center",
@@ -173,7 +202,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     markdownWrap: {
       width: "100%",
-      overflow: "hidden",
     },
     markdownWeb: {
       backgroundColor: "transparent",

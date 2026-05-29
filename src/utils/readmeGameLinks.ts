@@ -34,9 +34,17 @@ export function isGameHomeLink(href: string): boolean {
   try {
     const loc = (globalThis as { location?: { href?: string } }).location;
     const resolved = new URL(href, loc?.href ?? gameHomeUrl());
-    const home = new URL(gameHomeUrl(resolved.origin));
-    if (resolved.origin !== home.origin) return false;
-    return normalizePathname(resolved.pathname) === normalizePathname(home.pathname);
+    const home = new URL(gameHomeUrl(loc?.origin ?? resolved.origin));
+    const resolvedPath = normalizePathname(resolved.pathname);
+    const homePath = normalizePathname(home.pathname);
+
+    if (resolved.origin === home.origin && resolvedPath === homePath) {
+      return true;
+    }
+
+    // README ships absolute GitHub Pages URLs — still in-app when paths match.
+    const deployPath = normalizePathname(`${webBasePath() || "/ps_and_as"}`);
+    return resolvedPath === deployPath && (homePath === deployPath || homePath === "/");
   } catch {
     return false;
   }

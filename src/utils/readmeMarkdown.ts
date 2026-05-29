@@ -20,6 +20,8 @@ export type ReadmeMarkdownTheme = {
   linkColor: string;
   linkBg: string;
   linkBorder: string;
+  textPrimary: string;
+  borderMuted: string;
 };
 
 function tokenPlainText(token: {
@@ -100,6 +102,41 @@ export function parseReadmeHtml(markdown: string): string {
 
 function overrideCss(theme: ReadmeMarkdownTheme): string {
   return `
+.markdown-body {
+  color: ${theme.textPrimary};
+}
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  scroll-margin-top: 20px;
+  border-bottom: none !important;
+  padding-bottom: 0.15em;
+}
+.markdown-body hr {
+  height: 0.2em;
+  padding: 0;
+  margin: 24px 0;
+  background-color: ${theme.borderMuted};
+  border: 0;
+}
+.markdown-body blockquote {
+  border-left: none !important;
+  padding: 0 !important;
+  margin: 0 0 16px;
+  color: ${theme.textPrimary} !important;
+}
+.markdown-body blockquote > :first-child {
+  margin-top: 0;
+}
+.markdown-body blockquote > :last-child {
+  margin-bottom: 0;
+}
+.markdown-body blockquote p {
+  color: inherit !important;
+}
 .markdown-body a.readme-link-pill {
   display: inline-block;
   color: ${theme.linkColor} !important;
@@ -114,6 +151,8 @@ function overrideCss(theme: ReadmeMarkdownTheme): string {
   text-decoration: none !important;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+  cursor: pointer;
+  pointer-events: auto;
 }
 .markdown-body a.readme-link-pill:hover {
   filter: brightness(1.08);

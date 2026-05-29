@@ -71,6 +71,12 @@ function playersNeededLabel(count: number): string {
   return `Need ${count} More`;
 }
 
+function defaultRoomNameFromHost(hostName: string): string {
+  const trimmed = hostName.trim();
+  if (!trimmed) return "Game Room";
+  return `${trimmed}'s Room`;
+}
+
 /** Evenly spaced circle — seat 0 at bottom, then clockwise. */
 function lobbyRingSlotPositions(
   containerW: number,
@@ -322,7 +328,7 @@ export default function CreateGame({
   const playerNameRef = useRef("");
   const playerIdRef = useRef<string | null>(null);
   const localIdRef = useRef<string | null>(null);
-  const [roomName, setRoomName] = useState<string>("My Room");
+  const [roomName, setRoomName] = useState<string>("");
   const [playerName, setPlayerName] = useState<string>("");
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [playerNameReady, setPlayerNameReady] = useState(false);
@@ -338,6 +344,7 @@ export default function CreateGame({
   const codeCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lobbyNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roomNameEditingRef = useRef(false);
+  const roomNameTouchedRef = useRef(false);
   const roomCreatedRef = useRef(false);
 
   const showLobbyNotice = (message: string) => {
@@ -419,6 +426,7 @@ export default function CreateGame({
 
   const handleRoomNameCommit = useCallback(
     (name: string) => {
+      roomNameTouchedRef.current = true;
       const check = validateDisplayText(name, "Room name");
       if (!isValidDisplayText(check)) {
         Alert.alert("Not Allowed", check.reason);
@@ -574,6 +582,20 @@ export default function CreateGame({
   }, [preferredPlayerName]);
 
   useEffect(() => {
+    if (
+      isJoining ||
+      roomCreatedRef.current ||
+      roomNameTouchedRef.current ||
+      roomNameEditingRef.current
+    ) {
+      return;
+    }
+    const hostName = playerName.trim();
+    if (!hostName) return;
+    setRoomName(defaultRoomNameFromHost(hostName));
+  }, [playerName, isJoining]);
+
+  useEffect(() => {
     playerIdRef.current = playerId;
   }, [playerId]);
 
@@ -693,7 +715,10 @@ export default function CreateGame({
           if (!isJoining && (adapter as any).createRoom) {
             roomCreatedRef.current = true;
             const code = generateRoomCode();
-            const displayName = roomName.trim() || "Game Room";
+            const displayName =
+              roomName.trim() ||
+              defaultRoomNameFromHost(playerName) ||
+              "Game Room";
             const roomTitleCheck = validateDisplayText(displayName, "Room name");
             const title = roomTitleCheck.ok ? roomTitleCheck.value : "Game Room";
             const nameCheck = validateDisplayText(playerName, "Player name");
@@ -704,6 +729,9 @@ export default function CreateGame({
             }
             (adapter as any).createRoom(code, nameCheck.value, title);
             setActualRoomId(code);
+            if (!roomName.trim()) {
+              setRoomName(title);
+            }
             if (!roomTitleCheck.ok) {
               setRoomName("Game Room");
             }
@@ -722,6 +750,9 @@ export default function CreateGame({
           m.createRoom(rid, hostName);
           setActualRoomId(rid);
           setNames([hostName, "CPU 1", "CPU 2"]);
+          if (!roomName.trim()) {
+            setRoomName(defaultRoomNameFromHost(hostName));
+          }
           setConnectionStatus("connected");
         }
       } catch {
@@ -953,6 +984,9 @@ export default function CreateGame({
                       validate={validateRoomName}
                       onEditingChange={(editing) => {
                         roomNameEditingRef.current = editing;
+                        if (editing) {
+                          roomNameTouchedRef.current = true;
+                        }
                       }}
                       inputStyle={local.roomInput}
                       wrapStyle={local.roomInputWrap}

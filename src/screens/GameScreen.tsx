@@ -2286,7 +2286,9 @@ function GameScreenBoard() {
       role: roleById[p.id] ?? p.role,
       isDeadHand: isDeadHandPlayer(p),
       sidelinedCount: isDeadHandPlayer(p)
-        ? (ceremonyCountFor(p.id) ?? (p.sidelinedHand?.length ?? 0))
+        ? ceremonyPrep
+          ? 0
+          : (p.sidelinedHand?.length ?? 0)
         : 0,
       feltTint: resolveSeatFeltTint(p),
     }));
