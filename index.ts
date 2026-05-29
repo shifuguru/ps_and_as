@@ -7,15 +7,17 @@ import App from "./App";
 
 if (Platform.OS === "web") {
   require("./src/utils/webNoZoom").ensureWebNoZoom();
-  const { installWebShellCss, applyMobileWebShellHeight } = require("./src/utils/webViewport");
+  const {
+    installWebShellCss,
+    installWebMobileViewportGuard,
+  } = require("./src/utils/webViewport");
   const { getWebBodyPortalHost } = require("./src/utils/webBodyPortal");
   const { ensureWebFeltBackdrop } = require("./src/styles/webFullBleed");
   const { DEFAULT_FELT_COLOR } = require("./src/services/wallpaper");
   installWebShellCss(DEFAULT_FELT_COLOR);
   ensureWebFeltBackdrop(DEFAULT_FELT_COLOR);
   getWebBodyPortalHost();
-  const win = (globalThis as { window?: Parameters<typeof applyMobileWebShellHeight>[0] }).window;
-  if (win) applyMobileWebShellHeight(win);
+  installWebMobileViewportGuard();
 }
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);

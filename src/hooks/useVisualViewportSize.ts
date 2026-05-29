@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Platform, ScaledSize, useWindowDimensions } from "react-native";
 import {
   isMobileWeb,
+  keyboardLikelyOpen,
   readWebShellHeight,
 } from "../utils/webViewport";
 
@@ -19,15 +20,12 @@ type WebWindow = {
   removeEventListener: (type: string, fn: () => void) => void;
 };
 
-const WEB_KEYBOARD_GAP_THRESHOLD = 120;
-
 function readVisualViewport(win: WebWindow): ScaledSize {
   const vv = win.visualViewport;
   if (vv) {
+    const keyboardOpen = keyboardLikelyOpen(win);
     const layoutH = win.innerHeight ?? vv.height;
-    const gap = layoutH - vv.height - (vv.offsetTop ?? 0);
-    const keyboardLikelyOpen = gap > WEB_KEYBOARD_GAP_THRESHOLD;
-    const height = keyboardLikelyOpen
+    const height = keyboardOpen
       ? vv.height
       : isMobileWeb()
         ? readWebShellHeight(win)

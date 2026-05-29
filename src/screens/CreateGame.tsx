@@ -17,6 +17,17 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
+
+const KeyboardShell =
+  Platform.OS === "web" ? View : KeyboardAvoidingView;
+const keyboardShellProps =
+  Platform.OS === "web"
+    ? ({ style: { flex: 1 } } as const)
+    : ({
+        style: { flex: 1 },
+        behavior: Platform.OS === "ios" ? ("padding" as const) : undefined,
+      } as const);
+
 import ScreenContainer from "../components/ScreenContainer";
 import LobbyStatusBar, {
   LOBBY_STATUS_BAR_HEIGHT,
@@ -42,6 +53,7 @@ import { useAppTheme } from "../context/ThemeContext";
 import { copyToClipboard } from "../utils/clipboard";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import { hexToRgba } from "../utils/colorTheory";
+import type { AppThemeColors } from "../styles/themeColors";
 import { polarSeatPosition, ringAngleForSeat, sideAnchorMarginForWidth } from "../utils/tableLayout";
 const MIN_PLAYERS = 2;
 const MIN_PLAYERS_FULL_TABLE = 3;
@@ -303,6 +315,7 @@ export default function CreateGame({
   preferredPlayerName?: string;
 }) {
   const { colors, ui, blur, feltTint: localFeltTint } = useAppTheme();
+  const local = useMemo(() => createLocalStyles(colors), [colors]);
   const [names, setNames] = useState<string[]>([]);
   const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[]>([]);
   const lobbyMembersRef = useRef<LobbyMember[]>([]);
@@ -881,10 +894,7 @@ export default function CreateGame({
         </View>
       ) : null}
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <KeyboardShell {...keyboardShellProps}>
         <DismissKeyboardArea
           style={{
             flex: 1,
@@ -1023,7 +1033,7 @@ export default function CreateGame({
                         onPress={addCpu}
                         accessibilityLabel="Add CPU Player"
                       >
-                        <Text style={[local.emptySeatPlus, { color: colors.gold }]}>+</Text>
+                        <Text style={local.emptySeatPlus}>+</Text>
                         <Text style={local.emptySeatLabel}>Add CPU</Text>
                       </TouchableOpacity>
                     ) : null}
@@ -1142,7 +1152,7 @@ export default function CreateGame({
             </View>
           </View>
         </DismissKeyboardArea>
-      </KeyboardAvoidingView>
+      </KeyboardShell>
 
       <BottomBar>
         <BottomBarControls style={local.bottomControls}>
@@ -1162,7 +1172,7 @@ export default function CreateGame({
                     names.filter((n) => n.startsWith("CPU ")).length === 0
                   }
                 >
-                  <Text style={[local.stepBtnText, { color: colors.gold }]}>−</Text>
+                  <Text style={local.stepBtnText}>−</Text>
                 </TouchableOpacity>
                 <Text style={local.cpuCount}>
                   {names.filter((n) => n.startsWith("CPU ")).length}
@@ -1175,7 +1185,7 @@ export default function CreateGame({
                   onPress={addCpu}
                   disabled={names.length >= MAX_PLAYERS}
                 >
-                  <Text style={[local.stepBtnText, { color: colors.gold }]}>+</Text>
+                  <Text style={local.stepBtnText}>+</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1298,7 +1308,11 @@ export default function CreateGame({
   );
 }
 
-const local = StyleSheet.create({
+function createLocalStyles(colors: AppThemeColors) {
+  const isDark = colors.mode === "dark";
+  const frostLine = isDark ? colors.textPrimary : "#ffffff";
+
+  return StyleSheet.create({
   lobbyNoticeBanner: {
     position: "absolute",
     left: 16,
@@ -1307,12 +1321,12 @@ const local = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 12,
-    backgroundColor: "rgba(0, 0, 0, 0.72)",
+    backgroundColor: hexToRgba("#000000", isDark ? 0.72 : 0.55),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(212, 175, 55, 0.45)",
+    borderColor: colors.panelBorder,
   },
   lobbyNoticeText: {
-    color: "#f5e6b8",
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: "700",
     textAlign: "center",
@@ -1323,10 +1337,10 @@ const local = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: colors.panelBorder,
   },
   fieldLabel: {
-    color: "rgba(255,255,255,0.6)",
+    color: colors.textMuted,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.2,
@@ -1338,27 +1352,29 @@ const local = StyleSheet.create({
   roomInputWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.28)",
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: colors.inputBorder,
     borderRadius: 12,
     paddingLeft: 14,
     paddingRight: 12,
     minHeight: 48,
   },
   roomInputWrapFocused: {
-    borderColor: "rgba(212,175,55,0.6)",
-    backgroundColor: "rgba(0,0,0,0.36)",
+    borderColor: hexToRgba(colors.gold, isDark ? 0.42 : 0.32),
+    backgroundColor: isDark
+      ? hexToRgba(frostLine, 0.12)
+      : hexToRgba("#ffffff", 0.98),
   },
   roomInput: {
     flex: 1,
-    color: "#fff",
+    color: colors.inputText,
     fontSize: 16,
     fontWeight: "600",
     paddingVertical: 12,
   },
   roomInputHint: {
-    color: "rgba(212,175,55,0.65)",
+    color: colors.textMuted,
     fontSize: 16,
     marginLeft: 8,
   },
@@ -1366,7 +1382,7 @@ const local = StyleSheet.create({
     marginTop: 6,
   },
   roomNameHint: {
-    color: "rgba(255,255,255,0.4)",
+    color: colors.textMuted,
     fontSize: 11,
     lineHeight: 15,
     textAlign: "center",
@@ -1374,7 +1390,7 @@ const local = StyleSheet.create({
     paddingHorizontal: 4,
   },
   deadHandInfo: {
-    color: "rgba(255,255,255,0.5)",
+    color: colors.textMuted,
     fontSize: 11,
     lineHeight: 16,
     textAlign: "center",
@@ -1383,26 +1399,26 @@ const local = StyleSheet.create({
   deadHandSeat: {
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: hexToRgba(colors.textPrimary, isDark ? 0.18 : 0.14),
     borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 10,
     paddingHorizontal: 6,
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: hexToRgba(colors.textPrimary, isDark ? 0.03 : 0.04),
   },
   deadHandSeatIcon: {
     fontSize: 20,
     marginBottom: 4,
   },
   deadHandSeatLabel: {
-    color: "rgba(255,255,255,0.65)",
+    color: colors.textSecondary,
     fontSize: 11,
     fontWeight: "800",
     textAlign: "center",
   },
   deadHandSeatHint: {
-    color: "rgba(255,255,255,0.35)",
+    color: colors.textMuted,
     fontSize: 9,
     fontWeight: "600",
     marginTop: 2,
@@ -1414,7 +1430,7 @@ const local = StyleSheet.create({
     gap: 10,
   },
   roomCodeLabel: {
-    color: "rgba(255,255,255,0.55)",
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: "600",
     flexShrink: 0,
@@ -1425,9 +1441,9 @@ const local = StyleSheet.create({
     maxWidth: "56%",
     minHeight: 36,
     paddingHorizontal: 12,
-    backgroundColor: "rgba(0,0,0,0.28)",
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.35)",
+    borderColor: colors.btnSecondaryBorder,
     borderRadius: 12,
     ...BUTTON_CENTER,
   },
@@ -1436,7 +1452,7 @@ const local = StyleSheet.create({
     backgroundColor: "rgba(20,48,28,0.45)",
   },
   roomCodeButtonText: buttonLabel(15, {
-    color: "#fff",
+    color: colors.inputText,
     fontWeight: "700",
     letterSpacing: 1.2,
   }),
@@ -1448,7 +1464,7 @@ const local = StyleSheet.create({
     paddingTop: 4,
   },
   tableHint: {
-    color: "rgba(255,255,255,0.55)",
+    color: colors.textSecondary,
     fontSize: 13,
     marginBottom: 8,
     textAlign: "center",
@@ -1499,20 +1515,21 @@ const local = StyleSheet.create({
     height: LOBBY_ADD_CPU_H,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
+    borderColor: hexToRgba(colors.textPrimary, isDark ? 0.15 : 0.12),
     borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: hexToRgba(colors.textPrimary, isDark ? 0.04 : 0.05),
     zIndex: 2,
   },
   emptySeatPlus: {
     fontSize: 22,
     fontWeight: "700",
     lineHeight: 24,
+    color: colors.gold,
   },
   emptySeatLabel: {
-    color: "rgba(255,255,255,0.5)",
+    color: colors.textMuted,
     fontSize: 10,
     fontWeight: "700",
     marginTop: 4,
@@ -1527,7 +1544,7 @@ const local = StyleSheet.create({
   },
   lobbyWaitHint: {
     textAlign: "center",
-    color: "rgba(255,255,255,0.55)",
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: "600",
     marginBottom: 10,
@@ -1558,7 +1575,7 @@ const local = StyleSheet.create({
     textTransform: "uppercase",
   }),
   lobbyPrimaryDisabled: {
-    backgroundColor: "rgba(120,120,120,0.35)",
+    backgroundColor: colors.actionPrimaryDisabledBg,
     opacity: 0.72,
     ...Platform.select({
       ios: { shadowOpacity: 0 },
@@ -1567,7 +1584,7 @@ const local = StyleSheet.create({
     }),
   },
   lobbyPrimaryTextDisabled: {
-    color: "rgba(255,255,255,0.45)",
+    color: colors.actionPrimaryDisabledText,
   },
   lobbyPrimaryReady: {
     backgroundColor: "#2e7d32",
@@ -1601,21 +1618,23 @@ const local = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(212,175,55,0.18)",
+    backgroundColor: colors.btnSecondaryBg,
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.35)",
+    borderColor: colors.btnSecondaryBorder,
   },
   stepBtnDisabled: {
     opacity: 0.35,
   },
   stepBtnText: buttonLabel(20, {
     fontWeight: "700",
+    color: colors.btnSecondaryText,
   }),
   cpuCount: {
-    color: "#fff",
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: "700",
     minWidth: 20,
     textAlign: "center",
   },
-});
+  });
+}

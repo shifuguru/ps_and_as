@@ -9,11 +9,16 @@ type WebWindow = {
     width: number;
     height: number;
     offsetTop: number;
+    addEventListener?: (type: string, fn: () => void) => void;
+    removeEventListener?: (type: string, fn: () => void) => void;
   } | null;
+  addEventListener?: (type: string, fn: () => void) => void;
+  removeEventListener?: (type: string, fn: () => void) => void;
 };
 
 const WEB_KEYBOARD_GAP_THRESHOLD = 120;
 export const APP_SHELL_HEIGHT_VAR = "--app-shell-h";
+export const APP_SHELL_TOP_VAR = "--app-shell-top";
 export const WEB_SHELL_STYLE_ID = "ps-web-shell";
 export const WEB_BODY_PORTAL_ID = "ps-body-portal";
 export const WEB_FELT_LAYER_ID = "ps-felt-layer";
@@ -140,21 +145,47 @@ export function resolveWebBottomInset(measured = 0): number {
   return 0;
 }
 
-function applyShellHeightPx(doc: any, px: string): void {
-  doc.documentElement.style.height = px;
-  doc.documentElement.style.minHeight = px;
-  doc.body.style.height = px;
-  doc.body.style.minHeight = px;
+/** Prevent iOS Safari from scrolling the document (toolbar reveal / rubber-band). */
+export function clampDocumentScroll(): void {
+  if (Platform.OS !== "web") return;
+  const win = (globalThis as {
+    window?: { scrollTo: (x: number, y: number) => void };
+  }).window;
+  const doc = (globalThis as {
+    document?: { documentElement: { scrollTop: number }; body: { scrollTop: number } };
+  }).document;
+  if (!win || !doc) return;
+  win.scrollTo(0, 0);
+  doc.documentElement.scrollTop = 0;
+  doc.body.scrollTop = 0;
+}
 
-  for (const id of ["root", WEB_BODY_PORTAL_ID, WEB_FELT_LAYER_ID]) {
-    const el = doc.getElementById(id);
+function applyShellGeometry(doc: any, heightPx: number, topPx: number): void {
+  const h = `${heightPx}px`;
+  const top = `${topPx}px`;
+
+  doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, h);
+  doc.documentElement.style.setProperty(APP_SHELL_TOP_VAR, top);
+
+  const targets = [
+    doc.documentElement,
+    doc.body,
+    doc.getElementById("root"),
+    doc.getElementById(WEB_BODY_PORTAL_ID),
+    doc.getElementById(WEB_FELT_LAYER_ID),
+  ];
+
+  for (const el of targets) {
     if (!el) continue;
-    el.style.height = px;
-    el.style.minHeight = px;
+    el.style.height = h;
+    el.style.maxHeight = h;
+    el.style.minHeight = "0";
+    if (el === doc.documentElement) continue;
+    el.style.top = top;
   }
 }
 
-function keyboardLikelyOpen(win: WebWindow): boolean {
+export function keyboardLikelyOpen(win: WebWindow): boolean {
   const vv = win.visualViewport;
   if (!vv) return false;
   const layoutH = win.innerHeight ?? vv.height;
@@ -187,7 +218,7 @@ export function readWebShellHeight(win: WebWindow): number {
 
   // Prefer the tallest credible device height so fixed shell + felt reach the
   // physical bottom (home-indicator band) on iOS Safari and standalone PWA.
-  const h = Math.max(
+  let h = Math.max(
     layoutH,
     visualFull,
     dvh,
@@ -196,28 +227,80 @@ export function readWebShellHeight(win: WebWindow): number {
     fillAvail,
     screenAvail,
   );
+
+  // iOS often ends the layout viewport above the home-indicator band; extend the
+  // shell so body/felt/bar meet the physical bottom instead of a theme-color strip.
+  if (Platform.OS === "web" && isMobileWeb()) {
+    const safeBottom = resolveWebBottomInset(readWebSafeAreaInsets().bottom);
+    h = Math.max(h, layoutH + safeBottom);
+  }
+
   if (Platform.OS === "web") {
     cachedShellHeight = h;
   }
   return h;
 }
 
-/** Sync html/body/#root/#ps-body-portal/#ps-felt-layer to measured device height. */
+/** Sync html/body/#root/#ps-body-portal/#ps-felt-layer to the visible viewport. */
 export function applyMobileWebShellHeight(win: WebWindow): number {
   if (Platform.OS !== "web" || !isMobileWeb()) return readWebShellHeight(win);
 
   const doc = (globalThis as { document?: any }).document;
   if (!doc) return readWebShellHeight(win);
 
+  const vv = win.visualViewport;
+  const topPx = vv ? Math.max(0, Math.round(vv.offsetTop)) : 0;
   const h = readWebShellHeight(win);
-  const px = `${h}px`;
 
-  if (doc.documentElement.style.getPropertyValue(APP_SHELL_HEIGHT_VAR) !== px) {
-    doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, px);
-  }
-
-  applyShellHeightPx(doc, px);
+  applyShellGeometry(doc, h, keyboardLikelyOpen(win) || topPx > 0 ? topPx : 0);
   return h;
+}
+
+/**
+ * Keep the shell locked to visualViewport on mobile web — prevents document
+ * scroll (Safari toolbar drag) and resizes the shell when the keyboard opens.
+ */
+export function installWebMobileViewportGuard(): () => void {
+  if (Platform.OS !== "web" || !isMobileWeb()) return () => undefined;
+
+  const win = (globalThis as { window?: WebWindow }).window;
+  const doc = (globalThis as {
+    document?: {
+      addEventListener: (type: string, fn: (ev: Event) => void) => void;
+      removeEventListener: (type: string, fn: (ev: Event) => void) => void;
+    };
+  }).document;
+  if (!win || !doc) return () => undefined;
+
+  const sync = () => {
+    clampDocumentScroll();
+    applyMobileWebShellHeight(win);
+  };
+
+  sync();
+
+  const onFocusIn = () => {
+    requestAnimationFrame(sync);
+  };
+  const onFocusOut = () => {
+    setTimeout(sync, 80);
+  };
+
+  win.addEventListener?.("resize", sync);
+  win.addEventListener?.("orientationchange", sync);
+  win.visualViewport?.addEventListener?.("resize", sync);
+  win.visualViewport?.addEventListener?.("scroll", sync);
+  doc.addEventListener("focusin", onFocusIn);
+  doc.addEventListener("focusout", onFocusOut);
+
+  return () => {
+    win.removeEventListener?.("resize", sync);
+    win.removeEventListener?.("orientationchange", sync);
+    win.visualViewport?.removeEventListener?.("resize", sync);
+    win.visualViewport?.removeEventListener?.("scroll", sync);
+    doc.removeEventListener("focusin", onFocusIn);
+    doc.removeEventListener("focusout", onFocusOut);
+  };
 }
 
 /**

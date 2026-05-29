@@ -3,11 +3,12 @@ export function getWebShellCssText(feltTint: string): string {
   return `
     :root {
       --ps-felt-tint: ${feltTint};
-      --app-shell-h: 100lvh;
+      --app-shell-h: 100dvh;
+      --app-shell-top: 0px;
     }
     html, body {
       position: fixed !important;
-      top: 0 !important;
+      top: var(--app-shell-top, 0px) !important;
       left: 0 !important;
       right: 0 !important;
       width: 100% !important;
@@ -16,18 +17,20 @@ export function getWebShellCssText(feltTint: string): string {
       overflow: hidden !important;
       overscroll-behavior: none !important;
       touch-action: manipulation !important;
-      height: var(--app-shell-h, 100lvh) !important;
-      min-height: var(--app-shell-h, 100lvh) !important;
+      height: var(--app-shell-h, 100dvh) !important;
+      max-height: var(--app-shell-h, 100dvh) !important;
+      min-height: 0 !important;
       background-color: var(--ps-felt-tint) !important;
     }
     #ps-felt-layer {
       position: fixed !important;
-      top: 0 !important;
+      top: var(--app-shell-top, 0px) !important;
       left: 0 !important;
       right: 0 !important;
       width: 100% !important;
-      height: var(--app-shell-h, 100lvh) !important;
-      min-height: var(--app-shell-h, 100lvh) !important;
+      height: var(--app-shell-h, 100dvh) !important;
+      max-height: var(--app-shell-h, 100dvh) !important;
+      min-height: 0 !important;
       z-index: -1 !important;
       pointer-events: none !important;
       overflow: hidden !important;
@@ -44,7 +47,7 @@ export function getWebShellCssText(feltTint: string): string {
     }
     #root {
       position: fixed !important;
-      top: 0 !important;
+      top: var(--app-shell-top, 0px) !important;
       left: 0 !important;
       right: 0 !important;
       display: flex !important;
@@ -54,31 +57,34 @@ export function getWebShellCssText(feltTint: string): string {
       margin: 0 !important;
       padding: 0 !important;
       overflow: hidden !important;
-      height: var(--app-shell-h, 100lvh) !important;
-      min-height: var(--app-shell-h, 100lvh) !important;
+      height: var(--app-shell-h, 100dvh) !important;
+      max-height: var(--app-shell-h, 100dvh) !important;
+      min-height: 0 !important;
       background-color: transparent !important;
     }
     #ps-body-portal {
       position: fixed !important;
-      top: 0 !important;
+      top: var(--app-shell-top, 0px) !important;
       left: 0 !important;
       right: 0 !important;
       width: 100% !important;
-      height: var(--app-shell-h, 100lvh) !important;
-      min-height: var(--app-shell-h, 100lvh) !important;
+      height: var(--app-shell-h, 100dvh) !important;
+      max-height: var(--app-shell-h, 100dvh) !important;
+      min-height: 0 !important;
       pointer-events: none !important;
       z-index: 50 !important;
-      overflow: visible !important;
+      overflow: hidden !important;
     }
     #ps-body-portal > * { pointer-events: auto; }
     .ps-felt-fixed {
       position: fixed !important;
-      top: 0 !important;
+      top: var(--app-shell-top, 0px) !important;
       left: 0 !important;
       right: 0 !important;
       width: 100% !important;
-      height: var(--app-shell-h, 100lvh) !important;
-      min-height: var(--app-shell-h, 100lvh) !important;
+      height: var(--app-shell-h, 100dvh) !important;
+      max-height: var(--app-shell-h, 100dvh) !important;
+      min-height: 0 !important;
     }
     .ps-bottom-bar-shell {
       position: absolute !important;

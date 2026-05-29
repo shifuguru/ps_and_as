@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   Platform,
   ActivityIndicator,
 } from "react-native";
+import { useAppTheme } from "../context/ThemeContext";
 import { WEB_OVERLAY_ROOT_FIXED } from "../styles/webFullBleed";
 import { attemptAppRefresh } from "../utils/appRefresh";
 import { fetchReadmeMarkdown } from "../utils/readmeFallback";
@@ -19,8 +20,62 @@ type Props = {
 
 /** Native crash UI — shows the live GitHub README (raw markdown). Web redirects to readme-fallback.html. */
 export default function CrashLandingPage({ error, onRefresh }: Props) {
+  const { colors } = useAppTheme();
   const [markdown, setMarkdown] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        root: {
+          flex: 1,
+          ...(WEB_OVERLAY_ROOT_FIXED ?? null),
+          backgroundColor: colors.surface,
+        },
+        bar: {
+          paddingVertical: 12,
+          paddingHorizontal: 16,
+        },
+        refreshText: {
+          color: colors.gold,
+          fontSize: 16,
+          textDecorationLine: "underline",
+        },
+        scroll: {
+          flex: 1,
+        },
+        wrap: {
+          maxWidth: 820,
+          width: "100%",
+          alignSelf: "center",
+          paddingHorizontal: 16,
+          paddingTop: 8,
+          paddingBottom: 48,
+        },
+        loader: {
+          marginTop: 24,
+        },
+        readme: {
+          color: colors.textPrimary,
+          fontSize: 14,
+          lineHeight: 21,
+          fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+        },
+        errorText: {
+          color: colors.textSecondary,
+          fontSize: 16,
+          lineHeight: 24,
+        },
+        devError: {
+          marginTop: 20,
+          color: colors.textMuted,
+          fontSize: 11,
+          lineHeight: 16,
+          fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+        },
+      }),
+    [colors],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -44,15 +99,13 @@ export default function CrashLandingPage({ error, onRefresh }: Props) {
   return (
     <View style={styles.root} accessibilityViewIsModal>
       <View style={styles.bar}>
-        <TouchableOpacity
-          style={styles.refreshBtn}
+        <Pressable
           onPress={handleRefresh}
-          activeOpacity={0.88}
           accessibilityRole="button"
           accessibilityLabel="Refresh"
         >
           <Text style={styles.refreshText}>Refresh</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       <ScrollView
@@ -61,7 +114,7 @@ export default function CrashLandingPage({ error, onRefresh }: Props) {
         showsVerticalScrollIndicator
       >
         {!markdown && !loadError ? (
-          <ActivityIndicator color={GOLD} size="large" style={styles.loader} />
+          <ActivityIndicator color={colors.gold} size="large" style={styles.loader} />
         ) : null}
         {loadError ? (
           <Text style={styles.errorText}>
@@ -82,74 +135,3 @@ export default function CrashLandingPage({ error, onRefresh }: Props) {
     </View>
   );
 }
-
-const FELT_DEEP = "#0a3d26";
-const FELT = "#0f5132";
-const GOLD = "#d4af37";
-const MUTED = "rgba(245, 240, 230, 0.82)";
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    ...(WEB_OVERLAY_ROOT_FIXED ?? null),
-    backgroundColor: FELT,
-  },
-  bar: {
-    zIndex: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    backgroundColor: "rgba(0, 0, 0, 0.42)",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(212, 175, 55, 0.28)",
-  },
-  refreshBtn: {
-    borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.55)",
-    backgroundColor: "rgba(212, 175, 55, 0.14)",
-    paddingVertical: 10,
-    paddingHorizontal: 22,
-    borderRadius: 999,
-  },
-  refreshText: {
-    color: GOLD,
-    fontSize: 15,
-    fontWeight: "800",
-    letterSpacing: 0.3,
-  },
-  scroll: {
-    flex: 1,
-  },
-  wrap: {
-    maxWidth: 820,
-    width: "100%",
-    alignSelf: "center",
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 48,
-  },
-  loader: {
-    marginTop: 24,
-  },
-  readme: {
-    color: MUTED,
-    fontSize: 14,
-    lineHeight: 21,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-  errorText: {
-    color: MUTED,
-    fontSize: 16,
-    lineHeight: 24,
-    fontStyle: "italic",
-  },
-  devError: {
-    marginTop: 20,
-    color: "rgba(245, 240, 230, 0.5)",
-    fontSize: 11,
-    lineHeight: 16,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-});

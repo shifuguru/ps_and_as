@@ -28,28 +28,20 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import FeltBackground from "./src/components/FeltBackground";
 import FullscreenBlurScrim from "./src/components/FullscreenBlurScrim";
 import { DEFAULT_FELT_COLOR, getWallpaperTint } from "./src/services/wallpaper";
+import { openReadmeFallbackPage } from "./src/utils/readmeFallback";
 import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
 import { tryCollapseSafariChrome } from "./src/utils/safariChrome";
 import { useVisualViewportSize } from "./src/hooks/useVisualViewportSize";
-import { isMobileWeb, applyMobileWebShellHeight, installWebShellCss } from "./src/utils/webViewport";
+import { isMobileWeb, installWebShellCss } from "./src/utils/webViewport";
 import { useAppFonts } from "./src/hooks/useAppFonts";
 import { useBuildUpdateCheck } from "./src/hooks/useBuildUpdateCheck";
 import UpdateRequiredOverlay from "./src/components/UpdateRequiredOverlay";
 import AppErrorBoundary from "./src/components/AppErrorBoundary";
 import { StatusBar } from "expo-status-bar";
-import { useLayoutInsets } from "./src/hooks/useLayoutInsets";
-import {
-  IOS_BOTTOM_GAP_DEBUG,
-  IOS_GAP_DEBUG_COLORS,
-  debugBg,
-  logIosBottomGapMetrics,
-} from "./src/debug/iosBottomGapDebug";
 
 function AppContent() {
   const { colors, ui, blur, feltTint, setFeltTint, refreshFeltTint } = useAppTheme();
   const viewport = useVisualViewportSize();
-  const layoutInsets = useLayoutInsets();
-  const appRootProbeRef = useRef<{ width: number; height: number } | null>(null);
   // splashVisible: whether the splash overlay is still mounted
   // menuVisible: whether the main menu should be shown (after splash fully hidden)
   const [splashVisible, setSplashVisible] = useState(true);
@@ -262,6 +254,11 @@ function AppContent() {
       action: () => openUpdateLog(),
     },
     {
+      label: "README",
+      icon: "globe",
+      action: () => openReadmeFallbackPage(),
+    },
+    {
       label: "Settings",
       icon: "gear",
       action: () => openSettings(),
@@ -314,68 +311,6 @@ function AppContent() {
       doc.head.removeChild(style);
     };
   }, [feltTint]);
-
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const doc: any = (globalThis as { document?: any }).document;
-    const win = (globalThis as { window?: Parameters<typeof applyMobileWebShellHeight>[0] }).window;
-    if (!doc || !win || !isMobileWeb()) return;
-
-    applyMobileWebShellHeight(win);
-    const w = win as unknown as {
-      addEventListener: (type: string, fn: () => void) => void;
-      removeEventListener: (type: string, fn: () => void) => void;
-      visualViewport?: {
-        addEventListener: (type: string, fn: () => void) => void;
-        removeEventListener: (type: string, fn: () => void) => void;
-      } | null;
-    };
-    const onViewportChange = () => applyMobileWebShellHeight(win);
-    w.addEventListener("resize", onViewportChange);
-    w.visualViewport?.addEventListener("resize", onViewportChange);
-    w.visualViewport?.addEventListener("scroll", onViewportChange);
-    w.addEventListener("orientationchange", onViewportChange);
-    return () => {
-      w.removeEventListener("resize", onViewportChange);
-      w.visualViewport?.removeEventListener("resize", onViewportChange);
-      w.visualViewport?.removeEventListener("scroll", onViewportChange);
-      w.removeEventListener("orientationchange", onViewportChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!IOS_BOTTOM_GAP_DEBUG) return;
-    const win = (globalThis as {
-      window?: {
-        addEventListener: (type: string, fn: () => void) => void;
-        removeEventListener: (type: string, fn: () => void) => void;
-        visualViewport?: {
-          addEventListener: (type: string, fn: () => void) => void;
-          removeEventListener: (type: string, fn: () => void) => void;
-        } | null;
-      };
-    }).window;
-    if (!win) return;
-
-    const logViewport = () => {
-      logIosBottomGapMetrics(
-        appRootProbeRef.current
-          ? [{ label: "appRoot", ...appRootProbeRef.current }]
-          : [],
-        layoutInsets,
-      );
-    };
-
-    logViewport();
-    win.addEventListener("resize", logViewport);
-    win.visualViewport?.addEventListener("resize", logViewport);
-    win.visualViewport?.addEventListener("scroll", logViewport);
-    return () => {
-      win.removeEventListener("resize", logViewport);
-      win.visualViewport?.removeEventListener("resize", logViewport);
-      win.visualViewport?.removeEventListener("scroll", logViewport);
-    };
-  }, [layoutInsets]);
 
   useEffect(() => {
     (async () => {
@@ -599,7 +534,6 @@ function AppContent() {
     <View
       style={[
         { flex: 1 },
-        debugBg(IOS_GAP_DEBUG_COLORS.rootApp),
         Platform.OS === "web" &&
           (isMobileWeb()
             ? ({
@@ -607,8 +541,10 @@ function AppContent() {
                 top: 0,
                 left: 0,
                 right: 0,
-                bottom: 0,
                 width: "100%",
+                height: viewport.height,
+                maxHeight: viewport.height,
+                overflow: "hidden",
               } as object)
             : {
                 width: "100%",
@@ -617,15 +553,6 @@ function AppContent() {
                 maxHeight: viewport.height,
               }),
       ]}
-      onLayout={(event) => {
-        if (!IOS_BOTTOM_GAP_DEBUG) return;
-        const { width, height } = event.nativeEvent.layout;
-        appRootProbeRef.current = { width, height };
-        logIosBottomGapMetrics(
-          [{ label: "appRoot", width, height }],
-          layoutInsets,
-        );
-      }}
     >
         {/* Persistent felt wallpaper — one instance for the whole app */}
         <FeltBackground

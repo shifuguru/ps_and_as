@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   Animated,
   Easing,
@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAppTheme } from "../context/ThemeContext";
+import { hexToRgba } from "../utils/colorTheory";
 import { triggerHaptic } from "../utils/haptics";
 
 type Props = {
@@ -15,6 +17,32 @@ type Props = {
 };
 
 export default function TurnBellButton({ visible, onPress }: Props) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        bellWrap: {
+          width: 34,
+          height: 34,
+          borderRadius: 17,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: hexToRgba(colors.gold, colors.mode === "light" ? 0.12 : 0.18),
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: hexToRgba(colors.gold, colors.mode === "light" ? 0.28 : 0.38),
+        },
+        bellGlow: {
+          ...StyleSheet.absoluteFillObject,
+          borderRadius: 17,
+          backgroundColor: hexToRgba(colors.gold, 0.12),
+        },
+        bellIcon: {
+          fontSize: 17,
+          lineHeight: 20,
+        },
+      }),
+    [colors],
+  );
   const swing = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(1)).current;
 
@@ -102,25 +130,3 @@ export default function TurnBellButton({ visible, onPress }: Props) {
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  bellWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(212, 175, 55, 0.22)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(212, 175, 55, 0.65)",
-  },
-  bellGlow: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 17,
-    backgroundColor: "rgba(255, 214, 102, 0.18)",
-  },
-  bellIcon: {
-    fontSize: 17,
-    lineHeight: 20,
-  },
-});

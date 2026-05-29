@@ -31,23 +31,24 @@ function rewriteHtmlPaths(html) {
 
 function patchExpoReset(html) {
   const reset = `<style id="expo-reset">
-      /* Patched for iOS PWA — do not use height:100% (breaks viewport-fit=cover) */
+      /* Patched for iOS PWA — shell sizing owned by web-shell.css + JS (--app-shell-h) */
       html,
       body {
         margin: 0;
         padding: 0;
         width: 100%;
         overflow: hidden;
-        min-height: 100dvh;
-        min-height: -webkit-fill-available;
+        overscroll-behavior: none;
+        height: 100%;
       }
       #root {
         display: flex;
         flex-direction: column;
         flex: 1;
         width: 100%;
-        min-height: 100dvh;
-        min-height: -webkit-fill-available;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
       }
     </style>`;
   if (/id="expo-reset"/i.test(html)) {

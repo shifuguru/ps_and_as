@@ -10,8 +10,8 @@ import {
   WEB_FELT_LAYER_ID,
 } from "../utils/webViewport";
 
-/** Set true while diagnosing iOS PWA bottom gap — remove when done. */
-export const IOS_BOTTOM_GAP_DEBUG = Platform.OS === "web" && isMobileWeb();
+/** Set true while diagnosing iOS PWA bottom gap. */
+export const IOS_BOTTOM_GAP_DEBUG = false;
 
 export const IOS_GAP_DEBUG_COLORS = {
   rootApp: "rgba(0, 0, 255, 0.45)", // blue — App.tsx root View

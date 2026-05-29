@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   StyleSheet,
   StyleProp,
   Platform,
-  LayoutChangeEvent,
 } from "react-native";
 import { createPortal } from "react-dom";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
@@ -21,12 +20,6 @@ import {
   WEB_BOTTOM_BAR_SHELL_CLASS,
 } from "../utils/webViewport";
 import { useAppTheme } from "../context/ThemeContext";
-import {
-  IOS_BOTTOM_GAP_DEBUG,
-  IOS_GAP_DEBUG_COLORS,
-  debugBg,
-  logIosBottomGapMetrics,
-} from "../debug/iosBottomGapDebug";
 
 /** Height of controls below the hand (ActionBar + padding). Keep in sync with ActionBar. */
 export const BOTTOM_CONTROLS_HEIGHT = ACTION_BAR_HEIGHT + 16;
@@ -116,62 +109,30 @@ export default function BottomBar({
   const safeAreaBand = resolveWebBottomInset(insets.bottom);
   const webShell = useWebBottomBarShell();
   const portalHost = webShell ? getWebBodyPortalHost() : null;
-  const rootProbeRef = useRef<{ width: number; height: number } | null>(null);
-
-  const reportGapMetrics = useCallback(
-    (actionBarHeight: number) => {
-      if (!IOS_BOTTOM_GAP_DEBUG) return;
-      logIosBottomGapMetrics(
-        rootProbeRef.current
-          ? [{ label: "actionBarShell", ...rootProbeRef.current }]
-          : [],
-        insets,
-        actionBarHeight,
-      );
-    },
-    [insets],
-  );
-
-  const handleBarLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      if (!IOS_BOTTOM_GAP_DEBUG) return;
-      const { width, height } = event.nativeEvent.layout;
-      rootProbeRef.current = { width, height };
-      reportGapMetrics(height);
-    },
-    [reportGapMetrics],
-  );
+  const scrimRgb = colors.mode === "light" ? "255, 255, 255" : "8, 28, 18";
+  const safeAreaFill = `rgba(${scrimRgb}, ${blur.chrome.webOpacity})`;
 
   const bar = (
     <BlurPanel
       className={webShell ? WEB_BOTTOM_BAR_SHELL_CLASS : undefined}
-      onLayout={handleBarLayout}
       style={[
         styles.bar,
         { borderTopColor: colors.panelBorder },
-        debugBg(IOS_GAP_DEBUG_COLORS.actionBarShell),
         style,
         minHeight ? { minHeight } : undefined,
         webShell ? (styles.webShell as object) : null,
       ]}
       preset={blur.chrome}
     >
-      <View
-        style={[
-          styles.inner,
-          debugBg(IOS_GAP_DEBUG_COLORS.actionBarContent),
-          { paddingBottom: contentInset },
-        ]}
-      >
+      <View style={[styles.inner, { paddingBottom: contentInset }]}>
         {children}
       </View>
-      {IOS_BOTTOM_GAP_DEBUG && safeAreaBand > 0 ? (
+      {webShell && safeAreaBand > 0 ? (
         <View
           pointerEvents="none"
           style={[
-            styles.safeAreaDebugBand,
-            { height: safeAreaBand },
-            debugBg(IOS_GAP_DEBUG_COLORS.safeAreaWrapper),
+            styles.safeAreaCap,
+            { height: safeAreaBand, backgroundColor: safeAreaFill },
           ]}
         />
       ) : null}
@@ -281,7 +242,7 @@ const styles = StyleSheet.create({
   inner: {
     width: "100%",
   },
-  safeAreaDebugBand: {
+  safeAreaCap: {
     position: "absolute",
     left: 0,
     right: 0,

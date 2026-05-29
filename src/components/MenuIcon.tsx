@@ -1,6 +1,7 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
 import Svg, { Path, Circle, Rect, Line } from "react-native-svg";
+import { GOLD } from "../styles/themeColors";
 
 type IconName =
   | "plus"
@@ -20,7 +21,7 @@ type Props = {
   color?: string;
 };
 
-export default function MenuIcon({ name, size = 20, color = "#d4af37" }: Props) {
+export default function MenuIcon({ name, size = 20, color = GOLD }: Props) {
   const s = size;
   const c = color;
   const sw = 1.8;

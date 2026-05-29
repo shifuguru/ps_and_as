@@ -292,7 +292,14 @@ export default function ActionBar({
             {playLabel}
           </Text>
           {isPlayerTurn && !playDisabled && !hasSelection && (
-            <Text style={styles.playSubtext}>Select Cards First</Text>
+            <Text
+              style={[
+                styles.playSubtext,
+                { color: hexToRgba(gold, isLight ? 0.52 : 0.58) },
+              ]}
+            >
+              Select Cards First
+            </Text>
           )}
         </AnimatedTouchable>
       </View>
@@ -389,7 +396,6 @@ const styles = StyleSheet.create({
     color: "#111",
   },
   playSubtext: buttonLabel(10, {
-    color: "rgba(212,175,55,0.65)",
     fontWeight: "600",
     marginTop: 3,
     letterSpacing: 0.2,

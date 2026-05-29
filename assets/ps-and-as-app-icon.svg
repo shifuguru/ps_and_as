@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Ps and As app icon">
+  <defs>
+    <!-- ── Proportions (1024 canvas, measured from reference) ──
+         Outer squircle: full bleed, rx 228 (~22.3%)
+         Frame ring thickness: 74px (~7.2%) each side
+         Inner panel: 876×876 inset 74, rx 198
+         Card: 428×614 (60% height), centered, rx 30
+    -->
+
+    <!-- Gold frame metallics -->
+    <linearGradient id="goldRingVertical" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff6dc"/>
+      <stop offset="8%" stop-color="#f2d082"/>
+      <stop offset="28%" stop-color="#c89442"/>
+      <stop offset="52%" stop-color="#9a6c28"/>
+      <stop offset="78%" stop-color="#c4923e"/>
+      <stop offset="100%" stop-color="#edd08a"/>
+    </linearGradient>
+
+    <linearGradient id="goldRingHorizontal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#704e18" stop-opacity="0.7"/>
+      <stop offset="12%" stop-color="#ffebb8" stop-opacity="0.95"/>
+      <stop offset="50%" stop-color="#fff9ea"/>
+      <stop offset="88%" stop-color="#ffebb8" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#704e18" stop-opacity="0.7"/>
+    </linearGradient>
+
+    <radialGradient id="goldRingBottomGlow" cx="50%" cy="100%" r="58%" fx="50%" fy="98%">
+      <stop offset="0%" stop-color="#fff0b8" stop-opacity="0.98"/>
+      <stop offset="28%" stop-color="#e8b858" stop-opacity="0.72"/>
+      <stop offset="100%" stop-color="#c89442" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="goldRingTopSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="18%" stop-color="#fff8e8" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Inner navy panel -->
+    <radialGradient id="navyPanel" cx="50%" cy="40%" r="68%" fx="50%" fy="38%">
+      <stop offset="0%" stop-color="#3f4658"/>
+      <stop offset="42%" stop-color="#2a3040"/>
+      <stop offset="78%" stop-color="#161a24"/>
+      <stop offset="100%" stop-color="#0a0c10"/>
+    </radialGradient>
+
+    <!-- Card face + bevel -->
+    <linearGradient id="cardFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F5F4F2"/>
+      <stop offset="78%" stop-color="#F0EFED"/>
+      <stop offset="100%" stop-color="#E4E3E1"/>
+    </linearGradient>
+
+    <linearGradient id="cardTopBevel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.72"/>
+      <stop offset="12%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="cardBottomBevel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="88%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.14"/>
+    </linearGradient>
+
+    <!-- Crown recess gold -->
+    <linearGradient id="crownGold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d4ae6a"/>
+      <stop offset="38%" stop-color="#b08848"/>
+      <stop offset="100%" stop-color="#8a6834"/>
+    </linearGradient>
+
+    <linearGradient id="crownGoldSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Filters -->
+    <filter id="cardDropShadow" x="-28%" y="-18%" width="156%" height="148%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000000" flood-opacity="0.42"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.22"/>
+    </filter>
+
+    <filter id="ringGlowBlur" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+
+    <filter id="crownEngrave" x="-14%" y="-14%" width="128%" height="128%" color-interpolation-filters="sRGB">
+      <feComponentTransfer in="SourceAlpha" result="invA">
+        <feFuncA type="table" tableValues="1 0"/>
+      </feComponentTransfer>
+      <feGaussianBlur in="invA" stdDeviation="2.2" result="blurTop"/>
+      <feOffset in="blurTop" dx="0" dy="-2.8" result="offTop"/>
+      <feFlood flood-color="#ffffff" flood-opacity="0.26" result="hiCol"/>
+      <feComposite in="hiCol" in2="offTop" operator="in" result="innerHi"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3.4" result="blurBot"/>
+      <feOffset in="blurBot" dx="0" dy="4.2" result="offBot"/>
+      <feFlood flood-color="#000000" flood-opacity="0.52" result="loCol"/>
+      <feComposite in="loCol" in2="offBot" operator="in" result="innerLo"/>
+      <feMerge>
+        <feMergeNode in="SourceGraphic"/>
+        <feMergeNode in="innerLo"/>
+        <feMergeNode in="innerHi"/>
+      </feMerge>
+    </filter>
+
+    <filter id="softBlur" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="1.6"/>
+    </filter>
+
+    <!-- Shapes -->
+    <rect id="outerSquircle" x="0" y="0" width="1024" height="1024" rx="228" ry="228"/>
+    <rect id="innerSquircle" x="74" y="74" width="876" height="876" rx="198" ry="198"/>
+    <rect id="cardRect" x="298" y="205" width="428" height="614" rx="30" ry="30"/>
+
+    <!-- Crown body -->
+    <path id="crownBody" d="
+      M 388 586
+      C 404 578 418 576 430 580
+      C 438 564 442 548 448 538
+      C 442 520 442 502 448 488
+      C 454 474 462 468 470 474
+      C 466 456 468 438 474 422
+      C 480 408 488 402 496 408
+      L 504 380
+      L 512 322
+      L 520 380
+      L 528 408
+      C 536 402 544 408 550 422
+      C 556 438 558 456 554 474
+      C 562 468 570 474 576 488
+      C 582 502 582 520 576 538
+      C 582 548 586 564 594 580
+      C 606 576 618 578 636 586
+      C 642 590 644 596 640 600
+      L 632 604
+      C 616 610 408 610 392 604
+      L 384 600
+      C 380 596 382 590 388 586
+      Z"/>
+
+    <!-- Double base bands -->
+    <path id="crownBandUpper" d="
+      M 382 588
+      C 400 580 624 580 642 588
+      C 634 594 390 594 382 588
+      Z"/>
+    <path id="crownBandLower" d="
+      M 386 596
+      C 402 590 622 590 638 596
+      C 630 602 394 602 386 596
+      Z"/>
+
+    <mask id="goldRingMask">
+      <rect width="1024" height="1024" fill="black"/>
+      <use href="#outerSquircle" fill="white"/>
+      <use href="#innerSquircle" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- Gold frame ring (~90% inner opening, full-bleed outer) -->
+  <g mask="url(#goldRingMask)">
+    <rect width="1024" height="1024" fill="url(#goldRingVertical)"/>
+    <rect width="1024" height="1024" fill="url(#goldRingHorizontal)" opacity="0.76"/>
+    <rect width="1024" height="1024" fill="url(#goldRingBottomGlow)" opacity="0.88"/>
+    <rect x="0" y="0" width="1024" height="120" fill="url(#goldRingTopSheen)"/>
+    <ellipse cx="512" cy="988" rx="360" ry="52" fill="#fff0c0" opacity="0.42" filter="url(#ringGlowBlur)"/>
+  </g>
+
+  <!-- Outer rim accents -->
+  <use href="#outerSquircle" fill="none" stroke="#fff8e8" stroke-width="2.5" opacity="0.58"/>
+  <use href="#outerSquircle" fill="none" stroke="#5a4018" stroke-width="6" opacity="0.18"/>
+
+  <!-- Navy inner panel -->
+  <use href="#innerSquircle" fill="url(#navyPanel)"/>
+  <use href="#innerSquircle" fill="none" stroke="#000000" stroke-width="3" opacity="0.35"/>
+  <use href="#innerSquircle" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.08"/>
+
+  <!-- Playing card -->
+  <g filter="url(#cardDropShadow)">
+    <use href="#cardRect" fill="url(#cardFace)"/>
+    <use href="#cardRect" fill="url(#cardTopBevel)"/>
+    <use href="#cardRect" fill="url(#cardBottomBevel)"/>
+    <use href="#cardRect" fill="none" stroke="#d8d7d4" stroke-width="1.5"/>
+    <!-- Top-edge bevel highlight -->
+    <rect x="306" y="213" width="412" height="14" rx="7" fill="#ffffff" opacity="0.38" filter="url(#softBlur)"/>
+  </g>
+
+  <!-- Engraved crown -->
+  <g filter="url(#crownEngrave)">
+    <use href="#crownBody" fill="url(#crownGold)"/>
+    <use href="#crownBandUpper" fill="url(#crownGold)"/>
+    <use href="#crownBandLower" fill="url(#crownGold)"/>
+    <use href="#crownBody" fill="url(#crownGoldSheen)" opacity="0.55"/>
+  </g>
+</svg>

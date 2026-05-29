@@ -196,20 +196,24 @@ function computeCarouselSlots(
       ? Math.max(0, Math.min(focusOverride, count - 1))
       : focusedCardIndex(count, containerWidth, scrollOffset, step);
   const gutter = gutterForScroll(count, containerWidth, scrollOffset, step);
-  const rotationRadius = containerWidth * 0.55;
+  // Arch peaks at the hand's horizontal midpoint — not the viewport or focused card.
+  const handMidX = ((count - 1) / 2) * step + CARD_WIDTH / 2;
+  const handHalfSpan = Math.max(handMidX - CARD_WIDTH / 2, step * 0.5);
 
   return Array.from({ length: count }, (_, i) => {
     const left = cardLeft(i, focused, gutter, step);
     const cardCenterX = left + CARD_WIDTH / 2 - scrollOffset;
-    const dist = cardCenterX - viewportCenter;
-    const norm = Math.max(-1, Math.min(1, dist / rotationRadius));
 
-    const angle = norm * MAX_ANGLE;
-    const absNorm = Math.min(1, Math.abs(norm));
-    const bottom = MAX_CENTER_LIFT * (1 - absNorm * absNorm);
+    const archCenterX = i * step + CARD_WIDTH / 2;
+    const archDist = archCenterX - handMidX;
+    const archNorm = Math.max(-1, Math.min(1, archDist / handHalfSpan));
+
+    const angle = archNorm * MAX_ANGLE;
+    const absArchNorm = Math.min(1, Math.abs(archNorm));
+    const bottom = MAX_CENTER_LIFT * (1 - absArchNorm * absArchNorm);
 
     const zIndex = 1000 - Math.abs(i - focused) * 10 + i;
-    const viewportDist = Math.abs(dist);
+    const viewportDist = Math.abs(cardCenterX - viewportCenter);
     const opacity = Math.max(
       0.94,
       1 - viewportDist / (containerWidth * 1.1),

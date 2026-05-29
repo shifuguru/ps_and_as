@@ -24,6 +24,17 @@ import BlurPanel from "../components/BlurPanel";
 import MenuIcon from "../components/MenuIcon";
 import ShimmerText from "../components/ShimmerText";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
+
+const KeyboardShell =
+  Platform.OS === "web" ? View : KeyboardAvoidingView;
+const keyboardShellProps =
+  Platform.OS === "web"
+    ? ({ style: { flex: 1 } } as const)
+    : ({
+        style: { flex: 1 },
+        behavior: Platform.OS === "ios" ? ("padding" as const) : undefined,
+      } as const);
+
 import { NetworkAdapter } from "../game/network";
 import { SocketAdapter } from "../game/socketAdapter";
 import { getOrCreatePlayerId } from "../services/gameCenter";
@@ -258,10 +269,7 @@ export default function FindGame({
         topInset={insets.top}
       />
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <KeyboardShell {...keyboardShellProps}>
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{
@@ -536,7 +544,7 @@ export default function FindGame({
             )}
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardShell>
 
       <BottomBar>
         <BottomBarControls style={styles.bottomControls}>
