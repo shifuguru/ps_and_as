@@ -1,20 +1,26 @@
 ---
-description: Bump app version before pushing to GitHub
+description: Bump version and update What's New before pushing to GitHub
 alwaysApply: true
 ---
 
-# GitHub push — version bump
+# GitHub push — version bump & What's New
 
 When the user asks to **push to GitHub** (or deploy / publish to the live site via git push):
 
-1. **Before** staging, committing, or pushing, run:
+1. **Review** staged/unstaged changes since the last push and draft a What's New entry for anything user-facing.
+2. **Update** `src/screens/updateLogContent.ts`:
+   - Add a new entry at the **top** of `UPDATE_ENTRIES` with a short title and bullet items (plain language, no jargon).
+   - Set `publishedAt` in **NZST** using `nzst('YYYY-MM-DDTHH:mm')` or `+12:00` offset (e.g. `2026-05-31T18:00:00+12:00`).
+   - Update `KNOWN_ISSUES` if a shipped fix matches an open issue (status, `updatedAt`, note).
+3. **Bump version** before committing:
    ```bash
    npm run bump-version
    ```
-2. Include the updated `package.json`, `app.json`, and `package-lock.json` in the commit.
-3. Mention the new version in the commit message (e.g. `v1.0.1 — …`).
-4. Then push as requested.
+4. **Commit** with the version bump, What's New, and all push-related changes together.
+   - Include `package.json`, `app.json`, `package-lock.json`, and `src/screens/updateLogContent.ts`.
+   - Mention the new version in the commit message (e.g. `v1.0.2 — …`).
+5. **Push** as requested.
 
-Do **not** bump the version for commits or PRs unless the user explicitly asked to push to GitHub.
+Do **not** bump the version or edit What's New for commits or PRs unless the user explicitly asked to push to GitHub.
 
 The bump adds **0.0.1** to the patch segment (semver patch): `1.0.0` → `1.0.1`.

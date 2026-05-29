@@ -120,7 +120,21 @@ function normalizeStats(raw: Partial<PlayerStats> | null): PlayerStats {
   };
 }
 
-export async function getPlayerStats(): Promise<PlayerStats> {
+function statsEqual(a: PlayerStats, b: PlayerStats): boolean {
+  return (
+    a.roundsPlayed === b.roundsPlayed &&
+    a.timesPresident === b.timesPresident &&
+    a.timesVicePresident === b.timesVicePresident &&
+    a.timesViceAsshole === b.timesViceAsshole &&
+    a.timesAsshole === b.timesAsshole &&
+    a.presidentStreak === b.presidentStreak &&
+    a.bestPresidentStreak === b.bestPresidentStreak &&
+    a.xp === b.xp &&
+    a.tricksWon === b.tricksWon
+  );
+}
+
+async function readLocalPlayerStats(): Promise<PlayerStats> {
   const AsyncStorage = getAsyncStorage();
   if (!AsyncStorage) return { ...DEFAULT_PLAYER_STATS };
 
@@ -133,10 +147,73 @@ export async function getPlayerStats(): Promise<PlayerStats> {
   }
 }
 
-async function savePlayerStats(stats: PlayerStats): Promise<void> {
+async function resolveStatsPlayerId(): Promise<string | null> {
+  try {
+    const { getOrCreatePlayerId } = await import("./gameCenter");
+    const info = await getOrCreatePlayerId();
+    return info.linkedAccountId || info.id || info.installId || null;
+  } catch {
+    return null;
+  }
+}
+
+let restorePromise: Promise<PlayerStats> | null = null;
+
+/** Pull cloud backup (keyed by Game Center / player id) and merge into local storage. */
+export async function restorePlayerStatsFromCloud(): Promise<PlayerStats> {
+  const local = await readLocalPlayerStats();
+  const playerId = await resolveStatsPlayerId();
+  if (!playerId) return local;
+
+  const { fetchCloudPlayerStats, mergePlayerStats, pushCloudPlayerStats } =
+    await import("./playerStatsCloud");
+  const remote = await fetchCloudPlayerStats(playerId);
+  const merged = mergePlayerStats(local, remote);
+
+  if (!statsEqual(local, merged)) {
+    await writeLocalPlayerStats(merged);
+  } else if (local.roundsPlayed > 0) {
+    void pushCloudPlayerStats(playerId, local);
+  }
+
+  if (merged.roundsPlayed > 0 && Platform.OS === "ios") {
+    const { syncStatsToGameCenter } = await import("./gameCenterSync");
+    void syncStatsToGameCenter(merged);
+  }
+
+  return merged;
+}
+
+export function ensurePlayerStatsRestored(): Promise<PlayerStats> {
+  if (!restorePromise) {
+    restorePromise = restorePlayerStatsFromCloud();
+  }
+  return restorePromise;
+}
+
+/** Call after Game Center sign-in so cloud restore uses the linked account id. */
+export function resetPlayerStatsRestore(): void {
+  restorePromise = null;
+}
+
+export async function getPlayerStats(): Promise<PlayerStats> {
+  await ensurePlayerStatsRestored();
+  return readLocalPlayerStats();
+}
+
+async function writeLocalPlayerStats(stats: PlayerStats): Promise<void> {
   const AsyncStorage = getAsyncStorage();
   if (!AsyncStorage) return;
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+}
+
+async function savePlayerStats(stats: PlayerStats): Promise<void> {
+  await writeLocalPlayerStats(stats);
+  const playerId = await resolveStatsPlayerId();
+  if (playerId) {
+    const { pushCloudPlayerStats } = await import("./playerStatsCloud");
+    void pushCloudPlayerStats(playerId, stats);
+  }
 }
 
 /** Record the local human's placement after a round (0 = first out / President). */

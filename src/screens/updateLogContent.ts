@@ -1,5 +1,5 @@
 export type UpdateEntry = {
-  /** UTC ISO 8601 instant (…Z) — shown in the user's local date & time. NZST is UTC+12 (e.g. 2pm NZST → 02:00Z). */
+  /** NZST/NZDT ISO instant (+12:00 or +13:00) — displayed in Pacific/Auckland. */
   publishedAt: string;
   title: string;
   items: string[];
@@ -9,7 +9,7 @@ export type KnownIssue = {
   title: string;
   status: "Looking into it" | "Fix shipped" | "Monitoring";
   note: string;
-  /** When this issue note was last updated (UTC ISO 8601). */
+  /** When this issue note was last updated (NZST/NZDT ISO). */
   updatedAt?: string;
 };
 
@@ -18,21 +18,42 @@ export const UPDATE_LOG_TAGLINE =
 
 export { formatUpdateTimestamp } from "../utils/formatLocalDateTime";
 
+/** Author changelog times in NZST wall clock (UTC+12). Use nzdt() during daylight saving. */
+export function nzst(local: string): string {
+  const base = local.length === 16 ? `${local}:00` : local;
+  return `${base}+12:00`;
+}
+
+export function nzdt(local: string): string {
+  const base = local.length === 16 ? `${local}:00` : local;
+  return `${base}+13:00`;
+}
+
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: "2026-05-31T06:00:00.000Z",
+    publishedAt: "2026-06-01T18:00:00+12:00",
+    title: "Stats backup & What's New polish",
+    items: [
+      "Stats — XP, rounds, and role counts sync to the game server while you play online (full restore after reinstall comes with the native iOS app and Game Center)",
+      "Achievements — clearer profile notes on web vs Game Center; sign-in and Apple sync when the iOS app ships",
+      "What's New — release timestamps shown in NZ time (NZST/NZDT)",
+      "Dead hand — What's New text corrected: reshuffle when the dead hand gets all four 3s, not one three per player",
+    ],
+  },
+  {
+    publishedAt: "2026-05-31T18:00:00+12:00",
     title: "Runs, appearance & deal polish",
     items: [
       "Runs — J-Q-J then King no longer drops back to normal play; skip-over step-backs extend from the rank before the step-back",
       "Run XP — +15 XP for each active player when a run reaches 3+ cards and grows each step (players already out are skipped)",
       "Settings — Dark mode cards under Appearance with a live preview; felt tint moved into the same section",
       "Quick Game — Skip deal animations now works offline once preferences load (no more ceremony when you've turned it off)",
-      "Dead hand — if everyone is dealt a three, the dealer can reshuffle and redeal",
+      "Dead hand — when the dead hand is dealt all four 3s and no living player can open, the dealer can reshuffle and redeal",
       "Deal ceremony — shuffling/dealing status aligns with the header gear and trophy row",
     ],
   },
   {
-    publishedAt: "2026-05-30T06:00:00.000Z",
+    publishedAt: "2026-05-30T18:00:00+12:00",
     title: "Runs, turn flow & build label",
     items: [
       "Runs — extensions must follow the same direction (ascending or descending); \"Runs!\" no longer drops mid-trick when someone plays the wrong adjacent rank",
@@ -44,7 +65,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-29T22:00:00.000Z",
+    publishedAt: "2026-05-30T10:00:00+12:00",
     title: "On top! & quad fixes",
     items: [
       "On top! — runs require the next consecutive rank; 10-rule piles require higher or lower (only when the 10 rule is active)",
@@ -52,7 +73,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-29T12:00:00.000Z",
+    publishedAt: "2026-05-30T00:00:00+12:00",
     title: "On top!, fresh rounds & fixes",
     items: [
       "On top! — when a run ends and everyone else passes, the last player on the run gets one extra turn to play the next consecutive rank",
@@ -64,7 +85,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-29T08:00:00.000Z",
+    publishedAt: "2026-05-29T20:00:00+12:00",
     title: "Read Me & UI glass",
     items: [
       "Read Me — opens in-app like Settings (no full-page refresh); README links styled as gold theme pills",
@@ -74,7 +95,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-29T02:00:00.000Z",
+    publishedAt: "2026-05-29T14:00:00+12:00",
     title: "Hand fan, deal flow & table polish",
     items: [
       "Opening player — turn ring and “who leads” hints stay hidden until dealing and President/Asshole trades finish",
@@ -85,7 +106,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-28T22:38:00.000Z",
+    publishedAt: "2026-05-29T10:38:00+12:00",
     title: "Round opener & web polish",
     items: [
       "After President/Asshole trades — play starts with whoever holds the 3 of clubs (online and offline)",
@@ -96,7 +117,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-28T20:11:00.000Z",
+    publishedAt: "2026-05-29T08:11:00+12:00",
     title: "Deal ceremony & table polish",
     items: [
       "Shuffle animation — riffle shuffle now plays on Expo Go and iOS (not just desktop web)",
@@ -110,7 +131,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-28T10:16:00.000Z",
+    publishedAt: "2026-05-28T22:16:00+12:00",
     title: "Rules & table nudge",
     items: [
       "Turn bell — after ~12 seconds on someone's turn, a 🔔 appears on their seat; tap to nudge them (works in multiplayer too)",
@@ -122,7 +143,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-28T10:28:00.000Z",
+    publishedAt: "2026-05-28T22:28:00+12:00",
     title: "Stability & Quick Game",
     items: [
       "Quick Game — fixed deal ceremony getting stuck on “Setting up table…”; opening player is resolved from the dealt hands before cards are hidden for the animation",
@@ -132,7 +153,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-27T06:00:00.000Z",
+    publishedAt: "2026-05-27T18:00:00+12:00",
     title: "Multiplayer & dead hand",
     items: [
       "Dead hand opening — when the dead hand holds 3♣, the next living player with 3♠ leads; otherwise any 3; if no living player has a 3, the deal reshuffles",
@@ -144,7 +165,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-27T02:00:00.000Z",
+    publishedAt: "2026-05-27T14:00:00+12:00",
     title: "Recent fixes",
     items: [
       "Round flow — the Asshole from the previous round deals; first recipient in deal order opens when 3♣ rules don't apply",
@@ -160,7 +181,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-26T04:00:00.000Z",
+    publishedAt: "2026-05-26T16:00:00+12:00",
     title: "Lobby & table",
     items: [
       "Ready button when the lobby is full — tap Ready and show a checkmark on your avatar",
@@ -171,7 +192,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-25T00:00:00.000Z",
+    publishedAt: "2026-05-25T12:00:00+12:00",
     title: "Look & feel",
     items: [
       "Custom felt tint with a color graph picker beside the hex field",
@@ -181,7 +202,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-23T22:00:00.000Z",
+    publishedAt: "2026-05-24T10:00:00+12:00",
     title: "Online multiplayer",
     items: [
       "Browse open public lobbies or join friends with a room code",
@@ -192,7 +213,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-22T21:00:00.000Z",
+    publishedAt: "2026-05-23T09:00:00+12:00",
     title: "Polish & fixes",
     items: [
       "Old host lobbies clean up when you start a new room",
@@ -207,61 +228,61 @@ export const KNOWN_ISSUES: KnownIssue[] = [
   {
     title: "Game stuck after a trick win",
     status: "Fix shipped",
-    updatedAt: "2026-05-30T06:00:00.000Z",
+    updatedAt: "2026-05-30T18:00:00+12:00",
     note: "Turns should advance correctly after someone wins a trick or passes on an on-top! beat. Hard-refresh the web app if you still see a frozen table.",
   },
   {
     title: "Runs resetting mid-trick",
     status: "Fix shipped",
-    updatedAt: "2026-05-31T06:00:00.000Z",
+    updatedAt: "2026-05-31T18:00:00+12:00",
     note: "Run context should stay active through step-backs and skip-over plays (e.g. J-Q-J-K). Hard-refresh if \"Runs!\" still flickers off mid-trick.",
   },
   {
     title: "Shuffle animation on mobile",
     status: "Fix shipped",
-    updatedAt: "2026-05-28T20:11:00.000Z",
+    updatedAt: "2026-05-29T08:11:00+12:00",
     note: "The deal riffle shuffle should now animate on Expo Go and iOS. Restart the app with a cleared cache if you still see a static deck.",
   },
   {
     title: "Quick Game blank screen",
     status: "Fix shipped",
-    updatedAt: "2026-05-28T10:28:00.000Z",
+    updatedAt: "2026-05-28T22:28:00+12:00",
     note: "Quick Game should show the deal animation, then play. If you still see a blank table, use Attempt refresh or hard-refresh the browser (Ctrl+Shift+R).",
   },
   {
     title: "iOS PWA bottom offset",
     status: "Fix shipped",
-    updatedAt: "2026-05-28T22:38:00.000Z",
+    updatedAt: "2026-05-29T10:38:00+12:00",
     note: "Home-screen bookmark apps should no longer show extra space below the bottom bar. Remove and re-add the shortcut if Safari cached an old build.",
   },
   {
     title: "Achievement stats in lobbies",
     status: "Monitoring",
-    updatedAt: "2026-05-26T04:00:00.000Z",
+    updatedAt: "2026-05-26T16:00:00+12:00",
     note: "You can view your own achievements from a player profile. Other players' progress isn't shared yet — we're keeping it local for now.",
   },
   {
     title: "Stale rooms in Open Games",
     status: "Fix shipped",
-    updatedAt: "2026-05-22T21:00:00.000Z",
+    updatedAt: "2026-05-23T09:00:00+12:00",
     note: "Starting a new lobby should remove your old one. Tap Refresh if one lingers.",
   },
   {
     title: "Room name editing on mobile web",
     status: "Monitoring",
-    updatedAt: "2026-05-22T21:00:00.000Z",
+    updatedAt: "2026-05-23T09:00:00+12:00",
     note: "Tap the field, edit, then tap away or press Enter to save. Tell us if it still misbehaves.",
   },
   {
     title: "Round 2 trades online",
     status: "Fix shipped",
-    updatedAt: "2026-05-27T06:00:00.000Z",
+    updatedAt: "2026-05-27T18:00:00+12:00",
     note: "President and Vice President card trades should appear after every round, not only the first. Tell us if trades fail to show after round 2.",
   },
   {
     title: "Mid-game disconnects",
     status: "Fix shipped",
-    updatedAt: "2026-05-27T06:00:00.000Z",
+    updatedAt: "2026-05-27T18:00:00+12:00",
     note: "If someone disconnects or leaves mid-game, others see a countdown while their seat is held. Rejoin in time to keep playing; otherwise the game ends for everyone.",
   },
 ];

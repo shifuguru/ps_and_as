@@ -14,6 +14,7 @@ import BlurPanel from "./src/components/BlurPanel";
 import { ThemeProvider, useAppTheme } from "./src/context/ThemeContext";
 import { CardAppearanceProvider } from "./src/context/CardAppearanceContext";
 import { preloadGamePreferences } from "./src/services/gamePreferences";
+import { ensurePlayerStatsRestored } from "./src/services/playerStats";
 import { useMenuAudio } from "./src/hooks/useMenuAudio";
 import AnimatedBackground from "./src/components/AnimatedBackground";
 import { SocketAdapter } from "./src/game/socketAdapter";
@@ -86,6 +87,7 @@ function AppContent() {
 
   useEffect(() => {
     void preloadGamePreferences();
+    void ensurePlayerStatsRestored();
   }, []);
 
   const { updateAvailable, latestBuild } = useBuildUpdateCheck(

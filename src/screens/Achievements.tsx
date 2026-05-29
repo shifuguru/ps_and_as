@@ -36,6 +36,7 @@ import {
   ACHIEVEMENTS,
   DEFAULT_PLAYER_STATS,
   getPlayerStats,
+  resetPlayerStatsRestore,
   unlockedAchievements,
   winRate,
   type PlayerStats,
@@ -96,9 +97,12 @@ export default function Achievements({
           await cachePlayerName(info.displayName);
           setSavedName(info.displayName);
         }
+        resetPlayerStatsRestore();
+        const restoredStats = await getPlayerStats();
+        setStats(restoredStats);
         Alert.alert("Connected", `Signed in as ${info.displayName}`);
-        if (stats) {
-          void syncStatsToGameCenter(stats);
+        if (restoredStats.roundsPlayed > 0) {
+          void syncStatsToGameCenter(restoredStats);
         }
       } else {
         Alert.alert(
@@ -177,8 +181,8 @@ export default function Achievements({
             {!gameCenterAvailable ? (
               <>
                 <Text style={styles.accountText}>
-                  Stats and achievements are saved on this device. Set your
-                  display name in Settings so friends recognize you online.
+                  Stats sync to the game server while you play online. Sign in
+                  with Game Center on iOS to restore them after reinstalling.
                 </Text>
                 {onNavigateToSettings ? (
                   <TouchableOpacity
@@ -190,7 +194,18 @@ export default function Achievements({
                   </TouchableOpacity>
                 ) : null}
               </>
-            ) : null}
+            ) : playerInfo?.isAuthenticated ? (
+              <Text style={styles.accountText}>
+                Stats are backed up to the game server and linked to your Game
+                Center account — they restore after reinstall when you sign in
+                again.
+              </Text>
+            ) : (
+              <Text style={styles.accountText}>
+                Sign in with Game Center below to back up stats and restore them
+                if you delete and reinstall the app.
+              </Text>
+            )}
           </BlurPanel>
 
           {/* Statistics */}

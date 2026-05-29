@@ -52,5 +52,25 @@ export function formatLocalDateTime(iso: string): string {
   return formatLocalManual(d);
 }
 
-/** @deprecated Use formatLocalDateTime — kept for changelog imports. */
-export const formatUpdateTimestamp = formatLocalDateTime;
+const CHANGELOG_TIMEZONE = "Pacific/Auckland";
+
+/** What's New / known-issues timestamps — always shown in NZ time (NZST/NZDT). */
+export function formatUpdateTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: CHANGELOG_TIMEZONE,
+      timeZoneName: "short",
+    }).format(d);
+  } catch {
+    return formatLocalManual(d);
+  }
+}

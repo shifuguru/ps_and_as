@@ -184,6 +184,7 @@ function startNextRound(roomId) {
 
 const app = express();
 app.use(cors({ origin: true, credentials: false }));
+app.use(express.json({ limit: "16kb" }));
 
 // Simple health endpoint
 app.get('/', (req, res) => res.send('Server is running...\n'));
@@ -206,6 +207,39 @@ app.get('/version', (_req, res) => {
     buildId: SERVER_BUILD_ID,
     builtAt: process.env.CLIENT_BUILT_AT || null,
   });
+});
+
+const {
+  isValidPlayerId,
+  getPlayerStats: loadStoredPlayerStats,
+  upsertPlayerStats,
+} = require('./playerStatsStore');
+
+app.get('/api/player-stats/:playerId', (req, res) => {
+  const playerId = req.params.playerId;
+  if (!isValidPlayerId(playerId)) {
+    return res.status(400).json({ error: 'invalid_player_id' });
+  }
+  const entry = loadStoredPlayerStats(playerId);
+  if (!entry) {
+    return res.status(404).json({ error: 'not_found' });
+  }
+  res.set('Cache-Control', 'no-store');
+  return res.json(entry);
+});
+
+app.put('/api/player-stats/:playerId', (req, res) => {
+  const playerId = req.params.playerId;
+  if (!isValidPlayerId(playerId)) {
+    return res.status(400).json({ error: 'invalid_player_id' });
+  }
+  const stats = req.body?.stats;
+  if (!stats || typeof stats !== 'object') {
+    return res.status(400).json({ error: 'invalid_stats' });
+  }
+  const entry = upsertPlayerStats(playerId, stats);
+  res.set('Cache-Control', 'no-store');
+  return res.json(entry);
 });
 
 const server = http.createServer(app);
