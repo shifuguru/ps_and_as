@@ -47,7 +47,7 @@ export function createUiStyles(c: AppThemeColors) {
     },
     leaveButtonLiveText: buttonLabel(14, {
       color: c.leaveButtonLiveText,
-      fontWeight: "700",
+      fontWeight: "800",
       letterSpacing: 0.2,
     }),
     screenTitle: {

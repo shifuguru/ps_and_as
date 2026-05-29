@@ -274,9 +274,9 @@ function buildShellColors(
       ? hexToRgba(frostLine, glassLine)
       : hexToRgba(accent, 0.16),
     leaveButtonText: isDark ? hexToRgba(frost, 0.9) : textPrimary,
-    leaveButtonLiveBg: hexToRgba("#FF3B30", isDark ? 0.16 : 0.1),
-    leaveButtonLiveBorder: hexToRgba("#FF3B30", isDark ? 0.44 : 0.34),
-    leaveButtonLiveText: isDark ? "#FF6961" : "#C41E17",
+    leaveButtonLiveBg: hexToRgba(accent, isDark ? 0.18 : 0.12),
+    leaveButtonLiveBorder: hexToRgba(accent, isDark ? 0.32 : 0.22),
+    leaveButtonLiveText: accent,
     leaveText: accent,
     modalOverlay: hexToRgba("#000000", isDark ? 0.62 : 0.22),
     modalBorder: isDark
