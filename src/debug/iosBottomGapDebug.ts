@@ -1,6 +1,14 @@
 import { Platform } from "react-native";
 import { isStandaloneWebApp } from "../utils/safariChrome";
-import { isMobileWeb, readWebSafeAreaInsets, WEB_BODY_PORTAL_ID } from "../utils/webViewport";
+import {
+  APP_SHELL_HEIGHT_VAR,
+  isMobileWeb,
+  readWebSafeAreaInsets,
+  readWebShellHeight,
+  WEB_BODY_PORTAL_ID,
+  WEB_BOTTOM_BAR_SHELL_CLASS,
+  WEB_FELT_LAYER_ID,
+} from "../utils/webViewport";
 
 /** Set true while diagnosing iOS PWA bottom gap — remove when done. */
 export const IOS_BOTTOM_GAP_DEBUG = Platform.OS === "web" && isMobileWeb();
@@ -39,6 +47,79 @@ function readDomBox(id: string): IosGapLayoutProbe | null {
   };
 }
 
+function readClassBox(className: string): IosGapLayoutProbe | null {
+  if (Platform.OS !== "web") return null;
+  const doc = (globalThis as { document?: any }).document;
+  const el = doc?.querySelector?.(`.${className}`);
+  if (!el?.getBoundingClientRect) return null;
+  const r = el.getBoundingClientRect();
+  return {
+    label: `.${className}`,
+    width: Math.round(r.width),
+    height: Math.round(r.height),
+    top: Math.round(r.top),
+    bottom: Math.round(r.bottom),
+  };
+}
+
+/** Layout metrics for post-fix verification on iOS Safari / PWA. */
+export function readShellLayoutMetrics(): Record<string, unknown> {
+  if (Platform.OS !== "web") return {};
+
+  const g = globalThis as {
+    window?: {
+      innerHeight?: number;
+      innerWidth?: number;
+      visualViewport?: { height: number; width: number; offsetTop: number };
+    };
+    screen?: { height?: number; availHeight?: number; width?: number };
+  };
+  const win = g.window;
+
+  const doc = (globalThis as { document?: any }).document;
+  const vv = win?.visualViewport;
+  const visualBottom = vv
+    ? Math.round((vv.offsetTop ?? 0) + vv.height)
+    : win?.innerHeight ?? null;
+  const shellHeightVar =
+    doc?.documentElement?.style?.getPropertyValue?.(APP_SHELL_HEIGHT_VAR)?.trim() ||
+    null;
+  const bottomBar = readClassBox(WEB_BOTTOM_BAR_SHELL_CLASS);
+  const barBottom = bottomBar?.bottom ?? null;
+
+  return {
+    viewportHeight: win?.innerHeight ?? null,
+    viewportWidth: win?.innerWidth ?? null,
+    visualViewportBottom: visualBottom,
+    screenAvailHeight: g.screen?.availHeight ?? null,
+    shellHeightVar,
+    shellHeightComputed: win ? readWebShellHeight(win) : null,
+    feltLayer: readDomBox(WEB_FELT_LAYER_ID),
+    domShell: [
+      readDomBox("root"),
+      readDomBox(WEB_BODY_PORTAL_ID),
+      readDomBox(WEB_FELT_LAYER_ID),
+    ].filter(Boolean),
+    bottomBar,
+    bottomBarHeight: bottomBar?.height ?? null,
+    gapBarToLayoutViewport:
+      win?.innerHeight != null && barBottom != null
+        ? Math.round(win.innerHeight - barBottom)
+        : null,
+    gapBarToVisualBottom:
+      visualBottom != null && barBottom != null
+        ? Math.round(visualBottom - barBottom)
+        : null,
+    gapBarToShellVar:
+      shellHeightVar && barBottom != null
+        ? Math.round(parseFloat(shellHeightVar) - barBottom)
+        : null,
+    standalone: isStandaloneWebApp(),
+    orientation:
+      (win?.innerWidth ?? 0) > (win?.innerHeight ?? 0) ? "landscape" : "portrait",
+  };
+}
+
 /** Console diagnostics for iOS web bottom gap (throttled). */
 export function logIosBottomGapMetrics(
   probes: IosGapLayoutProbe[],
@@ -51,50 +132,14 @@ export function logIosBottomGapMetrics(
   if (now - lastLogMs < 800) return;
   lastLogMs = now;
 
-  const win = (globalThis as {
-    window?: {
-      innerHeight?: number;
-      innerWidth?: number;
-      visualViewport?: { height: number; width: number; offsetTop: number };
-    };
-  }).window;
-
   const cssSafe = readWebSafeAreaInsets();
-  const standalone = isStandaloneWebApp();
 
   const payload = {
-    standalone,
-    innerHeight: win?.innerHeight ?? null,
-    innerWidth: win?.innerWidth ?? null,
-    visualViewport: win?.visualViewport
-      ? {
-          height: win.visualViewport.height,
-          width: win.visualViewport.width,
-          offsetTop: win.visualViewport.offsetTop,
-        }
-      : null,
-    gapBelowVisualViewport:
-      win?.innerHeight != null && win.visualViewport
-        ? Math.round(
-            win.innerHeight -
-              win.visualViewport.height -
-              (win.visualViewport.offsetTop ?? 0),
-          )
-        : null,
+    ...readShellLayoutMetrics(),
     safeAreaInsetsHook: safeAreaInsets,
     safeAreaInsetsCss: cssSafe,
     actionBarHeight: actionBarHeight ?? null,
     layoutProbes: probes,
-    domShell: [
-      readDomBox("root"),
-      readDomBox(WEB_BODY_PORTAL_ID),
-    ].filter(Boolean),
-    viewportBottom:
-      win?.visualViewport != null
-        ? Math.round(
-            (win.visualViewport.offsetTop ?? 0) + win.visualViewport.height,
-          )
-        : win?.innerHeight ?? null,
   };
 
   console.log("[iOS gap debug]", payload);

@@ -33,8 +33,7 @@ export default function FeltBackground({
     }
   }, [tint, fullBleed]);
 
-  // Mobile web: paint felt on html/body via CSS (full device viewport including
-  // home-indicator band). An in-root fixed layer is clipped on iOS PWA.
+  // Mobile web: dedicated #ps-felt-layer (document.body) covers full shell height.
   if (Platform.OS === "web" && fullBleed && isMobileWeb()) {
     return null;
   }

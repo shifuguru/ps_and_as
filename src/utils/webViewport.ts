@@ -16,6 +16,7 @@ const WEB_KEYBOARD_GAP_THRESHOLD = 120;
 export const APP_SHELL_HEIGHT_VAR = "--app-shell-h";
 export const WEB_SHELL_STYLE_ID = "ps-web-shell";
 export const WEB_BODY_PORTAL_ID = "ps-body-portal";
+export const WEB_FELT_LAYER_ID = "ps-felt-layer";
 export const WEB_BOTTOM_BAR_SHELL_CLASS = "ps-bottom-bar-shell";
 export const WEB_FELT_FIXED_CLASS = "ps-felt-fixed";
 
@@ -139,18 +140,18 @@ export function resolveWebBottomInset(measured = 0): number {
   return 0;
 }
 
-function clearStandaloneShellInlineHeights(doc: any): void {
-  if (!isStandaloneWebApp()) return;
-  doc.documentElement.style.removeProperty("height");
-  doc.documentElement.style.removeProperty("min-height");
-  doc.documentElement.style.removeProperty("max-height");
-  doc.body.style.removeProperty("height");
-  doc.body.style.removeProperty("min-height");
-  doc.body.style.removeProperty("max-height");
-  const root = doc.getElementById("root");
-  root?.style.removeProperty("height");
-  root?.style.removeProperty("min-height");
-  root?.style.removeProperty("max-height");
+function applyShellHeightPx(doc: any, px: string): void {
+  doc.documentElement.style.height = px;
+  doc.documentElement.style.minHeight = px;
+  doc.body.style.height = px;
+  doc.body.style.minHeight = px;
+
+  for (const id of ["root", WEB_BODY_PORTAL_ID, WEB_FELT_LAYER_ID]) {
+    const el = doc.getElementById(id);
+    if (!el) continue;
+    el.style.height = px;
+    el.style.minHeight = px;
+  }
 }
 
 function keyboardLikelyOpen(win: WebWindow): boolean {
@@ -174,34 +175,34 @@ export function readWebShellHeight(win: WebWindow): number {
     return Math.round(vv.height);
   }
 
-  // Standalone PWA: visualViewport can be shorter than innerHeight (home-indicator
-  // band), which leaves a strip below #root and fixed bottom bars. Prefer layout
-  // viewport height so felt and chrome reach the physical bottom.
-  if (isStandaloneWebApp()) {
-    const visualFull = vv
-      ? Math.round(vv.height + (vv.offsetTop ?? 0))
-      : layoutH;
-    const lvh = measureCssLength("height", "100lvh");
-    return Math.max(layoutH, visualFull, lvh);
-  }
-
-  if (Platform.OS === "web" && cachedShellHeight > 0 && !keyboardLikelyOpen(win)) {
-    return cachedShellHeight;
-  }
-
+  const visualFull = vv
+    ? Math.round(vv.height + (vv.offsetTop ?? 0))
+    : layoutH;
   const dvh = measureCssLength("height", "100dvh");
   const svh = measureCssLength("height", "100svh");
   const lvh = measureCssLength("height", "100lvh");
-  const visualBottom = vv ? Math.round(vv.height + (vv.offsetTop ?? 0)) : 0;
+  const fillAvail = measureCssLength("height", "-webkit-fill-available");
+  const screen = (globalThis as { screen?: { height?: number; availHeight?: number } }).screen;
+  const screenAvail = screen?.availHeight ?? 0;
 
-  const h = Math.max(layoutH, visualBottom, dvh, svh, lvh);
+  // Prefer the tallest credible device height so fixed shell + felt reach the
+  // physical bottom (home-indicator band) on iOS Safari and standalone PWA.
+  const h = Math.max(
+    layoutH,
+    visualFull,
+    dvh,
+    svh,
+    lvh,
+    fillAvail,
+    screenAvail,
+  );
   if (Platform.OS === "web") {
     cachedShellHeight = h;
   }
   return h;
 }
 
-/** Keep html/body/#root aligned on mobile Safari (non-standalone tab only). */
+/** Sync html/body/#root/#ps-body-portal/#ps-felt-layer to measured device height. */
 export function applyMobileWebShellHeight(win: WebWindow): number {
   if (Platform.OS !== "web" || !isMobileWeb()) return readWebShellHeight(win);
 
@@ -209,19 +210,13 @@ export function applyMobileWebShellHeight(win: WebWindow): number {
   if (!doc) return readWebShellHeight(win);
 
   const h = readWebShellHeight(win);
-  clearStandaloneShellInlineHeights(doc);
-
-  // Standalone PWA: shell CSS (web-shell.css) owns layout — never set pixel heights.
-  if (isStandaloneWebApp()) {
-    return h;
-  }
-
-  // Safari tab: expose shell height var for any legacy consumers only.
   const px = `${h}px`;
+
   if (doc.documentElement.style.getPropertyValue(APP_SHELL_HEIGHT_VAR) !== px) {
     doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, px);
   }
 
+  applyShellHeightPx(doc, px);
   return h;
 }
 
@@ -242,10 +237,14 @@ export function installWebShellCss(feltTint: string): () => void {
     doc.head.appendChild(style);
   }
 
-  clearStandaloneShellInlineHeights(doc);
   doc.documentElement.style.setProperty("--ps-felt-tint", feltTint);
 
   style.textContent = getWebShellCssText(feltTint);
+
+  const win = (globalThis as { window?: WebWindow }).window;
+  if (win && isMobileWeb()) {
+    applyMobileWebShellHeight(win);
+  }
 
   return () => {
     style?.remove();
