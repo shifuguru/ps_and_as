@@ -263,14 +263,14 @@ function AppContent() {
       action: () => openUpdateLog(),
     },
     {
-      label: "README",
-      icon: "globe",
-      action: () => openReadmeFallbackPage(),
-    },
-    {
       label: "Settings",
       icon: "gear",
       action: () => openSettings(),
+    },
+    {
+      label: "Read Me",
+      icon: "globe",
+      action: () => openReadmeFallbackPage(),
     },
   ];
   const [wallpaperSource, setWallpaperSource] = useState<any>(require("./assets/ps_and_as_bg.png"));

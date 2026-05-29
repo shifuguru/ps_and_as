@@ -7,12 +7,122 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <title>P's &amp; A's</title>
+    <title>Read Me · P's &amp; A's</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.6.1/github-markdown-light.min.css"
+      media="(prefers-color-scheme: light)"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.6.1/github-markdown-dark.min.css"
+      media="(prefers-color-scheme: dark)"
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+
+      body {
+        margin: 0;
+        background: #ffffff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+          Arial, sans-serif;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0d1117;
+        }
+      }
+
+      .readme-toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #d0d7de;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(8px);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .readme-toolbar {
+          border-bottom-color: #30363d;
+          background: rgba(13, 17, 23, 0.92);
+        }
+      }
+
+      .readme-toolbar-title {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1f2328;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .readme-toolbar-title {
+          color: #e6edf3;
+        }
+      }
+
+      .readme-toolbar a {
+        font-size: 14px;
+        color: #0969da;
+        text-decoration: none;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .readme-toolbar a {
+          color: #4493f8;
+        }
+      }
+
+      .readme-toolbar a:hover {
+        text-decoration: underline;
+      }
+
+      #status {
+        box-sizing: border-box;
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 24px 32px;
+        color: #656d76;
+        font-size: 14px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        #status {
+          color: #8b949e;
+        }
+      }
+
+      .markdown-body {
+        box-sizing: border-box;
+        min-width: 200px;
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 32px;
+      }
+
+      @media (max-width: 767px) {
+        .markdown-body {
+          padding: 16px;
+        }
+      }
+    </style>
   </head>
   <body>
-    <p><a href="#" id="refresh-btn">Refresh</a></p>
+    <header class="readme-toolbar">
+      <h1 class="readme-toolbar-title">Read Me</h1>
+      <a href="#" id="refresh-btn">Back to game</a>
+    </header>
     <p id="status">Loading README…</p>
-    <article id="readme"></article>
+    <article id="readme" class="markdown-body"></article>
 
     <script type="module">
       const README_RAW =
@@ -98,7 +208,7 @@
         statusEl.remove();
       } catch (err) {
         statusEl.textContent =
-          "Could not load README. Use Refresh to retry the game, or open the repo on GitHub.";
+          "Could not load README. Use Back to game to retry, or open the repo on GitHub.";
         console.error("[readme-fallback]", err);
       }
     </script>
