@@ -9,9 +9,9 @@ When the user asks to **push to GitHub** (or deploy / publish to the live site v
 
 1. **Review** staged/unstaged changes since the last push and draft a What's New entry for anything user-facing.
 2. **Update** `src/screens/updateLogContent.ts`:
-   - Add a new entry at the **top** of `UPDATE_ENTRIES` with a short title and bullet items (plain language, no jargon).
-   - Leave `publishedAt` as a temporary placeholder for now (e.g. `nzst("2026-05-30T00:00")`).
-   - Update `KNOWN_ISSUES` if a shipped fix matches an open issue (status, `updatedAt`, note).
+   - Add a new entry at the **top** of `UPDATE_ENTRIES` with a short title and bullet items in **plain player language** (rules, UX, fixes — not dev/deployment jargon).
+   - Merge into a recent entry when the change is small; keep the page concise.
+   - Update `KNOWN_ISSUES` only for active **Monitoring** items players should know about — remove or don't add rows for shipped fixes (those belong in updates).
 3. **Bump version** before committing:
    ```bash
    npm run bump-version

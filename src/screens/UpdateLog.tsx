@@ -61,11 +61,11 @@ export default function UpdateLog({ onBack }: { onBack: () => void }) {
           <ScreenTopBar title="What's New" />
 
           <BlurPanel style={ui.panel} intensity={48}>
-            <Text style={ui.panelEyebrow}>Live report</Text>
+            <Text style={ui.panelEyebrow}>Updates</Text>
             <Text style={styles.intro}>{UPDATE_LOG_TAGLINE}</Text>
             <Text style={styles.introHint}>
-              We update this list when we ship big features or learn about bugs
-              worth knowing. Times shown in your local timezone.
+              Times shown in NZ time. Hard-refresh if you don't see a fix you
+              were expecting.
             </Text>
           </BlurPanel>
 
@@ -91,38 +91,41 @@ export default function UpdateLog({ onBack }: { onBack: () => void }) {
             </BlurPanel>
           ))}
 
-          <Text style={styles.sectionLabel}>Known issues</Text>
-          <Text style={styles.sectionHint}>
-            Nothing here is permanent — we're tracking these openly so you know
-            what to expect.
-          </Text>
-          {KNOWN_ISSUES.map((issue) => (
-            <BlurPanel
-              key={issue.title}
-              style={[ui.panel, styles.issuePanel]}
-              intensity={44}
-            >
-              <View style={styles.issueHeader}>
-                <Text style={styles.issueTitle}>{issue.title}</Text>
-                <View style={styles.statusPill}>
-                  <Text
-                    style={[
-                      styles.statusText,
-                      { color: statusColor(issue.status, colors) },
-                    ]}
-                  >
-                    {issue.status}
-                  </Text>
-                </View>
-              </View>
-              {issue.updatedAt ? (
-                <Text style={styles.issueUpdated}>
-                  Updated {formatUpdateTimestamp(issue.updatedAt)}
-                </Text>
-              ) : null}
-              <Text style={styles.issueNote}>{issue.note}</Text>
-            </BlurPanel>
-          ))}
+          {KNOWN_ISSUES.length > 0 ? (
+            <>
+              <Text style={styles.sectionLabel}>We're watching</Text>
+              <Text style={styles.sectionHint}>
+                Minor quirks we're keeping an eye on — not game-breaking.
+              </Text>
+              {KNOWN_ISSUES.map((issue) => (
+                <BlurPanel
+                  key={issue.title}
+                  style={[ui.panel, styles.issuePanel]}
+                  intensity={44}
+                >
+                  <View style={styles.issueHeader}>
+                    <Text style={styles.issueTitle}>{issue.title}</Text>
+                    <View style={styles.statusPill}>
+                      <Text
+                        style={[
+                          styles.statusText,
+                          { color: statusColor(issue.status, colors) },
+                        ]}
+                      >
+                        {issue.status}
+                      </Text>
+                    </View>
+                  </View>
+                  {issue.updatedAt ? (
+                    <Text style={styles.issueUpdated}>
+                      Updated {formatUpdateTimestamp(issue.updatedAt)}
+                    </Text>
+                  ) : null}
+                  <Text style={styles.issueNote}>{issue.note}</Text>
+                </BlurPanel>
+              ))}
+            </>
+          ) : null}
         </View>
       </ScrollView>
 
