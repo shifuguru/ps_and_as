@@ -343,6 +343,11 @@ function GameScreen({
   const [spectatorMode, setSpectatorMode] = useState(isSpectator);
   const [gameplayLocked, setGameplayLocked] = useState(false);
   const [playAreaSize, setPlayAreaSize] = useState({ width: 0, height: 0 });
+  const [livePlayAreaMetrics, setLivePlayAreaMetrics] = useState<{
+    layout: ReturnType<typeof computePlayAreaLayout>;
+    width: number;
+    height: number;
+  } | null>(null);
   const [ceremonyPrep, setCeremonyPrep] = useState<{
     baseState: GameState;
     players: GameState["players"];
@@ -1614,6 +1619,7 @@ function GameScreen({
     roleById[p.id] = p.role;
   }
   const tableSeats = buildTableSeatConfig(state.players, myPlayerId);
+  const contentTopPadding = insets.top + 8;
   const localPlayerOutForLayout =
     !!humanPlayer && state.finishedOrder.includes(humanPlayer.id);
   const handReserveForLayout =
@@ -1622,6 +1628,7 @@ function GameScreen({
   const playAreaGameHeight = Math.max(
     0,
     playAreaSize.height -
+      contentTopPadding -
       reservedBottomHeight(insets.bottom || 0, handReserveForLayout),
   );
   const playAreaLayout =
@@ -1632,6 +1639,10 @@ function GameScreen({
           playAreaGameHeight,
           tableSeats.layoutSeatCount,
         );
+  const ceremonyPlayAreaLayout =
+    livePlayAreaMetrics?.layout ?? playAreaLayout;
+  const ceremonyPlayAreaHeight =
+    livePlayAreaMetrics?.height ?? playAreaGameHeight;
   const localControlledIds = humanPlayer ? [humanPlayer.id] : [];
   const deadHandGraveyard =
     !gameplayLocked && !ceremonyPrep && !tradePhase;
@@ -1693,6 +1704,9 @@ function GameScreen({
         tableSeats,
         playAreaLayout,
         playAreaGameHeight,
+        ceremonyPlayAreaLayout,
+        ceremonyPlayAreaHeight,
+        setLivePlayAreaMetrics,
         localControlledIds,
         deadHandGraveyard,
         snapshotState,
@@ -1768,6 +1782,9 @@ function GameScreenBoard() {
     tableSeats,
     playAreaLayout,
     playAreaGameHeight,
+    ceremonyPlayAreaLayout,
+    ceremonyPlayAreaHeight,
+    setLivePlayAreaMetrics,
     localControlledIds,
     deadHandGraveyard,
     snapshotState,
@@ -1851,6 +1868,15 @@ function GameScreenBoard() {
     tableSeats: ReturnType<typeof buildTableSeatConfig>;
     playAreaLayout: ReturnType<typeof computePlayAreaLayout> | null;
     playAreaGameHeight: number;
+    ceremonyPlayAreaLayout: ReturnType<typeof computePlayAreaLayout> | null;
+    ceremonyPlayAreaHeight: number;
+    setLivePlayAreaMetrics: React.Dispatch<
+      React.SetStateAction<{
+        layout: ReturnType<typeof computePlayAreaLayout>;
+        width: number;
+        height: number;
+      } | null>
+    >;
     localControlledIds: string[];
     deadHandGraveyard: boolean;
     snapshotState: (s: GameState | null) => Record<string, unknown> | null;
@@ -2646,6 +2672,8 @@ function GameScreenBoard() {
           disconnectedPlayerIds={disconnectedPlayerIds}
           turnBellPlayerId={turnBellPlayerId}
           onTurnBellPress={handleTurnBellPress}
+          dealtStackCounts={ceremonyPrep ? ceremonyDealCounts : undefined}
+          onPlayAreaMetrics={setLivePlayAreaMetrics}
         >
           <GameTable
             plays={displayPlays}
@@ -2684,6 +2712,11 @@ function GameScreenBoard() {
             showTrickXp={
               !!trickWinnerPlayerId &&
               localSeatPlayer.id === trickWinnerPlayerId
+            }
+            dealtStackCount={
+              ceremonyPrep
+                ? (ceremonyDealCounts[localSeatPlayer.id] ?? 0)
+                : 0
             }
           />
         </View>
@@ -2820,8 +2853,8 @@ function GameScreenBoard() {
           }),
         )}
         deadHandId={tableSeats.deadHandId}
-        layout={playAreaLayout}
-        playAreaHeight={playAreaGameHeight}
+        layout={ceremonyPlayAreaLayout}
+        playAreaHeight={ceremonyPlayAreaHeight}
         playAreaOffsetTop={contentTopPadding}
         playAreaOffsetLeft={12}
         cardsPerPlayer={

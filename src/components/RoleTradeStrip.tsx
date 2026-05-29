@@ -16,10 +16,12 @@ function TradeCardSlot({
   card,
   arrow,
   label,
+  faceDown = false,
 }: {
   card?: CardType;
   arrow: "up" | "down";
   label: string;
+  faceDown?: boolean;
 }) {
   const { colors } = useAppTheme();
   return (
@@ -33,6 +35,7 @@ function TradeCardSlot({
             card={card}
             compact
             selected={false}
+            faceDown={faceDown}
             onPress={() => {}}
             style={styles.cardSize}
           />
@@ -87,14 +90,26 @@ export default function RoleTradeStrip({
     };
   }, [isWinner, isLoser, trade, selectedReturn]);
 
+  const hideFromOthers = !isWinner && !isLoser;
+
   return (
     <View style={[styles.row, ui.panel, { borderColor: colors.panelBorder }]}>
       <Text style={[styles.title, { color: colors.gold }]}>
         {trade.key === "president" ? "👑 President Trade" : "⭐ VP Trade"}
       </Text>
       <View style={styles.cardsRow}>
-        <TradeCardSlot card={giveCard} arrow="up" label={giveLabel} />
-        <TradeCardSlot card={receiveCard} arrow="down" label={receiveLabel} />
+        <TradeCardSlot
+          card={giveCard}
+          arrow="up"
+          label={giveLabel}
+          faceDown={hideFromOthers && !!giveCard}
+        />
+        <TradeCardSlot
+          card={receiveCard}
+          arrow="down"
+          label={receiveLabel}
+          faceDown={hideFromOthers && !!receiveCard}
+        />
       </View>
       {isWinner ? (
         <Text style={[styles.hint, { color: colors.textMuted }]}>

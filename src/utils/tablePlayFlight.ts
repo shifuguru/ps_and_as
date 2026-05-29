@@ -9,6 +9,8 @@ import {
   avatarBelowCenterOffset,
   avatarCenterOffsetFromTop,
   avatarSizeForSeat,
+  countBadgeCenterInAvatarWrap,
+  dealStackCenterInAvatarWrap,
 } from "./seatDimensions";
 import {
   type FrozenPlaySpot,
@@ -116,18 +118,13 @@ export function seatCountBadgeCenterInPlayArea(
   const isLocal = localPlayerIds.includes(playerId);
   const avatarSize = avatarSizeForSeat(layout.seatDimensions, { compact, isLocal });
   const countBadgeSize = layout.seatDimensions.countBadgeSize;
+  const wrapLeft = origin.x - avatarSize / 2;
+  const wrapTop = origin.y - avatarSize / 2;
+  const badge = countBadgeCenterInAvatarWrap(avatarSize, countBadgeSize);
 
   return {
-    x:
-      origin.x +
-      avatarSize / 2 +
-      COUNT_BADGE_OUTSET_RIGHT -
-      countBadgeSize / 2,
-    y:
-      origin.y +
-      avatarSize / 2 +
-      COUNT_BADGE_OUTSET_BOTTOM -
-      countBadgeSize / 2,
+    x: wrapLeft + badge.x,
+    y: wrapTop + badge.y,
   };
 }
 
@@ -140,7 +137,7 @@ export function seatDealStackInPlayArea(
   localPlayerIds: string[],
   options?: DealStackPositionOptions,
 ): { x: number; y: number } | null {
-  const badge = seatCountBadgeCenterInPlayArea(
+  const origin = seatOriginInPlayArea(
     layout,
     playAreaHeight,
     playerId,
@@ -148,7 +145,7 @@ export function seatDealStackInPlayArea(
     localPlayerIds,
     options,
   );
-  if (!badge) return null;
+  if (!origin) return null;
 
   const compact = layoutSeatIds.length >= 6;
   const isLocal = localPlayerIds.includes(playerId);
@@ -156,11 +153,13 @@ export function seatDealStackInPlayArea(
   const countBadgeSize = layout.seatDimensions.countBadgeSize;
   const stackH =
     options?.stackH ?? Math.max(26, Math.round(avatarSize * 0.48));
+  const wrapLeft = origin.x - avatarSize / 2;
+  const wrapTop = origin.y - avatarSize / 2;
+  const stack = dealStackCenterInAvatarWrap(avatarSize, countBadgeSize, stackH);
 
-  const badgeTop = badge.y - countBadgeSize / 2;
   return {
-    x: badge.x,
-    y: badgeTop - DEAL_STACK_ABOVE_BADGE_GAP - stackH / 2,
+    x: wrapLeft + stack.x,
+    y: wrapTop + stack.y,
   };
 }
 

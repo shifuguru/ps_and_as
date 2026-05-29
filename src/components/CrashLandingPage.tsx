@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,29 +6,39 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
-  Linking,
+  ActivityIndicator,
 } from "react-native";
-import { CRASH_LANDING } from "../content/crashLandingContent";
 import { WEB_OVERLAY_ROOT_FIXED } from "../styles/webFullBleed";
 import { attemptAppRefresh } from "../utils/appRefresh";
+import { fetchReadmeMarkdown } from "../utils/readmeFallback";
 
 type Props = {
   error?: Error | null;
   onRefresh?: () => void;
 };
 
+/** Native crash UI — shows the live GitHub README (raw markdown). Web redirects to readme-fallback.html. */
 export default function CrashLandingPage({ error, onRefresh }: Props) {
+  const [markdown, setMarkdown] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchReadmeMarkdown()
+      .then((text) => {
+        if (!cancelled) setMarkdown(text);
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setLoadError(err.message || "Could not load README");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleRefresh = () => {
     onRefresh?.();
     attemptAppRefresh();
-  };
-
-  const handlePlay = () => {
-    if (Platform.OS === "web") {
-      attemptAppRefresh();
-      return;
-    }
-    Linking.openURL(CRASH_LANDING.playUrl).catch(() => undefined);
   };
 
   return (
@@ -48,48 +58,21 @@ export default function CrashLandingPage({ error, onRefresh }: Props) {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.wrap}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator
       >
-        <Text style={styles.title}>{CRASH_LANDING.title}</Text>
-        <Text style={styles.tagline}>{CRASH_LANDING.tagline}</Text>
-
-        <Text style={styles.body}>{CRASH_LANDING.intro}</Text>
-        <View style={styles.list}>
-          {CRASH_LANDING.reasons.map((line) => (
-            <Text key={line} style={styles.listItem}>
-              {"• "}
-              {line}
-            </Text>
-          ))}
-        </View>
-
-        <Text style={styles.body}>{CRASH_LANDING.refreshHint}</Text>
-        <Text style={styles.body}>{CRASH_LANDING.calmLine}</Text>
-
-        <TouchableOpacity
-          style={styles.playLink}
-          onPress={handlePlay}
-          activeOpacity={0.88}
-          accessibilityRole="link"
-          accessibilityLabel={CRASH_LANDING.playLabel}
-        >
-          <Text style={styles.playLinkText}>{CRASH_LANDING.playLabel}</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.sectionTitle}>{CRASH_LANDING.howToPlayTitle}</Text>
-        <View style={styles.list}>
-          {CRASH_LANDING.howToPlay.map((line) => (
-            <Text key={line} style={styles.listItem}>
-              {"• "}
-              {line}
-            </Text>
-          ))}
-        </View>
-
-        <View style={styles.note}>
-          <Text style={styles.noteText}>{CRASH_LANDING.hardRefreshNote}</Text>
-        </View>
-
+        {!markdown && !loadError ? (
+          <ActivityIndicator color={GOLD} size="large" style={styles.loader} />
+        ) : null}
+        {loadError ? (
+          <Text style={styles.errorText}>
+            {loadError}. Tap Refresh to retry the game.
+          </Text>
+        ) : null}
+        {markdown ? (
+          <Text style={styles.readme} selectable>
+            {markdown}
+          </Text>
+        ) : null}
         {__DEV__ && error?.message ? (
           <Text style={styles.devError} selectable>
             {error.message}
@@ -103,19 +86,13 @@ export default function CrashLandingPage({ error, onRefresh }: Props) {
 const FELT_DEEP = "#0a3d26";
 const FELT = "#0f5132";
 const GOLD = "#d4af37";
-const TEXT = "#f5f0e6";
-const MUTED = "rgba(245, 240, 230, 0.72)";
+const MUTED = "rgba(245, 240, 230, 0.82)";
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     ...(WEB_OVERLAY_ROOT_FIXED ?? null),
-    ...(Platform.OS === "web"
-      ? ({
-          backgroundImage: `radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.08), transparent 42%), linear-gradient(180deg, ${FELT_DEEP}, ${FELT})`,
-          backgroundColor: FELT,
-        } as object)
-      : { backgroundColor: FELT }),
+    backgroundColor: FELT,
   },
   bar: {
     zIndex: 10,
@@ -127,14 +104,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.42)",
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "rgba(212, 175, 55, 0.28)",
-    ...(Platform.OS === "web"
-      ? ({
-          backdropFilter: "blur(10px)",
-          WebkitBackdropFilter: "blur(10px)",
-          position: "sticky",
-          top: 0,
-        } as object)
-      : null),
   },
   refreshBtn: {
     borderWidth: 1,
@@ -154,72 +123,27 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   wrap: {
-    maxWidth: 720,
+    maxWidth: 820,
     width: "100%",
     alignSelf: "center",
     paddingHorizontal: 20,
-    paddingTop: 28,
+    paddingTop: 20,
     paddingBottom: 48,
   },
-  title: {
-    color: GOLD,
-    fontSize: 28,
-    fontWeight: "800",
-    marginBottom: 8,
+  loader: {
+    marginTop: 24,
   },
-  tagline: {
+  readme: {
+    color: MUTED,
+    fontSize: 14,
+    lineHeight: 21,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  errorText: {
     color: MUTED,
     fontSize: 16,
+    lineHeight: 24,
     fontStyle: "italic",
-    marginBottom: 20,
-    lineHeight: 24,
-  },
-  body: {
-    color: MUTED,
-    fontSize: 16,
-    lineHeight: 24,
-    marginBottom: 14,
-  },
-  list: {
-    marginBottom: 14,
-    paddingLeft: 4,
-  },
-  listItem: {
-    color: MUTED,
-    fontSize: 16,
-    lineHeight: 24,
-    marginBottom: 4,
-  },
-  playLink: {
-    alignSelf: "flex-start",
-    marginTop: 4,
-    marginBottom: 22,
-  },
-  playLinkText: {
-    color: GOLD,
-    fontSize: 17,
-    fontWeight: "800",
-    textDecorationLine: "underline",
-  },
-  sectionTitle: {
-    color: TEXT,
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 10,
-  },
-  note: {
-    marginTop: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.22)",
-    backgroundColor: "rgba(0, 0, 0, 0.22)",
-  },
-  noteText: {
-    color: MUTED,
-    fontSize: 15,
-    lineHeight: 22,
   },
   devError: {
     marginTop: 20,

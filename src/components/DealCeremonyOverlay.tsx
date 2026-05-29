@@ -6,7 +6,6 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import Card from "./Card";
 import DealShuffleAnimation from "./DealShuffleAnimation";
 import TableCardFlight, { type CardFlightSpec } from "./TableCardFlight";
 import {
@@ -430,8 +429,8 @@ export default function DealCeremonyOverlay({
       flights.push({
         id: `trade-${idx}`,
         cards: trade.incoming.length
-          ? trade.incoming
-          : [{ suit: "hearts", value: 10 }],
+          ? trade.incoming.map((c) => ({ ...c, hidden: true }))
+          : [{ suit: "spades", value: 0, hidden: true }],
         fromX: fromPt.x,
         fromY: fromPt.y,
         toX: toPt.x,
@@ -523,71 +522,6 @@ export default function DealCeremonyOverlay({
           }}
         />
       ))}
-
-      {phase === "deal"
-        ? layoutSeatIds.map((id) => {
-            const count = dealtCounts[id] ?? 0;
-            if (count <= 0 || !layout) return null;
-            const { miniW, miniH, cornerRadius } = dealStackLayout(
-              layout,
-              layoutSeatIds,
-              localPlayerIds,
-              id,
-            );
-            const stackCount = Math.min(3, count);
-            const stackW = miniW + (stackCount - 1) * 4;
-            const stackH = miniH + (stackCount - 1) * 2;
-            const pos = seatDealStackInPlayArea(
-              layout,
-              playAreaHeight,
-              id,
-              layoutSeatIds,
-              localPlayerIds,
-              { ...seatOptions, stackH },
-            );
-            if (!pos) return null;
-            const screenPos = offsetPoint(pos.x, pos.y);
-            return (
-              <View
-                key={`stack-${id}`}
-                style={[
-                  styles.dealtStack,
-                  {
-                    left: screenPos.x - stackW / 2,
-                    top: screenPos.y - stackH / 2,
-                    width: stackW,
-                    height: stackH,
-                  },
-                ]}
-              >
-                {Array.from({ length: stackCount }).map((_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.dealtStackCard,
-                      {
-                        left: i * 4,
-                        top: i * 2,
-                        width: miniW,
-                        height: miniH,
-                      },
-                    ]}
-                  >
-                    <Card
-                      card={{ suit: "spades", value: 0, hidden: true }}
-                      selected={false}
-                      faceDown
-                      variant="table"
-                      cornerRadius={cornerRadius}
-                      onPress={() => {}}
-                      style={{ width: miniW, height: miniH }}
-                    />
-                  </View>
-                ))}
-              </View>
-            );
-          })
-        : null}
     </View>
   );
 }
@@ -614,12 +548,5 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     overflow: "hidden",
-  },
-  dealtStack: {
-    position: "absolute",
-    zIndex: 81,
-  },
-  dealtStackCard: {
-    position: "absolute",
   },
 });

@@ -120,6 +120,38 @@ export function seatMiniCardDimensions(avatarSize: number): {
   };
 }
 
+/** Matches OpponentSeat countBadge positioning. */
+export const COUNT_BADGE_OUTSET_RIGHT = 8;
+export const COUNT_BADGE_OUTSET_BOTTOM = 4;
+export const COUNT_BADGE_PADDING_H = 5;
+export const DEAL_STACK_ABOVE_BADGE_GAP = 3;
+
+/** Hand-count badge center in avatarWrap coordinates (origin top-left). */
+export function countBadgeCenterInAvatarWrap(
+  avatarSize: number,
+  countBadgeSize: number,
+): { x: number; y: number } {
+  const badgeWidth = countBadgeSize + COUNT_BADGE_PADDING_H * 2;
+  return {
+    x: avatarSize + COUNT_BADGE_OUTSET_RIGHT - badgeWidth / 2,
+    y: avatarSize + COUNT_BADGE_OUTSET_BOTTOM - countBadgeSize / 2,
+  };
+}
+
+/** Face-down deal stack center in avatarWrap coordinates. */
+export function dealStackCenterInAvatarWrap(
+  avatarSize: number,
+  countBadgeSize: number,
+  stackH: number,
+): { x: number; y: number } {
+  const badge = countBadgeCenterInAvatarWrap(avatarSize, countBadgeSize);
+  const badgeTop = badge.y - countBadgeSize / 2;
+  return {
+    x: badge.x,
+    y: badgeTop - DEAL_STACK_ABOVE_BADGE_GAP - stackH / 2,
+  };
+}
+
 /** Distance from avatar center down to the bottom of OpponentSeat (name + status pill). */
 export function avatarBelowCenterOffset(
   dims: SeatDimensions,

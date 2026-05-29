@@ -3,6 +3,7 @@ import { View, StyleSheet, LayoutChangeEvent } from "react-native";
 import OpponentRing from "./OpponentRing";
 import TableCardFlight, { type CardFlightSpec } from "./TableCardFlight";
 import { computePlayAreaLayout, tableScaleLimits } from "../utils/tableLayout";
+import type { PlayAreaLayout } from "../utils/tableLayout";
 import type { TrickPlayDisplay } from "../utils/trickDisplay";
 import {
   computePlayStackLayout,
@@ -47,6 +48,14 @@ type Props = RingProps & {
   deadHandGraveyard?: boolean;
   turnBellPlayerId?: string | null;
   onTurnBellPress?: (playerId: string) => void;
+  /** Per-player dealt counts during deal ceremony. */
+  dealtStackCounts?: Record<string, number>;
+  /** Live play-area layout from onLayout (for overlay alignment). */
+  onPlayAreaMetrics?: (metrics: {
+    layout: PlayAreaLayout;
+    width: number;
+    height: number;
+  }) => void;
 };
 
 export default function GamePlayArea({
@@ -68,6 +77,8 @@ export default function GamePlayArea({
   disconnectedPlayerIds = [],
   turnBellPlayerId = null,
   onTurnBellPress,
+  dealtStackCounts,
+  onPlayAreaMetrics,
   children,
 }: Props & { children: React.ReactNode }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -90,6 +101,15 @@ export default function GamePlayArea({
       Math.max(players.length + localPlayerIds.length, 1);
     return computePlayAreaLayout(size.width, size.height, seats);
   }, [size.width, size.height, players.length, localPlayerIds.length, tableSeatCount]);
+
+  useEffect(() => {
+    if (!layout || !onPlayAreaMetrics) return;
+    onPlayAreaMetrics({
+      layout,
+      width: size.width,
+      height: size.height,
+    });
+  }, [layout, size.width, size.height, onPlayAreaMetrics]);
 
   const stackLayoutState = useMemo(() => {
     if (!layout) {
@@ -338,6 +358,7 @@ export default function GamePlayArea({
             disconnectedPlayerIds={disconnectedPlayerIds}
             turnBellPlayerId={turnBellPlayerId}
             onTurnBellPress={onTurnBellPress}
+            dealtStackCounts={dealtStackCounts}
           />
         </View>
       )}

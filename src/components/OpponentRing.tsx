@@ -31,6 +31,8 @@ type Props = {
   /** Show nudge bell on seats taking too long. */
   turnBellPlayerId?: string | null;
   onTurnBellPress?: (playerId: string) => void;
+  /** Per-player dealt counts during deal ceremony (face-down mini-stacks). */
+  dealtStackCounts?: Record<string, number>;
 };
 
 /** Clockwise from the seat after the local player. */
@@ -78,6 +80,7 @@ export default function OpponentRing({
   disconnectedPlayerIds = [],
   turnBellPlayerId = null,
   onTurnBellPress,
+  dealtStackCounts,
 }: Props) {
   const disconnectedSet = useMemo(
     () => new Set(disconnectedPlayerIds),
@@ -173,6 +176,7 @@ export default function OpponentRing({
                   ? () => onTurnBellPress(player.id)
                   : undefined
               }
+              dealtStackCount={dealtStackCounts?.[player.id] ?? 0}
             />
           </View>
         );

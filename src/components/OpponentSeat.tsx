@@ -13,10 +13,15 @@ import TrickWinCelebration from "./TrickWinCelebration";
 import Card from "./Card";
 import {
   avatarSizeForSeat,
+  COUNT_BADGE_OUTSET_BOTTOM,
+  COUNT_BADGE_OUTSET_RIGHT,
+  COUNT_BADGE_PADDING_H,
+  dealStackCenterInAvatarWrap,
   seatMiniCardDimensions,
   useSeatDimensions,
   type SeatDimensions,
 } from "../utils/seatDimensions";
+import { ceremonyCardCornerRadius } from "./cardDimensions";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
@@ -70,6 +75,8 @@ type Props = {
   /** Show nudge bell when this player has taken too long. */
   showTurnBell?: boolean;
   onTurnBellPress?: () => void;
+  /** Face-down mini-stack during deal ceremony (cards dealt so far). */
+  dealtStackCount?: number;
 };
 
 export default function OpponentSeat({
@@ -90,6 +97,7 @@ export default function OpponentSeat({
   isDisconnected = false,
   showTurnBell = false,
   onTurnBellPress,
+  dealtStackCount = 0,
 }: Props) {
   const { colors, palette } = useAppTheme();
   const styles = useMemo(() => createStyles(colors, palette), [colors, palette]);
@@ -141,6 +149,20 @@ export default function OpponentSeat({
   const miniCard = seatMiniCardDimensions(avatarSize);
   const miniCardW = miniCard.width;
   const miniCardH = miniCard.height;
+  const dealStackLayers =
+    dealtStackCount > 0 ? Math.min(3, dealtStackCount) : 0;
+  const dealStackW =
+    dealStackLayers > 0 ? miniCardW + (dealStackLayers - 1) * 4 : 0;
+  const dealStackH =
+    dealStackLayers > 0 ? miniCardH + (dealStackLayers - 1) * 2 : 0;
+  const dealStackCenter =
+    dealStackLayers > 0
+      ? dealStackCenterInAvatarWrap(
+          avatarSize,
+          dims.countBadgeSize,
+          dealStackH,
+        )
+      : null;
   const readyBadgeSize = Math.max(16, Math.round(avatarSize * 0.34));
   const avatarBackgroundColor = isDeadHand
     ? "rgba(255,255,255,0.08)"
@@ -280,6 +302,46 @@ export default function OpponentSeat({
                   faceDown
                   disabled
                   variant="table"
+                  onPress={() => {}}
+                  style={{ width: miniCardW, height: miniCardH }}
+                />
+              </View>
+            ))}
+          </View>
+        ) : null}
+        {dealStackCenter && dealStackLayers > 0 ? (
+          <View
+            style={[
+              styles.dealStack,
+              {
+                left: dealStackCenter.x - dealStackW / 2,
+                top: dealStackCenter.y - dealStackH / 2,
+                width: dealStackW,
+                height: dealStackH,
+              },
+            ]}
+            pointerEvents="none"
+          >
+            {Array.from({ length: dealStackLayers }).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.dealStackCard,
+                  {
+                    left: i * 4,
+                    top: i * 2,
+                    width: miniCardW,
+                    height: miniCardH,
+                  },
+                ]}
+              >
+                <Card
+                  card={{ suit: "spades", value: 0, hidden: true }}
+                  selected={false}
+                  faceDown
+                  disabled
+                  variant="table"
+                  cornerRadius={ceremonyCardCornerRadius(miniCardW, miniCardH)}
                   onPress={() => {}}
                   style={{ width: miniCardW, height: miniCardH }}
                 />
@@ -491,6 +553,14 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   sidelinedCard: {
     position: "absolute",
   },
+  dealStack: {
+    position: "absolute",
+    overflow: "visible",
+    zIndex: 13,
+  },
+  dealStackCard: {
+    position: "absolute",
+  },
   avatarWrap: {
     alignItems: "center",
     justifyContent: "center",
@@ -572,9 +642,9 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   },
   countBadge: {
     position: "absolute",
-    right: -8,
-    bottom: -4,
-    paddingHorizontal: 5,
+    right: -COUNT_BADGE_OUTSET_RIGHT,
+    bottom: -COUNT_BADGE_OUTSET_BOTTOM,
+    paddingHorizontal: COUNT_BADGE_PADDING_H,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.72)",

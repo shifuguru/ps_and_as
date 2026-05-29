@@ -244,6 +244,20 @@ writeVersionJson(buildMeta);
 // GitHub Pages serves 404.html for unknown routes — copy for SPA deep links.
 fs.copyFileSync(buildIndex, path.join(buildDir, '404.html'));
 
+// README fallback — real repo README.md (not a hand-written copy).
+const readmeSrc = path.resolve(__dirname, '..', 'README.md');
+const readmeFallbackSrc = path.resolve(__dirname, '..', 'readme-fallback.html');
+if (fs.existsSync(readmeSrc)) {
+  fs.copyFileSync(readmeSrc, path.join(buildDir, 'README.md'));
+  console.log('Copied README.md into web-build.');
+}
+if (fs.existsSync(readmeFallbackSrc)) {
+  let fallbackHtml = fs.readFileSync(readmeFallbackSrc, 'utf8');
+  fallbackHtml = rewriteHtmlPaths(fallbackHtml);
+  fs.writeFileSync(path.join(buildDir, 'readme-fallback.html'), fallbackHtml, 'utf8');
+  console.log('Wrote readme-fallback.html into web-build.');
+}
+
 // Prevent Jekyll from stripping or ignoring Expo output folders.
 fs.writeFileSync(path.join(buildDir, '.nojekyll'), '', 'utf8');
 
