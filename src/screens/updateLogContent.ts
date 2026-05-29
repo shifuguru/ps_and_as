@@ -20,6 +20,16 @@ export { formatUpdateTimestamp } from "../utils/formatLocalDateTime";
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: "2026-05-29T20:00:00.000Z",
+    title: "Read Me & UI glass",
+    items: [
+      "Read Me — opens in-app like Settings (no full-page refresh); README links styled as gold theme pills",
+      "Read Me — Back button sits in the same bottom bar as Settings and What's New",
+      "Deploy fallback README page — Back moved from the header to a centred bottom-bar pill",
+      "Panels & bottom bar — lighter glass in light and dark mode so the felt shows through more",
+    ],
+  },
+  {
     publishedAt: "2026-05-29T14:00:00.000Z",
     title: "Hand fan, deal flow & table polish",
     items: [

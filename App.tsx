@@ -7,6 +7,7 @@ import GameScreen from "./src/screens/GameScreen";
 import Achievements from "./src/screens/Achievements";
 import Settings from "./src/screens/Settings";
 import UpdateLog from "./src/screens/UpdateLog";
+import ReadMeScreen from "./src/screens/ReadMeScreen";
 import MainMenu from "./src/screens/MainMenu";
 import ScreenContainer from "./src/components/ScreenContainer";
 import BlurPanel from "./src/components/BlurPanel";
@@ -29,7 +30,6 @@ import FeltBackground from "./src/components/FeltBackground";
 import FullscreenBlurScrim from "./src/components/FullscreenBlurScrim";
 import WebModalPortal from "./src/components/WebModalPortal";
 import { DEFAULT_FELT_COLOR, getWallpaperTint } from "./src/services/wallpaper";
-import { openReadmeFallbackPage } from "./src/utils/readmeFallback";
 import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
 import { tryCollapseSafariChrome } from "./src/utils/safariChrome";
 import { useVisualViewportSize, useWebShellLayout } from "./src/hooks/useVisualViewportSize";
@@ -55,6 +55,7 @@ function AppContent() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [achievementsOpen, setAchievementsOpen] = useState(false);
   const [updateLogOpen, setUpdateLogOpen] = useState(false);
+  const [readmeOpen, setReadmeOpen] = useState(false);
   const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[] | null>(null);
   const [dealSeed, setDealSeed] = useState<number | undefined>(undefined);
   const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
@@ -271,7 +272,7 @@ function AppContent() {
     {
       label: "Read Me",
       icon: "globe",
-      action: () => openReadmeFallbackPage(),
+      action: () => openReadMe(),
     },
   ];
   const [wallpaperSource, setWallpaperSource] = useState<any>(require("./assets/ps_and_as_bg.png"));
@@ -367,6 +368,10 @@ function AppContent() {
   const openUpdateLog = () => setUpdateLogOpen(true);
 
   const closeUpdateLog = () => setUpdateLogOpen(false);
+
+  const openReadMe = () => setReadmeOpen(true);
+
+  const closeReadMe = () => setReadmeOpen(false);
 
   const lobbyMembersRef = useRef(lobbyMembers);
   lobbyMembersRef.current = lobbyMembers;
@@ -900,6 +905,14 @@ function AppContent() {
             <FullscreenBlurScrim />
             <View style={appStyles.settingsForeground}>
               <UpdateLog onBack={closeUpdateLog} />
+            </View>
+          </WebModalPortal>
+        )}
+        {menuVisible && readmeOpen && (
+          <WebModalPortal style={appStyles.settingsOverlay}>
+            <FullscreenBlurScrim />
+            <View style={appStyles.settingsForeground}>
+              <ReadMeScreen onBack={closeReadMe} />
             </View>
           </WebModalPortal>
         )}

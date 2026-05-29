@@ -21,6 +21,7 @@
     <style>
       :root {
         color-scheme: light dark;
+        --readme-bottom-bar-h: 78px;
       }
 
       body {
@@ -44,7 +45,7 @@
         z-index: 10;
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        justify-content: center;
         gap: 12px;
         padding: 12px 16px;
         padding-top: max(12px, env(safe-area-inset-top, 0px));
@@ -67,6 +68,7 @@
         font-size: 14px;
         font-weight: 600;
         color: #1f2328;
+        text-align: center;
       }
 
       @media (prefers-color-scheme: dark) {
@@ -75,20 +77,72 @@
         }
       }
 
-      .readme-toolbar a {
-        font-size: 14px;
-        color: #0969da;
-        text-decoration: none;
+      .readme-bottom-bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 20;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 16px;
+        padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+        border-top: 1px solid rgba(255, 255, 255, 0.14);
+        border-top-left-radius: 28px;
+        border-top-right-radius: 28px;
+        background: rgba(255, 255, 255, 0.82);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.12);
       }
 
       @media (prefers-color-scheme: dark) {
-        .readme-toolbar a {
-          color: #4493f8;
+        .readme-bottom-bar {
+          border-top-color: rgba(255, 255, 255, 0.1);
+          background: rgba(8, 28, 18, 0.78);
+          box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.35);
         }
       }
 
-      .readme-toolbar a:hover {
-        text-decoration: underline;
+      .readme-back-btn {
+        appearance: none;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        margin: 0;
+        padding: 0 22px;
+        min-height: 44px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        color: #1f2328;
+        font: 700 14px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+          Arial, sans-serif;
+        letter-spacing: 0.2px;
+        cursor: pointer;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .readme-back-btn {
+          border-color: rgba(255, 255, 255, 0.16);
+          background: rgba(255, 255, 255, 0.12);
+          color: rgba(255, 255, 255, 0.9);
+        }
+      }
+
+      .readme-back-btn:hover {
+        filter: brightness(0.97);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .readme-back-btn:hover {
+          filter: brightness(1.08);
+        }
+      }
+
+      .readme-back-btn:active {
+        transform: scale(0.98);
       }
 
       #status {
@@ -96,6 +150,7 @@
         max-width: 980px;
         margin: 0 auto;
         padding: 24px 32px;
+        padding-bottom: calc(24px + var(--readme-bottom-bar-h));
         color: #656d76;
         font-size: 14px;
       }
@@ -112,13 +167,13 @@
         max-width: 980px;
         margin: 0 auto;
         padding: 32px;
-        padding-bottom: max(32px, env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(32px + var(--readme-bottom-bar-h));
       }
 
       @media (max-width: 767px) {
         .markdown-body {
           padding: 16px;
-          padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+          padding-bottom: calc(16px + var(--readme-bottom-bar-h));
         }
       }
     </style>
@@ -126,10 +181,12 @@
   <body>
     <header class="readme-toolbar">
       <h1 class="readme-toolbar-title">Read Me</h1>
-      <a href="#" id="refresh-btn">Back to game</a>
     </header>
     <p id="status">Loading README…</p>
     <article id="readme" class="markdown-body"></article>
+    <footer class="readme-bottom-bar">
+      <button type="button" class="readme-back-btn" id="refresh-btn">Back</button>
+    </footer>
 
     <script type="module">
       const README_RAW =
@@ -215,7 +272,7 @@
         statusEl.remove();
       } catch (err) {
         statusEl.textContent =
-          "Could not load README. Use Back to game to retry, or open the repo on GitHub.";
+          "Could not load README. Tap Back below to retry, or open the repo on GitHub.";
         console.error("[readme-fallback]", err);
       }
     </script>

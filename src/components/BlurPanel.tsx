@@ -42,7 +42,7 @@ export default function BlurPanel({
   const resolvedScrim = scrimOpacity ?? blur.scrimOpacity;
   const resolvedWebOpacity = webOpacity ?? blur.webOpacity;
   const scrimRgb = colors.mode === "light" ? "255, 255, 255" : "8, 28, 18";
-  const webTintStrength = colors.mode === "light" ? 0.28 : 0.5;
+  const webTintStrength = colors.mode === "light" ? 0.2 : 0.42;
 
   if (Platform.OS === "web") {
     return (

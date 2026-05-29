@@ -292,20 +292,20 @@ function buildShellColors(
     blur: {
       chrome: {
         intensity: isDark ? 40 : 36,
-        scrimOpacity: isDark ? 0.16 : 0.14,
-        webOpacity: isDark ? 0.05 : 0.36,
+        scrimOpacity: isDark ? 0.14 : 0.11,
+        webOpacity: isDark ? 0.04 : 0.26,
         tint: isDark ? "dark" : "light",
       },
       panel: {
         intensity: isDark ? 48 : 44,
-        scrimOpacity: isDark ? 0.28 : 0.2,
-        webOpacity: isDark ? 0.08 : 0.48,
+        scrimOpacity: isDark ? 0.22 : 0.15,
+        webOpacity: isDark ? 0.06 : 0.34,
         tint: isDark ? "dark" : "light",
       },
       modal: {
         intensity: isDark ? 62 : 50,
-        scrimOpacity: isDark ? 0.28 : 0.22,
-        webOpacity: isDark ? 0.08 : 0.52,
+        scrimOpacity: isDark ? 0.22 : 0.17,
+        webOpacity: isDark ? 0.06 : 0.38,
         tint: isDark ? "dark" : "light",
       },
     },
