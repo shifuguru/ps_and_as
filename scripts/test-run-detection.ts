@@ -1259,5 +1259,134 @@ console.log("\n=== Skip-over step-back: J-Q-J-K keeps Runs! context ===\n");
   }
 }
 
+console.log("\n=== Oscillating step-back: 4-5-6-5-6 keeps Runs! context ===\n");
+{
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(4)]),
+      makeAction("play", 1, [card(5)]),
+      makeAction("play", 2, [card(6)]),
+      makeAction("play", 3, [card(5)]),
+      makeAction("play", 0, [card(6)]),
+    ],
+  };
+  const pile = [card(6)];
+  const history: Card[][] = [[card(4)], [card(5)], [card(6)], [card(5)]];
+  const ctx = resolveRunContext(pile, history, trick, players, []);
+  const fiveValid = isValidPlay(
+    [card(5)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  if (ctx.inRunContext && ctx.runSeq.map((c) => c.value).join(",") === "4,5,6" && fiveValid) {
+    passed++;
+    console.log("PASS  4-5-6-5-6: run core preserved; 5 allowed on pile 6");
+  } else {
+    failed++;
+    console.log("FAIL  4-5-6-5-6 oscillating step-back");
+    console.log(
+      `      inRun=${ctx.inRunContext} runSeq=${ctx.runSeq.map((c) => c.value)} fiveValid=${fiveValid}`,
+    );
+  }
+}
+
+console.log("\n=== Oscillating step-back: 10-J-Q-J-Q keeps Runs! context ===\n");
+{
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(10)]),
+      makeAction("play", 1, [card(11)]),
+      makeAction("play", 2, [card(12)]),
+      makeAction("play", 3, [card(11)]),
+      makeAction("play", 0, [card(12)]),
+    ],
+  };
+  const pile = [card(12)];
+  const history: Card[][] = [
+    [card(10)],
+    [card(11)],
+    [card(12)],
+    [card(11)],
+  ];
+  const ctx = resolveRunContext(pile, history, trick, players, []);
+  const jackValid = isValidPlay(
+    [card(11)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const kingValid = isValidPlay(
+    [card(13)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  if (
+    ctx.inRunContext &&
+    ctx.runSeq.map((c) => c.value).join(",") === "10,11,12" &&
+    jackValid &&
+    kingValid
+  ) {
+    passed++;
+    console.log("PASS  10-J-Q-J-Q: run core preserved; J and K allowed on Q");
+  } else {
+    failed++;
+    console.log("FAIL  10-J-Q-J-Q oscillating step-back");
+    console.log(
+      `      inRun=${ctx.inRunContext} runSeq=${ctx.runSeq.map((c) => c.value)} jackValid=${jackValid} kingValid=${kingValid}`,
+    );
+  }
+}
+
+console.log("\n=== Oscillating step-back: J-Q-K-J-Q keeps Runs! context ===\n");
+{
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(11)]),
+      makeAction("play", 1, [card(12)]),
+      makeAction("play", 2, [card(13)]),
+      makeAction("play", 3, [card(11)]),
+      makeAction("play", 0, [card(12)]),
+    ],
+  };
+  const pile = [card(12)];
+  const history: Card[][] = [
+    [card(11)],
+    [card(12)],
+    [card(13)],
+    [card(11)],
+  ];
+  const ctx = resolveRunContext(pile, history, trick, players, []);
+  if (ctx.inRunContext && ctx.runSeq.map((c) => c.value).join(",") === "11,12,13") {
+    passed++;
+    console.log("PASS  J-Q-K-J-Q: run core J-Q-K preserved after J-Q oscillation");
+  } else {
+    failed++;
+    console.log("FAIL  J-Q-K-J-Q oscillating step-back");
+    console.log(
+      `      inRun=${ctx.inRunContext} runSeq=${ctx.runSeq.map((c) => c.value)}`,
+    );
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);

@@ -31,6 +31,13 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: "2026-06-02T18:00:00+12:00",
+    title: "Runs — oscillating step-backs",
+    items: [
+      "Runs — J-Q-J-Q and similar bounce-backs no longer drop out of Runs! mode once a 3-card run is established (e.g. 10-J-Q-J-Q, J-Q-K-J-Q, 4-5-6-5-6)",
+    ],
+  },
+  {
     publishedAt: "2026-06-01T18:00:00+12:00",
     title: "Stats backup & What's New polish",
     items: [
@@ -234,8 +241,8 @@ export const KNOWN_ISSUES: KnownIssue[] = [
   {
     title: "Runs resetting mid-trick",
     status: "Fix shipped",
-    updatedAt: "2026-05-31T18:00:00+12:00",
-    note: "Run context should stay active through step-backs and skip-over plays (e.g. J-Q-J-K). Hard-refresh if \"Runs!\" still flickers off mid-trick.",
+    updatedAt: "2026-06-02T18:00:00+12:00",
+    note: "Run context should stay active through step-backs, skip-over plays (e.g. J-Q-J-K), and repeated oscillations (e.g. 10-J-Q-J-Q). Hard-refresh if \"Runs!\" still flickers off mid-trick.",
   },
   {
     title: "Shuffle animation on mobile",

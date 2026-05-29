@@ -1003,6 +1003,16 @@ function resolveRunFromChronology(chronology: Card[], pile?: Card[]): Card[] {
     }
   }
 
+  // Repeated step-back oscillation (e.g. 4-5-6-5-6, 10-J-Q-J-Q, J-Q-K-J-Q): the pile
+  // bounces between adjacent ranks after a monotonic core — keep the longest core that
+  // ends anywhere in the adjacent tail leading back to the pile.
+  if (isStepBackPile(chronology, pile)) {
+    for (let idx = n - 2; idx >= 0; idx--) {
+      const core = longestRunSuffixAtIndex(chronology, idx);
+      if (core.length > best.length) best = core;
+    }
+  }
+
   return best;
 }
 
