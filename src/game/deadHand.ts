@@ -82,6 +82,38 @@ export function applyDeadHandAfterDeal(
   state.mustPlay = true;
 }
 
+/** All rank-3 cards held by the dead hand (active or sidelined). */
+export function deadHandThrees(
+  players: Pick<Player, "id" | "hand" | "isDeadHand" | "sidelinedHand">[],
+): Card[] {
+  const dead = players.find((p) => isDeadHandPlayer(p));
+  if (!dead) return [];
+  return [...(dead.hand ?? []), ...(dead.sidelinedHand ?? [])].filter(
+    (c) => c.value === 3,
+  );
+}
+
+/** True when the dead hand holds all four 3s in the deck. */
+export function deadHandHoldsAllThrees(
+  players: Pick<Player, "id" | "hand" | "isDeadHand" | "sidelinedHand">[],
+): boolean {
+  return deadHandThrees(players).length >= 4;
+}
+
+/**
+ * Round 1 with a dead hand and no living player can open — dealer must reshuffle.
+ */
+export function needsRoundOneDealerReshuffle(
+  players: Pick<Player, "id" | "hand" | "isDeadHand" | "sidelinedHand">[],
+  options: DealerContext = {},
+): boolean {
+  const priorRound =
+    (options.lastRoundOrder?.length ?? 0) >= 2 ||
+    (options.finishedOrder?.length ?? 0) >= 2;
+  if (priorRound || !players.some(isDeadHandPlayer)) return false;
+  return resolveOpeningPlayerIndex(players, options) < 0;
+}
+
 /** True when any living player holds the given rank. */
 export function livingPlayerHasRank(
   players: Player[],

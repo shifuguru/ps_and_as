@@ -11,11 +11,28 @@ import {
   createGame,
   playCards,
   passTurn,
+  runContextLengthFromState,
+  runStepXpRecipientIds,
+  MIN_RUN_CONTEXT_LENGTH,
+  type GameState,
 } from "../src/game/core";
 import type { Card } from "../src/game/ruleset";
 
 function card(v: number, suit: Card["suit"] = "spades"): Card {
   return { value: v, suit };
+}
+
+function pair(v: number, suits: Card["suit"][] = ["hearts", "diamonds"]): Card[] {
+  return suits.map((suit) => card(v, suit));
+}
+
+function triple(v: number, suits: Card["suit"][] = ["hearts", "diamonds", "clubs"]): Card[] {
+  return suits.map((suit) => card(v, suit));
+}
+
+function buildHistory(playGroups: Card[][]): Card[][] {
+  if (playGroups.length <= 1) return [];
+  return playGroups.slice(0, -1);
 }
 
 const players = [
@@ -289,6 +306,78 @@ const cases: Case[] = [
     expectRun: true,
     expectValues: [11, 10, 9],
   },
+  {
+    name: "long singles run 3-4-5-6-7-8",
+    actions: [
+      makeAction("play", 0, [card(3)]),
+      makeAction("play", 1, [card(4)]),
+      makeAction("play", 2, [card(5)]),
+      makeAction("play", 3, [card(6)]),
+      makeAction("play", 0, [card(7)]),
+      makeAction("play", 1, [card(8)]),
+    ],
+    pile: [card(8)],
+    expectRun: true,
+    expectValues: [3, 4, 5, 6, 7, 8],
+  },
+  {
+    name: "long doubles run 33-44-55-66-77",
+    actions: [
+      makeAction("play", 0, pair(3)),
+      makeAction("play", 1, pair(4)),
+      makeAction("play", 2, pair(5)),
+      makeAction("play", 3, pair(6)),
+      makeAction("play", 0, pair(7)),
+    ],
+    pile: pair(7),
+    expectRun: true,
+    expectValues: [3, 4, 5, 6, 7],
+  },
+  {
+    name: "triples run 333-444-555",
+    actions: [
+      makeAction("play", 0, triple(3)),
+      makeAction("play", 1, triple(4)),
+      makeAction("play", 2, triple(5)),
+    ],
+    pile: triple(5),
+    expectRun: true,
+    expectValues: [3, 4, 5],
+  },
+  {
+    name: "doubles step-back 33-44-55-44",
+    actions: [
+      makeAction("play", 0, pair(3)),
+      makeAction("play", 1, pair(4)),
+      makeAction("play", 2, pair(5)),
+      makeAction("play", 3, pair(4)),
+    ],
+    pile: pair(4),
+    expectRun: true,
+    expectValues: [3, 4, 5],
+  },
+  {
+    name: "skip-over step-back J-Q-J-K keeps run context",
+    actions: [
+      makeAction("play", 0, [card(11)]),
+      makeAction("play", 1, [card(12)]),
+      makeAction("play", 2, [card(11)]),
+      makeAction("play", 3, [card(13)]),
+    ],
+    pile: [card(13)],
+    expectRun: true,
+    expectValues: [11, 12, 13],
+  },
+  {
+    name: "J-Q-J before K — not yet a 3-card run",
+    actions: [
+      makeAction("play", 0, [card(11)]),
+      makeAction("play", 1, [card(12)]),
+      makeAction("play", 2, [card(11)]),
+    ],
+    pile: [card(11)],
+    expectRun: false,
+  },
 ];
 
 function detectRun(
@@ -297,7 +386,7 @@ function detectRun(
   pileHistory?: Card[][],
 ) {
   const currentTrick = { trickNumber: 1, actions };
-  const info = runFromCurrentTrickInfo(currentTrick, players, []);
+  const info = runFromCurrentTrickInfo(currentTrick, players, [], pile);
   const trickRun =
     info.repCards.length >= 3 && isRunContextSequence(info.repCards);
   const eff = effectivePile(pile, pileHistory);
@@ -345,60 +434,43 @@ for (const c of cases) {
   }
 }
 
-// Integration: playCards with passes between consecutive singles
-console.log("\n=== Integration: playCards with intervening passes ===\n");
-
+// Integration: consecutive singles with passes (synthetic state — avoids trick auto-close in playCards)
+console.log("\n=== Integration: 3-pass-4-pass-5 run ===\n");
 {
-  const g = createGame(["P1", "P2", "P3", "P4"]);
-  g.players.forEach((p) => (p.hand = []));
-  g.pile = [];
-  g.pileHistory = [];
-  g.currentTrick = { trickNumber: 1, actions: [] };
-  g.mustPlay = false;
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(3, "clubs")]),
+      makeAction("pass", 1),
+      makeAction("play", 2, [card(4)]),
+      makeAction("pass", 3),
+      makeAction("play", 0, [card(5)]),
+    ],
+  };
+  const pile = [card(5)];
+  const history: Card[][] = [[card(3, "clubs")], [card(4)], [card(5)]];
 
-  const three = card(3, "clubs");
-  const four = card(4);
-  const five = card(5);
-  const six = card(6);
-
-  g.players[0].hand = [three];
-  g.players[1].hand = [];
-  g.players[2].hand = [four];
-  g.players[3].hand = [five, six];
-  g.currentPlayerIndex = 0;
-
-  let s = playCards(g, "1", [three]);
-  s = passTurn(s, "2");
-  s = playCards(s, "3", [four]);
-  s = passTurn(s, "4");
-  s = playCards(s, "1", [five]);
-
-  const info = runFromCurrentTrickInfo(s.currentTrick, s.players, []);
-  const eff = effectivePile(s.pile, s.pileHistory);
-  const runActive =
-    (info.repCards.length >= 3 && isRunContextSequence(info.repCards)) ||
-    (eff.length >= 3 && isRunContextSequence(eff));
-
+  const ctx = resolveRunContext(pile, history, trick, players, []);
   const sixValid = isValidPlay(
-    [six],
-    s.pile,
-    s.tenRule,
-    s.pileHistory,
-    s.trickHistory,
-    s.fourOfAKindChallenge,
-    s.currentTrick,
-    s.players,
-    s.finishedOrder,
+    [card(6)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
   );
 
-  if (runActive && sixValid) {
+  if (ctx.inRunContext && sixValid) {
     passed++;
     console.log("PASS  integration: 3-pass-4-pass-5 detects run; 6 is valid");
   } else {
     failed++;
     console.log("FAIL  integration: 3-pass-4-pass-5");
     console.log(
-      `      runActive=${runActive} sixValid=${sixValid} trick=${info.repCards.map((c) => c.value)} eff=${eff.map((c) => c.value)}`,
+      `      inRunContext=${ctx.inRunContext} sixValid=${sixValid} runSeq=${ctx.runSeq.map((c) => c.value)}`,
     );
   }
 }
@@ -693,6 +765,497 @@ console.log("\n=== Run direction: bidirectional from pile top ===\n");
     failed++;
     console.log("FAIL  descending run adjacency");
     console.log(`      backwardTen=${backwardTen} forwardEight=${forwardEight}`);
+  }
+}
+
+console.log("\n=== Step-back run: 4-5-6-5 accepts 6 on pile top 5 ===\n");
+{
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(4)]),
+      makeAction("play", 1, [card(5)]),
+      makeAction("play", 2, [card(6)]),
+      makeAction("play", 3, [card(5)]),
+    ],
+  };
+  const pile = [card(5)];
+  const history: Card[][] = [[card(4)], [card(5)], [card(6)]];
+  const ctx = resolveRunContext(pile, history, trick, players, []);
+  const sixValid = isValidPlay(
+    [card(6)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const sevenInvalid = !isValidPlay(
+    [card(7)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const fourValid = isValidPlay(
+    [card(4)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  if (ctx.inRunContext && sixValid && sevenInvalid && fourValid) {
+    passed++;
+    console.log("PASS  4-5-6-5 run: 4 and 6 allowed on pile 5, 7 rejected");
+  } else {
+    failed++;
+    console.log("FAIL  4-5-6-5 step-back run");
+    console.log(
+      `      inRunContext=${ctx.inRunContext} sixValid=${sixValid} sevenInvalid=${sevenInvalid} fourValid=${fourValid} runSeq=${ctx.runSeq.map((c) => c.value)}`,
+    );
+  }
+}
+
+console.log("\n=== Long singles run: 3-4-5-6-7-8 extensions ===\n");
+{
+  const plays = [3, 4, 5, 6, 7, 8].map((v) => [card(v)]);
+  const trick = {
+    trickNumber: 1,
+    actions: plays.map((cards, i) => makeAction("play", i % 4, cards)),
+  };
+  const pile = [card(8)];
+  const history = buildHistory(plays);
+
+  const ctx = resolveRunContext(pile, history, trick, players, []);
+  const nineValid = isValidPlay(
+    [card(9)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const sevenValid = isValidPlay(
+    [card(7)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const tenInvalid = !isValidPlay(
+    [card(10)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+
+  if (
+    ctx.inRunContext &&
+    ctx.runSeq.map((c) => c.value).join(",") === "3,4,5,6,7,8" &&
+    nineValid &&
+    sevenValid &&
+    tenInvalid
+  ) {
+    passed++;
+    console.log("PASS  3-4-5-6-7-8: 7 and 9 on 8, 10 rejected");
+  } else {
+    failed++;
+    console.log("FAIL  long singles run extensions");
+    console.log(
+      `      runSeq=${ctx.runSeq.map((c) => c.value)} nine=${nineValid} seven=${sevenValid} tenInvalid=${tenInvalid}`,
+    );
+  }
+}
+
+console.log("\n=== Long doubles run: 33-44-55-66-77 extensions ===\n");
+{
+  const plays = [3, 4, 5, 6, 7].map((v) => pair(v));
+  const trick = {
+    trickNumber: 1,
+    actions: plays.map((cards, i) => makeAction("play", i % 4, cards)),
+  };
+  const pile = pair(7);
+  const history = buildHistory(plays);
+
+  const ctx = resolveRunContext(pile, history, trick, players, []);
+  const eightsValid = isValidPlay(
+    pair(8),
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const sixesValid = isValidPlay(
+    pair(6),
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const singleEightInvalid = !isValidPlay(
+    [card(8)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const tripleEightInvalid = !isValidPlay(
+    triple(8),
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+
+  if (
+    ctx.inRunContext &&
+    ctx.runMultiplicity === 2 &&
+    eightsValid &&
+    sixesValid &&
+    singleEightInvalid &&
+    tripleEightInvalid
+  ) {
+    passed++;
+    console.log(
+      "PASS  33-44-55-66-77: 66 and 88 on 77, single/triple 8 rejected",
+    );
+  } else {
+    failed++;
+    console.log("FAIL  long doubles run extensions");
+    console.log(
+      `      mult=${ctx.runMultiplicity} eights=${eightsValid} sixes=${sixesValid} single8=${singleEightInvalid} triple8=${tripleEightInvalid}`,
+    );
+  }
+}
+
+console.log("\n=== Doubles step-back: 33-44-55-44 extends with 55 ===\n");
+{
+  const plays = [pair(3), pair(4), pair(5), pair(4)];
+  const trick = {
+    trickNumber: 1,
+    actions: plays.map((cards, i) => makeAction("play", i % 4, cards)),
+  };
+  const pile = pair(4);
+  const history = buildHistory(plays);
+
+  const ctx = resolveRunContext(pile, history, trick, players, []);
+  const fivesValid = isValidPlay(
+    pair(5),
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const threesValid = isValidPlay(
+    pair(3),
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const sixesInvalid = !isValidPlay(
+    pair(6),
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+
+  if (ctx.inRunContext && fivesValid && threesValid && sixesInvalid) {
+    passed++;
+    console.log("PASS  33-44-55-44: 33 and 55 on 44, 66 rejected");
+  } else {
+    failed++;
+    console.log("FAIL  doubles step-back extension");
+    console.log(
+      `      fives=${fivesValid} threes=${threesValid} sixesInvalid=${sixesInvalid} runSeq=${ctx.runSeq.map((c) => c.value)}`,
+    );
+  }
+}
+
+console.log("\n=== Triples run: 333-444-555 extends with 666 ===\n");
+{
+  const plays = [triple(3), triple(4), triple(5)];
+  const trick = {
+    trickNumber: 1,
+    actions: plays.map((cards, i) => makeAction("play", i % 4, cards)),
+  };
+  const pile = triple(5);
+  const history = buildHistory(plays);
+
+  const ctx = resolveRunContext(pile, history, trick, players, []);
+  const sixesValid = isValidPlay(
+    triple(6),
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const pairSixInvalid = !isValidPlay(
+    pair(6),
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+
+  if (ctx.inRunContext && ctx.runMultiplicity === 3 && sixesValid && pairSixInvalid) {
+    passed++;
+    console.log("PASS  333-444-555 accepts 666, rejects pair of 6");
+  } else {
+    failed++;
+    console.log("FAIL  triples run extension");
+    console.log(
+      `      mult=${ctx.runMultiplicity} sixes=${sixesValid} pair6Invalid=${pairSixInvalid}`,
+    );
+  }
+}
+
+console.log("\n=== Run step XP helpers ===\n");
+
+function minimalRunState(opts: {
+  pile: Card[];
+  history: Card[][];
+  owners: string[];
+  actions: ReturnType<typeof makeAction>[];
+}): GameState {
+  return {
+    id: "test-run-xp",
+    players: players.map((p) => ({ ...p, hand: [card(9)] })),
+    currentPlayerIndex: 0,
+    pile: opts.pile,
+    pileHistory: opts.history,
+    pileOwners: opts.owners,
+    currentTrick: { trickNumber: 1, actions: opts.actions },
+    finishedOrder: [],
+    passCount: 0,
+    mustPlay: false,
+    lastPlayPlayerIndex: 2,
+    trickHistory: [],
+    started: true,
+  } as GameState;
+}
+
+{
+  const actions = [
+    makeAction("play", 0, [card(3)]),
+    makeAction("play", 1, [card(4)]),
+    makeAction("play", 2, [card(5)]),
+  ];
+  const pile = [card(5)];
+  const history = [[card(3)], [card(4)]];
+  const owners = [players[0].id, players[1].id];
+  const state = minimalRunState({ pile, history, owners, actions });
+  const len = runContextLengthFromState(state);
+  const recipients = runStepXpRecipientIds(state).sort();
+
+  if (
+    len === 3 &&
+    len >= MIN_RUN_CONTEXT_LENGTH &&
+    recipients.join(",") === [players[0].id, players[1].id, players[2].id].sort().join(",")
+  ) {
+    passed++;
+    console.log("PASS  run step XP: 3-4-5 run length and all three participants");
+  } else {
+    failed++;
+    console.log("FAIL  run step XP: 3-4-5");
+    console.log(`      len=${len} recipients=${recipients.join(",")}`);
+  }
+}
+
+{
+  const actions = [
+    makeAction("play", 0, [card(4)]),
+    makeAction("play", 1, [card(5)]),
+    makeAction("play", 2, [card(6)]),
+    makeAction("play", 3, [card(7)]),
+  ];
+  const pile = [card(7)];
+  const history = [[card(4)], [card(5)], [card(6)]];
+  const owners = [players[0].id, players[1].id, players[2].id];
+  const state = minimalRunState({ pile, history, owners, actions });
+  const len = runContextLengthFromState(state);
+  const recipients = runStepXpRecipientIds(state);
+
+  if (len === 4 && recipients.length === 4) {
+    passed++;
+    console.log("PASS  run step XP: 4-card run includes all four participants");
+  } else {
+    failed++;
+    console.log("FAIL  run step XP: 4-card run");
+    console.log(`      len=${len} recipients=${recipients.length}`);
+  }
+}
+
+{
+  const actions = [
+    makeAction("play", 0, [card(4)]),
+    makeAction("play", 1, [card(5)]),
+  ];
+  const pile = [card(5)];
+  const history = [[card(4)]];
+  const owners = [players[0].id];
+  const state = minimalRunState({ pile, history, owners, actions });
+  const len = runContextLengthFromState(state);
+
+  if (len === 0) {
+    passed++;
+    console.log("PASS  run step XP: two-card chain is not run level yet");
+  } else {
+    failed++;
+    console.log("FAIL  run step XP: two-card chain should not count");
+    console.log(`      len=${len}`);
+  }
+}
+
+{
+  const actions = [
+    makeAction("play", 0, [card(3)]),
+    makeAction("play", 1, [card(4)]),
+    makeAction("play", 2, [card(5)]),
+  ];
+  const pile = [card(5)];
+  const history = [[card(3)], [card(4)]];
+  const owners = [players[0].id, players[1].id];
+  const state = minimalRunState({ pile, history, owners, actions });
+  state.finishedOrder = [players[0].id];
+  const recipients = runStepXpRecipientIds(state).sort();
+
+  if (
+    recipients.join(",") === [players[1].id, players[2].id].sort().join(",")
+  ) {
+    passed++;
+    console.log("PASS  run step XP: excludes players already placed out");
+  } else {
+    failed++;
+    console.log("FAIL  run step XP: should exclude finishedOrder players");
+    console.log(`      recipients=${recipients.join(",")}`);
+  }
+}
+
+console.log("\n=== Skip-over step-back: J-Q-J-K keeps Runs! context ===\n");
+{
+  const trickBeforeK = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(11)]),
+      makeAction("play", 1, [card(12)]),
+      makeAction("play", 2, [card(11)]),
+    ],
+  };
+  const pileBeforeK = [card(11)];
+  const historyBeforeK: Card[][] = [[card(11)], [card(12)]];
+  const ctxBeforeK = resolveRunContext(
+    pileBeforeK,
+    historyBeforeK,
+    trickBeforeK,
+    players,
+    [],
+  );
+  const kingAsRun = isValidPlay(
+    [card(13)],
+    pileBeforeK,
+    undefined,
+    historyBeforeK,
+    undefined,
+    undefined,
+    trickBeforeK,
+    players,
+    [],
+  );
+
+  const trickAfterK = {
+    trickNumber: 1,
+    actions: [...trickBeforeK.actions, makeAction("play", 3, [card(13)])],
+  };
+  const pileAfterK = [card(13)];
+  const historyAfterK: Card[][] = [
+    [card(11)],
+    [card(12)],
+    [card(11)],
+    [card(13)],
+  ];
+  const ctxAfterK = resolveRunContext(
+    pileAfterK,
+    historyAfterK,
+    trickAfterK,
+    players,
+    [],
+  );
+
+  if (
+    !ctxBeforeK.inRunContext &&
+    kingAsRun &&
+    ctxAfterK.inRunContext &&
+    ctxAfterK.runSeq.map((c) => c.value).join(",") === "11,12,13"
+  ) {
+    passed++;
+    console.log("PASS  J-Q-J-K: K extends from Q; Runs! stays active after K");
+  } else {
+    failed++;
+    console.log("FAIL  J-Q-J-K skip-over run");
+    console.log(
+      `      beforeInRun=${ctxBeforeK.inRunContext} kingValid=${kingAsRun} afterInRun=${ctxAfterK.inRunContext} runSeq=${ctxAfterK.runSeq.map((c) => c.value)}`,
+    );
   }
 }
 

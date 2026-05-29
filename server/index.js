@@ -10,6 +10,9 @@ const {
   setTenRuleDirection,
   resolveLeadPlayerIndexAfterTrades,
   resolveOpeningPlayerIndex,
+  resolveDealerId,
+  buildDealerContext,
+  needsRoundOneDealerReshuffle,
   pickHighestCards,
   pickLowestCards,
   advanceAssholeStreakAfterRound,
@@ -1270,6 +1273,48 @@ io.on('connection', (socket) => {
         targetPlayerId: target.id,
         targetPlayerName: target.name,
       });
+      return;
+    }
+
+    if (action?.type === 'dealerReshuffle') {
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player) return;
+      if (player.disconnectedAt) {
+        socket.emit('error', { message: 'Reconnect to continue playing' });
+        return;
+      }
+      const dealerId = resolveDealerId(room.gameState.players, {
+        hostId: room.host,
+        lastRoundOrder: room.gameState.lastRoundOrder,
+        finishedOrder: room.gameState.finishedOrder,
+        roles: room.gameState.roles,
+      });
+      if (player.id !== dealerId) {
+        socket.emit('error', { message: 'Only the dealer can reshuffle' });
+        return;
+      }
+      const dealerContext = buildDealerContext({
+        hostId: room.host,
+        finishOrder: room.gameState.lastRoundOrder,
+        lastRoundOrder: room.gameState.lastRoundOrder,
+        roles: room.gameState.roles,
+      });
+      if (!needsRoundOneDealerReshuffle(room.gameState.players, dealerContext)) {
+        socket.emit('error', { message: 'Reshuffle not needed right now' });
+        return;
+      }
+      const dealSeed =
+        typeof action.dealSeed === 'number'
+          ? (action.dealSeed >>> 0)
+          : Math.floor(Math.random() * 2147483647);
+      const lastOrder = livingFinishOrder(
+        room.gameState,
+        room.gameState.lastRoundOrder?.slice() ?? [],
+      );
+      beginAuthoritativeRound(room, dealSeed, {
+        lastRoundOrder: lastOrder.length >= 2 ? lastOrder : undefined,
+      });
+      broadcastGameState(io, room);
       return;
     }
 

@@ -7,6 +7,8 @@ import {
   DEAD_HAND_ID,
   applyDeadHandAfterDeal,
   livingFinishedOrder,
+  deadHandHoldsAllThrees,
+  needsRoundOneDealerReshuffle,
 } from "../src/game/deadHand";
 import {
   createGame,
@@ -194,6 +196,61 @@ assert.strictEqual(
   true,
   "5 should beat 4 after 3-4 — normal play until 3rd consecutive card"
 );
+
+// Step-back run: 4-5-6-5 on table — extend from pile top (5), not run tail (6)
+{
+  const runPlayers: Player[] = [
+    { id: "1", name: "P1", hand: [], role: "Neutral" },
+    { id: "2", name: "P2", hand: [], role: "Neutral" },
+    { id: "3", name: "P3", hand: [], role: "Neutral" },
+    { id: "4", name: "P4", hand: [], role: "Neutral" },
+  ];
+  const trick4565 = {
+    trickNumber: 1,
+    actions: [
+      { type: "play" as const, playerId: "1", playerName: "P1", cards: [{ suit: "hearts", value: 4 }], timestamp: 1 },
+      { type: "play" as const, playerId: "2", playerName: "P2", cards: [{ suit: "diamonds", value: 5 }], timestamp: 2 },
+      { type: "play" as const, playerId: "3", playerName: "P3", cards: [{ suit: "clubs", value: 6 }], timestamp: 3 },
+      { type: "play" as const, playerId: "4", playerName: "P4", cards: [{ suit: "spades", value: 5 }], timestamp: 4 },
+    ],
+  };
+  const pileFive: Card[] = [{ suit: "spades", value: 5 }];
+  const history4565: Card[][] = [
+    [{ suit: "hearts", value: 4 }],
+    [{ suit: "diamonds", value: 5 }],
+    [{ suit: "clubs", value: 6 }],
+  ];
+  assert.strictEqual(
+    isValidPlay(
+      [{ suit: "hearts", value: 6 }],
+      pileFive,
+      undefined,
+      history4565,
+      undefined,
+      undefined,
+      trick4565,
+      runPlayers,
+      [],
+    ),
+    true,
+    "6 should extend 4-5-6-5 run from pile top 5",
+  );
+  assert.strictEqual(
+    isValidPlay(
+      [{ suit: "hearts", value: 7 }],
+      pileFive,
+      undefined,
+      history4565,
+      undefined,
+      undefined,
+      trick4565,
+      runPlayers,
+      [],
+    ),
+    false,
+    "7 should not extend 4-5-6-5 — not adjacent to pile top 5",
+  );
+}
 
 // Quad close on 10s must work even when 10-rule is active
 const twoTens: Card[] = [
@@ -716,7 +773,6 @@ function makeEmptyGame(names: string[]): GameState {
   assert.strictEqual(s.mustPlay, true, "On top! is a must-play turn");
   assert.strictEqual(s.pile.length, 1, "Trick should not clear before on top! play");
 
-  const six: Card = { suit: "hearts", value: 6 };
   assert.ok(
     isValidPlay(
       [six],
@@ -1094,6 +1150,36 @@ function makeTwoPlayerDeadHandGame(
     resolveOpeningPlayerIndex(players, { hostId: "host" }),
     -1,
     "Round 1 must not fall back to dealer's left when no living 3",
+  );
+}
+
+{
+  const players = makeTwoPlayerDeadHandGame(
+    {
+      host: [{ suit: "hearts", value: 5 }],
+      guest: [{ suit: "diamonds", value: 4 }],
+      [DEAD_HAND_ID]: [
+        { suit: "clubs", value: 3 },
+        { suit: "spades", value: 3 },
+        { suit: "hearts", value: 3 },
+        { suit: "diamonds", value: 3 },
+      ],
+    },
+  );
+  const dead = players.find((p) => p.id === DEAD_HAND_ID);
+  if (dead) {
+    dead.sidelinedHand = [...dead.hand];
+    dead.hand = [];
+  }
+  assert.strictEqual(
+    deadHandHoldsAllThrees(players),
+    true,
+    "Dead hand holds all four 3s after sideline",
+  );
+  assert.strictEqual(
+    needsRoundOneDealerReshuffle(players, { hostId: "host" }),
+    true,
+    "Dealer must reshuffle when all four 3s are on the dead hand",
   );
 }
 

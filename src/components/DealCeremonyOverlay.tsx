@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Animated,
   StyleSheet,
-  Text,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -19,7 +17,6 @@ import {
   seatOriginInPlayArea,
 } from "../utils/tablePlayFlight";
 import type { ClientPendingTrade } from "../game/roundPrep";
-import { useAppTheme } from "../context/ThemeContext";
 import { FULL_DECK_SIZE } from "../game/ruleset";
 import {
   buildClockwiseDealSteps,
@@ -49,6 +46,8 @@ type Props = {
   onMandatoryTradesAnimated?: () => void;
   /** Live per-player dealt counts while the deal phase runs. */
   onDealtCountsChange?: (counts: Record<string, number>) => void;
+  /** Ceremony status line for the game header row (shuffling, dealing, etc.). */
+  onStatusTextChange?: (text: string | null) => void;
 };
 
 const SHUFFLE_MS = 3600;
@@ -61,8 +60,6 @@ const DEAL_STEP_GAP_MS_FAST = 6;
 const HIDDEN_SEAT_DEAL_MS_SLOW = 170;
 const HIDDEN_SEAT_DEAL_MS_FAST = 35;
 const MANDATORY_TRADE_MS = 720;
-/** Pill height estimate — used to nudge the status label below the top edge. */
-const STATUS_LABEL_HEIGHT = 34;
 
 function lerp(from: number, to: number, t: number): number {
   return from + (to - from) * t;
@@ -133,11 +130,10 @@ export default function DealCeremonyOverlay({
   onDealComplete,
   onMandatoryTradesAnimated,
   onDealtCountsChange,
+  onStatusTextChange,
 }: Props) {
-  const { colors } = useAppTheme();
   const { width: screenW } = useWindowDimensions();
   const dims = useMemo(() => tableCardDimensions(), []);
-  const labelOpacity = useRef(new Animated.Value(1)).current;
 
   const [phase, setPhase] = useState<"shuffle" | "deal" | "trade" | "done">(
     "shuffle",
@@ -167,6 +163,8 @@ export default function DealCeremonyOverlay({
 
   const onDealtCountsChangeRef = useRef(onDealtCountsChange);
   onDealtCountsChangeRef.current = onDealtCountsChange;
+  const onStatusTextChangeRef = useRef(onStatusTextChange);
+  onStatusTextChangeRef.current = onStatusTextChange;
 
   const finishCeremony = () => {
     if (ceremonyFinishedRef.current) return;
@@ -486,17 +484,16 @@ export default function DealCeremonyOverlay({
           ? "Fresh round — no President trade"
           : "Role trades…";
 
+  useEffect(() => {
+    if (!visible || phase === "done") {
+      onStatusTextChangeRef.current?.(null);
+      return;
+    }
+    onStatusTextChangeRef.current?.(statusText);
+  }, [visible, phase, statusText]);
+
   return (
     <View style={styles.overlay} pointerEvents="box-none">
-      <Animated.View
-        style={[
-          styles.labelWrap,
-          { opacity: labelOpacity, top: 12 + STATUS_LABEL_HEIGHT },
-        ]}
-      >
-        <Text style={[styles.label, { color: colors.gold }]}>{statusText}</Text>
-      </Animated.View>
-
       {phase === "shuffle" ? (
         <DealShuffleAnimation
           cardW={dims.width * 0.78}
@@ -540,22 +537,5 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 80,
     elevation: 80,
-  },
-  labelWrap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  label: {
-    fontSize: 15,
-    fontWeight: "800",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-    backgroundColor: "rgba(0,0,0,0.55)",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 999,
-    overflow: "hidden",
   },
 });

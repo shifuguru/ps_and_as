@@ -44,6 +44,17 @@ import {
 import { validateDisplayText, displayTextError, isValidDisplayText } from "../utils/profanityFilter";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
+import Card from "../components/Card";
+import type { Card as CardType } from "../game/ruleset";
+
+const CARD_PREVIEW_W = 54;
+const CARD_PREVIEW_H = 78;
+
+const CARD_PREVIEW_SAMPLES: CardType[] = [
+  { suit: "spades", value: 14 },
+  { suit: "hearts", value: 13 },
+  { suit: "clubs", value: 10 },
+];
 
 export default function Settings({
   onWallpaperPreview,
@@ -68,7 +79,8 @@ export default function Settings({
   } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
-  const { skipDealAnimations, setSkipDealAnimations } = useGamePreferences();
+  const { skipDealAnimations, setSkipDealAnimations, darkModeCards, setDarkModeCards } =
+    useGamePreferences();
   const { width } = useWindowDimensions();
   const contentMax = contentMaxWidth(width);
   const bottomBarHeight = menuBottomReserve(insets.bottom || 0);
@@ -285,6 +297,149 @@ export default function Settings({
               onChange={(value) => void setAppearancePreference(value as AppearancePreference)}
               colors={colors}
             />
+
+            <View style={styles.appearanceSubsection}>
+              <Text style={styles.subsectionEyebrow}>Felt tint</Text>
+              <Text style={styles.tintHint}>
+                Preview updates live. Tap Set Felt Color to save your preference.
+              </Text>
+              <View style={styles.swatchRow}>
+                {FELT_PRESETS.map((preset) => (
+                  <TouchableOpacity
+                    key={preset.hex}
+                    onPress={() => updatePreview(preset.hex)}
+                    accessibilityLabel={preset.name}
+                    style={[
+                      styles.swatch,
+                      { backgroundColor: preset.hex },
+                      previewTintNormalized === preset.hex && styles.swatchSelected,
+                    ]}
+                  />
+                ))}
+              </View>
+              <View style={styles.hexInputRow}>
+                <View style={styles.hexInputWrap}>
+                  <Text style={styles.hexPrefix}>#</Text>
+                  <TextInput
+                    placeholder="rrggbb"
+                    placeholderTextColor={colors.textMuted}
+                    value={hexInput}
+                    onChangeText={handleHexInputChange}
+                    style={[ui.input, styles.hexInputField]}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    maxLength={6}
+                    keyboardType="default"
+                  />
+                </View>
+                <TouchableOpacity
+                  style={[
+                    styles.pickerToggle,
+                    feltPickerOpen && styles.pickerToggleActive,
+                  ]}
+                  onPress={() => setFeltPickerOpen((open) => !open)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open felt color picker"
+                  activeOpacity={0.85}
+                >
+                  <View
+                    style={[
+                      styles.pickerToggleSwatch,
+                      { backgroundColor: previewTintNormalized },
+                    ]}
+                  />
+                  <MenuIcon
+                    name="palette"
+                    size={18}
+                    color={feltPickerOpen ? colors.textOnGold : colors.gold}
+                  />
+                </TouchableOpacity>
+              </View>
+              {feltPickerOpen ? (
+                <FeltColorPicker
+                  value={previewTint}
+                  onChange={updatePreview}
+                  colors={colors}
+                />
+              ) : null}
+              <TouchableOpacity
+                style={[
+                  styles.saveBtn,
+                  { marginTop: 12 },
+                  (tintDirty || feltSaveFlash) && styles.saveBtnActive,
+                  feltSaveFlash && styles.saveBtnSaved,
+                ]}
+                onPress={() => void handleSaveFeltColor()}
+                disabled={!tintDirty && !feltSaveFlash}
+                activeOpacity={0.85}
+              >
+                <Text
+                  style={[
+                    styles.saveBtnText,
+                    (tintDirty || feltSaveFlash) && styles.saveBtnTextActive,
+                  ]}
+                >
+                  {feltSaveFlash ? "Saved" : "Set Felt Color"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[ui.btnGhost, { marginTop: 10 }]}
+                onPress={() => void handleResetFeltColor()}
+              >
+                <Text style={ui.btnGhostText}>Reset Felt Color</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.settingRow, styles.settingRowSpaced]}>
+              <View style={styles.settingRowCopy}>
+                <Text style={styles.settingLabel}>Dark mode cards</Text>
+                <Text style={[styles.tintHint, styles.settingHint]}>
+                  Dark card faces with white spades and clubs.
+                </Text>
+              </View>
+              <Switch
+                value={darkModeCards}
+                onValueChange={(value) => void setDarkModeCards(value)}
+                trackColor={{
+                  false: colors.panelBorder,
+                  true: colors.gold,
+                }}
+                thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
+                accessibilityLabel="Dark mode cards"
+              />
+            </View>
+            <View
+              style={[
+                styles.cardPreviewHost,
+                { backgroundColor: previewTintNormalized },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.cardPreviewLabel,
+                  onFeltTextStyle(colors.onFelt, "muted", {
+                    fontSize: 11,
+                    fontWeight: "700",
+                    letterSpacing: 0.6,
+                    textTransform: "uppercase",
+                  }),
+                ]}
+              >
+                Card preview
+              </Text>
+              <View style={styles.cardPreviewRow}>
+                {CARD_PREVIEW_SAMPLES.map((sample) => (
+                  <Card
+                    key={`${sample.suit}-${sample.value}`}
+                    card={sample}
+                    selected={false}
+                    onPress={() => {}}
+                    variant="table"
+                    style={{ width: CARD_PREVIEW_W, height: CARD_PREVIEW_H }}
+                  />
+                ))}
+              </View>
+            </View>
           </BlurPanel>
 
           <BlurPanel style={ui.panel} intensity={48}>
@@ -384,98 +539,6 @@ export default function Settings({
                 accessibilityLabel="Skip deal animations"
               />
             </View>
-          </BlurPanel>
-
-          <BlurPanel style={ui.panel} intensity={48}>
-            <Text style={ui.panelEyebrow}>Felt Tint</Text>
-            <Text style={styles.tintHint}>
-              Preview updates live. Tap Set Felt Color to save your preference.
-            </Text>
-            <View style={styles.swatchRow}>
-              {FELT_PRESETS.map((preset) => (
-                <TouchableOpacity
-                  key={preset.hex}
-                  onPress={() => updatePreview(preset.hex)}
-                  accessibilityLabel={preset.name}
-                  style={[
-                    styles.swatch,
-                    { backgroundColor: preset.hex },
-                    previewTintNormalized === preset.hex && styles.swatchSelected,
-                  ]}
-                />
-              ))}
-            </View>
-            <View style={styles.hexInputRow}>
-              <View style={styles.hexInputWrap}>
-                <Text style={styles.hexPrefix}>#</Text>
-                <TextInput
-                  placeholder="rrggbb"
-                  placeholderTextColor={colors.textMuted}
-                  value={hexInput}
-                  onChangeText={handleHexInputChange}
-                  style={[ui.input, styles.hexInputField]}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  maxLength={6}
-                  keyboardType="default"
-                />
-              </View>
-              <TouchableOpacity
-                style={[
-                  styles.pickerToggle,
-                  feltPickerOpen && styles.pickerToggleActive,
-                ]}
-                onPress={() => setFeltPickerOpen((open) => !open)}
-                accessibilityRole="button"
-                accessibilityLabel="Open felt color picker"
-                activeOpacity={0.85}
-              >
-                <View
-                  style={[
-                    styles.pickerToggleSwatch,
-                    { backgroundColor: previewTintNormalized },
-                  ]}
-                />
-                <MenuIcon
-                  name="palette"
-                  size={18}
-                  color={feltPickerOpen ? colors.textOnGold : colors.gold}
-                />
-              </TouchableOpacity>
-            </View>
-            {feltPickerOpen ? (
-              <FeltColorPicker
-                value={previewTint}
-                onChange={updatePreview}
-                colors={colors}
-              />
-            ) : null}
-            <TouchableOpacity
-              style={[
-                styles.saveBtn,
-                { marginTop: 12 },
-                (tintDirty || feltSaveFlash) && styles.saveBtnActive,
-                feltSaveFlash && styles.saveBtnSaved,
-              ]}
-              onPress={() => void handleSaveFeltColor()}
-              disabled={!tintDirty && !feltSaveFlash}
-              activeOpacity={0.85}
-            >
-              <Text
-                style={[
-                  styles.saveBtnText,
-                  (tintDirty || feltSaveFlash) && styles.saveBtnTextActive,
-                ]}
-              >
-                {feltSaveFlash ? "Saved" : "Set Felt Color"}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[ui.btnGhost, { marginTop: 10 }]}
-              onPress={() => void handleResetFeltColor()}
-            >
-              <Text style={ui.btnGhostText}>Reset Felt Color</Text>
-            </TouchableOpacity>
           </BlurPanel>
         </View>
       </ScrollView>
@@ -664,6 +727,26 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     justifyContent: "space-between",
     gap: 16,
   },
+  settingRowSpaced: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.panelBorder,
+  },
+  appearanceSubsection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.panelBorder,
+  },
+  subsectionEyebrow: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
   settingRowCopy: {
     flex: 1,
   },
@@ -675,6 +758,26 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   },
   settingHint: {
     marginBottom: 0,
+  },
+  cardPreviewHost: {
+    marginTop: 14,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.panelBorder,
+    alignItems: "center",
+  },
+  cardPreviewLabel: {
+    marginBottom: 10,
+    alignSelf: "flex-start",
+  },
+  cardPreviewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
   },
   textPreview: {
     marginTop: 14,

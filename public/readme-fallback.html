@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <title>Read Me · P's &amp; A's</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.6.1/github-markdown-light.min.css"
+      media="(prefers-color-scheme: light)"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.6.1/github-markdown-dark.min.css"
+      media="(prefers-color-scheme: dark)"
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --readme-bottom-bar-h: 78px;
+      }
+
+      body {
+        margin: 0;
+        background: #ffffff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+          Arial, sans-serif;
+        padding-left: env(safe-area-inset-left, 0px);
+        padding-right: env(safe-area-inset-right, 0px);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0d1117;
+        }
+      }
+
+      .readme-toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 12px 16px;
+        padding-top: max(12px, env(safe-area-inset-top, 0px));
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+        border-bottom: 1px solid #d0d7de;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(8px);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .readme-toolbar {
+          border-bottom-color: #30363d;
+          background: rgba(13, 17, 23, 0.92);
+        }
+      }
+
+      .readme-toolbar-title {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1f2328;
+        text-align: center;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .readme-toolbar-title {
+          color: #e6edf3;
+        }
+      }
+
+      .readme-bottom-bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 20;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 16px;
+        padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+        border-top: 1px solid rgba(255, 255, 255, 0.14);
+        border-top-left-radius: 28px;
+        border-top-right-radius: 28px;
+        background: rgba(255, 255, 255, 0.82);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.12);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .readme-bottom-bar {
+          border-top-color: rgba(255, 255, 255, 0.1);
+          background: rgba(8, 28, 18, 0.78);
+          box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.35);
+        }
+      }
+
+      .readme-back-btn {
+        appearance: none;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        margin: 0;
+        padding: 0 22px;
+        min-height: 44px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        color: #1f2328;
+        font: 700 14px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+          Arial, sans-serif;
+        letter-spacing: 0.2px;
+        cursor: pointer;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .readme-back-btn {
+          border-color: rgba(255, 255, 255, 0.16);
+          background: rgba(255, 255, 255, 0.12);
+          color: rgba(255, 255, 255, 0.9);
+        }
+      }
+
+      .readme-back-btn:hover {
+        filter: brightness(0.97);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .readme-back-btn:hover {
+          filter: brightness(1.08);
+        }
+      }
+
+      .readme-back-btn:active {
+        transform: scale(0.98);
+      }
+
+      #status {
+        box-sizing: border-box;
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 24px 32px;
+        padding-bottom: calc(24px + var(--readme-bottom-bar-h));
+        color: #656d76;
+        font-size: 14px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        #status {
+          color: #8b949e;
+        }
+      }
+
+      .markdown-body {
+        box-sizing: border-box;
+        min-width: 200px;
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 32px;
+        padding-bottom: calc(32px + var(--readme-bottom-bar-h));
+      }
+
+      @media (max-width: 767px) {
+        .markdown-body {
+          padding: 16px;
+          padding-bottom: calc(16px + var(--readme-bottom-bar-h));
+        }
+      }
+
+      .markdown-body h1,
+      .markdown-body h2,
+      .markdown-body h3,
+      .markdown-body h4,
+      .markdown-body h5,
+      .markdown-body h6 {
+        border-bottom: none !important;
+        padding-bottom: 0.15em;
+      }
+
+      .markdown-body hr {
+        height: 0.2em;
+        padding: 0;
+        margin: 24px 0;
+        border: 0;
+      }
+
+      @media (prefers-color-scheme: light) {
+        .markdown-body hr {
+          background-color: rgba(27, 31, 35, 0.12);
+        }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .markdown-body hr {
+          background-color: rgba(240, 246, 252, 0.12);
+        }
+      }
+
+      .markdown-body blockquote {
+        border-left: none !important;
+        padding: 0 !important;
+        margin: 0 0 16px;
+        color: inherit;
+      }
+
+      .markdown-body blockquote p {
+        color: inherit !important;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="readme-toolbar">
+      <h1 class="readme-toolbar-title">Read Me</h1>
+    </header>
+    <p id="status">Loading README…</p>
+    <article id="readme" class="markdown-body"></article>
+    <footer class="readme-bottom-bar">
+      <button type="button" class="readme-back-btn" id="refresh-btn">Back</button>
+    </footer>
+
+    <script type="module">
+      const README_RAW =
+        "https://raw.githubusercontent.com/shifuguru/ps_and_as/main/README.md";
+      const statusEl = document.getElementById("status");
+      const readmeEl = document.getElementById("readme");
+      const refreshBtn = document.getElementById("refresh-btn");
+
+      function appBasePath() {
+        const path = window.location.pathname;
+        const idx = path.indexOf("/readme-fallback.html");
+        if (idx > 0) return path.slice(0, idx);
+        if (path.includes("/ps_and_as")) return "/ps_and_as";
+        return "";
+      }
+
+      function normalizePathname(pathname) {
+        let path = pathname.replace(/\/+$/, "") || "/";
+        if (path.endsWith("/index.html")) {
+          path = path.slice(0, -"/index.html".length) || "/";
+        }
+        return path;
+      }
+
+      function gameHomeUrl() {
+        const base = appBasePath();
+        const url = new URL(base + "/" || "/", window.location.origin);
+        url.search = "";
+        url.hash = "";
+        return url.toString();
+      }
+
+      function isGameHomeLink(href) {
+        try {
+          const resolved = new URL(href, window.location.href);
+          const home = new URL(gameHomeUrl());
+          if (resolved.origin !== home.origin) return false;
+          return (
+            normalizePathname(resolved.pathname) ===
+            normalizePathname(home.pathname)
+          );
+        } catch {
+          return false;
+        }
+      }
+
+      function linkWantsRefresh(href, label) {
+        if (/refresh/i.test(String(label).trim())) return true;
+        try {
+          const resolved = new URL(href, window.location.href);
+          return (
+            resolved.searchParams.has("refresh") ||
+            resolved.searchParams.has("reload")
+          );
+        } catch {
+          return false;
+        }
+      }
+
+      function openGameLink(refresh) {
+        if (refresh) {
+          const url = new URL(gameHomeUrl());
+          url.searchParams.set("_", String(Date.now()));
+          window.location.replace(url.toString());
+          return;
+        }
+        window.location.replace(gameHomeUrl());
+      }
+
+      function hardRefresh(event) {
+        event.preventDefault();
+        openGameLink(true);
+      }
+
+      refreshBtn.addEventListener("click", hardRefresh);
+
+      document.addEventListener(
+        "click",
+        (event) => {
+          const link = event.target?.closest?.("a");
+          if (!link) return;
+          const href = link.getAttribute("href");
+          if (!href) return;
+
+          if (href.startsWith("#")) {
+            event.preventDefault();
+            const id = decodeURIComponent(href.slice(1));
+            const heading = document.getElementById(id);
+            if (heading) {
+              heading.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+            return;
+          }
+
+          if (!isGameHomeLink(href)) return;
+
+          event.preventDefault();
+          openGameLink(linkWantsRefresh(href, link.textContent ?? ""));
+        },
+        true,
+      );
+
+      /** Match GitHub heading anchors so README TOC links work. */
+      function githubHeadingId(plain) {
+        return plain
+          .toLowerCase()
+          .trim()
+          .replace(/[^\w\s-]/g, "")
+          .replace(/ /g, "-");
+      }
+
+      function tokenPlainText(token) {
+        if (!token) return "";
+        if (typeof token.text === "string") return token.text;
+        if (Array.isArray(token.tokens)) {
+          return token.tokens.map(tokenPlainText).join("");
+        }
+        return "";
+      }
+
+      async function loadMarked() {
+        const mod = await import(
+          "https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.esm.js"
+        );
+        const { marked } = mod;
+        marked.use({
+          renderer: {
+            heading({ tokens, depth }) {
+              const plain = tokens.map(tokenPlainText).join("");
+              const id = githubHeadingId(plain);
+              const inner = this.parser.parseInline(tokens);
+              return `<h${depth} id="${id}">${inner}</h${depth}>\n`;
+            },
+            link(token) {
+              const text = this.parser.parseInline(token.tokens);
+              const href = token.href ?? "#";
+              const plainLabel = token.tokens.map(tokenPlainText).join("");
+              const gameLink = isGameHomeLink(href);
+              const refreshLink = gameLink && linkWantsRefresh(href, plainLabel);
+              const external =
+                !gameLink &&
+                (href.startsWith("http://") || href.startsWith("https://"));
+              const titleAttr = token.title
+                ? ` title="${String(token.title).replace(/"/g, "&quot;")}"`
+                : "";
+              const targetAttr = external
+                ? ' target="_blank" rel="noopener noreferrer"'
+                : "";
+              const actionAttr = gameLink
+                ? ` data-readme-game-link="1"${refreshLink ? ' data-readme-refresh="1"' : ""}`
+                : "";
+              return `<a class="readme-link-pill" href="${href.replace(/"/g, "&quot;")}"${titleAttr}${targetAttr}${actionAttr}>${text}</a>`;
+            },
+          },
+        });
+        return marked;
+      }
+
+      async function fetchReadme() {
+        try {
+          const remote = await fetch(README_RAW + "?_=" + Date.now(), {
+            cache: "no-store",
+          });
+          if (remote.ok) return remote.text();
+        } catch (_) {
+          /* fall through to bundled copy */
+        }
+        const local = await fetch("./README.md?_=" + Date.now(), {
+          cache: "no-store",
+        });
+        if (!local.ok) throw new Error("README fetch failed (" + local.status + ")");
+        return local.text();
+      }
+
+      try {
+        const [marked, markdown] = await Promise.all([loadMarked(), fetchReadme()]);
+        readmeEl.innerHTML = marked.parse(markdown, { gfm: true, breaks: true });
+        statusEl.remove();
+      } catch (err) {
+        statusEl.textContent =
+          "Could not load README. Tap Back below to retry, or open the repo on GitHub.";
+        console.error("[readme-fallback]", err);
+      }
+    </script>
+  </body>
+</html>

@@ -1,6 +1,6 @@
 {
   "name": "ps_and_as",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -13,6 +13,7 @@
     "test-core": "ts-node ./scripts/test-core.ts",
     "test-edge": "npx tsx ./scripts/test-edge-cases.ts",
     "test-runs": "tsx ./scripts/test-run-detection.ts",
+    "bump-version": "node ./scripts/bump-version.js",
     "test-multiplayer": "node ./scripts/test-multiplayer.mjs"
   },
   "dependencies": {

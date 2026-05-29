@@ -24,6 +24,8 @@ type Props = {
   sideAnchorMargin: number;
   lastPlayPlayerId?: string | null;
   trickWinnerPlayerId?: string | null;
+  /** Seats flashing +XP for a run step extension. */
+  runStepXpPlayerIds?: string[];
   layoutSeatIds?: string[];
   deadHandId?: string | null;
   deadHandGraveyard?: boolean;
@@ -74,6 +76,7 @@ export default function OpponentRing({
   sideAnchorMargin,
   lastPlayPlayerId,
   trickWinnerPlayerId,
+  runStepXpPlayerIds = [],
   layoutSeatIds,
   deadHandId = null,
   deadHandGraveyard = false,
@@ -110,6 +113,11 @@ export default function OpponentRing({
     [finishedOrder],
   );
 
+  const runStepXpSet = useMemo(
+    () => new Set(runStepXpPlayerIds),
+    [runStepXpPlayerIds],
+  );
+
   const angles = useMemo(
     () => opponentRingAngles(ringLayout.totalPlayers),
     [ringLayout.totalPlayers],
@@ -135,6 +143,8 @@ export default function OpponentRing({
           !!lastPlayPlayerId && player.id === lastPlayPlayerId && !isOut;
         const celebrateTrickWin =
           !!trickWinnerPlayerId && player.id === trickWinnerPlayerId && !isOut;
+        const showRunStepXp =
+          runStepXpSet.has(player.id) && !isOut && !celebrateTrickWin;
 
         const pos = opponentSeatPosition(angle, {
           cx: ringLayout.cx,
@@ -160,6 +170,7 @@ export default function OpponentRing({
               isThinking={isActive && isCPU}
               isLastPlay={isLastPlay}
               celebrateTrickWin={celebrateTrickWin}
+              showRunStepXp={showRunStepXp}
               compact={compact}
               seatDims={seatDimensions}
               layoutWidth={arenaWidth}

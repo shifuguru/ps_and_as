@@ -12,6 +12,8 @@ import MainMenu from "./src/screens/MainMenu";
 import ScreenContainer from "./src/components/ScreenContainer";
 import BlurPanel from "./src/components/BlurPanel";
 import { ThemeProvider, useAppTheme } from "./src/context/ThemeContext";
+import { CardAppearanceProvider } from "./src/context/CardAppearanceContext";
+import { preloadGamePreferences } from "./src/services/gamePreferences";
 import { useMenuAudio } from "./src/hooks/useMenuAudio";
 import AnimatedBackground from "./src/components/AnimatedBackground";
 import { SocketAdapter } from "./src/game/socketAdapter";
@@ -80,6 +82,10 @@ function AppContent() {
       __PS_AND_AS_CANCEL_BOOT_GUARD__?: () => void;
     }).__PS_AND_AS_CANCEL_BOOT_GUARD__;
     cancel?.();
+  }, []);
+
+  useEffect(() => {
+    void preloadGamePreferences();
   }, []);
 
   const { updateAvailable, latestBuild } = useBuildUpdateCheck(
@@ -971,9 +977,11 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AppErrorBoundary>
-          <AppContent />
-        </AppErrorBoundary>
+        <CardAppearanceProvider>
+          <AppErrorBoundary>
+            <AppContent />
+          </AppErrorBoundary>
+        </CardAppearanceProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

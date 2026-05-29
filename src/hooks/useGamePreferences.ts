@@ -1,26 +1,48 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  getSkipDealAnimations,
+  areGamePreferencesLoaded,
+  getDarkModeCardsSync,
+  getSkipDealAnimationsSync,
+  preloadGamePreferences,
+  setDarkModeCards as persistDarkModeCards,
   setSkipDealAnimations as persistSkipDealAnimations,
   subscribeGamePreferences,
 } from "../services/gamePreferences";
 
+function readCachedPreferences() {
+  return {
+    skipDealAnimations: getSkipDealAnimationsSync(),
+    darkModeCards: getDarkModeCardsSync(),
+  };
+}
+
 export function useGamePreferences() {
-  const [skipDealAnimations, setSkipDealAnimationsState] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [skipDealAnimations, setSkipDealAnimationsState] = useState(
+    () => readCachedPreferences().skipDealAnimations,
+  );
+  const [darkModeCards, setDarkModeCardsState] = useState(
+    () => readCachedPreferences().darkModeCards,
+  );
+  const [loaded, setLoaded] = useState(areGamePreferencesLoaded());
 
   useEffect(() => {
     let cancelled = false;
-    void getSkipDealAnimations().then((value) => {
-      if (cancelled) return;
-      setSkipDealAnimationsState(value);
+
+    const apply = () => {
+      const prefs = readCachedPreferences();
+      setSkipDealAnimationsState(prefs.skipDealAnimations);
+      setDarkModeCardsState(prefs.darkModeCards);
       setLoaded(true);
+    };
+
+    void preloadGamePreferences().then(() => {
+      if (!cancelled) apply();
     });
+
     const unsubscribe = subscribeGamePreferences(() => {
-      void getSkipDealAnimations().then((value) => {
-        if (!cancelled) setSkipDealAnimationsState(value);
-      });
+      if (!cancelled) apply();
     });
+
     return () => {
       cancelled = true;
       unsubscribe();
@@ -29,8 +51,21 @@ export function useGamePreferences() {
 
   const setSkipDealAnimations = useCallback(async (value: boolean) => {
     setSkipDealAnimationsState(value);
+    setLoaded(true);
     await persistSkipDealAnimations(value);
   }, []);
 
-  return { skipDealAnimations, setSkipDealAnimations, loaded };
+  const setDarkModeCards = useCallback(async (value: boolean) => {
+    setDarkModeCardsState(value);
+    setLoaded(true);
+    await persistDarkModeCards(value);
+  }, []);
+
+  return {
+    skipDealAnimations,
+    setSkipDealAnimations,
+    darkModeCards,
+    setDarkModeCards,
+    loaded,
+  };
 }

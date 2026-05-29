@@ -36,6 +36,7 @@ type Props = RingProps & {
   skipPlayFlights?: boolean;
   flightDurationMs?: number;
   trickWinnerPlayerId?: string | null;
+  runStepXpPlayerIds?: string[];
   /** Ring geometry seat count (local + visible opponents). Defaults to players + locals. */
   tableSeatCount?: number;
   deadHandId?: string | null;
@@ -65,6 +66,7 @@ export default function GamePlayArea({
   skipPlayFlights = false,
   flightDurationMs = 480,
   trickWinnerPlayerId = null,
+  runStepXpPlayerIds = [],
   tableSeatCount,
   deadHandId = null,
   layoutSeatIds,
@@ -354,6 +356,7 @@ export default function GamePlayArea({
             sideAnchorMargin={layout.sideAnchorMargin}
             lastPlayPlayerId={lastPlayPlayerId}
             trickWinnerPlayerId={trickWinnerPlayerId}
+            runStepXpPlayerIds={runStepXpPlayerIds}
             layoutSeatIds={seatIds}
             deadHandId={deadHandId}
             deadHandGraveyard={deadHandGraveyard}

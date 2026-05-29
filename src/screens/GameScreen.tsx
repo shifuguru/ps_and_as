@@ -22,12 +22,8 @@ import {
   setTenRuleDirection,
   isValidPlay,
   hasPassedInCurrentTrick,
-  effectivePile,
-  consecutiveSequenceInfo,
-  runFromCurrentTrick,
-  runFromCurrentTrickInfo,
   resolveRunContext,
-  isRunContextSequence,
+  isAdjacentToPileTop,
   nextActivePlayerIndex,
   cardsNeededToPlay,
   TrickHistory,
@@ -36,16 +32,14 @@ import {
   isDeadHandPlayer,
   livingPlayerIds,
   livingFinishedOrder,
-  applyDeadHandAfterDeal,
   tenRuleChooserIndex,
   isTrickOpeningLead,
   isRoundOpeningLead,
+  runContextLengthFromState,
+  runStepXpRecipientIds,
+  MIN_RUN_CONTEXT_LENGTH,
 } from "../game/core";
 import {
-  assignPlayerRoles,
-  applyMandatoryTrades,
-  advanceAssholeStreakAfterRound,
-  shouldSkipPresidentAssholeTrade,
   allTradesCompleted,
   autoCompleteCpuWinnerTrades,
   applyServerPlayerHands,
@@ -53,7 +47,7 @@ import {
   buildFreshRoundState,
   clonePlayersForRound,
   completeWinnerReturn,
-  dealFreshHands,
+  executeCeremonyDeal,
   type ClientPendingTrade,
 } from "../game/roundPrep";
 import {
@@ -74,11 +68,14 @@ import {
 import {
   recordRoundResult,
   recordTrickWin,
+  recordRunStepXp,
   TRICK_WIN_XP,
+  RUN_STEP_XP,
   getPlayerStats,
 } from "../services/playerStats";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { useGamePreferences } from "../hooks/useGamePreferences";
+import { getSkipDealAnimationsSync } from "../services/gamePreferences";
 import DebugViewer from "../components/DebugViewer";
 import { Card as CardType, FULL_DECK_SIZE } from "../game/ruleset";
 import Header from "../components/Header";
@@ -104,6 +101,7 @@ import TenRuleModal from "../components/TenRuleModal";
 import GameTable from "../components/GameTable";
 import GamePlayArea from "../components/GamePlayArea";
 import DealCeremonyOverlay from "../components/DealCeremonyOverlay";
+import DealerReshuffleButton from "../components/DealerReshuffleButton";
 import RoleTradeModal from "../components/RoleTradeModal";
 import RoleTradeStrip from "../components/RoleTradeStrip";
 import { computePlayAreaLayout } from "../utils/tableLayout";
@@ -123,7 +121,6 @@ import {
   buildTableSeatConfig,
   buildDealerContext,
   resolveDealerId,
-  resolveOpeningPlayerIndex,
 } from "../utils/tableSeats";
 import { useSlowTurnBell } from "../hooks/useSlowTurnBell";
 import {
@@ -240,34 +237,19 @@ function canCardBePlayedAtAll(
     return true;
   }
 
-  // Check if pile is in an active run — extend with the next adjacent rank only.
-  const trickRunInfo = runFromCurrentTrickInfo(currentTrick, players, finishedOrder || []);
-  const seqInfo = consecutiveSequenceInfo(
+  // Check if pile is in an active run — extend with a rank adjacent to pile top.
+  const { runMultiplicity, inRunContext } = resolveRunContext(
     pile,
     pileHistory,
     currentTrick,
     players,
     finishedOrder || [],
   );
-  const runSeq =
-    seqInfo.repCards.length >= (trickRunInfo?.repCards?.length || 0)
-      ? seqInfo.repCards
-      : trickRunInfo?.repCards || [];
-  const runMultiplicity =
-    runSeq.length >= 3
-      ? seqInfo.repCards.length >= (trickRunInfo?.repCards?.length || 0)
-        ? seqInfo.multiplicity
-        : trickRunInfo?.multiplicity || 1
-      : trickRunInfo?.multiplicity || 1;
-  const inRunContext = isRunContextSequence(runSeq);
 
   if (inRunContext) {
-    const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
-    if (Math.abs(rankIndex(cardValue) - lastRank) === 1) {
-      if (sameValue.length < runMultiplicity) return false;
-      return matchesValid(sameValue.slice(0, runMultiplicity));
-    }
-    return false;
+    if (!isAdjacentToPileTop(pile, cardValue)) return false;
+    if (sameValue.length < runMultiplicity) return false;
+    return matchesValid(sameValue.slice(0, runMultiplicity));
   }
 
   // Regular play: match pile count, or fewer when completing a quad across turns
@@ -337,10 +319,18 @@ function GameScreen({
     trades: ClientPendingTrade[];
     dealSeed?: number;
     finishOrder: string[];
+    needsDealerReshuffle?: boolean;
+    dealAttempt?: number;
   } | null>(null);
-  const { skipDealAnimations } = useGamePreferences();
+  const [awaitingDealerReshuffle, setAwaitingDealerReshuffle] = useState(false);
+  const { skipDealAnimations, loaded: preferencesLoaded } = useGamePreferences();
   const skipDealAnimationsRef = useRef(skipDealAnimations);
   skipDealAnimationsRef.current = skipDealAnimations;
+
+  const shouldSkipDealAnimations = useCallback(
+    () => skipDealAnimationsRef.current || getSkipDealAnimationsSync(),
+    [],
+  );
   const [tradePhase, setTradePhase] = useState<{
     baseState: GameState;
     players: GameState["players"];
@@ -377,6 +367,7 @@ function GameScreen({
   });
   /** Trick-win XP earned this game session (persists across rounds). */
   const [gameXpByPlayerId, setGameXpByPlayerId] = useState<Record<string, number>>({});
+  const [runStepXpFlashIds, setRunStepXpFlashIds] = useState<string[]>([]);
   const [localCareerXp, setLocalCareerXp] = useState<number | null>(null);
   const [awayTick, setAwayTick] = useState(0);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
@@ -404,6 +395,13 @@ function GameScreen({
   const fallbackAdapterRef = useRef<MockAdapter | null>(null);
   const lastTrickLenRef = React.useRef<number>(0);
   const lastRecordedTrickXpRef = React.useRef(0);
+  const prevRunLenRef = React.useRef(0);
+  const prevRunTrickNumRef = React.useRef(1);
+  const lastRunStepXpKeyRef = React.useRef<string | null>(null);
+  const lastRecordedRunStepXpKeyRef = React.useRef<string | null>(null);
+  const runStepXpTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const roundStatsRecordedRef = React.useRef(false);
   const trickPauseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -596,6 +594,8 @@ function GameScreen({
     trades: ClientPendingTrade[];
     dealSeed?: number;
     finishOrder: string[];
+    needsDealerReshuffle?: boolean;
+    dealAttempt?: number;
   };
 
   const launchRoundAfterDeal = useCallback(
@@ -605,8 +605,14 @@ function GameScreen({
       roundStatsRecordedRef.current = false;
       setGameplayLocked(true);
 
-      if (skipDealAnimationsRef.current) {
+      if (shouldSkipDealAnimations()) {
         ceremonyPrepRef.current = prep;
+        if (prep.needsDealerReshuffle) {
+          setCeremonyPrep(prep);
+          setState(hiddenState);
+          setAwaitingDealerReshuffle(true);
+          return;
+        }
         const tradesPending =
           prep.trades.length > 0 && !prep.trades.every((t) => t.completed);
         if (tradesPending) {
@@ -619,11 +625,36 @@ function GameScreen({
       setCeremonyPrep(prep);
       setState(hiddenState);
     },
-    [beginTradePhase],
+    [beginTradePhase, shouldSkipDealAnimations],
+  );
+
+  const launchCeremonyFromDeal = useCallback(
+    (
+      prep: CeremonyPrepPayload,
+      dealerContext: ReturnType<typeof buildDealerContext>,
+      openingPlayerIndex: number,
+    ) => {
+      const hiddenPlayers = prep.players.map((p) => ({ ...p, hand: [] }));
+      const priorRound = prep.finishOrder.length >= 2;
+      launchRoundAfterDeal(
+        prep,
+        buildFreshRoundState(
+          prep.baseState,
+          hiddenPlayers,
+          dealerContext,
+          priorRound ? undefined : openingPlayerIndex,
+        ),
+      );
+    },
+    [launchRoundAfterDeal],
   );
 
   const handleDealComplete = useCallback(() => {
     const prep = ceremonyPrepRef.current;
+    if (prep?.needsDealerReshuffle) {
+      setAwaitingDealerReshuffle(true);
+      return;
+    }
     if (prep) {
       beginTradePhase(prep.baseState, prep.players, prep.trades);
       return;
@@ -645,73 +676,11 @@ function GameScreen({
 
   const startRoundCeremony = useCallback(
     (baseState: GameState, finishedOrder: string[], nextDealSeed?: number) => {
-      const streakAfterRound = advanceAssholeStreakAfterRound(
-        {
-          consecutiveAssholeId: baseState.consecutiveAssholeId ?? null,
-          consecutiveAssholeCount: baseState.consecutiveAssholeCount ?? 0,
-          freshRound: !!baseState.freshRound,
-        },
-        finishedOrder,
-        baseState.players,
-      );
-      const skipPresidentTrade = shouldSkipPresidentAssholeTrade(streakAfterRound);
-
-      let players = clonePlayersForRound(
-        baseState.players.map((p) => ({ ...p, hand: [] })),
-      );
-      let trades: ClientPendingTrade[] = [];
-      let openingPlayerIndex = -1;
-      let dealerContext = buildDealerContext({
+      setAwaitingDealerReshuffle(false);
+      const deal = executeCeremonyDeal(baseState, finishedOrder, {
+        dealSeed: nextDealSeed,
         hostId: resolvedHostId,
-        finishOrder: finishedOrder,
-        lastRoundOrder: baseState.lastRoundOrder,
-        roles: {},
       });
-
-      for (let attempt = 0; attempt < 64 && openingPlayerIndex < 0; attempt++) {
-        players = clonePlayersForRound(
-          baseState.players.map((p) => ({ ...p, hand: [] })),
-        );
-        const seed =
-          nextDealSeed != null ? ((nextDealSeed + attempt) >>> 0) : undefined;
-        dealFreshHands(players, seed);
-        trades = [];
-        const rolesById: Record<string, string> = {};
-        if (finishedOrder.length >= 2) {
-          assignPlayerRoles(players, finishedOrder);
-          trades = applyMandatoryTrades(players, { skipPresidentTrade });
-          for (const p of players) {
-            if (!isDeadHandPlayer(p) && p.role !== "Neutral") {
-              rolesById[p.id] = p.role;
-            }
-          }
-        }
-        dealerContext = buildDealerContext({
-          hostId: resolvedHostId,
-          finishOrder: finishedOrder,
-          lastRoundOrder: baseState.lastRoundOrder,
-          roles: rolesById,
-        });
-        if (players.some(isDeadHandPlayer)) {
-          applyDeadHandAfterDeal(
-            {
-              players,
-              finishedOrder: [],
-              currentPlayerIndex: 0,
-              mustPlay: false,
-            },
-            dealerContext,
-          );
-        }
-        openingPlayerIndex = resolveOpeningPlayerIndex(players, dealerContext);
-      }
-
-      if (openingPlayerIndex < 0) {
-        openingPlayerIndex = Math.max(
-          0,
-          players.findIndex((p) => !isDeadHandPlayer(p)),
-        );
-      }
 
       setRoundOver(false);
       setPlayerReadyStates({});
@@ -719,30 +688,26 @@ function GameScreen({
       const prep: CeremonyPrepPayload = {
         baseState: {
           ...baseState,
-          consecutiveAssholeId: streakAfterRound.consecutiveAssholeId,
-          consecutiveAssholeCount: streakAfterRound.consecutiveAssholeCount,
-          freshRound: skipPresidentTrade,
+          consecutiveAssholeId: deal.streakAfterRound.consecutiveAssholeId,
+          consecutiveAssholeCount: deal.streakAfterRound.consecutiveAssholeCount,
+          freshRound: deal.skipPresidentTrade,
           lastRoundOrder:
             finishedOrder.length >= 2 ? finishedOrder : baseState.lastRoundOrder,
         },
-        players,
-        trades,
+        players: deal.players,
+        trades: deal.trades,
         dealSeed: nextDealSeed,
         finishOrder: finishedOrder,
+        needsDealerReshuffle: deal.needsDealerReshuffle,
+        dealAttempt: 0,
       };
-      const hiddenPlayers = players.map((p) => ({ ...p, hand: [] }));
-      const priorRound = finishedOrder.length >= 2;
-      launchRoundAfterDeal(
+      launchCeremonyFromDeal(
         prep,
-        buildFreshRoundState(
-          baseState,
-          hiddenPlayers,
-          dealerContext,
-          priorRound ? undefined : openingPlayerIndex,
-        ),
+        deal.dealerContext,
+        deal.openingPlayerIndex,
       );
     },
-    [resolvedHostId, launchRoundAfterDeal],
+    [resolvedHostId, launchCeremonyFromDeal],
   );
 
   const handleTradeConfirm = useCallback(
@@ -820,6 +785,60 @@ function GameScreen({
     if (!onlineMultiplayer || !isSocketAdapter(networkAdapter) || !roomId) return;
     networkAdapter.sendGameAction(roomId, action);
   }
+
+  const handleDealerReshuffle = useCallback(() => {
+    const prep = ceremonyPrepRef.current;
+    if (!prep?.needsDealerReshuffle) return;
+
+    const newSeed =
+      prep.dealSeed != null
+        ? ((prep.dealSeed + 1 + Math.floor(Math.random() * 997)) >>> 0)
+        : Math.floor(Math.random() * 2147483647);
+
+    if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
+      broadcastGameAction({ type: "dealerReshuffle", dealSeed: newSeed });
+      return;
+    }
+
+    setAwaitingDealerReshuffle(false);
+
+    const deal = executeCeremonyDeal(prep.baseState, prep.finishOrder, {
+      dealSeed: newSeed,
+      hostId: resolvedHostId,
+    });
+
+    const nextPrep: CeremonyPrepPayload = {
+      baseState: {
+        ...prep.baseState,
+        consecutiveAssholeId: deal.streakAfterRound.consecutiveAssholeId,
+        consecutiveAssholeCount: deal.streakAfterRound.consecutiveAssholeCount,
+        freshRound: deal.skipPresidentTrade,
+        lastRoundOrder:
+          prep.finishOrder.length >= 2
+            ? prep.finishOrder
+            : prep.baseState.lastRoundOrder,
+      },
+      players: deal.players,
+      trades: deal.trades,
+      dealSeed: newSeed,
+      finishOrder: prep.finishOrder,
+      needsDealerReshuffle: deal.needsDealerReshuffle,
+      dealAttempt: (prep.dealAttempt ?? 0) + 1,
+    };
+    ceremonyPrepRef.current = nextPrep;
+    setCeremonyPrep(nextPrep);
+    launchCeremonyFromDeal(
+      nextPrep,
+      deal.dealerContext,
+      deal.openingPlayerIndex,
+    );
+  }, [
+    resolvedHostId,
+    launchCeremonyFromDeal,
+    onlineMultiplayer,
+    networkAdapter,
+    roomId,
+  ]);
 
   const handleTurnBellPress = useCallback(
     (targetPlayerId: string) => {
@@ -951,6 +970,55 @@ function GameScreen({
     setTrickPauseActive(true);
   }, [state]);
 
+  // Run-step XP: when a run reaches 3+ cards and grows by one rank, all active
+  // participants in that run earn +15 XP (session scoreboard + seat flash).
+  useLayoutEffect(() => {
+    if (!state || gameplayLocked || ceremonyPrep || tradePhase) return;
+
+    const trickNum = state.currentTrick?.trickNumber ?? 1;
+    const runLen = runContextLengthFromState(state);
+
+    if (trickNum !== prevRunTrickNumRef.current) {
+      prevRunTrickNumRef.current = trickNum;
+      prevRunLenRef.current = runLen;
+      return;
+    }
+
+    const prevLen = prevRunLenRef.current;
+    prevRunLenRef.current = runLen;
+
+    if (
+      runLen < MIN_RUN_CONTEXT_LENGTH ||
+      runLen <= prevLen
+    ) {
+      return;
+    }
+
+    const awardKey = `${trickNum}:${runLen}`;
+    if (lastRunStepXpKeyRef.current === awardKey) return;
+    lastRunStepXpKeyRef.current = awardKey;
+
+    const recipientIds = runStepXpRecipientIds(state);
+    if (recipientIds.length === 0) return;
+
+    setGameXpByPlayerId((prev) => {
+      const next = { ...prev };
+      for (const id of recipientIds) {
+        next[id] = (prev[id] ?? 0) + RUN_STEP_XP;
+      }
+      return next;
+    });
+
+    setRunStepXpFlashIds(recipientIds);
+    if (runStepXpTimerRef.current) {
+      clearTimeout(runStepXpTimerRef.current);
+    }
+    runStepXpTimerRef.current = setTimeout(() => {
+      setRunStepXpFlashIds([]);
+      runStepXpTimerRef.current = null;
+    }, 1100);
+  }, [state, gameplayLocked, ceremonyPrep, tradePhase]);
+
   // Trick-end animation timers (collect → banner → resume).
   useEffect(() => {
     if (!trickPauseActive) return;
@@ -1046,6 +1114,9 @@ function GameScreen({
       if (roomNoticeTimerRef.current) {
         clearTimeout(roomNoticeTimerRef.current);
       }
+      if (runStepXpTimerRef.current) {
+        clearTimeout(runStepXpTimerRef.current);
+      }
     };
   }, []);
 
@@ -1065,6 +1136,7 @@ function GameScreen({
 
   useEffect(() => {
     if (!onlineMultiplayer) {
+      if (!preferencesLoaded) return;
       if (offlineInitRef.current) return;
       offlineInitRef.current = true;
       const g = initialLobbyPlayers?.length
@@ -1120,31 +1192,11 @@ function GameScreen({
           parsed.players,
           parsed.lastRoundOrder ?? [],
         );
-        const players = clonePlayersForRound(
-          parsed.players.map((p) => ({ ...p, hand: [] })),
-        );
-        dealFreshHands(players, roundDealSeed);
-        if (serverRoles) {
-          applyServerRolesToPlayers(players, serverRoles);
-        }
-        const dealerContext = buildDealerContext({
+        const deal = executeCeremonyDeal(parsed, finishOrder, {
+          dealSeed: roundDealSeed,
           hostId: resolvedHostId,
-          finishOrder,
-          lastRoundOrder: parsed.lastRoundOrder,
-          roles: serverRoles,
         });
-        if (players.some(isDeadHandPlayer)) {
-          applyDeadHandAfterDeal(
-            {
-              players,
-              finishedOrder: [],
-              currentPlayerIndex: 0,
-              mustPlay: false,
-            },
-            dealerContext,
-          );
-        }
-        let trades: ClientPendingTrade[] = [];
+        let trades = deal.trades;
         if (serverPending && serverRoles) {
           const roleValues = Object.values(serverRoles);
           const hasPresident = roleValues.includes("president");
@@ -1158,8 +1210,8 @@ function GameScreen({
                 key: "president",
                 winnerId: presId,
                 loserId: trade.fromId,
-                winnerName: players.find((p) => p.id === presId)?.name ?? "President",
-                loserName: players.find((p) => p.id === trade.fromId)?.name ?? "Asshole",
+                winnerName: deal.players.find((p) => p.id === presId)?.name ?? "President",
+                loserName: deal.players.find((p) => p.id === trade.fromId)?.name ?? "Asshole",
                 incoming: trade.incoming ?? [],
                 returnCount: trade.count ?? trade.incoming?.length ?? 1,
                 completed: !!trade.selected,
@@ -1174,8 +1226,8 @@ function GameScreen({
                 key: "vicePresident",
                 winnerId: vpId,
                 loserId: trade.fromId,
-                winnerName: players.find((p) => p.id === vpId)?.name ?? "Vice President",
-                loserName: players.find((p) => p.id === trade.fromId)?.name ?? "Vice Asshole",
+                winnerName: deal.players.find((p) => p.id === vpId)?.name ?? "Vice President",
+                loserName: deal.players.find((p) => p.id === trade.fromId)?.name ?? "Vice Asshole",
                 incoming: trade.incoming ?? [],
                 returnCount: trade.count ?? trade.incoming?.length ?? 1,
                 completed: !!trade.selected,
@@ -1187,23 +1239,20 @@ function GameScreen({
 
         setRoundOver(false);
         setPlayerReadyStates({});
+        setAwaitingDealerReshuffle(false);
         const prep: CeremonyPrepPayload = {
           baseState: parsed,
-          players,
+          players: deal.players,
           trades,
           dealSeed: roundDealSeed,
           finishOrder,
+          needsDealerReshuffle: deal.needsDealerReshuffle,
+          dealAttempt: 0,
         };
-        const hiddenPlayers = players.map((p) => ({ ...p, hand: [] }));
-        const priorRound = finishOrder.length >= 2;
-        launchRoundAfterDeal(
+        launchCeremonyFromDeal(
           prep,
-          buildFreshRoundState(
-            parsed,
-            hiddenPlayers,
-            dealerContext,
-            priorRound ? undefined : resolveOpeningPlayerIndex(players, dealerContext),
-          ),
+          deal.dealerContext,
+          deal.openingPlayerIndex,
         );
         stateSyncedRef.current = true;
         if (typeof spectator === "boolean") {
@@ -1495,7 +1544,7 @@ function GameScreen({
         void fallbackAdapterRef.current?.disconnect();
       }
     };
-  }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId]);
+  }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId, preferencesLoaded]);
 
   useEffect(() => {
     if (!roundOver) {
@@ -1518,6 +1567,15 @@ function GameScreen({
     myPlayerId,
     state?.trickHistory?.length,
   ]);
+
+  useEffect(() => {
+    if (!myPlayerId || runStepXpFlashIds.length === 0) return;
+    if (!runStepXpFlashIds.includes(myPlayerId)) return;
+    const key = lastRunStepXpKeyRef.current;
+    if (!key || key === lastRecordedRunStepXpKeyRef.current) return;
+    lastRecordedRunStepXpKeyRef.current = key;
+    void recordRunStepXp();
+  }, [runStepXpFlashIds, myPlayerId]);
 
   useEffect(() => {
     if (!tradePhase || onlineMultiplayer) return;
@@ -1764,6 +1822,7 @@ function GameScreen({
         setState,
         tradePhase,
         ceremonyPrep,
+        awaitingDealerReshuffle,
         gameplayLocked,
         playAreaSize,
         humanPlayer,
@@ -1797,6 +1856,7 @@ function GameScreen({
         resolvedHostId,
         handRef,
         handleDealComplete,
+        handleDealerReshuffle,
         handleTradeConfirm,
         requestLeaveGame,
         cancelLeaveGame,
@@ -1830,6 +1890,7 @@ function GameScreen({
         resolveSeatFeltTint,
         scoreboardXpByPlayerId,
         lastTrickLenRef,
+        runStepXpFlashIds,
       }}
     >
       <GameScreenBoard />
@@ -1843,6 +1904,7 @@ function GameScreenBoard() {
     setState,
     tradePhase,
     ceremonyPrep,
+    awaitingDealerReshuffle,
     gameplayLocked,
     playAreaSize,
     humanPlayer,
@@ -1876,6 +1938,7 @@ function GameScreenBoard() {
     resolvedHostId,
     handRef,
     handleDealComplete,
+    handleDealerReshuffle,
     handleTradeConfirm,
     requestLeaveGame,
     cancelLeaveGame,
@@ -1909,6 +1972,7 @@ function GameScreenBoard() {
     resolveSeatFeltTint,
     scoreboardXpByPlayerId,
     lastTrickLenRef,
+    runStepXpFlashIds,
   } = useContext(GameScreenRuntimeContext)! as {
     state: GameState;
     setState: React.Dispatch<React.SetStateAction<GameState | null>>;
@@ -1923,7 +1987,10 @@ function GameScreenBoard() {
       trades: ClientPendingTrade[];
       dealSeed?: number;
       finishOrder: string[];
+      needsDealerReshuffle?: boolean;
+      dealAttempt?: number;
     } | null;
+    awaitingDealerReshuffle: boolean;
     gameplayLocked: boolean;
     playAreaSize: { width: number; height: number };
     humanPlayer: ReturnType<typeof resolveLocalHumanPlayer>;
@@ -1961,6 +2028,7 @@ function GameScreenBoard() {
     resolvedHostId: string | null;
     handRef: React.RefObject<PlayerHandHandle>;
     handleDealComplete: () => void;
+    handleDealerReshuffle: () => void;
     handleTradeConfirm: (selected: CardType[]) => void;
     requestLeaveGame: () => void;
     cancelLeaveGame: () => void;
@@ -2002,15 +2070,29 @@ function GameScreenBoard() {
     resolveSeatFeltTint: (player: { id: string; name: string }) => string | undefined;
     scoreboardXpByPlayerId: Record<string, number>;
     lastTrickLenRef: React.MutableRefObject<number>;
+    runStepXpFlashIds: string[];
   };
 
   const [ceremonyDealCounts, setCeremonyDealCounts] = useState<
     Record<string, number>
   >({});
+  const [ceremonyStatusText, setCeremonyStatusText] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
-    if (!ceremonyPrep) setCeremonyDealCounts({});
+    if (!ceremonyPrep) {
+      setCeremonyStatusText(null);
+    }
   }, [ceremonyPrep]);
+
+  useEffect(() => {
+    if (!ceremonyPrep) {
+      setCeremonyDealCounts({});
+      return;
+    }
+    setCeremonyDealCounts({});
+  }, [ceremonyPrep?.dealAttempt, ceremonyPrep?.dealSeed]);
 
   const ceremonyCountFor = (playerId: string) =>
     ceremonyPrep ? (ceremonyDealCounts[playerId] ?? 0) : null;
@@ -2021,6 +2103,23 @@ function GameScreenBoard() {
   // const landscape = isLandscape(width, height);
   
   const inCeremony = !!ceremonyPrep || !!tradePhase || gameplayLocked;
+  const ceremonyDealerContext = buildDealerContext({
+    hostId: resolvedHostId,
+    finishOrder: ceremonyPrep?.finishOrder,
+    lastRoundOrder:
+      ceremonyPrep?.finishOrder ?? ceremonyPrep?.baseState.lastRoundOrder,
+    roles: Object.fromEntries(
+      (ceremonyPrep?.players ?? state.players)
+        .filter((p) => !isDeadHandPlayer(p) && p.role !== "Neutral")
+        .map((p) => [p.id, p.role]),
+    ),
+  });
+  const ceremonyDealerId = resolveDealerId(
+    ceremonyPrep?.players ?? state.players,
+    ceremonyDealerContext,
+  );
+  const isCeremonyDealer = !!(myPlayerId && ceremonyDealerId === myPlayerId);
+  const playCenterLayout = ceremonyPlayAreaLayout ?? playAreaLayout;
   let current = state.players[state.currentPlayerIndex];
   if (!current && inCeremony) {
     current =
@@ -2655,51 +2754,64 @@ function GameScreenBoard() {
           <Text style={local.roomNoticeText}>{bannerNotice}</Text>
         </View>
       ) : null}
-      {onNavigateToSettings || onNavigateToAchievements ? (
+      {onNavigateToSettings || onNavigateToAchievements || ceremonyStatusText ? (
         <View
-          style={[local.topFabRow, { top: contentTopPadding + 4 }]}
+          style={[local.topHeaderRow, { top: contentTopPadding + 4 }]}
           pointerEvents="box-none"
         >
-          {onNavigateToSettings ? (
-            <TouchableOpacity
-              style={[
-                local.statsFab,
-                {
-                  backgroundColor:
-                    colors.mode === "light"
-                      ? "rgba(255,255,255,0.72)"
-                      : "rgba(255,255,255,0.1)",
-                  borderColor: colors.btnGoldBorder,
-                },
-              ]}
-              onPress={onNavigateToSettings}
-              accessibilityRole="button"
-              accessibilityLabel="Settings"
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <MenuIcon name="gear" size={18} color={colors.gold} />
-            </TouchableOpacity>
-          ) : null}
-          {onNavigateToAchievements ? (
-            <TouchableOpacity
-              style={[
-                local.statsFab,
-                {
-                  backgroundColor:
-                    colors.mode === "light"
-                      ? "rgba(255,255,255,0.72)"
-                      : "rgba(255,255,255,0.1)",
-                  borderColor: colors.btnGoldBorder,
-                },
-              ]}
-              onPress={onNavigateToAchievements}
-              accessibilityRole="button"
-              accessibilityLabel="View player stats"
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <MenuIcon name="trophy" size={18} color={colors.gold} />
-            </TouchableOpacity>
-          ) : null}
+          {ceremonyStatusText ? (
+            <View style={local.ceremonyStatusPill} pointerEvents="none">
+              <Text style={local.ceremonyStatusText}>{ceremonyStatusText}</Text>
+            </View>
+          ) : (
+            <View style={local.topHeaderSpacer} />
+          )}
+          {onNavigateToSettings || onNavigateToAchievements ? (
+            <View style={local.topFabRow}>
+              {onNavigateToSettings ? (
+                <TouchableOpacity
+                  style={[
+                    local.statsFab,
+                    {
+                      backgroundColor:
+                        colors.mode === "light"
+                          ? "rgba(255,255,255,0.72)"
+                          : "rgba(255,255,255,0.1)",
+                      borderColor: colors.btnGoldBorder,
+                    },
+                  ]}
+                  onPress={onNavigateToSettings}
+                  accessibilityRole="button"
+                  accessibilityLabel="Settings"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MenuIcon name="gear" size={18} color={colors.gold} />
+                </TouchableOpacity>
+              ) : null}
+              {onNavigateToAchievements ? (
+                <TouchableOpacity
+                  style={[
+                    local.statsFab,
+                    {
+                      backgroundColor:
+                        colors.mode === "light"
+                          ? "rgba(255,255,255,0.72)"
+                          : "rgba(255,255,255,0.1)",
+                      borderColor: colors.btnGoldBorder,
+                    },
+                  ]}
+                  onPress={onNavigateToAchievements}
+                  accessibilityRole="button"
+                  accessibilityLabel="View player stats"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MenuIcon name="trophy" size={18} color={colors.gold} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : (
+            <View style={local.topHeaderSpacer} />
+          )}
         </View>
       ) : null}
       {/* Toggleable structured debug overlay (doesn't block bottom hand) */}
@@ -2767,6 +2879,7 @@ function GameScreenBoard() {
       <View
         style={{
           flex: 1,
+          position: "relative",
           paddingHorizontal: 12,
           paddingTop: contentTopPadding,
           paddingBottom: bottomBarHeight,
@@ -2788,6 +2901,7 @@ function GameScreenBoard() {
           plays={displayPlays}
           skipPlayFlights={trickPauseFrozen}
           trickWinnerPlayerId={trickWinnerPlayerId}
+          runStepXpPlayerIds={runStepXpFlashIds}
           playTypeLabel={
             playTypeLabel && !trickPauseFrozen ? playTypeLabel : null
           }
@@ -2808,6 +2922,26 @@ function GameScreenBoard() {
             fadeOut={trickPauseActive && showWinnerBanner}
           />
         </GamePlayArea>
+        {awaitingDealerReshuffle &&
+        playCenterLayout &&
+        playCenterLayout.playAnchorX > 0 &&
+        playCenterLayout.playAnchorY > 0 ? (
+          <View
+            style={[
+              local.dealerReshuffleOverlay,
+              {
+                left: playCenterLayout.playAnchorX - 36,
+                top: playCenterLayout.playAnchorY - 36,
+              },
+            ]}
+            pointerEvents="box-none"
+          >
+            <DealerReshuffleButton
+              visible={isCeremonyDealer}
+              onPress={handleDealerReshuffle}
+            />
+          </View>
+        ) : null}
       </View>
 
       {localSeatPlayer ? (
@@ -2838,6 +2972,10 @@ function GameScreenBoard() {
             showTrickXp={
               !!trickWinnerPlayerId &&
               localSeatPlayer.id === trickWinnerPlayerId
+            }
+            showRunStepXp={
+              runStepXpFlashIds.includes(localSeatPlayer.id) &&
+              !trickWinnerPlayerId
             }
             dealtStackCount={
               ceremonyPrep
@@ -2899,6 +3037,14 @@ function GameScreenBoard() {
                 <BottomBarLeave live onPress={requestLeaveGame} label="Leave" />
               ) : null}
             </>
+          ) : awaitingDealerReshuffle ? (
+            <View style={[local.waitingPill, local.waitingPillCollapsed]}>
+              <Text style={local.waitingPillText}>
+                {isCeremonyDealer
+                  ? "All four 3s on the dead hand — tap Reshuffle in the center"
+                  : "All four 3s on the dead hand — waiting for dealer to reshuffle…"}
+              </Text>
+            </View>
           ) : gameplayLocked ? (
             <View style={[local.waitingPill, local.waitingPillCollapsed]}>
               <Text style={local.waitingPillText}>Dealing cards…</Text>
@@ -2959,6 +3105,7 @@ function GameScreenBoard() {
       </BottomBar>
 
       <DealCeremonyOverlay
+        key={`deal-${ceremonyPrep?.dealSeed ?? 0}-${ceremonyPrep?.dealAttempt ?? 0}`}
         visible={!!ceremonyPrep}
         playerIds={(ceremonyPrep?.players ?? state.players).map((p) => p.id)}
         layoutSeatIds={tableSeats.layoutSeatIds}
@@ -3011,6 +3158,7 @@ function GameScreenBoard() {
         freshRound={!!ceremonyPrep?.baseState.freshRound}
         onDealComplete={handleDealComplete}
         onDealtCountsChange={setCeremonyDealCounts}
+        onStatusTextChange={setCeremonyStatusText}
       />
 
       <RoleTradeModal
@@ -3074,13 +3222,40 @@ export default GameScreen;
 
 const local = StyleSheet.create({
   container: { flex: 1 },
-  topFabRow: {
+  topHeaderRow: {
     position: "absolute",
+    left: 14,
     right: 14,
-    zIndex: 60,
+    zIndex: 90,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    minHeight: 40,
+  },
+  topHeaderSpacer: {
+    flex: 1,
+  },
+  topFabRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    flexShrink: 0,
+  },
+  ceremonyStatusPill: {
+    flexShrink: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    maxWidth: "72%",
+  },
+  ceremonyStatusText: {
+    color: "#d4af37",
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   statsFab: {
     width: 40,
@@ -3140,6 +3315,14 @@ const local = StyleSheet.create({
     textAlign: "center",
     letterSpacing: 0.6,
     textTransform: "uppercase",
+  },
+  dealerReshuffleOverlay: {
+    position: "absolute",
+    zIndex: 58,
+    width: 72,
+    height: 72,
+    alignItems: "center",
+    justifyContent: "center",
   },
   scrollableContent: { flex: 1, paddingHorizontal: 12, paddingTop: 0 },
   header: { marginBottom: 6 },

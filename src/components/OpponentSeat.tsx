@@ -31,6 +31,7 @@ import { normalizePlayerRole, roleEmoji as sharedRoleEmoji } from "../utils/roun
 import TurnBellButton from "./TurnBellButton";
 import { playerAvatarBackgroundColor, playerThemePalette } from "../utils/playerAvatarColor";
 import { isCpuPlayer } from "../utils/localPlayer";
+import { RUN_STEP_XP } from "../services/playerStats";
 
 function roleEmoji(role: Player["role"] | string | undefined): string | null {
   return sharedRoleEmoji(normalizePlayerRole(role));
@@ -62,6 +63,8 @@ type Props = {
   celebrateTrickWin?: boolean;
   /** Floating +XP with the checkered flag (local human only). */
   showTrickXp?: boolean;
+  /** Floating +XP when a run step is completed (no confetti). */
+  showRunStepXp?: boolean;
   /** Precomputed seat metrics from play-area layout (keeps ring math in sync). */
   seatDims?: SeatDimensions;
   /** Width basis when seatDims is not supplied. */
@@ -90,6 +93,7 @@ export default function OpponentSeat({
   isLastPlay = false,
   celebrateTrickWin = false,
   showTrickXp = false,
+  showRunStepXp = false,
   seatDims: seatDimsProp,
   layoutWidth,
   isReady = false,
@@ -209,10 +213,12 @@ export default function OpponentSeat({
         ]}
       >
         <TrickWinCelebration
-          active={celebrateTrickWin}
+          active={celebrateTrickWin || showRunStepXp}
           avatarSize={avatarSize}
           countBadgeSize={dims.countBadgeSize}
           showXp={showTrickXp}
+          xpOnly={showRunStepXp && !celebrateTrickWin}
+          xpAmount={showRunStepXp && !celebrateTrickWin ? RUN_STEP_XP : undefined}
           celebrationColors={celebrationPalette.celebrationColors}
         />
         {isLastPlay && !isOut && !isActive && !celebrateTrickWin && (

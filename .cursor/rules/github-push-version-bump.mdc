@@ -1,0 +1,20 @@
+---
+description: Bump app version before pushing to GitHub
+alwaysApply: true
+---
+
+# GitHub push — version bump
+
+When the user asks to **push to GitHub** (or deploy / publish to the live site via git push):
+
+1. **Before** staging, committing, or pushing, run:
+   ```bash
+   npm run bump-version
+   ```
+2. Include the updated `package.json`, `app.json`, and `package-lock.json` in the commit.
+3. Mention the new version in the commit message (e.g. `v1.0.1 — …`).
+4. Then push as requested.
+
+Do **not** bump the version for commits or PRs unless the user explicitly asked to push to GitHub.
+
+The bump adds **0.0.1** to the patch segment (semver patch): `1.0.0` → `1.0.1`.

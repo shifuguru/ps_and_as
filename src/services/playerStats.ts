@@ -36,6 +36,7 @@ export const DEFAULT_PLAYER_STATS: PlayerStats = {
 };
 
 export const TRICK_WIN_XP = 15;
+export const RUN_STEP_XP = 15;
 
 export const ACHIEVEMENTS: AchievementDef[] = [
   {
@@ -177,6 +178,16 @@ export async function recordTrickWin(
 ): Promise<PlayerStats> {
   const stats = await getPlayerStats();
   stats.tricksWon += 1;
+  stats.xp += xp;
+  await savePlayerStats(stats);
+  return stats;
+}
+
+/** Award XP when the local human earns run-step XP. */
+export async function recordRunStepXp(
+  xp = RUN_STEP_XP,
+): Promise<PlayerStats> {
+  const stats = await getPlayerStats();
   stats.xp += xp;
   await savePlayerStats(stats);
   return stats;

@@ -41,6 +41,8 @@ type Props = {
   countBadgeSize: number;
   /** Show floating +XP text (local human trick win). */
   showXp?: boolean;
+  /** Only the floating +XP — no confetti or checkered flag. */
+  xpOnly?: boolean;
   xpAmount?: number;
   /** Winner's theme — defaults to local palette when omitted. */
   celebrationColors?: readonly string[];
@@ -53,6 +55,7 @@ export default function TrickWinCelebration({
   avatarSize,
   countBadgeSize,
   showXp = false,
+  xpOnly = false,
   xpAmount = TRICK_WIN_XP,
   celebrationColors,
 }: Props) {
@@ -120,9 +123,11 @@ export default function TrickWinCelebration({
     ]);
 
     burstAnim.start();
-    flagAnim.start();
+    if (!xpOnly) {
+      flagAnim.start();
+    }
 
-    if (showXp) {
+    if (showXp || xpOnly) {
       Animated.sequence([
         Animated.delay(180),
         Animated.timing(xpFloat, {
@@ -138,9 +143,11 @@ export default function TrickWinCelebration({
       burstAnim.stop();
       flagAnim.stop();
     };
-  }, [active, burst, flagPop, flagWave, showXp, xpFloat]);
+  }, [active, burst, flagPop, flagWave, showXp, xpFloat, xpOnly]);
 
   if (!active) return null;
+
+  const showXpFloat = showXp || xpOnly;
 
   const spread = avatarSize * 0.95;
   const centerX = avatarSize / 2;
@@ -169,6 +176,7 @@ export default function TrickWinCelebration({
       pointerEvents="none"
     >
       {particles.map((p, i) => {
+        if (xpOnly) return null;
         const travel = spread * p.distance;
         const translateX = burst.interpolate({
           inputRange: [0, 1],
@@ -206,6 +214,7 @@ export default function TrickWinCelebration({
         );
       })}
 
+      {!xpOnly ? (
       <Animated.View
         style={[
           styles.flagWrap,
@@ -229,8 +238,9 @@ export default function TrickWinCelebration({
       >
         <Text style={styles.flagEmoji}>🏁</Text>
       </Animated.View>
+      ) : null}
 
-      {showXp ? (
+      {showXpFloat ? (
         <Animated.View
           style={[
             styles.xpWrap,
@@ -262,6 +272,7 @@ export default function TrickWinCelebration({
         </Animated.View>
       ) : null}
 
+      {!xpOnly ? (
       <Animated.View
         style={[
           styles.winRing,
@@ -286,6 +297,7 @@ export default function TrickWinCelebration({
           },
         ]}
       />
+      ) : null}
     </View>
   );
 }

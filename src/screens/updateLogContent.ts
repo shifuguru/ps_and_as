@@ -20,6 +20,18 @@ export { formatUpdateTimestamp } from "../utils/formatLocalDateTime";
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: "2026-05-31T06:00:00.000Z",
+    title: "Runs, appearance & deal polish",
+    items: [
+      "Runs — J-Q-J then King no longer drops back to normal play; skip-over step-backs extend from the rank before the step-back",
+      "Run XP — +15 XP for each active player when a run reaches 3+ cards and grows each step (players already out are skipped)",
+      "Settings — Dark mode cards under Appearance with a live preview; felt tint moved into the same section",
+      "Quick Game — Skip deal animations now works offline once preferences load (no more ceremony when you've turned it off)",
+      "Dead hand — if everyone is dealt a three, the dealer can reshuffle and redeal",
+      "Deal ceremony — shuffling/dealing status aligns with the header gear and trophy row",
+    ],
+  },
+  {
     publishedAt: "2026-05-30T06:00:00.000Z",
     title: "Runs, turn flow & build label",
     items: [
@@ -201,8 +213,8 @@ export const KNOWN_ISSUES: KnownIssue[] = [
   {
     title: "Runs resetting mid-trick",
     status: "Fix shipped",
-    updatedAt: "2026-05-30T06:00:00.000Z",
-    note: "Run context should stay active until the trick ends. Tell us if \"Runs!\" still flickers off while consecutive play is in progress.",
+    updatedAt: "2026-05-31T06:00:00.000Z",
+    note: "Run context should stay active through step-backs and skip-over plays (e.g. J-Q-J-K). Hard-refresh if \"Runs!\" still flickers off mid-trick.",
   },
   {
     title: "Shuffle animation on mobile",

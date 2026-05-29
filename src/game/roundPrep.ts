@@ -9,12 +9,15 @@ import {
 } from "./ruleset";
 import {
   DEAD_HAND_ID,
+  applyDeadHandAfterDeal,
   isDeadHandPlayer,
   livingFinishedOrder,
   livingPlayers,
+  needsRoundOneDealerReshuffle,
 } from "./deadHand";
 import {
   type DealerContext,
+  buildDealerContext,
   resolveLeadPlayerIndexAfterTrades,
   resolveOpeningPlayerIndex,
 } from "../utils/tableSeats";
@@ -323,7 +326,7 @@ export function buildFreshRoundState(
   if (openerIdx == null) {
     openerIdx = resolveOpenerAfterRoleTrades(players, dealerContext);
   }
-  if (openerIdx < 0 || openerIdx >= players.length) {
+  if (openerIdx == null || openerIdx < 0 || openerIdx >= players.length) {
     const fallback = players.findIndex((p) => !isDeadHandPlayer(p));
     openerIdx = fallback >= 0 ? fallback : 0;
   }
@@ -354,6 +357,89 @@ export function buildFreshRoundState(
 
 export function allTradesCompleted(trades: ClientPendingTrade[]): boolean {
   return trades.length === 0 || trades.every((t) => t.completed);
+}
+
+export type CeremonyDealResult = {
+  players: Player[];
+  trades: ClientPendingTrade[];
+  dealerContext: DealerContext;
+  openingPlayerIndex: number;
+  needsDealerReshuffle: boolean;
+  streakAfterRound: AssholeStreakState;
+  skipPresidentTrade: boolean;
+};
+
+/** Deal hands for the round ceremony (single attempt — dealer reshuffles if invalid). */
+export function executeCeremonyDeal(
+  baseState: GameState,
+  finishedOrder: string[],
+  options: {
+    dealSeed?: number;
+    hostId?: string | null;
+  },
+): CeremonyDealResult {
+  const streakAfterRound = advanceAssholeStreakAfterRound(
+    {
+      consecutiveAssholeId: baseState.consecutiveAssholeId ?? null,
+      consecutiveAssholeCount: baseState.consecutiveAssholeCount ?? 0,
+      freshRound: !!baseState.freshRound,
+    },
+    finishedOrder,
+    baseState.players,
+  );
+  const skipPresidentTrade = shouldSkipPresidentAssholeTrade(streakAfterRound);
+
+  let players = clonePlayersForRound(
+    baseState.players.map((p) => ({ ...p, hand: [] })),
+  );
+  dealFreshHands(players, options.dealSeed);
+
+  let trades: ClientPendingTrade[] = [];
+  const rolesById: Record<string, string> = {};
+  if (finishedOrder.length >= 2) {
+    assignPlayerRoles(players, finishedOrder);
+    trades = applyMandatoryTrades(players, { skipPresidentTrade });
+    for (const p of players) {
+      if (!isDeadHandPlayer(p) && p.role !== "Neutral") {
+        rolesById[p.id] = p.role;
+      }
+    }
+  }
+
+  const dealerContext = buildDealerContext({
+    hostId: options.hostId ?? null,
+    finishOrder: finishedOrder,
+    lastRoundOrder: baseState.lastRoundOrder,
+    roles: rolesById,
+  });
+
+  if (players.some(isDeadHandPlayer)) {
+    applyDeadHandAfterDeal(
+      {
+        players,
+        finishedOrder: [],
+        currentPlayerIndex: 0,
+        mustPlay: false,
+      },
+      dealerContext,
+    );
+  }
+
+  const openingPlayerIndex = resolveOpeningPlayerIndex(players, dealerContext);
+  const needsDealerReshuffle = needsRoundOneDealerReshuffle(
+    players,
+    dealerContext,
+  );
+
+  return {
+    players,
+    trades,
+    dealerContext,
+    openingPlayerIndex,
+    needsDealerReshuffle,
+    streakAfterRound,
+    skipPresidentTrade,
+  };
 }
 
 /** Round-robin deal order for animation: [p0,p1,p2,..., p0,p1,...] */
