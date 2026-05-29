@@ -40,6 +40,21 @@ export const WEB_SPLASH_OVERLAY =
       } as object)
     : null;
 
+/** Full-viewport fixed root for crash/update UI rendered outside AppContent. */
+export const WEB_OVERLAY_ROOT_FIXED =
+  Platform.OS === "web"
+    ? ({
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: "100%",
+        zIndex: 10001,
+        elevation: 10001,
+      } as object)
+    : null;
+
 type WebDocument = {
   getElementById: (id: string) => any;
   body: any;

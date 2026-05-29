@@ -1,10 +1,16 @@
 import { Platform } from "react-native";
 
-/** Reload the app — full page refresh on web, dev reload on native when available. */
+/** Reload the app — cache-busting navigation on web, dev reload on native when available. */
 export function attemptAppRefresh(): void {
   if (Platform.OS === "web") {
-    const loc = (globalThis as { location?: { reload: () => void } }).location;
-    loc?.reload();
+    const loc = (globalThis as {
+      location?: { href: string; replace: (url: string) => void };
+    }).location;
+    if (loc) {
+      const url = new URL(loc.href);
+      url.searchParams.set("_", String(Date.now()));
+      loc.replace(url.toString());
+    }
     return;
   }
 
