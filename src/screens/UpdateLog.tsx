@@ -29,7 +29,9 @@ function statusColor(
   status: KnownIssue["status"],
   colors: ReturnType<typeof useAppTheme>["colors"],
 ): string {
-  if (status === "Fix shipped") return colors.gold;
+  if (status === "Fix shipped") {
+    return colors.mode === "dark" ? "#7dcea0" : "#2e7d32";
+  }
   if (status === "Monitoring") return colors.textSecondary;
   return "#ffb86c";
 }

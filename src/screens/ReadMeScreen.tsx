@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import {
   removeReadmeMarkdownStyles,
   syncReadmeMarkdownStyles,
 } from "../utils/readmeMarkdown";
+import { installReadmeAnchorScroll } from "../utils/readmeAnchorScroll";
 
 type Props = {
   onBack: () => void;
@@ -49,6 +50,7 @@ export default function ReadMeScreen({ onBack }: Props) {
   const [markdown, setMarkdown] = useState<string | null>(null);
   const [html, setHtml] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,12 +78,18 @@ export default function ReadMeScreen({ onBack }: Props) {
     return () => removeReadmeMarkdownStyles();
   }, [colors.mode, readmeTheme]);
 
+  useEffect(
+    () => installReadmeAnchorScroll(scrollRef, Platform.OS === "web" && !!html),
+    [html],
+  );
+
   const loading = !markdown && !loadError;
   const showHtml = Platform.OS === "web" && !!html && !loadError;
 
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={[
           ui.scrollContent,

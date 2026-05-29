@@ -239,14 +239,21 @@ function injectBootGuard(html) {
 (function(){
   var base=${JSON.stringify(basePath)};
   var fallback=base+"/readme-fallback.html";
+  var reloadAttempts=0;
+  var maxReloads=5;
   function toFallback(){location.replace(fallback+"?_="+Date.now());}
+  function retryBoot(){
+    if(reloadAttempts>=maxReloads){toFallback();return;}
+    reloadAttempts+=1;
+    setTimeout(function(){location.reload();},700*reloadAttempts);
+  }
   window.addEventListener("error",function(ev){
     var el=ev.target;
-    if(el&&el.tagName==="SCRIPT"&&el.src) toFallback();
+    if(el&&el.tagName==="SCRIPT"&&el.src) retryBoot();
   },true);
   var timer=window.setTimeout(function(){
     var root=document.getElementById("root");
-    if(!root||!root.firstElementChild) toFallback();
+    if(!root||!root.firstElementChild) retryBoot();
   },20000);
   window.__PS_AND_AS_CANCEL_BOOT_GUARD__=function(){window.clearTimeout(timer);};
 })();

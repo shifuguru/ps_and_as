@@ -218,9 +218,8 @@
         return plain
           .toLowerCase()
           .trim()
-          .replace(/&/g, "")
           .replace(/[^\w\s-]/g, "")
-          .replace(/\s+/g, "-");
+          .replace(/ /g, "-");
       }
 
       function tokenPlainText(token) {

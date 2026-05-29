@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { marked } from "marked";
+import { githubHeadingId } from "./githubHeadingId";
 
 const GITHUB_MD_CSS = {
   light:
@@ -16,15 +17,6 @@ export type ReadmeMarkdownTheme = {
   linkBg: string;
   linkBorder: string;
 };
-
-function githubHeadingId(plain: string): string {
-  return plain
-    .toLowerCase()
-    .trim()
-    .replace(/&/g, "")
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-");
-}
 
 function tokenPlainText(token: {
   text?: string;
