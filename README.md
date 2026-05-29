@@ -1,6 +1,6 @@
 # Presidents & Assholes (Ps & As)
 
-**[Play the game](https://shifuguru.github.io/ps_and_as/)** · **[Refresh](https://shifuguru.github.io/ps_and_as/)**
+**[Play the game](https://shifuguru.github.io/ps_and_as/)** · **[Refresh](https://shifuguru.github.io/ps_and_as/?refresh=1)**
 
 Welcome.
 

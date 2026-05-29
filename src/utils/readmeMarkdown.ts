@@ -1,6 +1,10 @@
 import { Platform } from "react-native";
 import { marked } from "marked";
 import { githubHeadingId } from "./githubHeadingId";
+import {
+  isGameHomeLink,
+  linkWantsRefresh,
+} from "./readmeGameLinks";
 
 const GITHUB_MD_CSS = {
   light:
@@ -66,15 +70,22 @@ function ensureMarkedParser(): void {
         const text = this.parser.parseInline(token.tokens);
         const href = token.href ?? "#";
         const safeHref = escapeHtmlAttr(href);
-        const external =
-          href.startsWith("http://") || href.startsWith("https://");
+        const plainLabel = token.tokens.map(tokenPlainText).join("");
+        const gameLink = isGameHomeLink(href);
+        const refreshLink = gameLink && linkWantsRefresh(href, plainLabel);
         const titleAttr = token.title
           ? ` title="${escapeHtmlAttr(token.title)}"`
           : "";
+        const external =
+          !gameLink &&
+          (href.startsWith("http://") || href.startsWith("https://"));
         const targetAttr = external
           ? ' target="_blank" rel="noopener noreferrer"'
           : "";
-        return `<a class="readme-link-pill" href="${safeHref}"${titleAttr}${targetAttr}>${text}</a>`;
+        const actionAttr = gameLink
+          ? ` data-readme-game-link="1"${refreshLink ? ' data-readme-refresh="1"' : ""}`
+          : "";
+        return `<a class="readme-link-pill" href="${safeHref}"${titleAttr}${targetAttr}${actionAttr}>${text}</a>`;
       },
     },
   });

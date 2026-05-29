@@ -203,15 +203,91 @@
         return "";
       }
 
-      function hardRefresh(event) {
-        event.preventDefault();
+      function normalizePathname(pathname) {
+        let path = pathname.replace(/\/+$/, "") || "/";
+        if (path.endsWith("/index.html")) {
+          path = path.slice(0, -"/index.html".length) || "/";
+        }
+        return path;
+      }
+
+      function gameHomeUrl() {
         const base = appBasePath();
         const url = new URL(base + "/" || "/", window.location.origin);
-        url.searchParams.set("_", String(Date.now()));
-        window.location.replace(url.toString());
+        url.search = "";
+        url.hash = "";
+        return url.toString();
+      }
+
+      function isGameHomeLink(href) {
+        try {
+          const resolved = new URL(href, window.location.href);
+          const home = new URL(gameHomeUrl());
+          if (resolved.origin !== home.origin) return false;
+          return (
+            normalizePathname(resolved.pathname) ===
+            normalizePathname(home.pathname)
+          );
+        } catch {
+          return false;
+        }
+      }
+
+      function linkWantsRefresh(href, label) {
+        if (/refresh/i.test(String(label).trim())) return true;
+        try {
+          const resolved = new URL(href, window.location.href);
+          return (
+            resolved.searchParams.has("refresh") ||
+            resolved.searchParams.has("reload")
+          );
+        } catch {
+          return false;
+        }
+      }
+
+      function openGameLink(refresh) {
+        if (refresh) {
+          const url = new URL(gameHomeUrl());
+          url.searchParams.set("_", String(Date.now()));
+          window.location.replace(url.toString());
+          return;
+        }
+        window.location.replace(gameHomeUrl());
+      }
+
+      function hardRefresh(event) {
+        event.preventDefault();
+        openGameLink(true);
       }
 
       refreshBtn.addEventListener("click", hardRefresh);
+
+      document.addEventListener(
+        "click",
+        (event) => {
+          const link = event.target?.closest?.("a");
+          if (!link) return;
+          const href = link.getAttribute("href");
+          if (!href) return;
+
+          if (href.startsWith("#")) {
+            event.preventDefault();
+            const id = decodeURIComponent(href.slice(1));
+            const heading = document.getElementById(id);
+            if (heading) {
+              heading.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+            return;
+          }
+
+          if (!isGameHomeLink(href)) return;
+
+          event.preventDefault();
+          openGameLink(linkWantsRefresh(href, link.textContent ?? ""));
+        },
+        true,
+      );
 
       /** Match GitHub heading anchors so README TOC links work. */
       function githubHeadingId(plain) {
@@ -243,6 +319,26 @@
               const id = githubHeadingId(plain);
               const inner = this.parser.parseInline(tokens);
               return `<h${depth} id="${id}">${inner}</h${depth}>\n`;
+            },
+            link(token) {
+              const text = this.parser.parseInline(token.tokens);
+              const href = token.href ?? "#";
+              const plainLabel = token.tokens.map(tokenPlainText).join("");
+              const gameLink = isGameHomeLink(href);
+              const refreshLink = gameLink && linkWantsRefresh(href, plainLabel);
+              const external =
+                !gameLink &&
+                (href.startsWith("http://") || href.startsWith("https://"));
+              const titleAttr = token.title
+                ? ` title="${String(token.title).replace(/"/g, "&quot;")}"`
+                : "";
+              const targetAttr = external
+                ? ' target="_blank" rel="noopener noreferrer"'
+                : "";
+              const actionAttr = gameLink
+                ? ` data-readme-game-link="1"${refreshLink ? ' data-readme-refresh="1"' : ""}`
+                : "";
+              return `<a class="readme-link-pill" href="${href.replace(/"/g, "&quot;")}"${titleAttr}${targetAttr}${actionAttr}>${text}</a>`;
             },
           },
         });

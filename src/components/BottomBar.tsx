@@ -20,6 +20,7 @@ import {
   WEB_BOTTOM_BAR_SHELL_CLASS,
 } from "../utils/webViewport";
 import { useAppTheme } from "../context/ThemeContext";
+import { useInWebOverlayPortal } from "./WebModalPortal";
 
 /** Height of controls below the hand (ActionBar + padding). Keep in sync with ActionBar. */
 export const BOTTOM_CONTROLS_HEIGHT = ACTION_BAR_HEIGHT + 16;
@@ -108,7 +109,9 @@ export default function BottomBar({
   const insets = useLayoutInsets();
   const contentInset = bottomContentInset(insets.bottom);
   const webShell = useWebBottomBarShell();
-  const portalHost = webShell ? getWebBodyPortalHost() : null;
+  const inOverlayPortal = useInWebOverlayPortal();
+  const portalHost =
+    webShell && !inOverlayPortal ? getWebBodyPortalHost() : null;
 
   const bar = (
     <BlurPanel

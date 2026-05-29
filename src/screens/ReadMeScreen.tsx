@@ -24,7 +24,7 @@ import {
   removeReadmeMarkdownStyles,
   syncReadmeMarkdownStyles,
 } from "../utils/readmeMarkdown";
-import { installReadmeAnchorScroll } from "../utils/readmeAnchorScroll";
+import { installReadmeLinkHandlers } from "../utils/readmeAnchorScroll";
 
 type Props = {
   onBack: () => void;
@@ -79,8 +79,13 @@ export default function ReadMeScreen({ onBack }: Props) {
   }, [colors.mode, readmeTheme]);
 
   useEffect(
-    () => installReadmeAnchorScroll(scrollRef, Platform.OS === "web" && !!html),
-    [html],
+    () =>
+      installReadmeLinkHandlers(
+        scrollRef,
+        Platform.OS === "web" && !!html,
+        { onDismiss: onBack },
+      ),
+    [html, onBack],
   );
 
   const loading = !markdown && !loadError;
