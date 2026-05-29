@@ -27,6 +27,7 @@ import {
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import FeltBackground from "./src/components/FeltBackground";
 import FullscreenBlurScrim from "./src/components/FullscreenBlurScrim";
+import WebModalPortal from "./src/components/WebModalPortal";
 import { DEFAULT_FELT_COLOR, getWallpaperTint } from "./src/services/wallpaper";
 import { openReadmeFallbackPage } from "./src/utils/readmeFallback";
 import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
@@ -845,7 +846,7 @@ function AppContent() {
           />
         )}
         {menuVisible && settingsOpen && (
-          <View style={appStyles.settingsOverlay}>
+          <WebModalPortal style={appStyles.settingsOverlay}>
             <FullscreenBlurScrim />
             <View style={appStyles.settingsForeground}>
               <Settings
@@ -878,10 +879,10 @@ function AppContent() {
                 }}
               />
             </View>
-          </View>
+          </WebModalPortal>
         )}
         {menuVisible && achievementsOpen && (
-          <View style={appStyles.settingsOverlay}>
+          <WebModalPortal style={appStyles.settingsOverlay}>
             <FullscreenBlurScrim />
             <View style={appStyles.settingsForeground}>
               <Achievements
@@ -892,23 +893,25 @@ function AppContent() {
                 }}
               />
             </View>
-          </View>
+          </WebModalPortal>
         )}
         {menuVisible && updateLogOpen && (
-          <View style={appStyles.settingsOverlay}>
+          <WebModalPortal style={appStyles.settingsOverlay}>
             <FullscreenBlurScrim />
             <View style={appStyles.settingsForeground}>
               <UpdateLog onBack={closeUpdateLog} />
             </View>
-          </View>
+          </WebModalPortal>
         )}
         {showUpdateOverlay ? (
-          <UpdateRequiredOverlay
-            latestBuild={latestBuild}
-            onDismiss={() =>
-              setUpdateDismissedBuildId(latestBuild?.buildId ?? "dismissed")
-            }
-          />
+          <WebModalPortal style={appStyles.settingsOverlay}>
+            <UpdateRequiredOverlay
+              latestBuild={latestBuild}
+              onDismiss={() =>
+                setUpdateDismissedBuildId(latestBuild?.buildId ?? "dismissed")
+              }
+            />
+          </WebModalPortal>
         ) : null}
         </View>
     </View>

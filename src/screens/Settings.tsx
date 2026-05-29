@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   useWindowDimensions,
+  Switch,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import BlurPanel from "../components/BlurPanel";
@@ -20,6 +21,7 @@ import BottomBar, {
   menuBottomReserve,
 } from "../components/BottomBar";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
+import { useGamePreferences } from "../hooks/useGamePreferences";
 import { playerInitials } from "../utils/playerDisplay";
 import { contentMaxWidth } from "../styles/uiStandards";
 import { useAppTheme } from "../context/ThemeContext";
@@ -66,6 +68,7 @@ export default function Settings({
   } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
+  const { skipDealAnimations, setSkipDealAnimations } = useGamePreferences();
   const { width } = useWindowDimensions();
   const contentMax = contentMaxWidth(width);
   const bottomBarHeight = menuBottomReserve(insets.bottom || 0);
@@ -362,6 +365,28 @@ export default function Settings({
           </BlurPanel>
 
           <BlurPanel style={ui.panel} intensity={48}>
+            <Text style={ui.panelEyebrow}>Gameplay</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingRowCopy}>
+                <Text style={styles.settingLabel}>Skip deal animations</Text>
+                <Text style={[styles.tintHint, styles.settingHint]}>
+                  Jump straight to your hand — no shuffle or dealing animation.
+                </Text>
+              </View>
+              <Switch
+                value={skipDealAnimations}
+                onValueChange={(value) => void setSkipDealAnimations(value)}
+                trackColor={{
+                  false: colors.panelBorder,
+                  true: colors.gold,
+                }}
+                thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
+                accessibilityLabel="Skip deal animations"
+              />
+            </View>
+          </BlurPanel>
+
+          <BlurPanel style={ui.panel} intensity={48}>
             <Text style={ui.panelEyebrow}>Felt Tint</Text>
             <Text style={styles.tintHint}>
               Preview updates live. Tap Set Felt Color to save your preference.
@@ -632,6 +657,24 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 12,
+  },
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  settingRowCopy: {
+    flex: 1,
+  },
+  settingLabel: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  settingHint: {
+    marginBottom: 0,
   },
   textPreview: {
     marginTop: 14,

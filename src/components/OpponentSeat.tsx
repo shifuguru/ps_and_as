@@ -211,6 +211,7 @@ export default function OpponentSeat({
         <TrickWinCelebration
           active={celebrateTrickWin}
           avatarSize={avatarSize}
+          countBadgeSize={dims.countBadgeSize}
           showXp={showTrickXp}
           celebrationColors={celebrationPalette.celebrationColors}
         />
@@ -222,6 +223,8 @@ export default function OpponentSeat({
                 width: avatarSize + 8,
                 height: avatarSize + 8,
                 borderRadius: (avatarSize + 8) / 2,
+                left: -4,
+                top: -4,
               },
             ]}
             pointerEvents="none"
@@ -235,6 +238,8 @@ export default function OpponentSeat({
                 width: avatarSize + 10,
                 height: avatarSize + 10,
                 borderRadius: (avatarSize + 10) / 2,
+                left: -5,
+                top: -5,
                 transform: [{ scale: ringScale }],
                 opacity: ringOpacity,
               },

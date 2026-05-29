@@ -20,6 +20,17 @@ export { formatUpdateTimestamp } from "../utils/formatLocalDateTime";
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: "2026-05-29T14:00:00.000Z",
+    title: "Hand fan, deal flow & table polish",
+    items: [
+      "Opening player — turn ring and “who leads” hints stay hidden until dealing and President/Asshole trades finish",
+      "Player hand — arc fans from the hand-area centre; middle card stays upright and larger; fresh deals open on your centre card",
+      "Settings — optional “Skip deal animations” jumps straight to trades and your hand",
+      "Trick win — celebration ring centred on the avatar; checkered flag sits top-right like deal mini-stacks",
+      "Web modals — Settings, Achievements, and What's New render above the bottom bar (no click-through)",
+    ],
+  },
+  {
     publishedAt: "2026-05-28T22:38:00.000Z",
     title: "Round opener & web polish",
     items: [

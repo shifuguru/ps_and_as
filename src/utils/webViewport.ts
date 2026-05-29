@@ -23,6 +23,7 @@ export const APP_HEIGHT_VAR = "--app-height";
 export const APP_SHELL_TOP_VAR = "--app-shell-top";
 export const WEB_SHELL_STYLE_ID = "ps-web-shell";
 export const WEB_BODY_PORTAL_ID = "ps-body-portal";
+export const WEB_OVERLAY_PORTAL_ID = "ps-overlay-portal";
 export const WEB_FELT_LAYER_ID = "ps-felt-layer";
 export const WEB_BOTTOM_BAR_SHELL_CLASS = "ps-bottom-bar-shell";
 export const WEB_FELT_FIXED_CLASS = "ps-felt-fixed";
@@ -176,6 +177,7 @@ function applyShellGeometry(doc: any, heightPx: number, topPx: number): void {
     doc.getElementById("root"),
     doc.getElementById(WEB_BODY_PORTAL_ID),
     doc.getElementById(WEB_FELT_LAYER_ID),
+    doc.getElementById(WEB_OVERLAY_PORTAL_ID),
   ];
 
   for (const el of targets) {

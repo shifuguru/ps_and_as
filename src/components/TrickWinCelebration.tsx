@@ -3,6 +3,10 @@ import { View, Text, StyleSheet, Animated, Easing, Platform } from "react-native
 import { TRICK_WIN_XP } from "../services/playerStats";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
+import {
+  dealStackCenterInAvatarWrap,
+  seatMiniCardDimensions,
+} from "../utils/seatDimensions";
 
 const PARTICLE_COUNT = 14;
 
@@ -33,6 +37,8 @@ function buildParticles(seed: number, colors: readonly string[]): ParticleSpec[]
 type Props = {
   active: boolean;
   avatarSize: number;
+  /** Matches OpponentSeat count badge — anchors flag like deal-stack cards. */
+  countBadgeSize: number;
   /** Show floating +XP text (local human trick win). */
   showXp?: boolean;
   xpAmount?: number;
@@ -40,9 +46,12 @@ type Props = {
   celebrationColors?: readonly string[];
 };
 
+const WIN_RING_OUTSET = 7;
+
 export default function TrickWinCelebration({
   active,
   avatarSize,
+  countBadgeSize,
   showXp = false,
   xpAmount = TRICK_WIN_XP,
   celebrationColors,
@@ -134,6 +143,15 @@ export default function TrickWinCelebration({
   if (!active) return null;
 
   const spread = avatarSize * 0.95;
+  const centerX = avatarSize / 2;
+  const centerY = avatarSize / 2;
+  const winRingSize = avatarSize + WIN_RING_OUTSET * 2;
+  const miniCard = seatMiniCardDimensions(avatarSize);
+  const flagAnchor = dealStackCenterInAvatarWrap(
+    avatarSize,
+    countBadgeSize,
+    miniCard.height,
+  );
   const flagRotate = flagWave.interpolate({
     inputRange: [0, 1],
     outputRange: ["-14deg", "14deg"],
@@ -144,10 +162,8 @@ export default function TrickWinCelebration({
       style={[
         styles.host,
         {
-          width: avatarSize + spread * 2,
-          height: avatarSize + spread * 2,
-          left: -spread,
-          top: -spread - avatarSize * 0.15,
+          width: avatarSize,
+          height: avatarSize,
         },
       ]}
       pointerEvents="none"
@@ -160,7 +176,7 @@ export default function TrickWinCelebration({
         });
         const translateY = burst.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, Math.sin(p.angle) * travel - avatarSize * 0.08],
+          outputRange: [0, Math.sin(p.angle) * travel],
         });
         const opacity = burst.interpolate({
           inputRange: [0, 0.15, 0.7, 1],
@@ -180,8 +196,8 @@ export default function TrickWinCelebration({
                 width: p.sizeW,
                 height: p.sizeH,
                 backgroundColor: p.color,
-                left: spread + avatarSize / 2 - p.sizeW / 2,
-                top: spread + avatarSize / 2 - p.sizeH / 2,
+                left: centerX - p.sizeW / 2,
+                top: centerY - p.sizeH / 2,
                 opacity,
                 transform: [{ translateX }, { translateY }, { rotate: spin }],
               },
@@ -194,8 +210,10 @@ export default function TrickWinCelebration({
         style={[
           styles.flagWrap,
           {
-            left: spread + avatarSize / 2 - 12,
-            top: spread - avatarSize * 0.42,
+            left: flagAnchor.x - miniCard.width / 2,
+            top: flagAnchor.y - miniCard.height / 2,
+            width: miniCard.width,
+            height: miniCard.height,
             opacity: flagPop,
             transform: [
               {
@@ -217,8 +235,8 @@ export default function TrickWinCelebration({
           style={[
             styles.xpWrap,
             {
-              left: spread + avatarSize / 2 - 36,
-              top: spread - avatarSize * 0.72,
+              left: centerX - 36,
+              top: flagAnchor.y - miniCard.height / 2 - avatarSize * 0.28,
               opacity: xpFloat.interpolate({
                 inputRange: [0, 0.12, 0.75, 1],
                 outputRange: [0, 1, 1, 0],
@@ -248,11 +266,11 @@ export default function TrickWinCelebration({
         style={[
           styles.winRing,
           {
-            width: avatarSize + 14,
-            height: avatarSize + 14,
-            borderRadius: (avatarSize + 14) / 2,
-            left: spread + avatarSize / 2 - (avatarSize + 14) / 2,
-            top: spread + avatarSize / 2 - (avatarSize + 14) / 2,
+            width: winRingSize,
+            height: winRingSize,
+            borderRadius: winRingSize / 2,
+            left: centerX - winRingSize / 2,
+            top: centerY - winRingSize / 2,
             opacity: burst.interpolate({
               inputRange: [0, 0.2, 1],
               outputRange: [0, 0.95, 0.35],
@@ -279,6 +297,8 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   return StyleSheet.create({
   host: {
     position: "absolute",
+    left: 0,
+    top: 0,
     zIndex: 30,
     overflow: "visible",
   },
@@ -297,15 +317,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   },
   flagWrap: {
     position: "absolute",
-    width: 24,
-    height: 24,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 32,
   },
   flagEmoji: {
-    fontSize: 22,
-    lineHeight: 26,
+    fontSize: 20,
+    lineHeight: 22,
   },
   xpWrap: {
     position: "absolute",

@@ -89,6 +89,24 @@ body {
   pointer-events: auto;
 }
 
+#ps-overlay-portal {
+  position: fixed !important;
+  top: var(--app-shell-top, 0px) !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
+  max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
+  min-height: 0 !important;
+  pointer-events: none !important;
+  z-index: 300 !important;
+  overflow: hidden !important;
+}
+
+#ps-overlay-portal > * {
+  pointer-events: auto;
+}
+
 .ps-felt-fixed {
   position: fixed !important;
   top: var(--app-shell-top, 0px) !important;

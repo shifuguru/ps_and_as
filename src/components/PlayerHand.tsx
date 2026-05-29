@@ -29,15 +29,22 @@ const CENTER_GUTTER = 10;
 
 const PAN_ACTIVATION_PX = 8;
 
-/** Max rotation (deg) for cards at the viewport edge */
-const MAX_ANGLE = 16;
+/** Max rotation (deg) for cards away from the hand-area centre */
+const MAX_ANGLE = 18;
 /** How high the centred card lifts above the baseline */
-const MAX_CENTER_LIFT = 12;
+const MAX_CENTER_LIFT = 14;
+/** Scale at the hand-area centre vs the edges */
+const FOCUS_SCALE = 1.1;
+const SIDE_SCALE_MIN = 0.9;
+/** Horizontal distance (px) at which fan reaches max tilt / min scale */
+function fanNormSpan(containerWidth: number, step: number): number {
+  return Math.max(step * 2.4, containerWidth * 0.24);
+}
 /** Padding below card feet inside the hand zone */
 const FAN_BOTTOM_PADDING = 5;
 
-/** Headroom above card tops for arc + selected lift + scale/shadow */
-const FAN_HEADROOM = SELECT_LIFT + MAX_CENTER_LIFT + 20;
+/** Headroom above card tops for arc + selected lift + centre scale */
+const FAN_HEADROOM = SELECT_LIFT + MAX_CENTER_LIFT + 24;
 
 /** Total height of the hand fan area */
 export const HAND_FAN_HEIGHT =
@@ -61,6 +68,7 @@ type CarouselSlot = {
   left: number;
   bottom: number;
   angle: number;
+  scale: number;
   zIndex: number;
   opacity: number;
   compact: boolean;
@@ -190,45 +198,41 @@ function computeCarouselSlots(
 ): CarouselSlot[] {
   if (count === 0) return [];
 
-  const viewportCenter = containerWidth / 2;
+  const handCenterX = containerWidth / 2;
   const focused =
     focusOverride != null
       ? Math.max(0, Math.min(focusOverride, count - 1))
       : focusedCardIndex(count, containerWidth, scrollOffset, step);
   const gutter = gutterForScroll(count, containerWidth, scrollOffset, step);
-  // Arch peaks at the hand's horizontal midpoint — not the viewport or focused card.
-  const handMidX = ((count - 1) / 2) * step + CARD_WIDTH / 2;
-  const handHalfSpan = Math.max(handMidX - CARD_WIDTH / 2, step * 0.5);
+  const normSpan = fanNormSpan(containerWidth, step);
 
   return Array.from({ length: count }, (_, i) => {
     const left = cardLeft(i, focused, gutter, step);
     const cardCenterX = left + CARD_WIDTH / 2 - scrollOffset;
+    const distFromCenter = cardCenterX - handCenterX;
+    const norm = Math.max(-1, Math.min(1, distFromCenter / normSpan));
+    const absNorm = Math.min(1, Math.abs(norm));
 
-    const archCenterX = i * step + CARD_WIDTH / 2;
-    const archDist = archCenterX - handMidX;
-    const archNorm = Math.max(-1, Math.min(1, archDist / handHalfSpan));
+    const angle = norm * MAX_ANGLE;
+    const bottom = MAX_CENTER_LIFT * (1 - absNorm * absNorm);
+    const scale =
+      SIDE_SCALE_MIN + (1 - absNorm) * (FOCUS_SCALE - SIDE_SCALE_MIN);
 
-    const angle = archNorm * MAX_ANGLE;
-    const absArchNorm = Math.min(1, Math.abs(archNorm));
-    const bottom = MAX_CENTER_LIFT * (1 - absArchNorm * absArchNorm);
-
-    const zIndex = 1000 - Math.abs(i - focused) * 10 + i;
-    const viewportDist = Math.abs(cardCenterX - viewportCenter);
-    const opacity = Math.max(
-      0.94,
-      1 - viewportDist / (containerWidth * 1.1),
-    );
+    const zIndex =
+      1000 + Math.round((1 - absNorm) * 100) - Math.abs(i - focused) * 5 + i;
+    const opacity = Math.max(0.92, 1 - absNorm * 0.08);
     const compact = i !== focused;
 
-    return { left, bottom, angle, zIndex, opacity, compact };
+    return { left, bottom, angle, scale, zIndex, opacity, compact };
   });
 }
 
-function pivotAroundBottom(angleDeg: number): ViewStyle["transform"] {
+function pivotAroundBottom(angleDeg: number, scale = 1): ViewStyle["transform"] {
   return [
     { translateX: CARD_WIDTH / 2 },
     { translateY: CARD_HEIGHT },
     { rotate: `${angleDeg}deg` },
+    { scale },
     { translateX: -CARD_WIDTH / 2 },
     { translateY: -CARD_HEIGHT },
   ];
@@ -354,11 +358,12 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     boundsRef.current = b;
 
     if (prev < 0 || next > prev) {
-      // Fresh deal or hand grew — open at the low end
-      const targetScroll = scrollToCenterCard(0, w, s);
+      // Fresh deal or hand grew — centre the middle card in the hand area
+      const middle = Math.floor((next - 1) / 2);
+      const targetScroll = scrollToCenterCard(middle, w, s);
       applyScroll(clampScroll(targetScroll, b.min, b.max));
-      anchorRankRef.current = cards[0]?.value ?? null;
-      anchorIndexRef.current = 0;
+      anchorRankRef.current = cards[middle]?.value ?? cards[0]?.value ?? null;
+      anchorIndexRef.current = middle;
     } else {
       // Card played — stay near the same rank band
       const target = indexAfterPlay(
@@ -572,7 +577,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                       ? 2500 + index
                       : slot.zIndex,
                   opacity: isSelected ? 1 : slot.opacity,
-                  transform: pivotAroundBottom(slot.angle),
+                  transform: pivotAroundBottom(slot.angle, slot.scale),
                 },
               ]}
               onTouchStart={() => setPressedIndex(index)}
@@ -582,8 +587,8 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
               <Card
                 card={card}
                 selected={isSelected}
-                compact={slot.compact && !isSelected && !isFocused}
-                highlight={isPlayable ? (isSelected ? 1 : isFocused ? 0.55 : 0.35) : 0}
+                compact={slot.compact && !isSelected}
+                highlight={isPlayable ? (isSelected ? 1 : isFocused ? 0.65 : 0.2) : 0}
                 flash={index === startingCardIndex}
                 disabled={disabled || !isPlayable}
                 onPress={() => handleCardPress(index)}

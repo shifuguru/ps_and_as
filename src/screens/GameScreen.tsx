@@ -68,6 +68,7 @@ import {
   getPlayerStats,
 } from "../services/playerStats";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
+import { useGamePreferences } from "../hooks/useGamePreferences";
 import DebugViewer from "../components/DebugViewer";
 import { Card as CardType, FULL_DECK_SIZE } from "../game/ruleset";
 import Header from "../components/Header";
@@ -355,6 +356,9 @@ function GameScreen({
     dealSeed?: number;
     finishOrder: string[];
   } | null>(null);
+  const { skipDealAnimations } = useGamePreferences();
+  const skipDealAnimationsRef = useRef(skipDealAnimations);
+  skipDealAnimationsRef.current = skipDealAnimations;
   const [tradePhase, setTradePhase] = useState<{
     baseState: GameState;
     players: GameState["players"];
@@ -594,6 +598,38 @@ function GameScreen({
     [finalizeCeremonyRound, onlineMultiplayer],
   );
 
+  type CeremonyPrepPayload = {
+    baseState: GameState;
+    players: GameState["players"];
+    trades: ClientPendingTrade[];
+    dealSeed?: number;
+    finishOrder: string[];
+  };
+
+  const launchRoundAfterDeal = useCallback(
+    (prep: CeremonyPrepPayload, hiddenState: GameState) => {
+      setRoundOver(false);
+      setPlayerReadyStates({});
+      roundStatsRecordedRef.current = false;
+      setGameplayLocked(true);
+
+      if (skipDealAnimationsRef.current) {
+        ceremonyPrepRef.current = prep;
+        const tradesPending =
+          prep.trades.length > 0 && !prep.trades.every((t) => t.completed);
+        if (tradesPending) {
+          setState(hiddenState);
+        }
+        beginTradePhase(prep.baseState, prep.players, prep.trades);
+        return;
+      }
+
+      setCeremonyPrep(prep);
+      setState(hiddenState);
+    },
+    [beginTradePhase],
+  );
+
   const handleDealComplete = useCallback(() => {
     const prep = ceremonyPrepRef.current;
     if (prep) {
@@ -677,8 +713,7 @@ function GameScreen({
       setRoundOver(false);
       setPlayerReadyStates({});
       roundStatsRecordedRef.current = false;
-      setGameplayLocked(true);
-      setCeremonyPrep({
+      const prep: CeremonyPrepPayload = {
         baseState: {
           ...baseState,
           lastRoundOrder:
@@ -688,10 +723,11 @@ function GameScreen({
         trades,
         dealSeed: nextDealSeed,
         finishOrder: finishedOrder,
-      });
+      };
       const hiddenPlayers = players.map((p) => ({ ...p, hand: [] }));
       const priorRound = finishedOrder.length >= 2;
-      setState(
+      launchRoundAfterDeal(
+        prep,
         buildFreshRoundState(
           baseState,
           hiddenPlayers,
@@ -700,7 +736,7 @@ function GameScreen({
         ),
       );
     },
-    [resolvedHostId],
+    [resolvedHostId, launchRoundAfterDeal],
   );
 
   const handleTradeConfirm = useCallback(
@@ -1119,17 +1155,17 @@ function GameScreen({
 
         setRoundOver(false);
         setPlayerReadyStates({});
-        setGameplayLocked(true);
-        setCeremonyPrep({
+        const prep: CeremonyPrepPayload = {
           baseState: parsed,
           players,
           trades,
           dealSeed: roundDealSeed,
           finishOrder,
-        });
+        };
         const hiddenPlayers = players.map((p) => ({ ...p, hand: [] }));
         const priorRound = finishOrder.length >= 2;
-        setState(
+        launchRoundAfterDeal(
+          prep,
           buildFreshRoundState(
             parsed,
             hiddenPlayers,
@@ -1913,6 +1949,9 @@ function GameScreenBoard() {
     current =
       state.players.find((p) => !isDeadHandPlayer(p)) ?? state.players[0];
   }
+  /** Hide who leads until deal + mandatory trades finish (state may still track opener). */
+  const revealTurnHighlight = !inCeremony;
+  const turnHighlightPlayerId = revealTurnHighlight ? current.id : "";
   if (!current) {
     return (
       <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
@@ -2024,7 +2063,11 @@ function GameScreenBoard() {
     (!state.currentTrick || state.currentTrick.actions.length === 0);
 
   const startingCardIndex =
-    isHumanTurn && !roundOver && !!state.mustPlay && isOpeningLead
+    revealTurnHighlight &&
+    isHumanTurn &&
+    !roundOver &&
+    !!state.mustPlay &&
+    isOpeningLead
       ? hand.findIndex((c) => c.suit === "clubs" && c.value === 3)
       : -1;
 
@@ -2655,7 +2698,7 @@ function GameScreenBoard() {
         <GamePlayArea
           players={opponentPlayers}
           localPlayerIds={localControlledIds}
-          currentPlayerId={current.id}
+          currentPlayerId={turnHighlightPlayerId}
           finishedOrder={state.finishedOrder}
           passedPlayerIds={displayPassedPlayerIds}
           lastPlayPlayerId={activeLastPlayId}
@@ -2696,6 +2739,7 @@ function GameScreenBoard() {
           <OpponentSeat
             player={localSeatPlayer}
             isActive={
+              revealTurnHighlight &&
               !state.finishedOrder.includes(localSeatPlayer.id) &&
               localSeatPlayer.id === current.id
             }
@@ -2726,7 +2770,7 @@ function GameScreenBoard() {
       <BottomBar>
         {handInBottomBar ? (
           <BottomBarHand height={HAND_FAN_HEIGHT + HAND_ZONE_TOP_CLEARANCE}>
-            {!isHumanTurn ? (
+            {!isHumanTurn && revealTurnHighlight ? (
               <View style={local.waitingPill}>
                 <Text style={local.waitingPillText}>
                   Waiting for {current.name}…
@@ -2777,7 +2821,7 @@ function GameScreenBoard() {
             <View style={[local.waitingPill, local.waitingPillCollapsed]}>
               <Text style={local.waitingPillText}>Dealing cards…</Text>
             </View>
-          ) : !handVisible && !isHumanTurn ? (
+          ) : !handVisible && !isHumanTurn && revealTurnHighlight ? (
             <View style={[local.waitingPill, local.waitingPillCollapsed]}>
               <Text style={local.waitingPillText}>
                 Waiting for {current.name}…
