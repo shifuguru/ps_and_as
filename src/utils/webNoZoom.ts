@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { RefObject, useLayoutEffect } from "react";
+import { RefObject, useCallback, useLayoutEffect, useRef } from "react";
 import type { View } from "react-native";
 
 export const WEB_VIEWPORT_CONTENT =
@@ -46,33 +46,76 @@ export function ensureWebNoZoom(): void {
   );
 }
 
-function hostElement(ref: RefObject<View | null>): any {
-  return (ref.current as unknown as any) ?? null;
+/** RN Web View ref → DOM element (when available). */
+export function resolveWebDomNode(target: unknown): HTMLElement | null {
+  if (!target || typeof target !== "object") return null;
+  const node = target as HTMLElement;
+  if (
+    typeof node.addEventListener === "function" &&
+    typeof node.getBoundingClientRect === "function"
+  ) {
+    return node;
+  }
+  return null;
+}
+
+function hostElement(ref: RefObject<View | null>): HTMLElement | null {
+  return resolveWebDomNode(ref.current);
+}
+
+/** Stop the browser from scrolling/zooming while dragging inside a touch target. */
+export function bindWebTouchScrollLock(node: HTMLElement): () => void {
+  node.style.touchAction = "none";
+  node.style.overscrollBehavior = "contain";
+  node.style.userSelect = "none";
+  (node.style as { webkitUserSelect?: string }).webkitUserSelect = "none";
+
+  const blockMove = (event: Event) => {
+    event.preventDefault();
+  };
+  node.addEventListener("touchmove", blockMove, { passive: false });
+  node.addEventListener("pointermove", blockMove, { passive: false });
+
+  return () => {
+    node.removeEventListener("touchmove", blockMove);
+    node.removeEventListener("pointermove", blockMove);
+    node.style.touchAction = "";
+    node.style.overscrollBehavior = "";
+    node.style.userSelect = "";
+    (node.style as { webkitUserSelect?: string }).webkitUserSelect = "";
+  };
 }
 
 /** Prevent parent ScrollViews from scrolling while dragging inside a touch target. */
 export function useWebTouchScrollLock(
   ref: RefObject<View | null>,
   active = true,
+  /** Re-bind after layout (e.g. conditional mount or width change). */
+  layoutKey?: number | string,
 ): void {
   useLayoutEffect(() => {
     if (Platform.OS !== "web" || !active) return;
 
     const node = hostElement(ref);
-    if (!node || typeof node.addEventListener !== "function") return;
+    if (!node) return;
 
-    node.style.touchAction = "none";
-    node.style.overscrollBehavior = "contain";
+    return bindWebTouchScrollLock(node);
+  }, [ref, active, layoutKey]);
+}
 
-    const blockTouchMove = (event: Event) => {
-      event.preventDefault();
-    };
-    node.addEventListener("touchmove", blockTouchMove, { passive: false });
+/** Callback ref variant — binds as soon as the host mounts. */
+export function useWebTouchScrollLockRef(active = true) {
+  const cleanupRef = useRef<(() => void) | null>(null);
 
-    return () => {
-      node.removeEventListener("touchmove", blockTouchMove);
-      node.style.touchAction = "";
-      node.style.overscrollBehavior = "";
-    };
-  }, [ref, active]);
+  return useCallback(
+    (node: View | null) => {
+      cleanupRef.current?.();
+      cleanupRef.current = null;
+      if (Platform.OS !== "web" || !active || !node) return;
+      const el = resolveWebDomNode(node);
+      if (!el) return;
+      cleanupRef.current = bindWebTouchScrollLock(el);
+    },
+    [active],
+  );
 }

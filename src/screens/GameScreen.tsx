@@ -50,6 +50,10 @@ import {
   dealFreshHands,
   type ClientPendingTrade,
 } from "../game/roundPrep";
+import {
+  openingLeadCardIndex,
+} from "../game/deadHand";
+import { DEFAULT_FELT_COLOR, normalizeHexColor } from "../services/wallpaper";
 import Card from "../components/Card";
 import { ScrollView } from "react-native";
 import { MockAdapter, type NetworkAdapter } from "../game/network";
@@ -169,7 +173,24 @@ function canCardBePlayedAtAll(
   fourOfAKindChallenge?: any,
   players?: any[],
   finishedOrder?: string[],
+  lastRoundOrder?: string[],
+  currentPlayerId?: string,
 ): boolean {
+  const matchesValid = (cards: CardType[]) =>
+    isValidPlay(
+      cards,
+      pile,
+      tenRule,
+      pileHistory,
+      trickHistory,
+      fourOfAKindChallenge,
+      currentTrick,
+      players,
+      finishedOrder,
+      lastRoundOrder,
+      currentPlayerId,
+    );
+
   const pileCount = pile.length;
 
   // Single joker beats a non-empty pile (one joker only — never match pile count)
@@ -185,30 +206,7 @@ function canCardBePlayedAtAll(
     ) {
       return false;
     }
-    if (pileCount === 0) {
-      return isValidPlay(
-        [jokers[0]],
-        pile,
-        tenRule,
-        pileHistory,
-        trickHistory,
-        fourOfAKindChallenge,
-        currentTrick,
-        players,
-        finishedOrder,
-      );
-    }
-    return isValidPlay(
-      [jokers[0]],
-      pile,
-      tenRule,
-      pileHistory,
-      trickHistory,
-      fourOfAKindChallenge,
-      currentTrick,
-      players,
-      finishedOrder,
-    );
+    return matchesValid([jokers[0]]);
   }
 
   // Find all cards with this value
@@ -226,11 +224,7 @@ function canCardBePlayedAtAll(
       (!pileHistory || pileHistory.length === 0)
     ) {
       if (cardValue === 3) {
-        // Check if we have 3 of clubs
-        const hasThreeOfClubs = hand.some(
-          (c) => c.value === 3 && c.suit === "clubs",
-        );
-        return hasThreeOfClubs;
+        return sameValue.some((card) => matchesValid([card]));
       }
       return false; // First play must be 3s
     }
@@ -263,17 +257,7 @@ function canCardBePlayedAtAll(
     const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
     if (Math.abs(rankIndex(cardValue) - lastRank) === 1) {
       if (sameValue.length < runMultiplicity) return false;
-      return isValidPlay(
-        sameValue.slice(0, runMultiplicity),
-        pile,
-        tenRule,
-        pileHistory,
-        trickHistory,
-        fourOfAKindChallenge,
-        currentTrick,
-        players,
-        finishedOrder,
-      );
+      return matchesValid(sameValue.slice(0, runMultiplicity));
     }
     return false;
   }
@@ -283,17 +267,7 @@ function canCardBePlayedAtAll(
   if (sameValue.length < requiredCount) return false;
 
   const cardsToPlay = sameValue.slice(0, requiredCount);
-  return isValidPlay(
-    cardsToPlay,
-    pile,
-    tenRule,
-    pileHistory,
-    trickHistory,
-    fourOfAKindChallenge,
-    currentTrick,
-    players,
-    finishedOrder,
-  );
+  return matchesValid(cardsToPlay);
 }
 
 type AwayPlayer = {
@@ -381,7 +355,15 @@ function GameScreen({
   const [playerFeltTints, setPlayerFeltTints] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     initialLobbyPlayers?.forEach((member) => {
-      if (member.feltTint) map[member.id] = member.feltTint;
+      if (!member.feltTint) return;
+      if (
+        member.id !== localPlayerId &&
+        normalizeHexColor(member.feltTint) ===
+          normalizeHexColor(DEFAULT_FELT_COLOR)
+      ) {
+        return;
+      }
+      map[member.id] = member.feltTint;
     });
     return map;
   });
@@ -408,6 +390,7 @@ function GameScreen({
   const pendingTradesCompleteRef = useRef<Record<string, CardType[]> | null>(null);
   const pendingDealSeedRef = useRef<number | undefined>(undefined);
   const myPlayerIdRef = useRef<string | null>(null);
+  const explicitFeltThemesRef = useRef<Set<string>>(new Set());
   const roomNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handRef = useRef<PlayerHandHandle>(null);
   const fallbackAdapterRef = useRef<MockAdapter | null>(null);
@@ -472,8 +455,7 @@ function GameScreen({
   const resolveSeatFeltTint = useCallback(
     (player: { id: string; name: string }) => {
       if (myPlayerId && player.id === myPlayerId) return localFeltTint;
-      if (playerFeltTints[player.id]) return playerFeltTints[player.id];
-      return undefined;
+      return playerFeltTints[player.id];
     },
     [myPlayerId, localFeltTint, playerFeltTints],
   );
@@ -1270,7 +1252,22 @@ function GameScreen({
           setPlayerFeltTints((prev) => {
             const next = { ...prev };
             for (const member of members as LobbyMember[]) {
-              if (member.feltTint) next[member.id] = member.feltTint;
+              if (!member.feltTint) continue;
+              const normalized = normalizeHexColor(member.feltTint);
+              const previous = prev[member.id]
+                ? normalizeHexColor(prev[member.id])
+                : null;
+              if (previous && normalized && previous !== normalized) {
+                explicitFeltThemesRef.current.add(member.id);
+              }
+              if (
+                member.id !== myPlayerIdRef.current &&
+                normalized === normalizeHexColor(DEFAULT_FELT_COLOR) &&
+                !explicitFeltThemesRef.current.has(member.id)
+              ) {
+                continue;
+              }
+              next[member.id] = member.feltTint;
             }
             return next;
           });
@@ -2032,6 +2029,8 @@ function GameScreenBoard() {
       state.currentTrick,
       state.players,
       state.finishedOrder,
+      state.lastRoundOrder,
+      current.id,
     );
 
   const playableIndices = hand.map((card) =>
@@ -2046,6 +2045,8 @@ function GameScreenBoard() {
       state.fourOfAKindChallenge,
       state.players,
       state.finishedOrder,
+      state.lastRoundOrder,
+      current.id,
     ),
   );
 
@@ -2068,8 +2069,11 @@ function GameScreenBoard() {
     !roundOver &&
     !!state.mustPlay &&
     isOpeningLead
-      ? hand.findIndex((c) => c.suit === "clubs" && c.value === 3)
+      ? openingLeadCardIndex(hand, state.players)
       : -1;
+
+  const mustLeadOpening =
+    !!state.mustPlay && isOpeningLead && isHumanTurn && !roundOver;
 
   const handleCardPress = (idx: number) => {
     if (trickPauseActive || roundOver || readOnlyGame) return;
@@ -2836,7 +2840,7 @@ function GameScreenBoard() {
             onPass={handlePassPress}
             onQuit={requestLeaveGame}
             playDisabled={gameplayLocked || !isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id) || selected.length === 0 || !selectedCanPlay}
-            passDisabled={gameplayLocked || !isHumanTurn || roundOver}
+            passDisabled={gameplayLocked || !isHumanTurn || roundOver || mustLeadOpening}
             isPlayerTurn={isHumanTurn && !roundOver && !gameplayLocked}
             noValidPlays={noValidPlays}
           />

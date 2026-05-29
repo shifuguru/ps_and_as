@@ -95,3 +95,19 @@ export function livingPlayerHasRank(
     ),
   );
 }
+
+/** Index in `hand` to highlight for a round-opening lead (3♣ or dead-hand 3♠ rules). */
+export function openingLeadCardIndex(
+  hand: Card[],
+  players: Pick<Player, "id" | "hand" | "isDeadHand" | "sidelinedHand">[],
+): number {
+  if (hand.length === 0) return -1;
+  if (deadHandHoldsThreeClubs(players)) {
+    const spades = hand.findIndex((c) => c.value === 3 && c.suit === "spades");
+    if (spades >= 0) return spades;
+  } else {
+    const clubs = hand.findIndex((c) => c.value === 3 && c.suit === "clubs");
+    if (clubs >= 0) return clubs;
+  }
+  return hand.findIndex((c) => c.value === 3);
+}

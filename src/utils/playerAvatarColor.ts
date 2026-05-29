@@ -31,12 +31,12 @@ export function playerAvatarBackgroundColor(
 export function playerThemePalette(
   feltTint?: string | null,
   playerId?: string,
-  isCpu?: boolean,
+  _isCpu?: boolean,
 ) {
   const normalized = feltTint ? normalizeHexColor(feltTint) : null;
   const hex = normalized
     ? normalized
-    : isCpu && playerId
+    : playerId
       ? cpuFeltTintForId(playerId)
       : DEFAULT_FELT_COLOR;
   return deriveFeltPalette(hex);
