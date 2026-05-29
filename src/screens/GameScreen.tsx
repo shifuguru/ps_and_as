@@ -1513,9 +1513,10 @@ function GameScreen({
     setActiveTrade(nextTrade);
   }, [tradePhase, onlineMultiplayer, finalizeCeremonyRound]);
 
-  // CPU auto-play effect
+  // CPU auto-play effect (offline only — online uses authoritative server state)
   useEffect(() => {
     if (!state || trickPauseActive || gameplayLocked || roundOver) return;
+    if (onlineMultiplayer) return;
 
     if (state.tenRulePending) {
       const chooserIdx = tenRuleChooserIndex(state);
@@ -1632,7 +1633,14 @@ function GameScreen({
     }, CPU_DELAY_MS);
 
     return () => clearTimeout(timer);
-  }, [state, trickPauseActive, gameplayLocked, roundOver, humanPlayer?.id]);
+  }, [
+    state,
+    trickPauseActive,
+    gameplayLocked,
+    roundOver,
+    humanPlayer?.id,
+    onlineMultiplayer,
+  ]);
 
   if (!state) {
     return (

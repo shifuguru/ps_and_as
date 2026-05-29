@@ -14,6 +14,10 @@ const {
   pickLowestCards,
   advanceAssholeStreakAfterRound,
   shouldSkipPresidentAssholeTrade,
+  isDeadHandPlayer,
+  isPlayerStillIn,
+  hasPassedInCurrentTrick,
+  nextActivePlayerIndex,
 } = require('./gameBridge');
 const { viewForPlayer, viewForMember, broadcastGameState } = require('./gameStateView');
 const {
@@ -495,6 +499,36 @@ function advancePastDisconnectedPlayers(room) {
     if (!current) break;
     const member = room.players.find((p) => p.id === current.id);
     if (!member?.disconnectedAt) break;
+    const next = passTurn(working, current.id);
+    if (next === working) break;
+    working = next;
+  }
+  room.gameState = cloneGameState(working);
+}
+
+/** Skip seats that cannot act (out, dead hand, already passed this trick). */
+function advancePastInactiveSeats(room) {
+  const gs = room?.gameState;
+  if (!gs?.players) return;
+  let working = cloneGameState(gs);
+  let safety = gs.players.length + 4;
+  while (safety-- > 0) {
+    const current = working.players[working.currentPlayerIndex];
+    if (!current) break;
+    const quadWait =
+      working.fourOfAKindChallenge?.active &&
+      working.fourOfAKindChallenge.completedAcrossTurns &&
+      working.lastPlayPlayerIndex === working.currentPlayerIndex;
+    const inactive =
+      isDeadHandPlayer(current) ||
+      !isPlayerStillIn(working, current.id) ||
+      hasPassedInCurrentTrick(working, current.id) ||
+      quadWait;
+    if (!inactive) break;
+    if (quadWait) {
+      working.currentPlayerIndex = nextActivePlayerIndex(working, working.currentPlayerIndex);
+      continue;
+    }
     const next = passTurn(working, current.id);
     if (next === working) break;
     working = next;
@@ -1281,6 +1315,7 @@ io.on('connection', (socket) => {
 
     room.gameState = cloneGameState(next);
     room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
+    advancePastInactiveSeats(room);
     broadcastGameState(io, room);
 
     if (isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {

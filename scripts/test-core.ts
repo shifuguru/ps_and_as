@@ -546,6 +546,60 @@ function makeEmptyGame(names: string[]): GameState {
   );
 }
 
+// Cross-turn quad close: opponent must pass, then completer wins the trick
+{
+  const g = createGame(["Alice", "Bob"]);
+  g.players[0].hand = [
+    { suit: "clubs", value: 3 },
+    { suit: "spades", value: 5 },
+  ];
+  g.players[1].hand = [
+    { suit: "hearts", value: 3 },
+    { suit: "diamonds", value: 3 },
+    { suit: "clubs", value: 3 },
+    { suit: "spades", value: 8 },
+  ];
+  g.currentPlayerIndex = 0;
+  g.pile = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+
+  let s = playCards(g, g.players[0].id, [{ suit: "clubs", value: 3 }]);
+  assert.strictEqual(s.players[s.currentPlayerIndex].id, g.players[1].id);
+
+  s = playCards(s, s.players[1].id, [
+    { suit: "hearts", value: 3 },
+    { suit: "diamonds", value: 3 },
+    { suit: "clubs", value: 3 },
+  ]);
+  assert.ok(s.fourOfAKindChallenge?.completedAcrossTurns);
+  assert.strictEqual(s.lastPlayPlayerIndex, 1);
+  assert.strictEqual(
+    s.players[s.currentPlayerIndex].id,
+    g.players[0].id,
+    "After cross-turn quad close, opponent must pass next",
+  );
+  assert.ok(
+    !isValidPlay(
+      [{ suit: "spades", value: 5 }],
+      s.pile,
+      s.tenRule,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+    ),
+    "Opponent cannot beat a completed cross-turn quad",
+  );
+
+  s = passTurn(s, g.players[0].id);
+  assert.strictEqual(s.pile.length, 0, "Trick clears after everyone else passes");
+  assert.strictEqual(s.trickHistory?.length, 1);
+  assert.strictEqual(s.players[s.currentPlayerIndex].id, g.players[1].id);
+  assert.strictEqual(s.mustPlay, true, "Quad completer leads the next trick");
+}
+
 // Single-play four-of-a-kind bomb is beatable by higher quads or joker
 {
   const joker: Card = { suit: "joker", value: 16 };

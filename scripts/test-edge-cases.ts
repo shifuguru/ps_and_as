@@ -1,7 +1,8 @@
 const assert = require('assert');
 import { createGame } from "../src/game/core";
 import { createDeck } from "../src/game/ruleset";
-import { playCards, passTurn, findCPUPlay, isValidPlay, isSingleJoker, isFourOfAKind, containsTen } from "../src/game/core";
+import { playCards, passTurn, findCPUPlay, isValidPlay, isSingleJoker, isFourOfAKind, containsTen, hasPassedInCurrentTrick, isPlayerStillIn, nextActivePlayerIndex } from "../src/game/core";
+import { isDeadHandPlayer } from "../src/game/deadHand";
 import { Card } from "../src/game/ruleset";
 
 console.log('Running edge-case tests...');
@@ -79,6 +80,110 @@ console.log('Running edge-case tests...');
   const afterPass = passTurn(s1, nextPlayerId);
   assert.notStrictEqual(afterPass, s1, 'Player should pass on cross-turn completed quad');
   console.log('PASS: cross-turn quad unbeatable');
+})();
+
+/** Mirrors server advancePastInactiveSeats — skip seats that cannot act. */
+function advancePastInactiveSeats(state: ReturnType<typeof createGame>) {
+  let working = state;
+  let safety = working.players.length + 4;
+  while (safety-- > 0) {
+    const current = working.players[working.currentPlayerIndex];
+    if (!current) break;
+    const quadWait =
+      working.fourOfAKindChallenge?.active &&
+      working.fourOfAKindChallenge.completedAcrossTurns &&
+      working.lastPlayPlayerIndex === working.currentPlayerIndex;
+    const inactive =
+      isDeadHandPlayer(current) ||
+      !isPlayerStillIn(working, current.id) ||
+      hasPassedInCurrentTrick(working, current.id) ||
+      quadWait;
+    if (!inactive) break;
+    if (quadWait) {
+      working.currentPlayerIndex = nextActivePlayerIndex(working, working.currentPlayerIndex);
+      continue;
+    }
+    const next = passTurn(working, current.id);
+    if (next === working) break;
+    working = next;
+  }
+  return working;
+}
+
+// 3b) Cross-turn quad with a prior pass — trick clears when the last living opponent passes
+(function crossTurnQuadWithPriorPass() {
+  const g = createGame(['A', 'B', 'C']);
+  g.trickHistory = [{
+    trickNumber: 0,
+    actions: [{ type: 'play', playerId: '1', playerName: 'init', cards: [{ suit: 'clubs', value: 3 }], timestamp: Date.now() }],
+    winnerId: '1',
+    winnerName: 'init',
+  }];
+  const tricksBefore = g.trickHistory.length;
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentPlayerIndex = 0;
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.players[0].hand = [{ suit: 'spades', value: 5 }, { suit: 'clubs', value: 7 }];
+  g.players[1].hand = [{ suit: 'diamonds', value: 8 }];
+  g.players[2].hand = [
+    { suit: 'diamonds', value: 5 },
+    { suit: 'clubs', value: 5 },
+    { suit: 'spades', value: 5 },
+    { suit: 'hearts', value: 9 },
+  ];
+
+  let s = playCards(g, g.players[0].id, [{ suit: 'spades', value: 5 }]);
+  assert.strictEqual(s.players[s.currentPlayerIndex].id, g.players[1].id);
+
+  s = passTurn(s, g.players[1].id);
+  assert.ok(hasPassedInCurrentTrick(s, g.players[1].id), 'B should have passed before the quad close');
+
+  s = playCards(s, g.players[2].id, [
+    { suit: 'diamonds', value: 5 },
+    { suit: 'clubs', value: 5 },
+    { suit: 'spades', value: 5 },
+  ]);
+  assert.ok(s.fourOfAKindChallenge?.completedAcrossTurns);
+  assert.strictEqual(
+    s.players[s.currentPlayerIndex].id,
+    g.players[0].id,
+    'After cross-turn quad close, first living opponent must act',
+  );
+
+  s = passTurn(s, g.players[0].id);
+  assert.strictEqual(s.pile.length, 0, 'Trick clears once remaining opponents have passed');
+  assert.strictEqual(s.trickHistory?.length, tricksBefore + 1);
+  assert.strictEqual(s.players[s.currentPlayerIndex].id, g.players[2].id);
+  assert.strictEqual(s.mustPlay, true, 'Quad completer leads the next trick');
+
+  // Mid-trick desync: turn wrongly lands on B who already passed this trick.
+  const stuck = createGame(['A', 'B', 'C']);
+  stuck.trickHistory = [{ trickNumber: 0, actions: [], winnerId: '1', winnerName: 'init' }];
+  stuck.pile = [{ suit: 'spades', value: 5 }, { suit: 'diamonds', value: 5 }, { suit: 'clubs', value: 5 }, { suit: 'hearts', value: 5 }];
+  stuck.pileHistory = [[{ suit: 'spades', value: 5 }], [{ suit: 'diamonds', value: 5 }, { suit: 'clubs', value: 5 }, { suit: 'hearts', value: 5 }]];
+  stuck.currentTrick = {
+    trickNumber: 1,
+    actions: [
+      { type: 'play', playerId: stuck.players[0].id, playerName: 'A', cards: [{ suit: 'spades', value: 5 }], timestamp: 1 },
+      { type: 'pass', playerId: stuck.players[1].id, playerName: 'B', timestamp: 2 },
+      { type: 'play', playerId: stuck.players[2].id, playerName: 'C', cards: [{ suit: 'diamonds', value: 5 }, { suit: 'clubs', value: 5 }, { suit: 'hearts', value: 5 }], timestamp: 3 },
+    ],
+  };
+  stuck.fourOfAKindChallenge = { active: true, value: 5, starterIndex: 2, completedAcrossTurns: true };
+  stuck.lastPlayPlayerIndex = 2;
+  stuck.currentPlayerIndex = 1;
+  stuck.passCount = 1;
+
+  const fixed = advancePastInactiveSeats(stuck);
+  assert.strictEqual(
+    fixed.players[fixed.currentPlayerIndex].id,
+    stuck.players[0].id,
+    'Inactive-seat advance should skip a prior passer and land on the next living opponent',
+  );
+  assert.ok(fixed.fourOfAKindChallenge?.completedAcrossTurns);
+  assert.strictEqual(fixed.pile.length, 4, 'Trick should stay open until the remaining opponent passes');
+  console.log('PASS: cross-turn quad with prior pass + inactive seat advance');
 })();
 
 // 4) 10-rule should NOT activate when pile is a run
