@@ -28,9 +28,13 @@ import {
 } from "../src/game/core";
 import {
   applyMandatoryTrades,
+  advanceAssholeStreakAfterRound,
+  shouldSkipPresidentAssholeTrade,
+  assignPlayerRoles,
   buildFreshRoundState,
   clonePlayersForRound,
   completeWinnerReturn,
+  pickHighestCards,
 } from "../src/game/roundPrep";
 import { applyFinishOrderRoles } from "../src/utils/roundRoles";
 import {
@@ -419,7 +423,66 @@ function makeEmptyGame(names: string[]): GameState {
   );
 }
 
-// Joker beats a pair on the pile when the trick had an earlier run but the pile is not in run context
+// Four 10s + ten-rule response: trick winner must be last beat play, not stuck
+{
+  const g = makeEmptyGame(["A", "B"]);
+  const fourTens: Card[] = [
+    { suit: "hearts", value: 10 },
+    { suit: "diamonds", value: 10 },
+    { suit: "clubs", value: 10 },
+    { suit: "spades", value: 10 },
+  ];
+  const fourNines: Card[] = [
+    { suit: "hearts", value: 9 },
+    { suit: "diamonds", value: 9 },
+    { suit: "clubs", value: 9 },
+    { suit: "spades", value: 9 },
+  ];
+  g.players[0].hand = [...fourTens, { suit: "hearts", value: 5 }];
+  g.players[1].hand = [...fourNines];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, g.players[0].id, fourTens);
+  s = setTenRuleDirection(s, "lower");
+  assert.ok(
+    !s.finishedOrder.includes(g.players[1].id),
+    "Opponent should not be auto-finished while still holding cards after one player goes out",
+  );
+  s = playCards(s, g.players[1].id, fourNines);
+  assert.strictEqual(s.lastPlayPlayerIndex, 1, "Responder should lead the pile");
+  s = passTurn(s, g.players[0].id);
+  const lastTrick = s.trickHistory[s.trickHistory.length - 1];
+  assert.ok(lastTrick, "Trick should finalize after the quad closer passes");
+  assert.strictEqual(
+    lastTrick.winnerName,
+    "B",
+    "Ten-rule response play should win the trick when the closer passes",
+  );
+}
+
+// Single-play four 10s: closer wins when everyone else passes under ten rule
+{
+  const g = makeEmptyGame(["A", "B", "C"]);
+  const fourTens: Card[] = [
+    { suit: "hearts", value: 10 },
+    { suit: "diamonds", value: 10 },
+    { suit: "clubs", value: 10 },
+    { suit: "spades", value: 10 },
+  ];
+  g.players[0].hand = fourTens.slice();
+  g.players[1].hand = [{ suit: "hearts", value: 5 }];
+  g.players[2].hand = [{ suit: "hearts", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, g.players[0].id, fourTens);
+  s = setTenRuleDirection(s, "higher");
+  s = passTurn(s, g.players[1].id);
+  s = passTurn(s, g.players[2].id);
+  const lastTrick = s.trickHistory[s.trickHistory.length - 1];
+  assert.ok(lastTrick, "Trick should end once all others pass on four 10s");
+  assert.strictEqual(lastTrick.winnerName, "A", "Quad closer should win the trick");
+}
+
 {
   const joker: Card = { suit: "joker", value: 16 };
   const double7: Card[] = [
@@ -549,6 +612,216 @@ function makeEmptyGame(names: string[]): GameState {
     isValidPlay(four8s, four7s, undefined, pileHistory),
     "Next-rank quads should extend an active quads run",
   );
+}
+
+// --- Run "on top!" when everyone else passes ---
+
+{
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+
+  const three: Card = { suit: "clubs", value: 3 };
+  const four: Card = { suit: "hearts", value: 4 };
+  const five: Card = { suit: "diamonds", value: 5 };
+  const seven: Card = { suit: "spades", value: 7 };
+
+  g.players[0].hand = [three, { suit: "spades", value: 8 }];
+  g.players[1].hand = [four, { suit: "clubs", value: 9 }];
+  g.players[2].hand = [five, seven];
+  g.players[3].hand = [{ suit: "diamonds", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [three]);
+  s = playCards(s, "2", [four]);
+  s = playCards(s, "3", [five]);
+  s = passTurn(s, "4");
+  s = passTurn(s, "1");
+  s = passTurn(s, "2");
+
+  assert.ok(s.runOnTop?.active, "Run leader should get on top! after others pass");
+  assert.strictEqual(s.runOnTop?.playerIndex, 2, "On top! goes to last run extender");
+  assert.strictEqual(s.currentPlayerIndex, 2, "Turn should return to run leader");
+  assert.strictEqual(s.mustPlay, true, "On top! is a must-play turn");
+  assert.strictEqual(s.pile.length, 1, "Trick should not clear before on top! play");
+
+  const six: Card = { suit: "hearts", value: 6 };
+  assert.ok(
+    !isValidPlay(
+      [six],
+      s.pile,
+      s.tenRule,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "3",
+      true,
+    ),
+    "Run extension should be invalid during on top!",
+  );
+  assert.ok(
+    isValidPlay(
+      [seven],
+      s.pile,
+      s.tenRule,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "3",
+      true,
+    ),
+    "Normal beat should be valid during on top!",
+  );
+
+  s = playCards(s, "3", [seven]);
+  assert.ok(!s.runOnTop?.active, "On top! clears after a play");
+  assert.strictEqual(s.pile[0].value, 7, "On top! play replaces the pile");
+}
+
+{
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+
+  const three: Card = { suit: "clubs", value: 3 };
+  const four: Card = { suit: "hearts", value: 4 };
+  const five: Card = { suit: "diamonds", value: 5 };
+
+  g.players[0].hand = [three, { suit: "spades", value: 8 }];
+  g.players[1].hand = [four, { suit: "clubs", value: 9 }];
+  g.players[2].hand = [five];
+  g.players[3].hand = [{ suit: "diamonds", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [three]);
+  s = playCards(s, "2", [four]);
+  s = playCards(s, "3", [five]);
+  s = passTurn(s, "4");
+  s = passTurn(s, "1");
+  s = passTurn(s, "2");
+
+  s = passTurn(s, "3");
+  assert.ok(!s.runOnTop?.active, "Passing on top! clears the state");
+  assert.strictEqual(s.pile.length, 0, "Trick clears when leader passes on top!");
+  assert.strictEqual((s.trickHistory?.length ?? 0), 1, "Trick should be recorded");
+}
+
+// --- Double 10s "on top!" when everyone else passes ---
+
+{
+  const tenH: Card = { suit: "hearts", value: 10 };
+  const tenD: Card = { suit: "diamonds", value: 10 };
+  const jackH: Card = { suit: "hearts", value: 11 };
+  const jackD: Card = { suit: "diamonds", value: 11 };
+  const nineH: Card = { suit: "hearts", value: 9 };
+  const nineD: Card = { suit: "diamonds", value: 9 };
+
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+  g.lastRoundOrder = ["1", "2", "3", "4"];
+
+  g.players[0].hand = [tenH, tenD, jackH, jackD];
+  g.players[1].hand = [{ suit: "clubs", value: 3 }];
+  g.players[2].hand = [{ suit: "spades", value: 4 }];
+  g.players[3].hand = [{ suit: "clubs", value: 5 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [tenH, tenD]);
+  assert.ok(s.tenRulePending, "Double 10s should prompt 10-rule direction");
+  s = setTenRuleDirection(s, "higher");
+  s = passTurn(s, "2");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+
+  assert.ok(s.runOnTop?.active, "Double-10 leader should get on top!");
+  assert.strictEqual(s.runOnTop?.playerIndex, 0);
+
+  assert.ok(
+    !isValidPlay(
+      [nineH, nineD],
+      s.pile,
+      s.tenRule,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "Pair of 9s cannot beat pair of 10s during on top!",
+  );
+  assert.ok(
+    isValidPlay(
+      [jackH, jackD],
+      s.pile,
+      s.tenRule,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "Pair of jacks beats pair of 10s during on top!",
+  );
+
+  s = playCards(s, "1", [jackH, jackD]);
+  assert.ok(!s.runOnTop?.active);
+  assert.strictEqual(s.pile[0].value, 11);
+}
+
+{
+  const tenH: Card = { suit: "hearts", value: 10 };
+  const tenD: Card = { suit: "diamonds", value: 10 };
+
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+  g.lastRoundOrder = ["1", "2", "3", "4"];
+
+  g.players[0].hand = [tenH, tenD, { suit: "clubs", value: 3 }];
+  g.players[1].hand = [{ suit: "clubs", value: 4 }];
+  g.players[2].hand = [{ suit: "spades", value: 5 }];
+  g.players[3].hand = [{ suit: "clubs", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [tenH, tenD]);
+  s = setTenRuleDirection(s, "higher");
+  s = passTurn(s, "2");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+
+  assert.ok(s.runOnTop?.active);
+  s = passTurn(s, "1");
+  assert.strictEqual(s.pile.length, 0, "Leader wins trick after passing on top!");
+  assert.strictEqual((s.trickHistory?.length ?? 0), 1);
 }
 
 console.log("Pass-lock and 8-player tests passed");
@@ -839,3 +1112,75 @@ console.log("Post-trade 3♣ opener tests passed");
 }
 
 console.log("Lone remaining player tests passed");
+
+// Mandatory trade: asshole gives joker over 2 when both are held
+{
+  const hand: Card[] = [
+    { suit: "joker", value: 16 },
+    { suit: "hearts", value: 15 },
+    { suit: "spades", value: 14 },
+  ];
+  const given = pickHighestCards(hand, 1);
+  assert.strictEqual(given.length, 1);
+  assert.strictEqual(given[0].suit, "joker");
+  assert.strictEqual(given[0].value, 16);
+}
+
+console.log("Mandatory trade rank tests passed");
+
+// Fresh round: same Asshole three times → skip President trade on round 4
+{
+  let streak = advanceAssholeStreakAfterRound(
+    { consecutiveAssholeId: null, consecutiveAssholeCount: 0, freshRound: false },
+    ["1", "2", "3"],
+    createGame(["P1", "P2", "P3"]).players,
+  );
+  assert.strictEqual(streak.consecutiveAssholeId, "3");
+  assert.strictEqual(streak.consecutiveAssholeCount, 1);
+  assert.ok(!shouldSkipPresidentAssholeTrade(streak));
+
+  streak = advanceAssholeStreakAfterRound(streak, ["1", "2", "3"], createGame(["P1", "P2", "P3"]).players);
+  assert.strictEqual(streak.consecutiveAssholeCount, 2);
+  assert.ok(!shouldSkipPresidentAssholeTrade(streak));
+
+  streak = advanceAssholeStreakAfterRound(streak, ["1", "2", "3"], createGame(["P1", "P2", "P3"]).players);
+  assert.strictEqual(streak.consecutiveAssholeCount, 3);
+  assert.ok(shouldSkipPresidentAssholeTrade(streak));
+
+  const players = createGame(["P1", "P2", "P3"]).players;
+  assignPlayerRoles(players, ["1", "2", "3"]);
+  const trades = applyMandatoryTrades(players, { skipPresidentTrade: true });
+  assert.strictEqual(trades.length, 0, "Fresh round skips President trade in 3-player game");
+
+  streak = advanceAssholeStreakAfterRound(
+    { ...streak, freshRound: true },
+    ["1", "2", "3"],
+    createGame(["P1", "P2", "P3"]).players,
+  );
+  assert.strictEqual(streak.consecutiveAssholeCount, 1, "Streak resets after fresh round");
+  assert.ok(!shouldSkipPresidentAssholeTrade(streak));
+
+  streak = advanceAssholeStreakAfterRound(streak, ["1", "2", "3"], createGame(["P1", "P2", "P3"]).players);
+  assert.strictEqual(streak.consecutiveAssholeCount, 2, "Same Asshole again after fresh round");
+
+  streak = advanceAssholeStreakAfterRound(
+    { consecutiveAssholeId: "3", consecutiveAssholeCount: 2, freshRound: false },
+    ["1", "3", "2"],
+    createGame(["P1", "P2", "P3"]).players,
+  );
+  assert.strictEqual(streak.consecutiveAssholeId, "2");
+  assert.strictEqual(streak.consecutiveAssholeCount, 1, "New Asshole resets streak");
+}
+
+{
+  const players = createGame(["P1", "P2", "P3", "P4", "P5"]).players;
+  players.forEach((p, i) => {
+    p.hand = [{ suit: "spades", value: 5 + i }];
+  });
+  assignPlayerRoles(players, ["1", "2", "3", "4", "5"]);
+  const trades = applyMandatoryTrades(players, { skipPresidentTrade: true });
+  assert.strictEqual(trades.length, 1, "Fresh round still runs VP trade in 5-player game");
+  assert.strictEqual(trades[0].key, "vicePresident");
+}
+
+console.log("Fresh round tests passed");

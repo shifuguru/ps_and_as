@@ -20,6 +20,18 @@ export { formatUpdateTimestamp } from "../utils/formatLocalDateTime";
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: "2026-05-29T12:00:00.000Z",
+    title: "On top!, fresh rounds & fixes",
+    items: [
+      "On top! — when a run ends and everyone else passes, the last player who played on the run gets one extra turn to beat the pile normally (not extend the run)",
+      "Double 10s on top! — same rule when everyone passes on a pair of 10s; pass if you can't beat them and you still win the trick",
+      "Fresh round — if the same player is Asshole three rounds in a row, the next round skips the President↔Asshole trade (VP trades still apply in 5+ player games)",
+      "Trick winner fix — closing four 10s and passing no longer hands the trick to the wrong player",
+      "Mandatory trade fix — Asshole correctly gives the Joker (not a 2) when trading up to President",
+      "Trick pile cleanup — played cards clear cleanly from the table when a trick ends",
+    ],
+  },
+  {
     publishedAt: "2026-05-29T08:00:00.000Z",
     title: "Read Me & UI glass",
     items: [

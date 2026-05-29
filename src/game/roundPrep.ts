@@ -92,6 +92,71 @@ export function mandatoryTradeCounts(playerCount: number): {
   };
 }
 
+export type AssholeStreakState = {
+  consecutiveAssholeId: string | null;
+  consecutiveAssholeCount: number;
+  freshRound: boolean;
+};
+
+/** Asshole is last in living finish order. */
+export function assholeIdFromFinishOrder(
+  players: Player[],
+  finishedOrder: string[],
+): string | null {
+  const order = livingFinishedOrder(players, finishedOrder);
+  if (order.length < 2) return null;
+  return order[order.length - 1];
+}
+
+/** Update streak after a round completes; resets after a fresh round. */
+export function advanceAssholeStreakAfterRound(
+  prev: AssholeStreakState,
+  finishedOrder: string[],
+  players: Player[],
+): AssholeStreakState {
+  const assholeId = assholeIdFromFinishOrder(players, finishedOrder);
+  if (!assholeId) {
+    return {
+      consecutiveAssholeId: prev.consecutiveAssholeId,
+      consecutiveAssholeCount: prev.consecutiveAssholeCount,
+      freshRound: false,
+    };
+  }
+
+  if (prev.freshRound) {
+    return {
+      consecutiveAssholeId: assholeId,
+      consecutiveAssholeCount: 1,
+      freshRound: false,
+    };
+  }
+
+  if (prev.consecutiveAssholeId === assholeId) {
+    return {
+      consecutiveAssholeId: assholeId,
+      consecutiveAssholeCount: prev.consecutiveAssholeCount + 1,
+      freshRound: false,
+    };
+  }
+
+  return {
+    consecutiveAssholeId: assholeId,
+    consecutiveAssholeCount: 1,
+    freshRound: false,
+  };
+}
+
+/** Same Asshole three rounds running → next round skips President trade. */
+export function shouldSkipPresidentAssholeTrade(
+  streak: Pick<AssholeStreakState, "consecutiveAssholeCount">,
+): boolean {
+  return streak.consecutiveAssholeCount >= 3;
+}
+
+export type MandatoryTradeOptions = {
+  skipPresidentTrade?: boolean;
+};
+
 function removeCardsFromHand(hand: Card[], cards: Card[]) {
   for (const rc of cards) {
     const idx = hand.findIndex((h) => h.suit === rc.suit && h.value === rc.value);
@@ -100,7 +165,10 @@ function removeCardsFromHand(hand: Card[], cards: Card[]) {
 }
 
 /** Asshole / Vice Asshole give best cards — president picks return separately. */
-export function applyMandatoryTrades(players: Player[]): ClientPendingTrade[] {
+export function applyMandatoryTrades(
+  players: Player[],
+  options?: MandatoryTradeOptions,
+): ClientPendingTrade[] {
   const pending: ClientPendingTrade[] = [];
   const activePlayers = livingPlayers(players);
   const { president: presCount, vice: viceCount } = mandatoryTradeCounts(
@@ -114,7 +182,7 @@ export function applyMandatoryTrades(players: Player[]): ClientPendingTrade[] {
   const vicePres = byRole("Vice President");
   const viceAss = byRole("Vice Asshole");
 
-  if (president && asshole && presCount > 0) {
+  if (president && asshole && presCount > 0 && !options?.skipPresidentTrade) {
     const given = pickHighestCards(asshole.hand, presCount);
     removeCardsFromHand(asshole.hand, given);
     pending.push({

@@ -43,6 +43,8 @@ type Props = {
   /** Total cards in the deck being dealt (default 54). */
   totalCards?: number;
   pendingTrades?: ClientPendingTrade[];
+  /** President↔Asshole trade skipped (triple Asshole streak). */
+  freshRound?: boolean;
   onDealComplete: () => void;
   onMandatoryTradesAnimated?: () => void;
   /** Live per-player dealt counts while the deal phase runs. */
@@ -127,6 +129,7 @@ export default function DealCeremonyOverlay({
   cardsPerPlayer,
   totalCards = FULL_DECK_SIZE,
   pendingTrades = [],
+  freshRound = false,
   onDealComplete,
   onMandatoryTradesAnimated,
   onDealtCountsChange,
@@ -472,10 +475,16 @@ export default function DealCeremonyOverlay({
 
   const statusText =
     phase === "shuffle"
-      ? "Shuffling…"
+      ? freshRound
+        ? "Fresh round — shuffling…"
+        : "Shuffling…"
       : phase === "deal"
-        ? `Dealing… ${Math.min(dealRound, dealSteps.length)} / ${dealSteps.length}`
-        : "Role trades…";
+        ? freshRound
+          ? `Fresh round — dealing… ${Math.min(dealRound, dealSteps.length)} / ${dealSteps.length}`
+          : `Dealing… ${Math.min(dealRound, dealSteps.length)} / ${dealSteps.length}`
+        : freshRound && pendingTrades.length === 0
+          ? "Fresh round — no President trade"
+          : "Role trades…";
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">

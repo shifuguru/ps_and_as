@@ -40,6 +40,8 @@ import {
 import {
   assignPlayerRoles,
   applyMandatoryTrades,
+  advanceAssholeStreakAfterRound,
+  shouldSkipPresidentAssholeTrade,
   allTradesCompleted,
   autoCompleteCpuWinnerTrades,
   applyServerPlayerHands,
@@ -175,6 +177,7 @@ function canCardBePlayedAtAll(
   finishedOrder?: string[],
   lastRoundOrder?: string[],
   currentPlayerId?: string,
+  runOnTop?: boolean,
 ): boolean {
   const matchesValid = (cards: CardType[]) =>
     isValidPlay(
@@ -189,6 +192,7 @@ function canCardBePlayedAtAll(
       finishedOrder,
       lastRoundOrder,
       currentPlayerId,
+      runOnTop,
     );
 
   const pileCount = pile.length;
@@ -253,13 +257,21 @@ function canCardBePlayedAtAll(
       : trickRunInfo?.multiplicity || 1;
   const inRunContext = isRunContextSequence(runSeq);
 
-  if (inRunContext) {
+  if (inRunContext && !runOnTop) {
     const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
     if (Math.abs(rankIndex(cardValue) - lastRank) === 1) {
       if (sameValue.length < runMultiplicity) return false;
       return matchesValid(sameValue.slice(0, runMultiplicity));
     }
     return false;
+  }
+
+  if (inRunContext && runOnTop) {
+    const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
+    if (Math.abs(rankIndex(cardValue) - lastRank) === 1) return false;
+    const requiredCount = cardsNeededToPlay(pile, cardValue);
+    if (sameValue.length < requiredCount) return false;
+    return matchesValid(sameValue.slice(0, requiredCount));
   }
 
   // Regular play: match pile count, or fewer when completing a quad across turns
@@ -635,6 +647,17 @@ function GameScreen({
 
   const startRoundCeremony = useCallback(
     (baseState: GameState, finishedOrder: string[], nextDealSeed?: number) => {
+      const streakAfterRound = advanceAssholeStreakAfterRound(
+        {
+          consecutiveAssholeId: baseState.consecutiveAssholeId ?? null,
+          consecutiveAssholeCount: baseState.consecutiveAssholeCount ?? 0,
+          freshRound: !!baseState.freshRound,
+        },
+        finishedOrder,
+        baseState.players,
+      );
+      const skipPresidentTrade = shouldSkipPresidentAssholeTrade(streakAfterRound);
+
       let players = clonePlayersForRound(
         baseState.players.map((p) => ({ ...p, hand: [] })),
       );
@@ -658,7 +681,7 @@ function GameScreen({
         const rolesById: Record<string, string> = {};
         if (finishedOrder.length >= 2) {
           assignPlayerRoles(players, finishedOrder);
-          trades = applyMandatoryTrades(players);
+          trades = applyMandatoryTrades(players, { skipPresidentTrade });
           for (const p of players) {
             if (!isDeadHandPlayer(p) && p.role !== "Neutral") {
               rolesById[p.id] = p.role;
@@ -698,6 +721,9 @@ function GameScreen({
       const prep: CeremonyPrepPayload = {
         baseState: {
           ...baseState,
+          consecutiveAssholeId: streakAfterRound.consecutiveAssholeId,
+          consecutiveAssholeCount: streakAfterRound.consecutiveAssholeCount,
+          freshRound: skipPresidentTrade,
           lastRoundOrder:
             finishedOrder.length >= 2 ? finishedOrder : baseState.lastRoundOrder,
         },
@@ -1752,6 +1778,7 @@ function GameScreen({
         handleTurnBellPress,
         resolveSeatFeltTint,
         scoreboardXpByPlayerId,
+        lastTrickLenRef,
       }}
     >
       <GameScreenBoard />
@@ -1830,6 +1857,7 @@ function GameScreenBoard() {
     handleTurnBellPress,
     resolveSeatFeltTint,
     scoreboardXpByPlayerId,
+    lastTrickLenRef,
   } = useContext(GameScreenRuntimeContext)! as {
     state: GameState;
     setState: React.Dispatch<React.SetStateAction<GameState | null>>;
@@ -1922,6 +1950,7 @@ function GameScreenBoard() {
     handleTurnBellPress: (playerId: string) => void;
     resolveSeatFeltTint: (player: { id: string; name: string }) => string | undefined;
     scoreboardXpByPlayerId: Record<string, number>;
+    lastTrickLenRef: React.MutableRefObject<number>;
   };
 
   const [ceremonyDealCounts, setCeremonyDealCounts] = useState<
@@ -2033,6 +2062,10 @@ function GameScreenBoard() {
       current.id,
     );
 
+  const runOnTopActive =
+    !!state.runOnTop?.active &&
+    state.runOnTop.playerIndex === state.currentPlayerIndex;
+
   const playableIndices = hand.map((card) =>
     canCardBePlayedAtAll(
       card.value,
@@ -2047,6 +2080,7 @@ function GameScreenBoard() {
       state.finishedOrder,
       state.lastRoundOrder,
       current.id,
+      runOnTopActive,
     ),
   );
 
@@ -2269,13 +2303,24 @@ function GameScreenBoard() {
   const contentTopPadding = insets.top + 8;
   const trickPlays = buildTrickPlayDisplays(state);
   const activeLastPlayId = lastPlayPlayerId(state);
+  const trickHistoryLen = state.trickHistory?.length ?? 0;
+  /** Covers the frame before useEffect commits trickPauseSnapshot after a trick ends. */
+  const pendingPauseTrick =
+    !trickPauseActive &&
+    trickHistoryLen > (lastTrickLenRef.current || 0) &&
+    trickHistoryLen > 0
+      ? state.trickHistory![trickHistoryLen - 1]
+      : null;
 
   const displayPlays: TrickPlayDisplay[] =
     trickPauseActive && trickPauseSnapshot
-      ? showWinnerBanner
-        ? []
-        : trickPauseSnapshot.plays
-      : trickPlays;
+      ? trickPauseSnapshot.plays
+      : pendingPauseTrick
+        ? buildPlaysFromTrick(pendingPauseTrick)
+        : trickPlays;
+
+  const trickPauseFrozen =
+    trickPauseActive || pendingPauseTrick != null;
 
   const opponentPlayers = state.players
     .filter((p) => p.id !== humanPlayer?.id)
@@ -2299,9 +2344,11 @@ function GameScreenBoard() {
       .map((a) => a.playerId) ?? [];
 
   const displayPassedPlayerIds =
-    trickPauseActive && trickPauseSnapshot
+    trickPauseFrozen && trickPauseSnapshot
       ? trickPauseSnapshot.passedPlayerIds
-      : passedPlayerIds;
+      : pendingPauseTrick
+        ? passedIdsFromTrick(pendingPauseTrick)
+        : passedPlayerIds;
 
   const trickWinnerPlayerId =
     showWinnerBanner && trickPauseSnapshot?.winnerId
@@ -2462,6 +2509,8 @@ function GameScreenBoard() {
   // Compute a short label describing the current play type
   function getPlayTypeLabel(): string | null {
     if (!state) return null;
+
+    if (state.runOnTop?.active) return "On top!";
 
     if (state.fourOfAKindChallenge?.active) {
       if (state.fourOfAKindChallenge.completedAcrossTurns) return "Quads — Pass!";
@@ -2709,10 +2758,10 @@ function GameScreenBoard() {
           passedPlayerIds={displayPassedPlayerIds}
           lastPlayPlayerId={activeLastPlayId}
           plays={displayPlays}
-          skipPlayFlights={trickPauseActive}
+          skipPlayFlights={trickPauseFrozen}
           trickWinnerPlayerId={trickWinnerPlayerId}
           playTypeLabel={
-            playTypeLabel && !trickPauseActive ? playTypeLabel : null
+            playTypeLabel && !trickPauseFrozen ? playTypeLabel : null
           }
           tableSeatCount={tableSeats.layoutSeatCount}
           deadHandId={tableSeats.deadHandId}
@@ -2726,10 +2775,9 @@ function GameScreenBoard() {
         >
           <GameTable
             plays={displayPlays}
-            collectToStack={
-              trickPauseActive && stackCollecting && !showWinnerBanner
-            }
+            collectToStack={trickPauseActive && stackCollecting}
             collectDurationMs={trickStackCollectMs}
+            fadeOut={trickPauseActive && showWinnerBanner}
           />
         </GamePlayArea>
       </View>
@@ -2932,6 +2980,7 @@ function GameScreenBoard() {
             : FULL_DECK_SIZE
         }
         pendingTrades={ceremonyPrep?.trades.filter((t) => !t.completed) ?? []}
+        freshRound={!!ceremonyPrep?.baseState.freshRound}
         onDealComplete={handleDealComplete}
         onDealtCountsChange={setCeremonyDealCounts}
       />

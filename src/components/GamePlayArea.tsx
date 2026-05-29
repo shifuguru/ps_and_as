@@ -155,6 +155,13 @@ export default function GamePlayArea({
   useEffect(() => {
     const currentKeys = new Set(plays.map(playDisplayKey));
 
+    if (plays.length === 0) {
+      prevPlayKeysRef.current = new Set();
+      setLandedKeys(new Set());
+      setActiveFlights([]);
+      return;
+    }
+
     if (!flightsInitializedRef.current) {
       flightsInitializedRef.current = true;
       prevPlayKeysRef.current = currentKeys;
@@ -173,8 +180,8 @@ export default function GamePlayArea({
 
     if (currentKeys.size < prevPlayKeysRef.current.size) {
       prevPlayKeysRef.current = currentKeys;
-      setLandedKeys(currentKeys);
-      setActiveFlights([]);
+      setLandedKeys(new Set(currentKeys));
+      setActiveFlights((prev) => prev.filter((f) => currentKeys.has(f.id)));
       return;
     }
 

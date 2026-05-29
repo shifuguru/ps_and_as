@@ -13,4 +13,10 @@ require(path.join(__dirname, "../node_modules/ts-node")).register({
   },
 });
 
-module.exports = require("../src/game/core.ts");
+const core = require("../src/game/core.ts");
+const roundPrep = require("../src/game/roundPrep.ts");
+
+module.exports = {
+  ...core,
+  ...roundPrep,
+};

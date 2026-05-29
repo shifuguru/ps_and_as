@@ -63,6 +63,39 @@ export type FourOfAKindChallenge = {
   completedAcrossTurns?: boolean;
 };
 
+/** Last run extender or double-10 leader may beat the pile once everyone else passes. */
+export type RunOnTop = {
+  active: boolean;
+  playerIndex: number;
+};
+
+/** Pair of 10s on the pile — eligible for an on-top! turn after others pass. */
+export function isDoubleTensPile(pile: Card[]): boolean {
+  return (
+    pile.length === 2 &&
+    allSameValue(pile) &&
+    pile[0].value === 10
+  );
+}
+
+/** Pile contexts where the leader gets an on-top! beat before the trick clears. */
+export function isOnTopEligiblePile(
+  pile: Card[],
+  pileHistory?: Card[][],
+  currentTrick?: TrickHistory,
+  players?: Player[],
+  finishedOrder: string[] = [],
+): boolean {
+  const { inRunContext } = resolveRunContext(
+    pile,
+    pileHistory,
+    currentTrick,
+    players,
+    finishedOrder,
+  );
+  return inRunContext || isDoubleTensPile(pile);
+}
+
 export type GameState = {
   id: string;
   players: Player[];
@@ -85,6 +118,8 @@ export type GameState = {
   };
   tenRulePending?: boolean;
   fourOfAKindChallenge?: FourOfAKindChallenge;
+  /** Run or double-10 ended — leader gets one beat-the-pile turn ("on top!"). */
+  runOnTop?: RunOnTop;
   // Tracks the last clearing play type within the current trick so we can
   // enforce precedence (joker > four-of-a-kind challenge > two)
   lastClear?: {
@@ -94,6 +129,11 @@ export type GameState = {
   };
   /** Finish order from the previous round — used for dealer rotation & roles. */
   lastRoundOrder?: string[];
+  /** Player who was Asshole on each of the last N consecutive rounds. */
+  consecutiveAssholeId?: string | null;
+  consecutiveAssholeCount?: number;
+  /** Skips President↔Asshole trades this round (fourth round after triple Asshole). */
+  freshRound?: boolean;
 };
 
 /** Keep passCount aligned with distinct pass actions in the current trick. */
@@ -110,13 +150,19 @@ function syncPassCountFromTrick(state: GameState): void {
   state.passCount = passedIds.size;
 }
 
-/** When only one living player remains, they place last regardless of hand size. */
+/** When every other living player has gone out, place the last one (asshole). */
 function finalizeLoneRemainingPlayer(state: GameState): void {
-  const remaining = state.players.filter(
-    (p) => !isDeadHandPlayer(p) && !state.finishedOrder.includes(p.id),
-  );
-  if (remaining.length === 1) {
-    state.finishedOrder.push(remaining[0].id);
+  const living = livingPlayerIds(state.players)
+    .map((id) => state.players.find((p) => p.id === id))
+    .filter((p): p is Player => !!p && !isDeadHandPlayer(p));
+  const notYetPlaced = living.filter((p) => !state.finishedOrder.includes(p.id));
+  if (notYetPlaced.length !== 1) return;
+  const last = notYetPlaced[0];
+  const allOthersPlaced = living
+    .filter((p) => p.id !== last.id)
+    .every((p) => state.finishedOrder.includes(p.id));
+  if (allOthersPlaced) {
+    state.finishedOrder.push(last.id);
   }
 }
 
@@ -155,7 +201,9 @@ export function tenRuleChooserIndex(state: GameState): number | null {
 export function isPlayerStillIn(state: GameState, playerId: string): boolean {
   const player = state.players.find((p) => p.id === playerId);
   if (!player || isDeadHandPlayer(player)) return false;
-  return !state.finishedOrder.includes(playerId) && player.hand.length > 0;
+  // Empty hand = out. Players auto-placed last while holding cards (asshole)
+  // must still pass on the current trick before the round ends.
+  return player.hand.length > 0;
 }
 
 const MAX_FIRST_ROUND_DEAL_ATTEMPTS = 64;
@@ -351,7 +399,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     }
   }
 
-  if (!isValidPlay(cards, state.pile, state.tenRule, state.pileHistory, state.trickHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder, state.lastRoundOrder, state.players[state.currentPlayerIndex]?.id)) {
+  if (!isValidPlay(cards, state.pile, state.tenRule, state.pileHistory, state.trickHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder, state.lastRoundOrder, state.players[state.currentPlayerIndex]?.id, state.runOnTop?.active && state.runOnTop.playerIndex === pIndex)) {
     // If the attempted play is invalid and the player is required to play,
     // check whether the player truly has any valid alternative play. If no
     // valid plays exist, convert this attempted play into a pass to avoid
@@ -370,10 +418,11 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
         state.trickHistory,
         state.lastRoundOrder,
         player.id,
+        state.runOnTop?.active && state.runOnTop.playerIndex === pIndex,
       );
       // If no possible play, or the best possible play is also invalid,
       // allow the player to pass so the game can progress.
-      if (possible === null || !isValidPlay(possible, state.pile, state.tenRule, state.pileHistory, state.trickHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder, state.lastRoundOrder, state.players[state.currentPlayerIndex]?.id)) {
+      if (possible === null || !isValidPlay(possible, state.pile, state.tenRule, state.pileHistory, state.trickHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder, state.lastRoundOrder, state.players[state.currentPlayerIndex]?.id, state.runOnTop?.active && state.runOnTop.playerIndex === pIndex)) {
         return passTurn(state, playerId);
       }
     }
@@ -382,6 +431,11 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
 
   // remove cards from player's hand
   player.hand = removeCardsFromHand(player.hand, cards);
+  const wasRunOnTop =
+    state.runOnTop?.active && state.runOnTop.playerIndex === pIndex;
+  if (wasRunOnTop) {
+    state.runOnTop = undefined;
+  }
   syncFinishedFromEmptyHands(state, {
     skipLoneFinalize: activatingTenRule,
   });
@@ -589,7 +643,7 @@ export const RANK_ORDER = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 /** Consecutive plays required before run/adjacency rules replace beat-the-pile. */
 export const MIN_RUN_CONTEXT_LENGTH = 3;
 
-function resolveRunContext(
+export function resolveRunContext(
   pile: Card[],
   pileHistory?: Card[][],
   currentTrick?: TrickHistory,
@@ -864,7 +918,7 @@ export function runFromCurrentTrick(currentTrick?: TrickHistory, players?: Playe
   return runFromCurrentTrickInfo(currentTrick, players, finishedOrder).repCards;
 }
 
-export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boolean; direction: "higher" | "lower" | null }, pileHistory?: Card[][], trickHistory?: TrickHistory[], fourOfAKindChallenge?: FourOfAKindChallenge, currentTrick?: TrickHistory, players?: Player[], finishedOrder?: string[], lastRoundOrder?: string[], currentPlayerId?: string) {
+export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boolean; direction: "higher" | "lower" | null }, pileHistory?: Card[][], trickHistory?: TrickHistory[], fourOfAKindChallenge?: FourOfAKindChallenge, currentTrick?: TrickHistory, players?: Player[], finishedOrder?: string[], lastRoundOrder?: string[], currentPlayerId?: string, runOnTop?: boolean) {
   // --- NZ Presidents & Arseholes Rules ---
   // 1. Empty play not allowed
   if (!cards || cards.length === 0) return false;
@@ -948,7 +1002,7 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   }
   // 7. Joker rules — a single joker beats any set on the pile (not during an active run)
   if (isSingleJoker(cards) && pileCount > 0) {
-    if (inRunContext) return false;
+    if (inRunContext && !runOnTop) return false;
     const pileItselfIsRun =
       pile.length >= MIN_RUN_CONTEXT_LENGTH && isRunContextSequence(pile);
     if (pileItselfIsRun) return false;
@@ -960,9 +1014,9 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   if (pileCount === 0) return true;
   // 8b. Closing to four-of-a-kind across turns (before 10-rule — same-rank
   // completion must be allowed even when tens triggered higher/lower mode).
-  if (closesToQuad && !inRunContext) return true;
-  // 9. 10 Rule: only outside run contexts — tens do not constrain run continuation
-  if (tenRule?.active && tenRule.direction && !inRunContext) {
+  if (closesToQuad && (!inRunContext || runOnTop)) return true;
+  // 9. 10 Rule: only outside run contexts and not during on-top!
+  if (tenRule?.active && tenRule.direction && !inRunContext && !runOnTop) {
     if (!allSameValue(cards)) return false;
     const pileRank = rankIndex(pile[0].value);
     const playRank = rankIndex(cards[0].value);
@@ -973,16 +1027,24 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
     }
   }
   // 10. Run logic: extend a consecutive sequence (3+ cards); 9 and J both valid after 10
-  if (inRunContext && !isJoker(cards[0])) {
+  if (inRunContext && !runOnTop && !isJoker(cards[0])) {
     if (playCount !== runMultiplicity) return false;
     const lastCard = runSeq[runSeq.length - 1];
     const lastRank = rankIndex(lastCard.value);
     const playRank = rankIndex(cards[0].value);
     return Math.abs(playRank - lastRank) === 1;
   }
+  // 10b. On top! — beat the run tail normally; adjacent ranks still extend, not on-top
+  if (inRunContext && runOnTop && !isJoker(cards[0])) {
+    if (playCount !== runMultiplicity) return false;
+    const lastCard = runSeq[runSeq.length - 1];
+    const lastRank = rankIndex(lastCard.value);
+    const playRank = rankIndex(cards[0].value);
+    if (Math.abs(playRank - lastRank) === 1) return false;
+  }
   // 11. Twos rule: only Joker or completing quad can beat 2s (not when 2 is run tail)
   const pileIsTwos =
-    pileIsUniform && pile.length > 0 && pile[0].value === 15 && !inRunContext;
+    pileIsUniform && pile.length > 0 && pile[0].value === 15 && (!inRunContext || runOnTop);
   if (pileIsTwos) {
     if (isSingleJoker(cards)) return true;
     if (allSameValue(cards) && cards[0].value === 15 && pileCount + playCount === 4) {
@@ -1118,6 +1180,7 @@ type CpuPlayContext = {
   finishedOrder?: string[];
   lastRoundOrder?: string[];
   currentPlayerId?: string;
+  runOnTop?: boolean;
 };
 
 function cpuPlayIsValid(hand: Card[], cards: Card[] | null, ctx: CpuPlayContext): boolean {
@@ -1137,6 +1200,7 @@ function cpuPlayIsValid(hand: Card[], cards: Card[] | null, ctx: CpuPlayContext)
     ctx.finishedOrder,
     ctx.lastRoundOrder,
     ctx.currentPlayerId,
+    ctx.runOnTop,
   );
 }
 
@@ -1191,6 +1255,7 @@ export function findCPUPlay(
   trickHistory?: TrickHistory[],
   lastRoundOrder?: string[],
   currentPlayerId?: string,
+  runOnTop?: boolean,
 ): Card[] | null {
   if (!hand || hand.length === 0) return null;
 
@@ -1205,6 +1270,7 @@ export function findCPUPlay(
     finishedOrder,
     lastRoundOrder,
     currentPlayerId,
+    runOnTop,
   };
 
   const pileCount = pile.length;
@@ -1256,7 +1322,7 @@ export function findCPUPlay(
         : trickRunInfo.multiplicity || 1
       : trickRunInfo.multiplicity || 1;
   const inRunContext = isRunContextSequence(runSeq);
-  if (inRunContext) {
+  if (inRunContext && !runOnTop) {
     const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
     if (runMultiplicity === 1) {
       const adjCandidates = hand.filter((c) => {
@@ -1296,7 +1362,7 @@ export function findCPUPlay(
   // Special: pile is uniform 2s — only Joker or completing quad allowed (not run tail)
   const pileIsUniform = allSameValue(pile);
   const pileIsTwos =
-    pileIsUniform && pile.length > 0 && pile[0].value === 15 && !inRunContext;
+    pileIsUniform && pile.length > 0 && pile[0].value === 15 && (!inRunContext || runOnTop);
   if (pileIsTwos) {
     const twos = grouped[15];
     // Only allow completing quad (pile has 1-3 twos, play remaining to reach 4)
@@ -1323,7 +1389,7 @@ export function findCPUPlay(
       if (value === 16) return; // skip jokers here
       if (cards.length >= pileCount) {
         const valueRankIndex = rankIndex(value);
-        if (tenRule?.active && tenRule.direction) {
+        if (tenRule?.active && tenRule.direction && !runOnTop) {
           if (tenRule.direction === "higher" && valueRankIndex <= pileRankIndex) return;
           if (tenRule.direction === "lower" && valueRankIndex >= pileRankIndex) return;
         } else {
@@ -1350,6 +1416,9 @@ export function applyCpuTurn(state: GameState, playerId: string): GameState {
   if (pIndex === -1 || state.currentPlayerIndex !== pIndex) return state;
   const player = state.players[pIndex];
 
+  const runOnTop =
+    !!state.runOnTop?.active && state.runOnTop.playerIndex === pIndex;
+
   const cpuPlay = findCPUPlay(
     player.hand,
     state.pile,
@@ -1362,6 +1431,7 @@ export function applyCpuTurn(state: GameState, playerId: string): GameState {
     state.trickHistory,
     state.lastRoundOrder,
     player.id,
+    runOnTop,
   );
 
   if (cpuPlay && cpuPlay.length > 0) {
@@ -1377,6 +1447,55 @@ export function applyCpuTurn(state: GameState, playerId: string): GameState {
 
   const passed = passTurn(state, playerId);
   return passed;
+}
+
+/** Clear the pile and award the trick to the last player who played. */
+function finalizeTrickWin(state: GameState, leaderIndex: number): GameState {
+  state.pile = [];
+  state.passCount = 0;
+  state.runOnTop = undefined;
+  if (state.pileHistory && state.pileHistory.length > 0) {
+    state.tableStacks = state.tableStacks || [];
+    state.tableStackOwners = state.tableStackOwners || [];
+    for (let i = 0; i < state.pileHistory.length; i++) {
+      state.tableStacks.push(state.pileHistory[i]);
+      state.tableStackOwners.push(
+        state.pileOwners && state.pileOwners[i] ? state.pileOwners[i] : null,
+      );
+    }
+    state.pileHistory = [];
+    state.pileOwners = [];
+  }
+  state.lastClear = undefined;
+  state.fourOfAKindChallenge = undefined;
+  state.tenRule = { active: false, direction: null };
+  state.tenRulePending = false;
+
+  if (leaderIndex >= 0) {
+    const winnerPlayer = state.players[leaderIndex];
+    if (state.currentTrick) {
+      state.currentTrick.winnerId = winnerPlayer.id;
+      state.currentTrick.winnerName = winnerPlayer.name;
+      state.trickHistory = state.trickHistory || [];
+      state.trickHistory.push(state.currentTrick);
+      state.currentTrick = {
+        trickNumber: state.trickHistory.length + 1,
+        actions: [],
+      };
+    }
+    syncFinishedFromEmptyHands(state);
+    if (isRoundCompleteForLiving(state)) {
+      return { ...state };
+    }
+    if (isPlayerStillIn(state, winnerPlayer.id)) {
+      state.currentPlayerIndex = leaderIndex;
+      state.mustPlay = true;
+    } else {
+      state.currentPlayerIndex = nextActivePlayerIndex(state, leaderIndex);
+      state.mustPlay = false;
+    }
+  }
+  return state;
 }
 
 export function passTurn(state: GameState, playerId: string): GameState {
@@ -1414,6 +1533,24 @@ export function passTurn(state: GameState, playerId: string): GameState {
   }
 
   const player = state.players[pIndex];
+
+  // Leader passes on their "on top!" beat — trick ends with them winning.
+  if (state.runOnTop?.active && state.runOnTop.playerIndex === pIndex) {
+    if (!state.currentTrick) {
+      state.currentTrick = { trickNumber: (state.trickHistory?.length || 0) + 1, actions: [] };
+    }
+    state.currentTrick.actions.push({
+      type: "pass",
+      playerId: player.id,
+      playerName: player.name,
+      timestamp: Date.now(),
+    });
+    syncPassCountFromTrick(state);
+    const leaderIndex = state.runOnTop.playerIndex;
+    state.runOnTop = undefined;
+    syncFinishedFromEmptyHands(state);
+    return finalizeTrickWin(state, leaderIndex);
+  }
 
   // Track this pass in current trick
   if (!state.currentTrick) {
@@ -1472,47 +1609,27 @@ export function passTurn(state: GameState, playerId: string): GameState {
       console.log(`[core] passTurn debug: leaderIndex=${leaderIndex}, leaderId=${leaderId}, active=${JSON.stringify(activePlayerIds)}, passed=${JSON.stringify(Array.from(passedIds))}, others=${JSON.stringify(others)}, allOthersPassed=${allOthersPassed}`);
     } catch (e) {}
     if (allOthersPassed) {
-        state.pile = [];
-        state.passCount = 0;
-        // Move any existing visible pile plays into the table stack (face-down)
-        if (state.pileHistory && state.pileHistory.length > 0) {
-          state.tableStacks = state.tableStacks || [];
-          state.tableStackOwners = state.tableStackOwners || [];
-          for (let i = 0; i < state.pileHistory.length; i++) {
-            state.tableStacks.push(state.pileHistory[i]);
-            state.tableStackOwners.push((state.pileOwners && state.pileOwners[i]) ? state.pileOwners[i] : null);
-          }
-          state.pileHistory = [];
-          state.pileOwners = [];
-        }
-        // Clear per-trick 'clear' state so the next trick is evaluated fresh.
-        state.lastClear = undefined;
-        state.fourOfAKindChallenge = undefined;
-        state.tenRule = { active: false, direction: null };
-        state.tenRulePending = false;
-
-        // Winner is the last player who successfully played (leaderIndex).
-        if (leaderIndex !== null && leaderIndex >= 0) {
-          const winnerPlayer = state.players[leaderIndex];
-          state.currentTrick.winnerId = winnerPlayer.id;
-          state.currentTrick.winnerName = winnerPlayer.name;
-          state.trickHistory = state.trickHistory || [];
-          state.trickHistory.push(state.currentTrick);
-          state.currentTrick = { trickNumber: state.trickHistory.length + 1, actions: [] };
-          syncFinishedFromEmptyHands(state);
-          if (isRoundCompleteForLiving(state)) {
-            return { ...state };
-          }
-          // If the winner still has cards, they lead the next trick; otherwise
-          // advance to the next active player after the winner.
-          if (isPlayerStillIn(state, winnerPlayer.id)) {
-            state.currentPlayerIndex = leaderIndex;
-            state.mustPlay = true;
-          } else {
-            state.currentPlayerIndex = nextActivePlayerIndex(state, leaderIndex);
-            state.mustPlay = false;
-          }
-        }
+      const onTopEligible = isOnTopEligiblePile(
+        state.pile,
+        state.pileHistory,
+        state.currentTrick,
+        state.players,
+        state.finishedOrder || [],
+      );
+      if (
+        onTopEligible &&
+        !state.runOnTop?.active &&
+        leaderIndex !== null &&
+        leaderIndex >= 0
+      ) {
+        state.runOnTop = { active: true, playerIndex: leaderIndex };
+        state.currentPlayerIndex = leaderIndex;
+        state.mustPlay = true;
+        syncFinishedFromEmptyHands(state);
+        return { ...state };
+      }
+      syncFinishedFromEmptyHands(state);
+      return finalizeTrickWin(state, leaderIndex);
     }
   }
 

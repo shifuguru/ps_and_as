@@ -50,6 +50,9 @@ type Props = {
   /** Slide all plays onto the first pile (trick-end collect). */
   collectToStack?: boolean;
   collectDurationMs?: number;
+  /** Fade the whole table out (winner banner phase — keep cards stacked, don't reset). */
+  fadeOut?: boolean;
+  fadeOutDurationMs?: number;
   /** Hide plays until their seat-to-table flight finishes. */
   hiddenPlayKeys?: ReadonlySet<string>;
 };
@@ -60,10 +63,14 @@ export default function GameTable({
   layoutHint,
   collectToStack = false,
   collectDurationMs = 520,
+  fadeOut = false,
+  fadeOutDurationMs = 200,
   hiddenPlayKeys,
 }: Props) {
   const [zoneSize, setZoneSize] = useState({ width: 0, height: 0 });
   const collectAnim = useRef(new Animated.Value(0)).current;
+  const tableFadeAnim = useRef(new Animated.Value(1)).current;
+  const collectHeldRef = useRef(false);
 
   const scaleLimits = useMemo(
     () =>
@@ -89,17 +96,38 @@ export default function GameTable({
 
   useEffect(() => {
     if (!collectToStack) {
-      collectAnim.setValue(0);
+      if (!collectHeldRef.current) {
+        collectAnim.setValue(0);
+      }
       return;
     }
+    collectHeldRef.current = false;
     collectAnim.setValue(0);
     Animated.timing(collectAnim, {
       toValue: 1,
       duration: collectDurationMs,
       easing: Easing.inOut(Easing.cubic),
       useNativeDriver: true,
-    }).start();
+    }).start(({ finished }) => {
+      if (finished) {
+        collectHeldRef.current = true;
+      }
+    });
   }, [collectToStack, collectAnim, collectDurationMs]);
+
+  useEffect(() => {
+    if (plays.length === 0) {
+      collectHeldRef.current = false;
+      tableFadeAnim.setValue(1);
+      return;
+    }
+    Animated.timing(tableFadeAnim, {
+      toValue: fadeOut ? 0 : 1,
+      duration: fadeOut ? fadeOutDurationMs : 120,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [fadeOut, fadeOutDurationMs, plays.length, tableFadeAnim]);
 
   const onZoneLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -220,7 +248,7 @@ export default function GameTable({
             </Text>
           </View>
         ) : (
-          <Animated.View style={styles.playCluster}>
+          <Animated.View style={[styles.playCluster, { opacity: tableFadeAnim }]}>
             <View
               style={[
                 styles.playStack,

@@ -10,6 +10,10 @@ const {
   setTenRuleDirection,
   resolveLeadPlayerIndexAfterTrades,
   resolveOpeningPlayerIndex,
+  pickHighestCards,
+  pickLowestCards,
+  advanceAssholeStreakAfterRound,
+  shouldSkipPresidentAssholeTrade,
 } = require('./gameBridge');
 const { viewForPlayer, viewForMember, broadcastGameState } = require('./gameStateView');
 const {
@@ -124,7 +128,22 @@ function startNextRound(roomId) {
     room.gameState?.lastRoundOrder?.slice() ?? [],
   );
 
+  const streakAfterRound = advanceAssholeStreakAfterRound(
+    {
+      consecutiveAssholeId: room.gameState?.consecutiveAssholeId ?? null,
+      consecutiveAssholeCount: room.gameState?.consecutiveAssholeCount ?? 0,
+      freshRound: !!room.gameState?.freshRound,
+    },
+    lastOrder,
+    room.gameState?.players ?? [],
+  );
+  const skipPresidentTrade = shouldSkipPresidentAssholeTrade(streakAfterRound);
+
   beginAuthoritativeRound(room, dealSeed, { lastRoundOrder: lastOrder });
+
+  room.gameState.consecutiveAssholeId = streakAfterRound.consecutiveAssholeId;
+  room.gameState.consecutiveAssholeCount = streakAfterRound.consecutiveAssholeCount;
+  room.gameState.freshRound = skipPresidentTrade;
 
   if (lastOrder.length >= 2) {
     room.gameState.lastRoundOrder = lastOrder;
@@ -137,7 +156,7 @@ function startNextRound(roomId) {
     for (const p of room.gameState.players) {
       playerHands[p.id] = [...p.hand];
     }
-    prepareCardTrades(room.gameState, playerHands);
+    prepareCardTrades(room.gameState, playerHands, { skipPresidentTrade });
     for (const p of room.gameState.players) {
       p.hand = playerHands[p.id] || [];
     }
@@ -214,17 +233,6 @@ const HOST = process.env.HOST || '0.0.0.0';
 // }
 const rooms = {};
 
-// Card rank order used server-side (mirrors client): low -> high
-const RANK_ORDER = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 2, 15];
-function rankIndex(value) {
-  const idx = RANK_ORDER.indexOf(value);
-  return idx >= 0 ? idx : -1;
-}
-
-function sortCardsByRankDesc(cards) {
-  return cards.slice().sort((a, b) => rankIndex(b.value) - rankIndex(a.value));
-}
-
 // Assign roles based on finish order. Mutates gameState object.
 function assignRolesFromFinishOrder(gameState, playersCount, finishOrder) {
   const order = livingFinishOrder(gameState, finishOrder ?? gameState.lastRoundOrder ?? []);
@@ -250,9 +258,10 @@ function assignRolesFromFinishOrder(gameState, playersCount, finishOrder) {
 
 // Prepare trades based on roles and hands. Mutates gameState.pendingTrades and playerHands map.
 // playerHands: { [playerId]: Card[] }
-function prepareCardTrades(gameState, playerHands) {
+function prepareCardTrades(gameState, playerHands, options = {}) {
   const roles = gameState.roles || {};
   const pending = {};
+  const skipPresidentTrade = !!options.skipPresidentTrade;
 
   // President <-> Asshole
   const presidentId = Object.keys(roles).find(k => roles[k] === 'president');
@@ -260,18 +269,18 @@ function prepareCardTrades(gameState, playerHands) {
 
   const playerCount = livingPlayerCount(gameState);
 
-  if (presidentId && assholeId) {
+  if (presidentId && assholeId && !skipPresidentTrade) {
     if (playerCount >= 5) {
       // Asshole gives 2 best, President must choose 2 to give back
       const fromHand = playerHands[assholeId] || [];
-      const taken = sortCardsByRankDesc(fromHand).slice(0, 2);
+      const taken = pickHighestCards(fromHand, 2);
       // remove taken from asshole hand
       playerHands[assholeId] = (fromHand || []).filter(c => !taken.find(t => t.suit === c.suit && t.value === c.value));
       pending.president = { fromId: assholeId, count: 2, incoming: taken, selected: null };
     } else {
       // 3-4 players: Asshole gives 1 best, President chooses 1 to return
       const fromHand = playerHands[assholeId] || [];
-      const taken = sortCardsByRankDesc(fromHand).slice(0, 1);
+      const taken = pickHighestCards(fromHand, 1);
       playerHands[assholeId] = (fromHand || []).filter(c => !taken.find(t => t.suit === c.suit && t.value === c.value));
       pending.president = { fromId: assholeId, count: 1, incoming: taken, selected: null };
     }
@@ -283,7 +292,7 @@ function prepareCardTrades(gameState, playerHands) {
   if (vicePresId && viceAssId) {
     // Vice Asshole gives 1 best, Vice President chooses 1 to return
     const fromHand = playerHands[viceAssId] || [];
-    const taken = sortCardsByRankDesc(fromHand).slice(0, 1);
+    const taken = pickHighestCards(fromHand, 1);
     playerHands[viceAssId] = (fromHand || []).filter(c => !taken.find(t => t.suit === c.suit && t.value === c.value));
     pending.vicePresident = { fromId: viceAssId, count: 1, incoming: taken, selected: null };
   }
@@ -380,12 +389,6 @@ function emitTradesCompleteIfReady(io, roomId, gameState, hostId) {
   gameState.playerHands = playerHands;
   syncOpeningPlayerAfterTrades(gameState, hostId);
   io.to(roomId).emit('tradesComplete', { playerHands });
-}
-
-function pickLowestCards(hand, count) {
-  if (!count || count <= 0) return [];
-  const sorted = (hand || []).slice().sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
-  return sorted.slice(0, Math.min(count, sorted.length));
 }
 
 /** Auto-finish trades (no client UI yet) so ready players can start the next deal. */
