@@ -12,9 +12,13 @@ import {
   playCards,
   passTurn,
   runContextLengthFromState,
-  runStepXpRecipientIds,
+  runBonusStepsFromLength,
+  runTrickBonusXpAmount,
+  activeRunXpPoolInfo,
+  runLengthFromCompletedTrick,
   MIN_RUN_CONTEXT_LENGTH,
   type GameState,
+  type TrickHistory,
 } from "../src/game/core";
 import type { Card } from "../src/game/ruleset";
 
@@ -1070,29 +1074,56 @@ console.log("\n=== Triples run: 333-444-555 extends with 666 ===\n");
   }
 }
 
-console.log("\n=== Run step XP helpers ===\n");
+console.log("\n=== Run bonus XP pool ===\n");
 
-function minimalRunState(opts: {
+function minimalRunTrick(opts: {
   pile: Card[];
   history: Card[][];
   owners: string[];
   actions: ReturnType<typeof makeAction>[];
-}): GameState {
+  runLength?: number;
+}): TrickHistory {
   return {
-    id: "test-run-xp",
-    players: players.map((p) => ({ ...p, hand: [card(9)] })),
-    currentPlayerIndex: 0,
-    pile: opts.pile,
-    pileHistory: opts.history,
-    pileOwners: opts.owners,
-    currentTrick: { trickNumber: 1, actions: opts.actions },
-    finishedOrder: [],
-    passCount: 0,
-    mustPlay: false,
-    lastPlayPlayerIndex: 2,
-    trickHistory: [],
-    started: true,
-  } as GameState;
+    trickNumber: 1,
+    actions: opts.actions,
+    winnerId: players[2].id,
+    winnerName: players[2].name,
+    runLength:
+      opts.runLength ??
+      runContextLengthFromState({
+        pile: opts.pile,
+        pileHistory: opts.history,
+        pileOwners: opts.owners,
+        currentTrick: { trickNumber: 1, actions: opts.actions },
+        players,
+        finishedOrder: [],
+      }),
+  };
+}
+
+{
+  if (
+    runBonusStepsFromLength(3) === 0 &&
+    runBonusStepsFromLength(4) === 1 &&
+    runBonusStepsFromLength(6) === 3
+  ) {
+    passed++;
+    console.log("PASS  run bonus pool: steps = run length minus 3");
+  } else {
+    failed++;
+    console.log("FAIL  run bonus pool step math");
+  }
+}
+
+{
+  const xp = runTrickBonusXpAmount(5, 15);
+  if (xp === 30) {
+    passed++;
+    console.log("PASS  run bonus pool: 5-card run awards 30 XP");
+  } else {
+    failed++;
+    console.log(`FAIL  run bonus pool amount: expected 30 got ${xp}`);
+  }
 }
 
 {
@@ -1101,24 +1132,22 @@ function minimalRunState(opts: {
     makeAction("play", 1, [card(4)]),
     makeAction("play", 2, [card(5)]),
   ];
-  const pile = [card(5)];
-  const history = [[card(3)], [card(4)]];
-  const owners = [players[0].id, players[1].id];
-  const state = minimalRunState({ pile, history, owners, actions });
-  const len = runContextLengthFromState(state);
-  const recipients = runStepXpRecipientIds(state).sort();
+  const trick = minimalRunTrick({
+    pile: [card(5)],
+    history: [[card(3)], [card(4)]],
+    owners: [players[0].id, players[1].id],
+    actions,
+  });
 
   if (
-    len === 3 &&
-    len >= MIN_RUN_CONTEXT_LENGTH &&
-    recipients.join(",") === [players[0].id, players[1].id, players[2].id].sort().join(",")
+    runLengthFromCompletedTrick(trick, players) === 3 &&
+    runTrickBonusXpAmount(trick.runLength ?? 0, 15) === 0
   ) {
     passed++;
-    console.log("PASS  run step XP: 3-4-5 run length and all three participants");
+    console.log("PASS  run bonus pool: 3-card run pays no bonus XP");
   } else {
     failed++;
-    console.log("FAIL  run step XP: 3-4-5");
-    console.log(`      len=${len} recipients=${recipients.join(",")}`);
+    console.log("FAIL  run bonus pool: 3-card run should pay 0");
   }
 }
 
@@ -1129,20 +1158,25 @@ function minimalRunState(opts: {
     makeAction("play", 2, [card(6)]),
     makeAction("play", 3, [card(7)]),
   ];
-  const pile = [card(7)];
-  const history = [[card(4)], [card(5)], [card(6)]];
-  const owners = [players[0].id, players[1].id, players[2].id];
-  const state = minimalRunState({ pile, history, owners, actions });
-  const len = runContextLengthFromState(state);
-  const recipients = runStepXpRecipientIds(state);
+  const trick = minimalRunTrick({
+    pile: [card(7)],
+    history: [[card(4)], [card(5)], [card(6)]],
+    owners: [players[0].id, players[1].id, players[2].id],
+    actions,
+  });
 
-  if (len === 4 && recipients.length === 4) {
+  if (
+    runLengthFromCompletedTrick(trick, players) === 4 &&
+    runTrickBonusXpAmount(trick.runLength ?? 0, 15) === 15
+  ) {
     passed++;
-    console.log("PASS  run step XP: 4-card run includes all four participants");
+    console.log("PASS  run bonus pool: 4-card run pays one step (15 XP)");
   } else {
     failed++;
-    console.log("FAIL  run step XP: 4-card run");
-    console.log(`      len=${len} recipients=${recipients.length}`);
+    console.log("FAIL  run bonus pool: 4-card run");
+    console.log(
+      `      len=${runLengthFromCompletedTrick(trick, players)} xp=${runTrickBonusXpAmount(trick.runLength ?? 0, 15)}`,
+    );
   }
 }
 
@@ -1151,19 +1185,20 @@ function minimalRunState(opts: {
     makeAction("play", 0, [card(4)]),
     makeAction("play", 1, [card(5)]),
   ];
-  const pile = [card(5)];
-  const history = [[card(4)]];
-  const owners = [players[0].id];
-  const state = minimalRunState({ pile, history, owners, actions });
-  const len = runContextLengthFromState(state);
+  const trick = minimalRunTrick({
+    pile: [card(5)],
+    history: [[card(4)]],
+    owners: [players[0].id],
+    actions,
+    runLength: 0,
+  });
 
-  if (len === 0) {
+  if (runLengthFromCompletedTrick(trick, players) === 0) {
     passed++;
-    console.log("PASS  run step XP: two-card chain is not run level yet");
+    console.log("PASS  run bonus pool: two-card chain is not a run");
   } else {
     failed++;
-    console.log("FAIL  run step XP: two-card chain should not count");
-    console.log(`      len=${len}`);
+    console.log("FAIL  run bonus pool: two-card chain should not count");
   }
 }
 
@@ -1172,23 +1207,26 @@ function minimalRunState(opts: {
     makeAction("play", 0, [card(3)]),
     makeAction("play", 1, [card(4)]),
     makeAction("play", 2, [card(5)]),
+    makeAction("play", 3, [card(6)]),
   ];
-  const pile = [card(5)];
-  const history = [[card(3)], [card(4)]];
-  const owners = [players[0].id, players[1].id];
-  const state = minimalRunState({ pile, history, owners, actions });
-  state.finishedOrder = [players[0].id];
-  const recipients = runStepXpRecipientIds(state).sort();
+  const state = {
+    pile: [card(6)],
+    pileHistory: [[card(3)], [card(4)], [card(5)]],
+    pileOwners: [players[0].id, players[1].id, players[2].id],
+    currentTrick: { trickNumber: 1, actions },
+    players: players.map((p) => ({ ...p, hand: [card(9)] })),
+    finishedOrder: [] as string[],
+    lastPlayPlayerIndex: 3,
+  };
+  const pool = activeRunXpPoolInfo(state as GameState, 15);
 
-  if (
-    recipients.join(",") === [players[1].id, players[2].id].sort().join(",")
-  ) {
+  if (pool.poolXp === 15 && pool.pileLeaderId === players[3].id) {
     passed++;
-    console.log("PASS  run step XP: excludes players already placed out");
+    console.log("PASS  active run pool: 4-card run shows 15 XP for pile leader");
   } else {
     failed++;
-    console.log("FAIL  run step XP: should exclude finishedOrder players");
-    console.log(`      recipients=${recipients.join(",")}`);
+    console.log("FAIL  active run pool");
+    console.log(`      pool=${pool.poolXp} leader=${pool.pileLeaderId}`);
   }
 }
 

@@ -24,8 +24,8 @@ type Props = {
   sideAnchorMargin: number;
   lastPlayPlayerId?: string | null;
   trickWinnerPlayerId?: string | null;
-  /** Seats flashing +XP for a run step extension. */
-  runStepXpPlayerIds?: string[];
+  /** Total trick-win XP shown on the winner (trick + run bonus). */
+  trickWinnerXpAmount?: number;
   layoutSeatIds?: string[];
   deadHandId?: string | null;
   deadHandGraveyard?: boolean;
@@ -35,6 +35,8 @@ type Props = {
   onTurnBellPress?: (playerId: string) => void;
   /** Per-player dealt counts during deal ceremony (face-down mini-stacks). */
   dealtStackCounts?: Record<string, number>;
+  /** Open a player's profile / stats card. */
+  onPlayerPress?: (playerId: string) => void;
 };
 
 /** Clockwise from the seat after the local player. */
@@ -76,7 +78,7 @@ export default function OpponentRing({
   sideAnchorMargin,
   lastPlayPlayerId,
   trickWinnerPlayerId,
-  runStepXpPlayerIds = [],
+  trickWinnerXpAmount,
   layoutSeatIds,
   deadHandId = null,
   deadHandGraveyard = false,
@@ -84,6 +86,7 @@ export default function OpponentRing({
   turnBellPlayerId = null,
   onTurnBellPress,
   dealtStackCounts,
+  onPlayerPress,
 }: Props) {
   const disconnectedSet = useMemo(
     () => new Set(disconnectedPlayerIds),
@@ -113,11 +116,6 @@ export default function OpponentRing({
     [finishedOrder],
   );
 
-  const runStepXpSet = useMemo(
-    () => new Set(runStepXpPlayerIds),
-    [runStepXpPlayerIds],
-  );
-
   const angles = useMemo(
     () => opponentRingAngles(ringLayout.totalPlayers),
     [ringLayout.totalPlayers],
@@ -143,8 +141,6 @@ export default function OpponentRing({
           !!lastPlayPlayerId && player.id === lastPlayPlayerId && !isOut;
         const celebrateTrickWin =
           !!trickWinnerPlayerId && player.id === trickWinnerPlayerId && !isOut;
-        const showRunStepXp =
-          runStepXpSet.has(player.id) && !isOut && !celebrateTrickWin;
 
         const pos = opponentSeatPosition(angle, {
           cx: ringLayout.cx,
@@ -170,7 +166,8 @@ export default function OpponentRing({
               isThinking={isActive && isCPU}
               isLastPlay={isLastPlay}
               celebrateTrickWin={celebrateTrickWin}
-              showRunStepXp={showRunStepXp}
+              showTrickXp={celebrateTrickWin}
+              trickXpAmount={trickWinnerXpAmount}
               compact={compact}
               seatDims={seatDimensions}
               layoutWidth={arenaWidth}
@@ -188,6 +185,11 @@ export default function OpponentRing({
                   : undefined
               }
               dealtStackCount={dealtStackCounts?.[player.id] ?? 0}
+              onAvatarPress={
+                onPlayerPress && !isDeadHandPlayer(player)
+                  ? () => onPlayerPress(player.id)
+                  : undefined
+              }
             />
           </View>
         );

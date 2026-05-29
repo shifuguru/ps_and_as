@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
+  TouchableOpacity,
   StyleSheet,
   Animated,
   Easing,
@@ -31,7 +32,6 @@ import { normalizePlayerRole, roleEmoji as sharedRoleEmoji } from "../utils/roun
 import TurnBellButton from "./TurnBellButton";
 import { playerAvatarBackgroundColor, playerThemePalette } from "../utils/playerAvatarColor";
 import { isCpuPlayer } from "../utils/localPlayer";
-import { RUN_STEP_XP } from "../services/playerStats";
 
 function roleEmoji(role: Player["role"] | string | undefined): string | null {
   return sharedRoleEmoji(normalizePlayerRole(role));
@@ -61,10 +61,9 @@ type Props = {
   isLastPlay?: boolean;
   /** Brief confetti / flag after winning a trick */
   celebrateTrickWin?: boolean;
-  /** Floating +XP with the checkered flag (local human only). */
+  /** Floating +XP with the checkered flag (includes run bonus when applicable). */
   showTrickXp?: boolean;
-  /** Floating +XP when a run step is completed (no confetti). */
-  showRunStepXp?: boolean;
+  trickXpAmount?: number;
   /** Precomputed seat metrics from play-area layout (keeps ring math in sync). */
   seatDims?: SeatDimensions;
   /** Width basis when seatDims is not supplied. */
@@ -80,6 +79,8 @@ type Props = {
   onTurnBellPress?: () => void;
   /** Face-down mini-stack during deal ceremony (cards dealt so far). */
   dealtStackCount?: number;
+  /** Open player profile / stats card. */
+  onAvatarPress?: () => void;
 };
 
 export default function OpponentSeat({
@@ -93,7 +94,7 @@ export default function OpponentSeat({
   isLastPlay = false,
   celebrateTrickWin = false,
   showTrickXp = false,
-  showRunStepXp = false,
+  trickXpAmount,
   seatDims: seatDimsProp,
   layoutWidth,
   isReady = false,
@@ -102,6 +103,7 @@ export default function OpponentSeat({
   showTurnBell = false,
   onTurnBellPress,
   dealtStackCount = 0,
+  onAvatarPress,
 }: Props) {
   const { colors, palette } = useAppTheme();
   const styles = useMemo(() => createStyles(colors, palette), [colors, palette]);
@@ -178,6 +180,222 @@ export default function OpponentSeat({
     [player.feltTint, player.id, player.name],
   );
 
+  const avatarBlock = (
+    <>
+      <TrickWinCelebration
+        active={celebrateTrickWin}
+        avatarSize={avatarSize}
+        countBadgeSize={dims.countBadgeSize}
+        showXp={showTrickXp}
+        xpAmount={trickXpAmount}
+        celebrationColors={celebrationPalette.celebrationColors}
+      />
+      {isLastPlay && !isOut && !isActive && !celebrateTrickWin && (
+        <View
+          style={[
+            styles.lastPlayRing,
+            {
+              width: avatarSize + 8,
+              height: avatarSize + 8,
+              borderRadius: (avatarSize + 8) / 2,
+              left: -4,
+              top: -4,
+            },
+          ]}
+          pointerEvents="none"
+        />
+      )}
+      {isActive && !isOut && (
+        <Animated.View
+          style={[
+            styles.turnRing,
+            {
+              width: avatarSize + 10,
+              height: avatarSize + 10,
+              borderRadius: (avatarSize + 10) / 2,
+              left: -5,
+              top: -5,
+              transform: [{ scale: ringScale }],
+              opacity: ringOpacity,
+            },
+          ]}
+          pointerEvents="none"
+        />
+      )}
+      <View
+        style={[
+          styles.avatar,
+          {
+            width: avatarSize,
+            height: avatarSize,
+            borderRadius: avatarSize / 2,
+            backgroundColor: avatarBackgroundColor,
+          },
+          isOut && !isDeadHand && styles.avatarOut,
+          isDisconnected && !isOut && !isDeadHand && styles.avatarDisconnected,
+          isLocal && styles.avatarLocal,
+          isDeadHand && !isGraveyard && styles.avatarDeadHand,
+          isGraveyard && styles.avatarGraveyard,
+        ]}
+      >
+        <Text
+          style={[
+            styles.initials,
+            {
+              fontSize: compact ? dims.initialsFontCompact : dims.initialsFont,
+            },
+            isDeadHand && !isGraveyard && styles.initialsDeadHand,
+            isGraveyard && styles.initialsGraveyard,
+          ]}
+        >
+          {isDeadHand ? (isGraveyard ? "—" : "DH") : initials}
+        </Text>
+      </View>
+      {isDeadHand && sidelinedCount > 0 ? (
+        <View
+          style={[
+            styles.sidelinedStack,
+            isGraveyard && styles.sidelinedStackGraveyard,
+            {
+              left: avatarSize + 2,
+              top: avatarSize * 0.08,
+            },
+          ]}
+          pointerEvents="none"
+        >
+          {Array.from({ length: Math.min(3, sidelinedCount) }).map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.sidelinedCard,
+                {
+                  left: i * 4,
+                  top: i * 2,
+                  width: miniCardW,
+                  height: miniCardH,
+                },
+              ]}
+            >
+              <Card
+                card={{ suit: "spades", value: 0, hidden: true }}
+                selected={false}
+                faceDown
+                disabled
+                variant="table"
+                onPress={() => {}}
+                style={{ width: miniCardW, height: miniCardH }}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {dealStackCenter && dealStackLayers > 0 ? (
+        <View
+          style={[
+            styles.dealStack,
+            {
+              left: dealStackCenter.x - dealStackW / 2,
+              top: dealStackCenter.y - dealStackH / 2,
+              width: dealStackW,
+              height: dealStackH,
+            },
+          ]}
+          pointerEvents="none"
+        >
+          {Array.from({ length: dealStackLayers }).map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dealStackCard,
+                {
+                  left: i * 4,
+                  top: i * 2,
+                  width: miniCardW,
+                  height: miniCardH,
+                },
+              ]}
+            >
+              <Card
+                card={{ suit: "spades", value: 0, hidden: true }}
+                selected={false}
+                faceDown
+                disabled
+                variant="table"
+                cornerRadius={ceremonyCardCornerRadius(miniCardW, miniCardH)}
+                onPress={() => {}}
+                style={{ width: miniCardW, height: miniCardH }}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {role ? (
+        <Text
+          style={[styles.roleBadge, { fontSize: dims.roleFont }]}
+          pointerEvents="none"
+        >
+          {role}
+        </Text>
+      ) : null}
+      {isReady && !isDeadHand ? (
+        <View
+          style={[
+            styles.readyBadge,
+            {
+              width: readyBadgeSize,
+              height: readyBadgeSize,
+              borderRadius: readyBadgeSize / 2,
+              left: -Math.round(readyBadgeSize * 0.18),
+              bottom: -Math.round(readyBadgeSize * 0.12),
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <Text
+            style={[
+              styles.readyBadgeCheck,
+              { fontSize: Math.max(9, readyBadgeSize * 0.58) },
+            ]}
+          >
+            ✓
+          </Text>
+        </View>
+      ) : null}
+      {!isOut && !isDeadHand && (
+        <View
+          style={[
+            styles.countBadge,
+            {
+              minWidth: dims.countBadgeSize,
+              height: dims.countBadgeSize,
+              borderRadius: dims.countBadgeSize / 2,
+            },
+          ]}
+        >
+          <Text style={[styles.countText, { fontSize: dims.countFont }]}>
+            {player.handCount}
+          </Text>
+        </View>
+      )}
+      {isDeadHand && sidelinedCount > 0 ? (
+        <View
+          style={[
+            styles.countBadge,
+            {
+              minWidth: dims.countBadgeSize,
+              height: dims.countBadgeSize,
+              borderRadius: dims.countBadgeSize / 2,
+            },
+          ]}
+        >
+          <Text style={[styles.countText, { fontSize: dims.countFont }]}>
+            {sidelinedCount}
+          </Text>
+        </View>
+      ) : null}
+    </>
+  );
+
   const seatStyle = compact
     ? { minWidth: dims.seatMinWCompact, maxWidth: dims.seatMaxWCompact }
     : isLocal
@@ -205,226 +423,31 @@ export default function OpponentSeat({
           </Text>
         </View>
       ) : null}
-      <View
-        style={[
-          styles.avatarWrap,
-          { width: avatarSize, height: avatarSize },
-          celebrateTrickWin && styles.avatarWrapCelebrate,
-        ]}
-      >
-        <TrickWinCelebration
-          active={celebrateTrickWin || showRunStepXp}
-          avatarSize={avatarSize}
-          countBadgeSize={dims.countBadgeSize}
-          showXp={showTrickXp}
-          xpOnly={showRunStepXp && !celebrateTrickWin}
-          xpAmount={showRunStepXp && !celebrateTrickWin ? RUN_STEP_XP : undefined}
-          celebrationColors={celebrationPalette.celebrationColors}
-        />
-        {isLastPlay && !isOut && !isActive && !celebrateTrickWin && (
-          <View
-            style={[
-              styles.lastPlayRing,
-              {
-                width: avatarSize + 8,
-                height: avatarSize + 8,
-                borderRadius: (avatarSize + 8) / 2,
-                left: -4,
-                top: -4,
-              },
-            ]}
-            pointerEvents="none"
-          />
-        )}
-        {isActive && !isOut && (
-          <Animated.View
-            style={[
-              styles.turnRing,
-              {
-                width: avatarSize + 10,
-                height: avatarSize + 10,
-                borderRadius: (avatarSize + 10) / 2,
-                left: -5,
-                top: -5,
-                transform: [{ scale: ringScale }],
-                opacity: ringOpacity,
-              },
-            ]}
-            pointerEvents="none"
-          />
-        )}
-        <View
+      {onAvatarPress && !isDeadHand ? (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={onAvatarPress}
+          accessibilityRole="button"
+          accessibilityLabel={`View ${player.name} profile`}
           style={[
-            styles.avatar,
-            {
-              width: avatarSize,
-              height: avatarSize,
-              borderRadius: avatarSize / 2,
-              backgroundColor: avatarBackgroundColor,
-            },
-            isOut && !isDeadHand && styles.avatarOut,
-            isDisconnected && !isOut && !isDeadHand && styles.avatarDisconnected,
-            isLocal && styles.avatarLocal,
-            isDeadHand && !isGraveyard && styles.avatarDeadHand,
-            isGraveyard && styles.avatarGraveyard,
+            styles.avatarWrap,
+            { width: avatarSize, height: avatarSize },
+            celebrateTrickWin && styles.avatarWrapCelebrate,
           ]}
         >
-          <Text
-            style={[
-              styles.initials,
-              {
-                fontSize: compact ? dims.initialsFontCompact : dims.initialsFont,
-              },
-              isDeadHand && !isGraveyard && styles.initialsDeadHand,
-              isGraveyard && styles.initialsGraveyard,
-            ]}
-          >
-            {isDeadHand ? (isGraveyard ? "—" : "DH") : initials}
-          </Text>
+          {avatarBlock}
+        </TouchableOpacity>
+      ) : (
+        <View
+          style={[
+            styles.avatarWrap,
+            { width: avatarSize, height: avatarSize },
+            celebrateTrickWin && styles.avatarWrapCelebrate,
+          ]}
+        >
+          {avatarBlock}
         </View>
-        {isDeadHand && sidelinedCount > 0 ? (
-          <View
-            style={[
-              styles.sidelinedStack,
-              isGraveyard && styles.sidelinedStackGraveyard,
-              {
-                left: avatarSize + 2,
-                top: avatarSize * 0.08,
-              },
-            ]}
-            pointerEvents="none"
-          >
-            {Array.from({ length: Math.min(3, sidelinedCount) }).map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.sidelinedCard,
-                  {
-                    left: i * 4,
-                    top: i * 2,
-                    width: miniCardW,
-                    height: miniCardH,
-                  },
-                ]}
-              >
-                <Card
-                  card={{ suit: "spades", value: 0, hidden: true }}
-                  selected={false}
-                  faceDown
-                  disabled
-                  variant="table"
-                  onPress={() => {}}
-                  style={{ width: miniCardW, height: miniCardH }}
-                />
-              </View>
-            ))}
-          </View>
-        ) : null}
-        {dealStackCenter && dealStackLayers > 0 ? (
-          <View
-            style={[
-              styles.dealStack,
-              {
-                left: dealStackCenter.x - dealStackW / 2,
-                top: dealStackCenter.y - dealStackH / 2,
-                width: dealStackW,
-                height: dealStackH,
-              },
-            ]}
-            pointerEvents="none"
-          >
-            {Array.from({ length: dealStackLayers }).map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.dealStackCard,
-                  {
-                    left: i * 4,
-                    top: i * 2,
-                    width: miniCardW,
-                    height: miniCardH,
-                  },
-                ]}
-              >
-                <Card
-                  card={{ suit: "spades", value: 0, hidden: true }}
-                  selected={false}
-                  faceDown
-                  disabled
-                  variant="table"
-                  cornerRadius={ceremonyCardCornerRadius(miniCardW, miniCardH)}
-                  onPress={() => {}}
-                  style={{ width: miniCardW, height: miniCardH }}
-                />
-              </View>
-            ))}
-          </View>
-        ) : null}
-        {role ? (
-          <Text
-            style={[styles.roleBadge, { fontSize: dims.roleFont }]}
-            pointerEvents="none"
-          >
-            {role}
-          </Text>
-        ) : null}
-        {isReady && !isDeadHand ? (
-          <View
-            style={[
-              styles.readyBadge,
-              {
-                width: readyBadgeSize,
-                height: readyBadgeSize,
-                borderRadius: readyBadgeSize / 2,
-                left: -Math.round(readyBadgeSize * 0.18),
-                bottom: -Math.round(readyBadgeSize * 0.12),
-              },
-            ]}
-            pointerEvents="none"
-          >
-            <Text
-              style={[
-                styles.readyBadgeCheck,
-                { fontSize: Math.max(9, readyBadgeSize * 0.58) },
-              ]}
-            >
-              ✓
-            </Text>
-          </View>
-        ) : null}
-        {!isOut && !isDeadHand && (
-          <View
-            style={[
-              styles.countBadge,
-              {
-                minWidth: dims.countBadgeSize,
-                height: dims.countBadgeSize,
-                borderRadius: dims.countBadgeSize / 2,
-              },
-            ]}
-          >
-            <Text style={[styles.countText, { fontSize: dims.countFont }]}>
-              {player.handCount}
-            </Text>
-          </View>
-        )}
-        {isDeadHand && sidelinedCount > 0 ? (
-          <View
-            style={[
-              styles.countBadge,
-              {
-                minWidth: dims.countBadgeSize,
-                height: dims.countBadgeSize,
-                borderRadius: dims.countBadgeSize / 2,
-              },
-            ]}
-          >
-            <Text style={[styles.countText, { fontSize: dims.countFont }]}>
-              {sidelinedCount}
-            </Text>
-          </View>
-        ) : null}
-      </View>
+      )}
 
       <Text
         style={[

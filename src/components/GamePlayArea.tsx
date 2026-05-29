@@ -36,7 +36,7 @@ type Props = RingProps & {
   skipPlayFlights?: boolean;
   flightDurationMs?: number;
   trickWinnerPlayerId?: string | null;
-  runStepXpPlayerIds?: string[];
+  trickWinnerXpAmount?: number;
   /** Ring geometry seat count (local + visible opponents). Defaults to players + locals. */
   tableSeatCount?: number;
   deadHandId?: string | null;
@@ -46,6 +46,8 @@ type Props = RingProps & {
   onTurnBellPress?: (playerId: string) => void;
   /** Per-player dealt counts during deal ceremony. */
   dealtStackCounts?: Record<string, number>;
+  /** Open a player's profile / stats card. */
+  onPlayerPress?: (playerId: string) => void;
   /** Live play-area layout from onLayout (for overlay alignment). */
   onPlayAreaMetrics?: (metrics: {
     layout: PlayAreaLayout;
@@ -66,7 +68,7 @@ export default function GamePlayArea({
   skipPlayFlights = false,
   flightDurationMs = 480,
   trickWinnerPlayerId = null,
-  runStepXpPlayerIds = [],
+  trickWinnerXpAmount,
   tableSeatCount,
   deadHandId = null,
   layoutSeatIds,
@@ -75,6 +77,7 @@ export default function GamePlayArea({
   turnBellPlayerId = null,
   onTurnBellPress,
   dealtStackCounts,
+  onPlayerPress,
   onPlayAreaMetrics,
   children,
 }: Props & { children: React.ReactNode }) {
@@ -356,7 +359,7 @@ export default function GamePlayArea({
             sideAnchorMargin={layout.sideAnchorMargin}
             lastPlayPlayerId={lastPlayPlayerId}
             trickWinnerPlayerId={trickWinnerPlayerId}
-            runStepXpPlayerIds={runStepXpPlayerIds}
+            trickWinnerXpAmount={trickWinnerXpAmount}
             layoutSeatIds={seatIds}
             deadHandId={deadHandId}
             deadHandGraveyard={deadHandGraveyard}
@@ -364,6 +367,7 @@ export default function GamePlayArea({
             turnBellPlayerId={turnBellPlayerId}
             onTurnBellPress={onTurnBellPress}
             dealtStackCounts={dealtStackCounts}
+            onPlayerPress={onPlayerPress}
           />
         </View>
       )}

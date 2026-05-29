@@ -260,7 +260,7 @@ export async function recordTrickWin(
   return stats;
 }
 
-/** Award XP when the local human earns run-step XP. */
+/** Award XP when the local human wins a run bonus pool at trick end. */
 export async function recordRunStepXp(
   xp = RUN_STEP_XP,
 ): Promise<PlayerStats> {

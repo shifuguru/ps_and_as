@@ -57,6 +57,8 @@ export type TrickHistory = {
   actions: TrickAction[];
   winnerId?: string;
   winnerName?: string;
+  /** Consecutive run length on the pile when this trick was won (0 if none). */
+  runLength?: number;
 };
 
 export type FourOfAKindChallenge = {
@@ -1328,7 +1330,12 @@ export function collectRunPlaySteps(
 export function runContextLengthFromState(
   state: Pick<
     GameState,
-    "pile" | "pileHistory" | "currentTrick" | "players" | "finishedOrder"
+    | "pile"
+    | "pileHistory"
+    | "pileOwners"
+    | "currentTrick"
+    | "players"
+    | "finishedOrder"
   >,
 ): number {
   const { runSeq, inRunContext } = resolveRunContext(
@@ -1341,24 +1348,82 @@ export function runContextLengthFromState(
   return inRunContext ? runSeq.length : 0;
 }
 
-/** Run participants still active in the round when the run step completes. */
-export function runStepXpRecipientIds(state: GameState): string[] {
-  const { runSeq, inRunContext } = resolveRunContext(
-    state.pile,
-    state.pileHistory,
-    state.currentTrick,
-    state.players,
-    state.finishedOrder ?? [],
-  );
-  if (!inRunContext || runSeq.length < MIN_RUN_CONTEXT_LENGTH) return [];
+/** Bonus run steps beyond the 3-card minimum (0 for a 3-card run). */
+export function runBonusStepsFromLength(runLength: number): number {
+  if (runLength < MIN_RUN_CONTEXT_LENGTH) return 0;
+  return runLength - MIN_RUN_CONTEXT_LENGTH;
+}
 
-  const runValues = new Set(runSeq.map((c) => c.value));
-  const ids = new Set<string>();
-  for (const step of collectRunPlaySteps(state)) {
-    if (runValues.has(step.value)) ids.add(step.playerId);
+/** Run bonus XP pool: one step per rank above the 3-card run opener. */
+export function runTrickBonusXpAmount(
+  runLength: number,
+  xpPerStep: number,
+): number {
+  return runBonusStepsFromLength(runLength) * xpPerStep;
+}
+
+/** Live run bonus pool while a trick is in progress (0 until run length exceeds 3). */
+export function activeRunXpPoolInfo(
+  state: Pick<
+    GameState,
+    | "pile"
+    | "pileHistory"
+    | "pileOwners"
+    | "currentTrick"
+    | "players"
+    | "finishedOrder"
+    | "lastPlayPlayerIndex"
+  >,
+  xpPerStep: number,
+): {
+  runLength: number;
+  poolXp: number;
+  pileLeaderId: string | null;
+} {
+  const runLength = runContextLengthFromState(state);
+  const poolXp = runTrickBonusXpAmount(runLength, xpPerStep);
+  const leaderIdx = resolveTrickLeaderIndex(state as GameState);
+  const pileLeaderId =
+    leaderIdx != null && leaderIdx >= 0
+      ? (state.players[leaderIdx]?.id ?? null)
+      : null;
+  return { runLength, poolXp, pileLeaderId };
+}
+
+/** Reconstruct run length from a completed trick (uses stored runLength when present). */
+export function runLengthFromCompletedTrick(
+  trick: TrickHistory,
+  players: Player[],
+  finishedOrder: string[] = [],
+): number {
+  if (typeof trick.runLength === "number") return trick.runLength;
+
+  const playActions = trick.actions.filter(
+    (a) => a.type === "play" && a.cards && a.cards.length > 0,
+  );
+  if (playActions.length === 0) return 0;
+
+  let pile: Card[] = [];
+  const pileHistory: Card[][] = [];
+  const pileOwners: string[] = [];
+
+  for (let i = 0; i < playActions.length; i++) {
+    const cards = playActions[i].cards!;
+    if (i > 0 && pile.length > 0) {
+      pileHistory.push(pile);
+      pileOwners.push(playActions[i - 1].playerId);
+    }
+    pile = cards;
   }
 
-  return [...ids].filter((id) => isActiveInRound(state, id));
+  return runContextLengthFromState({
+    pile,
+    pileHistory,
+    pileOwners,
+    currentTrick: trick,
+    players,
+    finishedOrder,
+  });
 }
 
 export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boolean; direction: "higher" | "lower" | null }, pileHistory?: Card[][], trickHistory?: TrickHistory[], fourOfAKindChallenge?: FourOfAKindChallenge, currentTrick?: TrickHistory, players?: Player[], finishedOrder?: string[], lastRoundOrder?: string[], currentPlayerId?: string, runOnTop?: boolean) {
@@ -1951,6 +2016,7 @@ function grantRunOnTopBeat(state: GameState, leaderIndex: number): GameState {
 
 /** Clear the pile and award the trick to the last player who played. */
 function finalizeTrickWin(state: GameState, leaderIndex: number): GameState {
+  const runLengthAtWin = runContextLengthFromState(state);
   state.pile = [];
   state.passCount = 0;
   state.runOnTop = undefined;
@@ -1975,6 +2041,7 @@ function finalizeTrickWin(state: GameState, leaderIndex: number): GameState {
   if (leaderIndex >= 0) {
     const winnerPlayer = state.players[leaderIndex];
     if (state.currentTrick) {
+      state.currentTrick.runLength = runLengthAtWin;
       state.currentTrick.winnerId = winnerPlayer.id;
       state.currentTrick.winnerName = winnerPlayer.name;
       state.trickHistory = state.trickHistory || [];

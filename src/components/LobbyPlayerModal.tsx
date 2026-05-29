@@ -19,7 +19,7 @@ import type { AppThemeColors } from "../styles/themeColors";
 import type { UiStyles } from "../styles/createUiStyles";
 import type { BlurPreset } from "../styles/themeColors";
 
-type PlayerInfo = {
+export type LobbyProfilePlayer = {
   id: string;
   name: string;
   isCPU?: boolean;
@@ -29,7 +29,7 @@ type PlayerInfo = {
 
 type Props = {
   visible: boolean;
-  player: PlayerInfo | null;
+  player: LobbyProfilePlayer | null;
   colors: AppThemeColors;
   ui: UiStyles;
   blur: { modal: BlurPreset };
@@ -101,7 +101,7 @@ export default function LobbyPlayerModal({
                 <Text style={styles.statsHint}>
                   {player.isCPU
                     ? "CPU players don't earn achievements."
-                    : "Achievement progress is stored on each player's device and isn't shared in lobbies yet."}
+                    : "Achievement progress is stored on each player's device and isn't shared yet."}
                 </Text>
               ) : null}
 

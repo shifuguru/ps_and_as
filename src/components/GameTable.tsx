@@ -55,6 +55,10 @@ type Props = {
   fadeOutDurationMs?: number;
   /** Hide plays until their seat-to-table flight finishes. */
   hiddenPlayKeys?: ReadonlySet<string>;
+  /** Accumulated run bonus XP on the table (trick winner takes all at trick end). */
+  runXpPoolAmount?: number;
+  /** Short hint under the pool, e.g. who wins it. */
+  runXpPoolHint?: string | null;
 };
 
 export default function GameTable({
@@ -66,6 +70,8 @@ export default function GameTable({
   fadeOut = false,
   fadeOutDurationMs = 200,
   hiddenPlayKeys,
+  runXpPoolAmount = 0,
+  runXpPoolHint = null,
 }: Props) {
   const [zoneSize, setZoneSize] = useState({ width: 0, height: 0 });
   const collectAnim = useRef(new Animated.Value(0)).current;
@@ -225,6 +231,17 @@ export default function GameTable({
     return rowBottom + PLAY_TYPE_BADGE_GAP;
   }, [tableRows]);
 
+  const runXpPoolTop = useMemo(() => {
+    if (tableRows.length === 0) return 8;
+    let rowTop = tableRows[0]?.pos.top ?? 8;
+    for (const row of tableRows) {
+      rowTop = Math.min(rowTop, row.pos.top);
+    }
+    return Math.max(8, rowTop - 52);
+  }, [tableRows]);
+
+  const showRunXpPool = (runXpPoolAmount ?? 0) > 0;
+
   const badgeOpacity = collectAnim.interpolate({
     inputRange: [0, 0.35],
     outputRange: [1, 0],
@@ -363,6 +380,40 @@ export default function GameTable({
                     </Animated.View>
                   );
                 })}
+              {showRunXpPool ? (
+                <Animated.View
+                  style={[
+                    styles.runXpPoolBadge,
+                    { top: runXpPoolTop, opacity: badgeOpacity },
+                  ]}
+                  pointerEvents="none"
+                >
+                  <View style={styles.runXpChipStack} pointerEvents="none">
+                    {[0, 1, 2].map((layer) => (
+                      <View
+                        key={layer}
+                        style={[
+                          styles.runXpChip,
+                          {
+                            top: layer * 4,
+                            left: layer * 5,
+                            zIndex: layer,
+                          },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                  <View style={styles.runXpPoolCopy}>
+                    <Text style={styles.runXpPoolAmount}>
+                      +{runXpPoolAmount} XP
+                    </Text>
+                    <Text style={styles.runXpPoolLabel}>Run pool</Text>
+                    {runXpPoolHint ? (
+                      <Text style={styles.runXpPoolHint}>{runXpPoolHint}</Text>
+                    ) : null}
+                  </View>
+                </Animated.View>
+              ) : null}
               {playTypeLabel ? (
                 <Animated.View
                   style={[
@@ -462,6 +513,55 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: "center",
     letterSpacing: 0.4,
+  },
+  runXpPoolBadge: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  runXpChipStack: {
+    width: 34,
+    height: 28,
+    position: "relative",
+  },
+  runXpChip: {
+    position: "absolute",
+    width: 26,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "rgba(212, 175, 55, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.45)",
+  },
+  runXpPoolCopy: {
+    alignItems: "flex-start",
+    maxWidth: "72%",
+  },
+  runXpPoolAmount: {
+    color: "#f5e6a8",
+    fontWeight: "900",
+    fontSize: 15,
+    letterSpacing: 0.3,
+  },
+  runXpPoolLabel: {
+    color: "rgba(212, 175, 55, 0.95)",
+    fontWeight: "800",
+    fontSize: 10,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    marginTop: 1,
+  },
+  runXpPoolHint: {
+    color: "rgba(255,255,255,0.72)",
+    fontWeight: "600",
+    fontSize: 10,
+    marginTop: 2,
   },
   emptyHost: {
     flex: 1,

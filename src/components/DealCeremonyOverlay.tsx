@@ -467,30 +467,28 @@ export default function DealCeremonyOverlay({
     offsetPoint,
   ]);
 
+  const statusText =
+    !visible || phase === "done"
+      ? null
+      : phase === "shuffle"
+        ? freshRound
+          ? "Fresh round — shuffling…"
+          : "Shuffling…"
+        : phase === "deal"
+          ? freshRound
+            ? `Fresh round — dealing… ${Math.min(dealRound, dealSteps.length)} / ${dealSteps.length}`
+            : `Dealing… ${Math.min(dealRound, dealSteps.length)} / ${dealSteps.length}`
+          : freshRound && pendingTrades.length === 0
+            ? "Fresh round — no President trade"
+            : "Role trades…";
+
+  useEffect(() => {
+    onStatusTextChangeRef.current?.(statusText);
+  }, [statusText]);
+
   if (!visible || phase === "done") return null;
 
   const deckScreen = offsetPoint(deckCenter.x, deckCenter.y);
-
-  const statusText =
-    phase === "shuffle"
-      ? freshRound
-        ? "Fresh round — shuffling…"
-        : "Shuffling…"
-      : phase === "deal"
-        ? freshRound
-          ? `Fresh round — dealing… ${Math.min(dealRound, dealSteps.length)} / ${dealSteps.length}`
-          : `Dealing… ${Math.min(dealRound, dealSteps.length)} / ${dealSteps.length}`
-        : freshRound && pendingTrades.length === 0
-          ? "Fresh round — no President trade"
-          : "Role trades…";
-
-  useEffect(() => {
-    if (!visible || phase === "done") {
-      onStatusTextChangeRef.current?.(null);
-      return;
-    }
-    onStatusTextChangeRef.current?.(statusText);
-  }, [visible, phase, statusText]);
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">

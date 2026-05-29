@@ -31,6 +31,16 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-05-30T10:21"),
+    title: "Runs, profiles & fixes",
+    items: [
+      "Run bonus XP builds on the table during a run — trick winner takes the pool at trick end",
+      "Tap an opponent's avatar mid-game to open their player profile",
+      "Quick Game — deal animations no longer crash after cards are dealt",
+      "Hand cards — centred card rank and suit text matches overlapping cards",
+    ],
+  },
+  {
     publishedAt: nzst("2026-05-30T09:20"),
     title: "What's New cleanup",
     items: [

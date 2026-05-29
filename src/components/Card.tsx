@@ -432,12 +432,13 @@ const local = StyleSheet.create({
   },
   value: {
     color: "#1a1a1a",
-    fontWeight: "700",
+    fontWeight: "800",
     fontSize: 18,
   },
   suit: {
     color: "#1a1a1a",
     fontSize: 20,
+    fontWeight: "800",
     marginTop: 6,
   },
   cornerTopLeft: {
@@ -489,7 +490,7 @@ const local = StyleSheet.create({
   },
   cornerText: {
     color: "#1a1a1a",
-    fontWeight: "700",
+    fontWeight: "800",
     fontSize: 10,
     lineHeight: 12,
   },
@@ -509,5 +510,6 @@ const local = StyleSheet.create({
     color: "#1a1a1a",
     fontSize: 10,
     lineHeight: 12,
+    fontWeight: "800",
   },
 });

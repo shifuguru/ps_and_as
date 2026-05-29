@@ -35,9 +35,9 @@ import {
   tenRuleChooserIndex,
   isTrickOpeningLead,
   isRoundOpeningLead,
-  runContextLengthFromState,
-  runStepXpRecipientIds,
-  MIN_RUN_CONTEXT_LENGTH,
+  runLengthFromCompletedTrick,
+  runTrickBonusXpAmount,
+  activeRunXpPoolInfo,
 } from "../game/core";
 import {
   allTradesCompleted,
@@ -61,6 +61,7 @@ import { isSocketAdapter, SocketAdapter } from "../game/socketAdapter";
 import type { LobbyMember } from "../game/network";
 import {
   isFullGameState,
+  isCpuPlayer,
   normalizeLobbyNames,
   parseServerGameState,
   resolveLocalHumanPlayer,
@@ -106,6 +107,9 @@ import RoleTradeModal from "../components/RoleTradeModal";
 import RoleTradeStrip from "../components/RoleTradeStrip";
 import { computePlayAreaLayout } from "../utils/tableLayout";
 import OpponentSeat from "../components/OpponentSeat";
+import LobbyPlayerModal, {
+  type LobbyProfilePlayer,
+} from "../components/LobbyPlayerModal";
 import { LOCAL_SEAT_BAND } from "../utils/tableLayout";
 import {
   buildTrickPlayDisplays,
@@ -271,6 +275,8 @@ type TrickPauseSnapshot = {
   passedPlayerIds: string[];
   winnerName: string;
   winnerId: string;
+  /** Run bonus XP awarded to the trick winner (0 for a 3-card run). */
+  runBonusXp: number;
 };
 
 /** Render-only board — separate component so hook count never changes when state loads. */
@@ -367,7 +373,6 @@ function GameScreen({
   });
   /** Trick-win XP earned this game session (persists across rounds). */
   const [gameXpByPlayerId, setGameXpByPlayerId] = useState<Record<string, number>>({});
-  const [runStepXpFlashIds, setRunStepXpFlashIds] = useState<string[]>([]);
   const [localCareerXp, setLocalCareerXp] = useState<number | null>(null);
   const [awayTick, setAwayTick] = useState(0);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
@@ -395,13 +400,7 @@ function GameScreen({
   const fallbackAdapterRef = useRef<MockAdapter | null>(null);
   const lastTrickLenRef = React.useRef<number>(0);
   const lastRecordedTrickXpRef = React.useRef(0);
-  const prevRunLenRef = React.useRef(0);
-  const prevRunTrickNumRef = React.useRef(1);
-  const lastRunStepXpKeyRef = React.useRef<string | null>(null);
-  const lastRecordedRunStepXpKeyRef = React.useRef<string | null>(null);
-  const runStepXpTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const lastRecordedTrickRunBonusTrickRef = React.useRef(0);
   const roundStatsRecordedRef = React.useRef(false);
   const trickPauseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -949,75 +948,34 @@ function GameScreen({
       state.trickHistory && state.trickHistory[state.trickHistory.length - 1];
     if (!last?.winnerName) return;
 
+    setLastTrickWinner(last.winnerName);
+    const winnerId =
+      last.winnerId ??
+      state.players.find((p) => p.name === last.winnerName)?.id;
+    const runLength = runLengthFromCompletedTrick(
+      last,
+      state.players,
+      state.finishedOrder ?? [],
+    );
+    const runBonusXp = runTrickBonusXpAmount(runLength, RUN_STEP_XP);
+    if (winnerId) {
+      setGameXpByPlayerId((prev) => ({
+        ...prev,
+        [winnerId]:
+          (prev[winnerId] ?? 0) + TRICK_WIN_XP + runBonusXp,
+      }));
+    }
     setTrickPauseSnapshot({
       plays: buildPlaysFromTrick(last),
       passedPlayerIds: passedIdsFromTrick(last),
       winnerName: last.winnerName,
       winnerId: last.winnerId ?? "",
+      runBonusXp,
     });
-    setLastTrickWinner(last.winnerName);
-    const winnerId =
-      last.winnerId ??
-      state.players.find((p) => p.name === last.winnerName)?.id;
-    if (winnerId) {
-      setGameXpByPlayerId((prev) => ({
-        ...prev,
-        [winnerId]: (prev[winnerId] ?? 0) + TRICK_WIN_XP,
-      }));
-    }
     setShowWinnerBanner(false);
     setStackCollecting(false);
     setTrickPauseActive(true);
   }, [state]);
-
-  // Run-step XP: when a run reaches 3+ cards and grows by one rank, all active
-  // participants in that run earn +15 XP (session scoreboard + seat flash).
-  useLayoutEffect(() => {
-    if (!state || gameplayLocked || ceremonyPrep || tradePhase) return;
-
-    const trickNum = state.currentTrick?.trickNumber ?? 1;
-    const runLen = runContextLengthFromState(state);
-
-    if (trickNum !== prevRunTrickNumRef.current) {
-      prevRunTrickNumRef.current = trickNum;
-      prevRunLenRef.current = runLen;
-      return;
-    }
-
-    const prevLen = prevRunLenRef.current;
-    prevRunLenRef.current = runLen;
-
-    if (
-      runLen < MIN_RUN_CONTEXT_LENGTH ||
-      runLen <= prevLen
-    ) {
-      return;
-    }
-
-    const awardKey = `${trickNum}:${runLen}`;
-    if (lastRunStepXpKeyRef.current === awardKey) return;
-    lastRunStepXpKeyRef.current = awardKey;
-
-    const recipientIds = runStepXpRecipientIds(state);
-    if (recipientIds.length === 0) return;
-
-    setGameXpByPlayerId((prev) => {
-      const next = { ...prev };
-      for (const id of recipientIds) {
-        next[id] = (prev[id] ?? 0) + RUN_STEP_XP;
-      }
-      return next;
-    });
-
-    setRunStepXpFlashIds(recipientIds);
-    if (runStepXpTimerRef.current) {
-      clearTimeout(runStepXpTimerRef.current);
-    }
-    runStepXpTimerRef.current = setTimeout(() => {
-      setRunStepXpFlashIds([]);
-      runStepXpTimerRef.current = null;
-    }, 1100);
-  }, [state, gameplayLocked, ceremonyPrep, tradePhase]);
 
   // Trick-end animation timers (collect → banner → resume).
   useEffect(() => {
@@ -1113,9 +1071,6 @@ function GameScreen({
       }
       if (roomNoticeTimerRef.current) {
         clearTimeout(roomNoticeTimerRef.current);
-      }
-      if (runStepXpTimerRef.current) {
-        clearTimeout(runStepXpTimerRef.current);
       }
     };
   }, []);
@@ -1561,21 +1516,20 @@ function GameScreen({
     if (trickNum <= lastRecordedTrickXpRef.current) return;
     lastRecordedTrickXpRef.current = trickNum;
     void recordTrickWin();
+    if (
+      trickPauseSnapshot.runBonusXp > 0 &&
+      trickNum > lastRecordedTrickRunBonusTrickRef.current
+    ) {
+      lastRecordedTrickRunBonusTrickRef.current = trickNum;
+      void recordRunStepXp(trickPauseSnapshot.runBonusXp);
+    }
   }, [
     showWinnerBanner,
     trickPauseSnapshot?.winnerId,
+    trickPauseSnapshot?.runBonusXp,
     myPlayerId,
     state?.trickHistory?.length,
   ]);
-
-  useEffect(() => {
-    if (!myPlayerId || runStepXpFlashIds.length === 0) return;
-    if (!runStepXpFlashIds.includes(myPlayerId)) return;
-    const key = lastRunStepXpKeyRef.current;
-    if (!key || key === lastRecordedRunStepXpKeyRef.current) return;
-    lastRecordedRunStepXpKeyRef.current = key;
-    void recordRunStepXp();
-  }, [runStepXpFlashIds, myPlayerId]);
 
   useEffect(() => {
     if (!tradePhase || onlineMultiplayer) return;
@@ -1890,7 +1844,6 @@ function GameScreen({
         resolveSeatFeltTint,
         scoreboardXpByPlayerId,
         lastTrickLenRef,
-        runStepXpFlashIds,
       }}
     >
       <GameScreenBoard />
@@ -1972,7 +1925,6 @@ function GameScreenBoard() {
     resolveSeatFeltTint,
     scoreboardXpByPlayerId,
     lastTrickLenRef,
-    runStepXpFlashIds,
   } = useContext(GameScreenRuntimeContext)! as {
     state: GameState;
     setState: React.Dispatch<React.SetStateAction<GameState | null>>;
@@ -2070,7 +2022,6 @@ function GameScreenBoard() {
     resolveSeatFeltTint: (player: { id: string; name: string }) => string | undefined;
     scoreboardXpByPlayerId: Record<string, number>;
     lastTrickLenRef: React.MutableRefObject<number>;
-    runStepXpFlashIds: string[];
   };
 
   const [ceremonyDealCounts, setCeremonyDealCounts] = useState<
@@ -2079,6 +2030,40 @@ function GameScreenBoard() {
   const [ceremonyStatusText, setCeremonyStatusText] = useState<string | null>(
     null,
   );
+  const { ui, blur } = useAppTheme();
+  const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
+  const [showPlayerProfile, setShowPlayerProfile] = useState(false);
+
+  const handlePlayerProfilePress = useCallback(
+    (playerId: string) => {
+      const player = state.players.find((p) => p.id === playerId);
+      if (!player || isDeadHandPlayer(player)) return;
+      setProfilePlayerId(playerId);
+      setShowPlayerProfile(true);
+    },
+    [state.players],
+  );
+
+  const profilePlayer = useMemo((): LobbyProfilePlayer | null => {
+    if (!profilePlayerId) return null;
+    const player = state.players.find((p) => p.id === profilePlayerId);
+    if (!player || isDeadHandPlayer(player)) return null;
+    const isLocal =
+      profilePlayerId === myPlayerId || profilePlayerId === humanPlayer?.id;
+    return {
+      id: player.id,
+      name: player.name,
+      isCPU: isCpuPlayer(player),
+      isLocalPlayer: isLocal,
+      isHostSeat: resolvedHostId === player.id,
+    };
+  }, [
+    profilePlayerId,
+    state.players,
+    myPlayerId,
+    humanPlayer?.id,
+    resolvedHostId,
+  ]);
 
   useEffect(() => {
     if (!ceremonyPrep) {
@@ -2127,7 +2112,6 @@ function GameScreenBoard() {
   }
   /** Hide who leads until deal + mandatory trades finish (state may still track opener). */
   const revealTurnHighlight = !inCeremony;
-  const turnHighlightPlayerId = revealTurnHighlight ? current.id : "";
   if (!current) {
     return (
       <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
@@ -2168,6 +2152,7 @@ function GameScreenBoard() {
       </ScreenContainer>
     );
   }
+  const turnHighlightPlayerId = revealTurnHighlight ? current.id : "";
 
   const currentIsLocalHuman = !!myPlayerId && current.id === myPlayerId;
   const currentIsOut =
@@ -2489,6 +2474,10 @@ function GameScreenBoard() {
     showWinnerBanner && trickPauseSnapshot?.winnerId
       ? trickPauseSnapshot.winnerId
       : null;
+  const trickWinnerXpAmount =
+    trickWinnerPlayerId && trickPauseSnapshot
+      ? TRICK_WIN_XP + trickPauseSnapshot.runBonusXp
+      : undefined;
 
   const localSeatPlayer = humanPlayer
     ? {
@@ -2717,6 +2706,33 @@ function GameScreenBoard() {
 
   const playTypeLabel = getPlayTypeLabel();
 
+  const activeRunXpPool = useMemo(() => {
+    if (
+      !state ||
+      trickPauseActive ||
+      ceremonyPrep ||
+      tradePhase ||
+      gameplayLocked
+    ) {
+      return null;
+    }
+    const info = activeRunXpPoolInfo(state, RUN_STEP_XP);
+    if (info.poolXp <= 0) return null;
+    const leaderName = info.pileLeaderId
+      ? state.players.find((p) => p.id === info.pileLeaderId)?.name
+      : null;
+    return {
+      amount: info.poolXp,
+      hint: leaderName ? `Goes to ${leaderName} on the win` : "Goes to trick winner",
+    };
+  }, [
+    state,
+    trickPauseActive,
+    ceremonyPrep,
+    tradePhase,
+    gameplayLocked,
+  ]);
+
   // Compact structured debug log view (last 20 entries). Produce a concise one-line summary
   const recentStructured = debugLogs.slice(-20).map((d) => {
     const shortTs = d.ts ? d.ts.substr(11, 8) : "";
@@ -2901,7 +2917,7 @@ function GameScreenBoard() {
           plays={displayPlays}
           skipPlayFlights={trickPauseFrozen}
           trickWinnerPlayerId={trickWinnerPlayerId}
-          runStepXpPlayerIds={runStepXpFlashIds}
+          trickWinnerXpAmount={trickWinnerXpAmount}
           playTypeLabel={
             playTypeLabel && !trickPauseFrozen ? playTypeLabel : null
           }
@@ -2913,6 +2929,7 @@ function GameScreenBoard() {
           turnBellPlayerId={turnBellPlayerId}
           onTurnBellPress={handleTurnBellPress}
           dealtStackCounts={ceremonyPrep ? ceremonyDealCounts : undefined}
+          onPlayerPress={handlePlayerProfilePress}
           onPlayAreaMetrics={setLivePlayAreaMetrics}
         >
           <GameTable
@@ -2920,6 +2937,8 @@ function GameScreenBoard() {
             collectToStack={trickPauseActive && stackCollecting}
             collectDurationMs={trickStackCollectMs}
             fadeOut={trickPauseActive && showWinnerBanner}
+            runXpPoolAmount={activeRunXpPool?.amount ?? 0}
+            runXpPoolHint={activeRunXpPool?.hint ?? null}
           />
         </GamePlayArea>
         {awaitingDealerReshuffle &&
@@ -2973,14 +2992,14 @@ function GameScreenBoard() {
               !!trickWinnerPlayerId &&
               localSeatPlayer.id === trickWinnerPlayerId
             }
-            showRunStepXp={
-              runStepXpFlashIds.includes(localSeatPlayer.id) &&
-              !trickWinnerPlayerId
-            }
+            trickXpAmount={trickWinnerXpAmount}
             dealtStackCount={
               ceremonyPrep
                 ? (ceremonyDealCounts[localSeatPlayer.id] ?? 0)
                 : 0
+            }
+            onAvatarPress={() =>
+              handlePlayerProfilePress(localSeatPlayer.id)
             }
           />
         </View>
@@ -3212,6 +3231,15 @@ function GameScreenBoard() {
         visible={leaveConfirmVisible}
         onCancel={cancelLeaveGame}
         onConfirm={confirmLeaveGame}
+      />
+
+      <LobbyPlayerModal
+        visible={showPlayerProfile}
+        player={profilePlayer}
+        colors={colors}
+        ui={ui}
+        blur={blur}
+        onClose={() => setShowPlayerProfile(false)}
       />
       
     </ScreenContainer>
