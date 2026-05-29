@@ -18,6 +18,7 @@ const {
   isPlayerStillIn,
   hasPassedInCurrentTrick,
   nextActivePlayerIndex,
+  isTrickOpeningLead,
 } = require('./gameBridge');
 const { viewForPlayer, viewForMember, broadcastGameState } = require('./gameStateView');
 const {
@@ -519,12 +520,17 @@ function advancePastInactiveSeats(room) {
       working.fourOfAKindChallenge?.active &&
       working.fourOfAKindChallenge.completedAcrossTurns &&
       working.lastPlayPlayerIndex === working.currentPlayerIndex;
+    const runOnTopTurn =
+      working.runOnTop?.active &&
+      working.runOnTop.playerIndex === working.currentPlayerIndex;
+    const mustOpenTrick =
+      working.mustPlay && isTrickOpeningLead(working);
     const inactive =
       isDeadHandPlayer(current) ||
       !isPlayerStillIn(working, current.id) ||
-      hasPassedInCurrentTrick(working, current.id) ||
+      (hasPassedInCurrentTrick(working, current.id) && !runOnTopTurn) ||
       quadWait;
-    if (!inactive) break;
+    if (!inactive || mustOpenTrick) break;
     if (quadWait) {
       working.currentPlayerIndex = nextActivePlayerIndex(working, working.currentPlayerIndex);
       continue;
@@ -1204,9 +1210,12 @@ io.on('connection', (socket) => {
     const guests = room.players.filter(
       (p) => !p.disconnectedAt && !p.isSpectator && p.id !== room.host,
     );
-    if (guests.length > 0 && !guests.some((p) => p.ready)) {
-      console.log('[Server] No guest ready yet');
-      socket.emit('error', { message: 'At least one guest must be ready before starting.' });
+    if (guests.length > 0 && !guests.every((p) => p.ready)) {
+      const readyCount = guests.filter((p) => p.ready).length;
+      console.log('[Server] Not all guests ready:', readyCount, '/', guests.length);
+      socket.emit('error', {
+        message: `All players must be ready before starting (${readyCount}/${guests.length} ready).`,
+      });
       return;
     }
 

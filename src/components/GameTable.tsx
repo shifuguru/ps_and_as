@@ -96,9 +96,9 @@ export default function GameTable({
 
   useEffect(() => {
     if (!collectToStack) {
-      if (!collectHeldRef.current) {
-        collectAnim.setValue(0);
-      }
+      // Trick pause ended — always reset so the next trick spreads normally.
+      collectHeldRef.current = false;
+      collectAnim.setValue(0);
       return;
     }
     collectHeldRef.current = false;

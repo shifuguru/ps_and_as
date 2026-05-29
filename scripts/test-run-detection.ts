@@ -499,5 +499,100 @@ console.log("\n=== Doubles run: extend 33-44-55 with 66 ===\n");
   }
 }
 
+console.log("\n=== Run direction: no reversing mid-run ===\n");
+{
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(4), card(4)]),
+      makeAction("play", 1, [card(5), card(5)]),
+      makeAction("play", 2, [card(6), card(6)]),
+      makeAction("play", 3, [card(7), card(7)]),
+      makeAction("play", 0, [card(8), card(8)]),
+    ],
+  };
+  const pile = [card(8), card(8)];
+  const history: Card[][] = [
+    [card(4), card(4)],
+    [card(5), card(5)],
+    [card(6), card(6)],
+    [card(7), card(7)],
+    [card(8), card(8)],
+  ];
+  const backwardSeven = !isValidPlay(
+    [card(7), card(7)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const forwardNine = isValidPlay(
+    [card(9), card(9)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  if (backwardSeven && forwardNine) {
+    passed++;
+    console.log("PASS  ascending 44-88 rejects 77, accepts 99");
+  } else {
+    failed++;
+    console.log("FAIL  ascending doubles run direction");
+    console.log(`      backwardSeven=${backwardSeven} forwardNine=${forwardNine}`);
+  }
+}
+
+{
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(11)]),
+      makeAction("play", 1, [card(10)]),
+      makeAction("play", 2, [card(9)]),
+    ],
+  };
+  const pile = [card(9)];
+  const history: Card[][] = [[card(11)], [card(10)], [card(9)]];
+  const backwardTen = !isValidPlay(
+    [card(10)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  const forwardEight = isValidPlay(
+    [card(8)],
+    pile,
+    undefined,
+    history,
+    undefined,
+    undefined,
+    trick,
+    players,
+    [],
+  );
+  if (backwardTen && forwardEight) {
+    passed++;
+    console.log("PASS  descending J-10-9 rejects 10, accepts 8");
+  } else {
+    failed++;
+    console.log("FAIL  descending run direction");
+    console.log(`      backwardTen=${backwardTen} forwardEight=${forwardEight}`);
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);

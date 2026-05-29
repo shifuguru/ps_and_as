@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import {
-  APP_VERSION,
+  resolveAppVersion,
   resolveClientBuildId,
   WEB_BASE_PATH,
   type BuildVersionInfo,
@@ -9,7 +9,8 @@ import {
 function parseVersionPayload(raw: unknown): BuildVersionInfo | null {
   if (!raw || typeof raw !== "object") return null;
   const data = raw as Record<string, unknown>;
-  const version = typeof data.version === "string" ? data.version : APP_VERSION;
+  const version =
+    typeof data.version === "string" ? data.version : resolveAppVersion();
   const buildId = typeof data.buildId === "string" ? data.buildId : "";
   if (!buildId) return null;
   const builtAt = typeof data.builtAt === "string" ? data.builtAt : undefined;
@@ -61,6 +62,14 @@ async function fetchJson(url: string): Promise<unknown | null> {
   } catch {
     return null;
   }
+}
+
+/** Deployed build metadata from version.json (works in dev for display labels). */
+export async function fetchDeployedBuildInfo(): Promise<BuildVersionInfo | null> {
+  if (Platform.OS !== "web") {
+    return null;
+  }
+  return fetchLatestWebBuildInfo();
 }
 
 /** Latest deployed build metadata. Web polls version.json; native relies on App Store + socket hints. */

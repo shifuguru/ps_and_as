@@ -415,12 +415,13 @@ export default function CreateGame({
   const localMember = seatMembers.find((m) => m.id === localId);
   const isLocalReady = !!localMember?.ready;
   const guestMembers = seatMembers.filter((m) => m.id !== hostId);
-  const anyGuestReady = guestMembers.some((m) => m.ready);
-  const hostWaitingForGuest =
-    onlineLobby && isHost && lobbyFullEnough && !anyGuestReady;
+  const guestsReadyCount = guestMembers.filter((m) => m.ready).length;
+  const allGuestsReady =
+    guestMembers.length > 0 && guestMembers.every((m) => m.ready);
+  const hostWaitingForGuests =
+    onlineLobby && isHost && lobbyFullEnough && !allGuestsReady;
   const showGuestReadyAction = onlineLobby && !isHost && lobbyFullEnough;
-  const showHostReadyAction = hostWaitingForGuest;
-  const showReadyAction = showGuestReadyAction || showHostReadyAction;
+  const showReadyAction = showGuestReadyAction;
 
   const readyFlash = useRef(new Animated.Value(0)).current;
 
@@ -864,7 +865,9 @@ export default function CreateGame({
     ? !canStart
     : showReadyAction
       ? false
-      : !lobbyFullEnough;
+      : isHost
+        ? !lobbyFullEnough || !allGuestsReady
+        : !lobbyFullEnough;
 
   const showReadyFlash = showReadyAction && !isLocalReady && !primaryDisabled;
 
@@ -896,13 +899,11 @@ export default function CreateGame({
   const primaryLabel = usingMock
     ? "Start Game"
     : isHost
-      ? anyGuestReady
-        ? "Start Game"
-        : !lobbyFullEnough
-          ? playersNeededLabel(playersNeeded)
-          : isLocalReady
-            ? "Unready"
-            : "Ready"
+      ? !lobbyFullEnough
+        ? playersNeededLabel(playersNeeded)
+        : allGuestsReady
+          ? "Start Game"
+          : `${guestsReadyCount}/${guestMembers.length} Ready`
       : !lobbyFullEnough
         ? playersNeededLabel(playersNeeded)
         : isLocalReady
@@ -1225,9 +1226,10 @@ export default function CreateGame({
             </View>
             ) : null}
 
-            {hostWaitingForGuest ? (
+            {hostWaitingForGuests ? (
               <Text style={local.lobbyWaitHint}>
-                Waiting for a guest to ready up…
+                Waiting for all players to ready up ({guestsReadyCount}/
+                {guestMembers.length})…
               </Text>
             ) : null}
 

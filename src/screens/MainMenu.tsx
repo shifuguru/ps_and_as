@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { useClientBuildLabel } from "../hooks/useClientBuildLabel";
 import {
   View,
   Text,
@@ -66,6 +67,7 @@ export default function MainMenu({ buttons, onButtonPress, style }: Props) {
   const insets = useLayoutInsets();
   const { width, height } = useVisualViewportSize();
   const contentMaxWidth = Math.min(420, Math.max(300, width - 48));
+  const versionLabel = useClientBuildLabel();
 
   return (
     <ScreenContainer ignoreHeaderOffset style={[{ flex: 1 }, style]}>
@@ -87,6 +89,7 @@ export default function MainMenu({ buttons, onButtonPress, style }: Props) {
             P&apos;s & A&apos;s
           </Text>
           <Text style={styles.subtitle}>Presidents & Assholes</Text>
+          <Text style={styles.versionLabel}>{versionLabel}</Text>
 
           <View style={styles.buttonStack}>
             {buttons.map((btn) => (
@@ -129,8 +132,16 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontSize: 15,
       textAlign: "center",
       letterSpacing: 1.4,
-      marginBottom: 28,
+      marginBottom: 6,
       fontWeight: "600",
+      ...onFeltTextStyle(colors.onFelt, "accent"),
+    },
+    versionLabel: {
+      fontSize: 11,
+      textAlign: "center",
+      letterSpacing: 0.5,
+      marginBottom: 22,
+      fontWeight: "500",
       ...onFeltTextStyle(colors.onFelt, "accent"),
     },
     buttonStack: {

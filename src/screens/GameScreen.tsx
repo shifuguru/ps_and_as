@@ -2,6 +2,7 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useState,
   useRef,
   useMemo,
@@ -25,6 +26,7 @@ import {
   consecutiveSequenceInfo,
   runFromCurrentTrick,
   runFromCurrentTrickInfo,
+  resolveRunContext,
   isRunContextSequence,
   nextActivePlayerIndex,
   cardsNeededToPlay,
@@ -36,6 +38,8 @@ import {
   livingFinishedOrder,
   applyDeadHandAfterDeal,
   tenRuleChooserIndex,
+  isTrickOpeningLead,
+  isRoundOpeningLead,
 } from "../game/core";
 import {
   assignPlayerRoles,
@@ -418,6 +422,8 @@ function GameScreen({
   gameplayLockedRef.current = gameplayLocked;
   const roundOverRef = useRef(roundOver);
   roundOverRef.current = roundOver;
+  const trickPauseActiveRef = useRef(trickPauseActive);
+  trickPauseActiveRef.current = trickPauseActive;
   const startNextRoundRef = useRef<(seed?: number) => void>(() => {});
   const finalizeCeremonyRoundRef = useRef<
     (
@@ -911,65 +917,91 @@ function GameScreen({
     return () => clearInterval(id);
   }, [awayPlayers]);
 
-  // Detect trick wins (pause briefly) and round completion
-  useEffect(() => {
+  // Detect trick wins (pause briefly) and round completion — layout effect
+  // commits the snapshot before paint so the table never freezes on stale plays.
+  useLayoutEffect(() => {
     if (!state) return;
     const len = state.trickHistory ? state.trickHistory.length : 0;
-    if (len > (lastTrickLenRef.current || 0)) {
-      const last =
-        state.trickHistory && state.trickHistory[state.trickHistory.length - 1];
-      if (last && last.winnerName) {
-        setTrickPauseSnapshot({
-          plays: buildPlaysFromTrick(last),
-          passedPlayerIds: passedIdsFromTrick(last),
-          winnerName: last.winnerName,
-          winnerId: last.winnerId ?? "",
-        });
-        setLastTrickWinner(last.winnerName);
-        const winnerId =
-          last.winnerId ??
-          state.players.find((p) => p.name === last.winnerName)?.id;
-        if (winnerId) {
-          setGameXpByPlayerId((prev) => ({
-            ...prev,
-            [winnerId]: (prev[winnerId] ?? 0) + TRICK_WIN_XP,
-          }));
-        }
-        setShowWinnerBanner(false);
-        setStackCollecting(false);
-        setTrickPauseActive(true);
+    if (len <= (lastTrickLenRef.current || 0)) return;
 
-        if (trickBannerTimerRef.current) {
-          clearTimeout(trickBannerTimerRef.current);
-        }
-        if (trickPauseTimerRef.current) {
-          clearTimeout(trickPauseTimerRef.current);
-        }
-        if (trickCollectTimerRef.current) {
-          clearTimeout(trickCollectTimerRef.current);
-        }
+    lastTrickLenRef.current = len;
 
-        trickCollectTimerRef.current = setTimeout(() => {
-          setStackCollecting(true);
-          trickCollectTimerRef.current = null;
-        }, TRICK_SPREAD_HOLD_MS);
+    const last =
+      state.trickHistory && state.trickHistory[state.trickHistory.length - 1];
+    if (!last?.winnerName) return;
 
-        trickBannerTimerRef.current = setTimeout(() => {
-          setShowWinnerBanner(true);
-          trickBannerTimerRef.current = null;
-        }, TRICK_SPREAD_HOLD_MS + TRICK_STACK_COLLECT_MS);
-
-        trickPauseTimerRef.current = setTimeout(() => {
-          setShowWinnerBanner(false);
-          setStackCollecting(false);
-          setTrickPauseActive(false);
-          setTrickPauseSnapshot(null);
-          setLastTrickWinner(null);
-          trickPauseTimerRef.current = null;
-        }, TRICK_PAUSE_TOTAL_MS);
-      }
-      lastTrickLenRef.current = len;
+    setTrickPauseSnapshot({
+      plays: buildPlaysFromTrick(last),
+      passedPlayerIds: passedIdsFromTrick(last),
+      winnerName: last.winnerName,
+      winnerId: last.winnerId ?? "",
+    });
+    setLastTrickWinner(last.winnerName);
+    const winnerId =
+      last.winnerId ??
+      state.players.find((p) => p.name === last.winnerName)?.id;
+    if (winnerId) {
+      setGameXpByPlayerId((prev) => ({
+        ...prev,
+        [winnerId]: (prev[winnerId] ?? 0) + TRICK_WIN_XP,
+      }));
     }
+    setShowWinnerBanner(false);
+    setStackCollecting(false);
+    setTrickPauseActive(true);
+  }, [state]);
+
+  // Trick-end animation timers (collect → banner → resume).
+  useEffect(() => {
+    if (!trickPauseActive) return;
+
+    if (trickBannerTimerRef.current) {
+      clearTimeout(trickBannerTimerRef.current);
+    }
+    if (trickPauseTimerRef.current) {
+      clearTimeout(trickPauseTimerRef.current);
+    }
+    if (trickCollectTimerRef.current) {
+      clearTimeout(trickCollectTimerRef.current);
+    }
+
+    trickCollectTimerRef.current = setTimeout(() => {
+      setStackCollecting(true);
+      trickCollectTimerRef.current = null;
+    }, TRICK_SPREAD_HOLD_MS);
+
+    trickBannerTimerRef.current = setTimeout(() => {
+      setShowWinnerBanner(true);
+      trickBannerTimerRef.current = null;
+    }, TRICK_SPREAD_HOLD_MS + TRICK_STACK_COLLECT_MS);
+
+    trickPauseTimerRef.current = setTimeout(() => {
+      setShowWinnerBanner(false);
+      setStackCollecting(false);
+      setTrickPauseActive(false);
+      setTrickPauseSnapshot(null);
+      setLastTrickWinner(null);
+      trickPauseTimerRef.current = null;
+    }, TRICK_PAUSE_TOTAL_MS);
+
+    return () => {
+      if (trickCollectTimerRef.current) {
+        clearTimeout(trickCollectTimerRef.current);
+        trickCollectTimerRef.current = null;
+      }
+      if (trickBannerTimerRef.current) {
+        clearTimeout(trickBannerTimerRef.current);
+        trickBannerTimerRef.current = null;
+      }
+      if (trickPauseTimerRef.current) {
+        clearTimeout(trickPauseTimerRef.current);
+        trickPauseTimerRef.current = null;
+      }
+    };
+  }, [trickPauseActive]);
+
+  useEffect(() => {
+    if (!state) return;
     const allPlayersFinished =
       isRoundCompleteForLiving(state) && !state.tenRulePending;
     if (allPlayersFinished && !roundOver) {
@@ -1555,15 +1587,21 @@ function GameScreen({
       const nextState = passTurn(state, current.id);
       if (
         nextState.currentPlayerIndex !== state.currentPlayerIndex ||
-        nextState.finishedOrder.length !== state.finishedOrder.length
+        nextState.finishedOrder.length !== state.finishedOrder.length ||
+        (nextState.trickHistory?.length ?? 0) !== (state.trickHistory?.length ?? 0)
       ) {
         setState(nextState);
       }
       return;
     }
 
+    const isRunOnTopTurn =
+      !!state.runOnTop?.active &&
+      state.runOnTop.playerIndex === state.currentPlayerIndex;
+
     // If current player has already passed in this trick, auto-advance to next player
-    if (hasPassedInCurrentTrick(state, current.id)) {
+    // (never skip the run/10-rule on-top beat — that is a fresh must-play turn).
+    if (hasPassedInCurrentTrick(state, current.id) && !isRunOnTopTurn) {
       const nextState = passTurn(state, current.id);
       emitDebug("action:pass:auto:already-passed", {
         playerId: current.id,
@@ -1573,6 +1611,11 @@ function GameScreen({
       });
       if (nextState !== state) {
         setState(nextState);
+      } else if (
+        nextState.currentPlayerIndex !== state.currentPlayerIndex ||
+        (nextState.trickHistory?.length ?? 0) !== (state.trickHistory?.length ?? 0)
+      ) {
+        setState({ ...nextState });
       }
       return;
     }
@@ -1593,12 +1636,20 @@ function GameScreen({
     const playerName = current.name;
     const timer = setTimeout(() => {
       const live = stateRef.current;
-      if (!live || trickPauseActive || gameplayLockedRef.current || roundOverRef.current) return;
+      if (!live || trickPauseActiveRef.current || gameplayLockedRef.current || roundOverRef.current) return;
       const liveCurrent = live.players[live.currentPlayerIndex];
       if (!liveCurrent || liveCurrent.id !== playerId) return;
 
       const nextState = applyCpuTurn(live, playerId);
       if (nextState === live) {
+        // Trick finalization used to mutate state in-place without a new reference,
+        // leaving React (and this timer) on a stale turn. Force a refresh so the
+        // winner's opening lead runs on the next effect pass.
+        const currentPlayer = live.players[live.currentPlayerIndex];
+        if (currentPlayer && currentPlayer.id !== playerId) {
+          setState({ ...live });
+          return;
+        }
         emitDebug("action:cpu:stuck", {
           playerId,
           playerName,
@@ -2046,6 +2097,11 @@ function GameScreenBoard() {
   }
 
   const selectedCards = selected.map((index) => hand[index]).filter(Boolean);
+  const runOnTopActive =
+    !!state.runOnTop?.active &&
+    state.runOnTop.playerIndex === state.currentPlayerIndex;
+  const humanRunOnTopTurn = runOnTopActive && currentIsLocalHuman;
+
   const selectedCanPlay =
     selectedCards.length > 0 &&
     isValidPlay(
@@ -2060,11 +2116,8 @@ function GameScreenBoard() {
       state.finishedOrder,
       state.lastRoundOrder,
       current.id,
+      runOnTopActive,
     );
-
-  const runOnTopActive =
-    !!state.runOnTop?.active &&
-    state.runOnTop.playerIndex === state.currentPlayerIndex;
 
   const playableIndices = hand.map((card) =>
     canCardBePlayedAtAll(
@@ -2091,11 +2144,7 @@ function GameScreenBoard() {
     !hasAnyValidPlay &&
     !hasPassedInCurrentTrick(state, current.id);
 
-  const isOpeningLead =
-    state.pile.length === 0 &&
-    (!state.pileHistory || state.pileHistory.length === 0) &&
-    (!state.trickHistory || state.trickHistory.length === 0) &&
-    (!state.currentTrick || state.currentTrick.actions.length === 0);
+  const isOpeningLead = isRoundOpeningLead(state);
 
   const startingCardIndex =
     revealTurnHighlight &&
@@ -2107,7 +2156,10 @@ function GameScreenBoard() {
       : -1;
 
   const mustLeadOpening =
-    !!state.mustPlay && isOpeningLead && isHumanTurn && !roundOver;
+    !!state.mustPlay &&
+    isTrickOpeningLead(state) &&
+    isHumanTurn &&
+    !roundOver;
 
   const handleCardPress = (idx: number) => {
     if (trickPauseActive || roundOver || readOnlyGame) return;
@@ -2221,17 +2273,14 @@ function GameScreenBoard() {
         after: snapshotState(next),
       });
       setSelected([]);
+      setState(next);
       if (onlineMultiplayer) {
         broadcastGameAction({
           type: "play",
           playerId: actor.id,
           cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
         });
-        if (next.tenRulePending) {
-          setState(next);
-        }
       } else {
-        setState(next);
         broadcastGameAction({
           type: "play",
           playerId: actor.id,
@@ -2270,13 +2319,13 @@ function GameScreenBoard() {
         playerName: actor.name,
         after: snapshotState(next),
       });
+      setState(next);
       if (onlineMultiplayer) {
         broadcastGameAction({
           type: "pass",
           playerId: actor.id,
         });
       } else {
-        setState(next);
         broadcastGameAction({
           type: "pass",
           playerId: actor.id,
@@ -2303,24 +2352,13 @@ function GameScreenBoard() {
   const contentTopPadding = insets.top + 8;
   const trickPlays = buildTrickPlayDisplays(state);
   const activeLastPlayId = lastPlayPlayerId(state);
-  const trickHistoryLen = state.trickHistory?.length ?? 0;
-  /** Covers the frame before useEffect commits trickPauseSnapshot after a trick ends. */
-  const pendingPauseTrick =
-    !trickPauseActive &&
-    trickHistoryLen > (lastTrickLenRef.current || 0) &&
-    trickHistoryLen > 0
-      ? state.trickHistory![trickHistoryLen - 1]
-      : null;
 
   const displayPlays: TrickPlayDisplay[] =
     trickPauseActive && trickPauseSnapshot
       ? trickPauseSnapshot.plays
-      : pendingPauseTrick
-        ? buildPlaysFromTrick(pendingPauseTrick)
-        : trickPlays;
+      : trickPlays;
 
-  const trickPauseFrozen =
-    trickPauseActive || pendingPauseTrick != null;
+  const trickPauseFrozen = trickPauseActive;
 
   const opponentPlayers = state.players
     .filter((p) => p.id !== humanPlayer?.id)
@@ -2346,9 +2384,7 @@ function GameScreenBoard() {
   const displayPassedPlayerIds =
     trickPauseFrozen && trickPauseSnapshot
       ? trickPauseSnapshot.passedPlayerIds
-      : pendingPauseTrick
-        ? passedIdsFromTrick(pendingPauseTrick)
-        : passedPlayerIds;
+      : passedPlayerIds;
 
   const trickWinnerPlayerId =
     showWinnerBanner && trickPauseSnapshot?.winnerId
@@ -2488,11 +2524,19 @@ function GameScreenBoard() {
     });
   }
 
-  // Add active 10 rule status
+  // Add active 10 rule status (never while a run is active — tens don't govern runs)
+  const runContextForLog = resolveRunContext(
+    state.pile,
+    state.pileHistory,
+    state.currentTrick,
+    state.players,
+    state.finishedOrder || [],
+  );
   if (
     state.tenRule?.active &&
     state.tenRule.direction &&
-    !state.tenRulePending
+    !state.tenRulePending &&
+    !runContextForLog.inRunContext
   ) {
     fullGameLog.push({
       text: `[10 Rule: ${state.tenRule.direction.toUpperCase()} active]`,
@@ -2520,49 +2564,22 @@ function GameScreenBoard() {
     // If a 10 was just played and direction is pending
     if (state.tenRulePending) return "10 - Choose!";
 
-    // If a ten-rule is active with a direction
-    if (state.tenRule?.active && state.tenRule.direction) {
-      const dir =
-        state.tenRule.direction === "higher"
-          ? "Higher"
-          : state.tenRule.direction === "lower"
-            ? "Lower"
-            : state.tenRule.direction;
-      return `10 - ${dir}!`;
-    }
-
     // If pile is empty, nothing to show
     if (!state.pile || state.pile.length === 0) return null;
 
     // Joker detection
     if (state.pile.some((c) => isJoker(c))) return "Joker!";
 
-    // Determine if the active pile is a run. Use the engine helpers so we
-    // recognize runs formed across recent single-card plays in the current
-    // trick (runFromCurrentTrick) or via pileHistory (effectivePile).
-    let eff = effectivePile(state.pile, state.pileHistory);
-    const trickRunInfo = runFromCurrentTrickInfo(
+    // Runs take precedence over the 10 rule — tens never govern active runs.
+    const { inRunContext, runMultiplicity } = resolveRunContext(
+      state.pile,
+      state.pileHistory,
       state.currentTrick,
       state.players,
       state.finishedOrder || [],
     );
-    // If the trick-level run detector found a run, use its representative cards
-    // for display and use the multiplicity it detected.
-    let runMultiplicity = 1;
-    if (trickRunInfo && trickRunInfo.repCards && trickRunInfo.repCards.length >= 3) {
-      eff = trickRunInfo.repCards;
-      runMultiplicity = trickRunInfo.multiplicity || 1;
-    }
-    if (eff && eff.length >= 3 && isRunContextSequence(eff)) {
-      // Determine multiplicity m for the run and render as a modifier
-      const m = runMultiplicity || (() => {
-        const freq: Record<number, number> = {};
-        eff.forEach((c) => {
-          freq[c.value] = (freq[c.value] || 0) + 1;
-        });
-        const uniqLen = Object.keys(freq).length;
-        return Math.max(1, Math.floor(eff.length / Math.max(1, uniqLen)));
-      })();
+    if (inRunContext) {
+      const m = runMultiplicity;
       const kind =
         m === 1
           ? "Singles"
@@ -2574,6 +2591,17 @@ function GameScreenBoard() {
                 ? "Quads"
                 : `${m}x`;
       return `${kind} - Runs!`;
+    }
+
+    // If a ten-rule is active with a direction (only when not in a run)
+    if (state.tenRule?.active && state.tenRule.direction) {
+      const dir =
+        state.tenRule.direction === "higher"
+          ? "Higher"
+          : state.tenRule.direction === "lower"
+            ? "Lower"
+            : state.tenRule.direction;
+      return `10 - ${dir}!`;
     }
 
     if (state.pile.some((c) => c.value === 15 || c.value === 2)) return "2!";
@@ -2889,7 +2917,7 @@ function GameScreenBoard() {
             onPlay={handlePlayPress}
             onPass={handlePassPress}
             onQuit={requestLeaveGame}
-            playDisabled={gameplayLocked || !isHumanTurn || roundOver || hasPassedInCurrentTrick(state, current.id) || selected.length === 0 || !selectedCanPlay}
+            playDisabled={gameplayLocked || !isHumanTurn || roundOver || (hasPassedInCurrentTrick(state, current.id) && !humanRunOnTopTurn) || selected.length === 0 || !selectedCanPlay}
             passDisabled={gameplayLocked || !isHumanTurn || roundOver || mustLeadOpening}
             isPlayerTurn={isHumanTurn && !roundOver && !gameplayLocked}
             noValidPlays={noValidPlays}

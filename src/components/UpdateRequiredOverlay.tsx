@@ -4,9 +4,8 @@ import FullscreenBlurScrim from "./FullscreenBlurScrim";
 import BlurPanel from "./BlurPanel";
 import { useAppTheme } from "../context/ThemeContext";
 import {
-  APP_VERSION,
-  resolveClientBuildId,
   formatBuildLabel,
+  resolveClientBuildLabel,
   type BuildVersionInfo,
 } from "../config/buildVersion";
 import { applyBuildUpdate } from "../services/buildUpdateCheck";
@@ -20,10 +19,7 @@ export default function UpdateRequiredOverlay({ latestBuild, onDismiss }: Props)
   const { colors, ui, blur } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const currentLabel = formatBuildLabel({
-    version: APP_VERSION,
-    buildId: resolveClientBuildId(),
-  });
+  const currentLabel = resolveClientBuildLabel();
   const latestLabel = formatBuildLabel(latestBuild);
 
   return (

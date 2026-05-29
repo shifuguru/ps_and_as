@@ -44,12 +44,18 @@ function runtimeBuild(): RuntimeBuild | null {
   }
 }
 
-/** Semantic app version from package.json / app.json. */
-export const APP_VERSION =
-  process.env.EXPO_PUBLIC_APP_VERSION?.trim() ||
-  readExtraBuild()?.version ||
-  runtimeBuild()?.version ||
-  "0.0.0";
+/** Semantic app version from package.json / app.json (resolved lazily). */
+export function resolveAppVersion(): string {
+  return (
+    runtimeBuild()?.version?.trim() ||
+    readExtraBuild()?.version?.trim() ||
+    process.env.EXPO_PUBLIC_APP_VERSION?.trim() ||
+    "1.0.0"
+  );
+}
+
+/** @deprecated Prefer `resolveAppVersion()` — constant may be stale if read before HTML inject. */
+export const APP_VERSION = resolveAppVersion();
 
 /** Resolve build id — on web prefer the baked bundle id so stale cached JS still compares correctly against version.json. */
 export function resolveClientBuildId(): string {
@@ -57,9 +63,32 @@ export function resolveClientBuildId(): string {
   const env = process.env.EXPO_PUBLIC_BUILD_ID?.trim();
   const extra = readExtraBuild()?.buildId?.trim();
   if (Platform.OS === "web") {
-    return env || runtime || (__DEV__ ? "dev" : "unknown");
+    return env || extra || runtime || (__DEV__ ? "dev" : "unknown");
   }
   return env || extra || runtime || (__DEV__ ? "dev" : "unknown");
+}
+
+/** Build id for UI labels — prefer runtime HTML inject (matches version.json on deploy). */
+function resolveDisplayBuildId(): string {
+  const runtime = runtimeBuild()?.buildId?.trim();
+  const env = process.env.EXPO_PUBLIC_BUILD_ID?.trim();
+  const extra = readExtraBuild()?.buildId?.trim();
+  if (Platform.OS === "web") {
+    return runtime || env || extra || resolveClientBuildId();
+  }
+  return env || extra || runtime || resolveClientBuildId();
+}
+
+/** Build metadata for UI labels (main menu, update overlay "Your build"). */
+export function resolveClientBuildInfo(): BuildVersionInfo {
+  return {
+    version: resolveAppVersion(),
+    buildId: resolveDisplayBuildId(),
+  };
+}
+
+export function resolveClientBuildLabel(): string {
+  return formatBuildLabel(resolveClientBuildInfo());
 }
 
 /**
@@ -77,8 +106,11 @@ export function isTrackableBuild(): boolean {
 }
 
 export function formatBuildLabel(info?: BuildVersionInfo | null): string {
-  if (!info) return APP_VERSION;
-  const shortId =
-    info.buildId.length > 8 ? info.buildId.slice(0, 7) : info.buildId;
+  if (!info) return resolveAppVersion();
+  const id = info.buildId?.trim();
+  if (!id || id === "dev" || id === "unknown") {
+    return info.version;
+  }
+  const shortId = id.length > 8 ? id.slice(0, 7) : id;
   return `${info.version} (${shortId})`;
 }

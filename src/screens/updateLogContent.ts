@@ -20,6 +20,18 @@ export { formatUpdateTimestamp } from "../utils/formatLocalDateTime";
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: "2026-05-30T06:00:00.000Z",
+    title: "Runs, turn flow & build label",
+    items: [
+      "Runs — extensions must follow the same direction (ascending or descending); \"Runs!\" no longer drops mid-trick when someone plays the wrong adjacent rank",
+      "Stuck turns — fixed games freezing after trick wins and on-top! passes in CPU and online play",
+      "On top! — a run beat with no valid follow-up now closes the trick correctly; 10-rule clears when you extend an active run",
+      "Online lobby — all guests must ready up before the host can start (not just one)",
+      "Main menu — build version label under the title (same git id as the update refresh prompt)",
+      "Trick table — played cards reset cleanly between tricks instead of staying bunched",
+    ],
+  },
+  {
     publishedAt: "2026-05-29T22:00:00.000Z",
     title: "On top! & quad fixes",
     items: [
@@ -180,6 +192,18 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
 ];
 
 export const KNOWN_ISSUES: KnownIssue[] = [
+  {
+    title: "Game stuck after a trick win",
+    status: "Fix shipped",
+    updatedAt: "2026-05-30T06:00:00.000Z",
+    note: "Turns should advance correctly after someone wins a trick or passes on an on-top! beat. Hard-refresh the web app if you still see a frozen table.",
+  },
+  {
+    title: "Runs resetting mid-trick",
+    status: "Fix shipped",
+    updatedAt: "2026-05-30T06:00:00.000Z",
+    note: "Run context should stay active until the trick ends. Tell us if \"Runs!\" still flickers off while consecutive play is in progress.",
+  },
   {
     title: "Shuffle animation on mobile",
     status: "Fix shipped",

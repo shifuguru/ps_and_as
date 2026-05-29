@@ -143,6 +143,19 @@ assert.strictEqual(
   "9 should NOT be allowed on 10 when only 9-10 played — not yet a run"
 );
 
+// Non-adjacent beats must not slip through via 10-rule / beat-the-pile during a run
+assert.strictEqual(
+  isValidPlay(
+    [{ suit: "spades", value: 12 }],
+    [ten],
+    tenRuleHigher,
+    history78910,
+    [{ trickNumber: 0, actions: [] }],
+  ),
+  false,
+  "Queen cannot beat 10 via 10-rule when 7-8-9-10 is an active run",
+);
+
 // K-A-2 consecutive singles form a run; Ace is valid adjacency on 2
 const ka2King: Card = { suit: "hearts", value: 13 };
 const ka2Ace: Card = { suit: "diamonds", value: 14 };
@@ -681,11 +694,12 @@ function makeEmptyGame(names: string[]): GameState {
   const three: Card = { suit: "clubs", value: 3 };
   const four: Card = { suit: "hearts", value: 4 };
   const five: Card = { suit: "diamonds", value: 5 };
+  const six: Card = { suit: "hearts", value: 6 };
   const seven: Card = { suit: "spades", value: 7 };
 
   g.players[0].hand = [three, { suit: "spades", value: 8 }];
   g.players[1].hand = [four, { suit: "clubs", value: 9 }];
-  g.players[2].hand = [five, seven];
+  g.players[2].hand = [five, six, seven];
   g.players[3].hand = [{ suit: "diamonds", value: 6 }];
   g.currentPlayerIndex = 0;
 
@@ -740,7 +754,11 @@ function makeEmptyGame(names: string[]): GameState {
 
   s = playCards(s, "3", [six]);
   assert.ok(!s.runOnTop?.active, "On top! clears after a play");
-  assert.strictEqual(s.pile[0].value, 6, "On top! play replaces the pile");
+  assert.strictEqual(s.pile.length, 0, "On top! play clears the table");
+  assert.strictEqual(s.trickHistory?.length, 1);
+  assert.strictEqual(s.trickHistory?.[0]?.winnerId, "3", "On-top play winner is last player who played");
+  assert.strictEqual(s.players[s.currentPlayerIndex].id, "3");
+  assert.strictEqual(s.mustPlay, true, "On-top winner leads the next trick");
 }
 
 {
@@ -772,6 +790,37 @@ function makeEmptyGame(names: string[]): GameState {
   assert.ok(!s.runOnTop?.active, "Passing on top! clears the state");
   assert.strictEqual(s.pile.length, 0, "Trick clears when leader passes on top!");
   assert.strictEqual((s.trickHistory?.length ?? 0), 1, "Trick should be recorded");
+  assert.strictEqual(s.trickHistory?.[0]?.winnerId, "3", "On-top pass winner is last player who played");
+}
+
+{
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+
+  const three: Card = { suit: "clubs", value: 3 };
+  const four: Card = { suit: "hearts", value: 4 };
+  const five: Card = { suit: "diamonds", value: 5 };
+
+  g.players[0].hand = [three, { suit: "spades", value: 8 }];
+  g.players[1].hand = [four, { suit: "clubs", value: 9 }];
+  g.players[2].hand = [five];
+  g.players[3].hand = [{ suit: "diamonds", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [three]);
+  s = playCards(s, "2", [four]);
+  s = playCards(s, "3", [five]);
+  s = passTurn(s, "4");
+  s = passTurn(s, "1");
+  s = passTurn(s, "2");
+
+  assert.ok(!s.runOnTop?.active, "No on-top when run leader is out of cards");
+  assert.strictEqual(s.pile.length, 0, "Trick clears when out-of-cards leader would get on top");
+  assert.strictEqual(s.trickHistory?.[0]?.winnerId, "3", "Last player who played wins the trick");
 }
 
 // --- Double 10s "on top!" when everyone else passes ---
@@ -792,7 +841,7 @@ function makeEmptyGame(names: string[]): GameState {
   g.mustPlay = false;
   g.lastRoundOrder = ["1", "2", "3", "4"];
 
-  g.players[0].hand = [tenH, tenD, jackH, jackD];
+  g.players[0].hand = [tenH, tenD, jackH, jackD, { suit: "clubs", value: 3 }];
   g.players[1].hand = [{ suit: "clubs", value: 3 }];
   g.players[2].hand = [{ suit: "spades", value: 4 }];
   g.players[3].hand = [{ suit: "clubs", value: 5 }];
@@ -845,7 +894,10 @@ function makeEmptyGame(names: string[]): GameState {
 
   s = playCards(s, "1", [jackH, jackD]);
   assert.ok(!s.runOnTop?.active);
-  assert.strictEqual(s.pile[0].value, 11);
+  assert.strictEqual(s.pile.length, 0, "On top! play clears the table");
+  assert.strictEqual(s.trickHistory?.length, 1);
+  assert.strictEqual(s.players[s.currentPlayerIndex].id, "1");
+  assert.strictEqual(s.mustPlay, true);
 }
 
 {
@@ -970,6 +1022,7 @@ function makeEmptyGame(names: string[]): GameState {
   s = passTurn(s, "1");
   assert.strictEqual(s.pile.length, 0, "Leader wins trick after passing on top!");
   assert.strictEqual((s.trickHistory?.length ?? 0), 1);
+  assert.strictEqual(s.trickHistory?.[0]?.winnerId, "1", "10-rule on-top pass winner is last player who played");
 }
 
 console.log("Pass-lock and 8-player tests passed");
