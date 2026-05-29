@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>P's &amp; A's</title>
+    <script>
+      (function () {
+        var path = location.pathname || "";
+        var base = path.indexOf("/ps_and_as") >= 0 ? "/ps_and_as" : "";
+        var fallback = base + "/readme-fallback.html?_=" + Date.now();
+        var appRoot = base + "/";
+
+        function toReadme() {
+          location.replace(fallback);
+        }
+
+        function toApp() {
+          var qs = location.search || "";
+          location.replace(appRoot + qs);
+        }
+
+        fetch(base + "/version.json", { cache: "no-store" })
+          .then(function (res) {
+            if (!res.ok) {
+              toReadme();
+              return;
+            }
+            if (path === appRoot || path === base) {
+              toApp();
+              return;
+            }
+            toApp();
+          })
+          .catch(toReadme);
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Loading…</p>
+  </body>
+</html>

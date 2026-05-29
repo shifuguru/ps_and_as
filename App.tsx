@@ -70,6 +70,14 @@ function AppContent() {
     string | null
   >(null);
 
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const cancel = (globalThis as {
+      __PS_AND_AS_CANCEL_BOOT_GUARD__?: () => void;
+    }).__PS_AND_AS_CANCEL_BOOT_GUARD__;
+    cancel?.();
+  }, []);
+
   const { updateAvailable, latestBuild } = useBuildUpdateCheck(
     !splashVisible,
     roomAdapter,

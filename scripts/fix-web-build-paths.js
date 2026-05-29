@@ -212,6 +212,40 @@ function writeVersionJson(meta) {
   console.log(`Wrote version.json (${meta.version}, ${meta.buildId})`);
 }
 
+function injectBootGuard(html) {
+  const script = `<script>
+(function(){
+  var base=${JSON.stringify(basePath)};
+  var fallback=base+"/readme-fallback.html";
+  function toFallback(){location.replace(fallback+"?_="+Date.now());}
+  window.addEventListener("error",function(ev){
+    var el=ev.target;
+    if(el&&el.tagName==="SCRIPT"&&el.src) toFallback();
+  },true);
+  var timer=window.setTimeout(function(){
+    var root=document.getElementById("root");
+    if(!root||!root.firstElementChild) toFallback();
+  },20000);
+  window.__PS_AND_AS_CANCEL_BOOT_GUARD__=function(){window.clearTimeout(timer);};
+})();
+</script>`;
+  if (html.includes("__PS_AND_AS_CANCEL_BOOT_GUARD__")) return html;
+  return html.replace("<body>", `<body>\n    ${script}`);
+}
+
+function writePages404() {
+  const src = path.resolve(__dirname, "pages-404.html");
+  if (!fs.existsSync(src)) {
+    console.warn("pages-404.html not found — falling back to index.html for 404");
+    fs.copyFileSync(buildIndex, path.join(buildDir, "404.html"));
+    return;
+  }
+  let html = fs.readFileSync(src, "utf8");
+  html = rewriteHtmlPaths(html);
+  fs.writeFileSync(path.join(buildDir, "404.html"), html, "utf8");
+  console.log("Wrote 404.html (app or readme-fallback router).");
+}
+
 function injectBuildMeta(html, meta) {
   const script = `<script>window.__PS_AND_AS_BUILD__=${JSON.stringify(meta)};</script>`;
   if (html.includes("__PS_AND_AS_BUILD__")) {
@@ -227,6 +261,7 @@ let html = fs.readFileSync(buildIndex, "utf8");
 const buildMeta = resolveBuildMeta();
 html = injectServerUrl(html);
 html = injectBuildMeta(html, buildMeta);
+html = injectBootGuard(html);
 html = rewriteHtmlPaths(html);
 html = patchViewport(html);
 fs.writeFileSync(buildIndex, html, "utf8");
@@ -242,8 +277,8 @@ if (fs.existsSync(shellCssSrc)) {
 writeWebManifest();
 writeVersionJson(buildMeta);
 
-// GitHub Pages serves 404.html for unknown routes — copy for SPA deep links.
-fs.copyFileSync(buildIndex, path.join(buildDir, '404.html'));
+// GitHub Pages 404 — route to app when live, readme-fallback while updating.
+writePages404();
 
 // README fallback — real repo README.md (not a hand-written copy).
 const readmeSrc = path.resolve(__dirname, '..', 'README.md');

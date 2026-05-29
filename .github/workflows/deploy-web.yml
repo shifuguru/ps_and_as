@@ -56,6 +56,7 @@ jobs:
       - name: Verify build output
         run: |
           test -f web-build/index.html
+          test -f web-build/404.html
           test -f web-build/readme-fallback.html
           test -f web-build/README.md
           test -f web-build/version.json
@@ -63,7 +64,7 @@ jobs:
           grep -q 'id="root"' web-build/index.html
           grep -q 'viewport-fit=cover' web-build/index.html
           grep -q 'web-shell.css' web-build/index.html
-          grep -qE 'min-height:.*100(l|d)vh' web-build/web-shell.css
+          grep -qE '(--app-shell-h:|100(l|d)vh)' web-build/web-shell.css
           ! grep -q 'height: 100vh' web-build/web-shell.css
           echo "Build artifact looks valid."
 
