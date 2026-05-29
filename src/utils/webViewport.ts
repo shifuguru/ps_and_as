@@ -18,6 +18,8 @@ type WebWindow = {
 
 const WEB_KEYBOARD_GAP_THRESHOLD = 120;
 export const APP_SHELL_HEIGHT_VAR = "--app-shell-h";
+/** Alias used by early boot script and docs; same value as --app-shell-h. */
+export const APP_HEIGHT_VAR = "--app-height";
 export const APP_SHELL_TOP_VAR = "--app-shell-top";
 export const WEB_SHELL_STYLE_ID = "ps-web-shell";
 export const WEB_BODY_PORTAL_ID = "ps-body-portal";
@@ -165,6 +167,7 @@ function applyShellGeometry(doc: any, heightPx: number, topPx: number): void {
   const top = `${topPx}px`;
 
   doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, h);
+  doc.documentElement.style.setProperty(APP_HEIGHT_VAR, h);
   doc.documentElement.style.setProperty(APP_SHELL_TOP_VAR, top);
 
   const targets = [
@@ -194,51 +197,33 @@ export function keyboardLikelyOpen(win: WebWindow): boolean {
 }
 
 /**
- * Height for the mobile web shell. iOS Safari often reports a shorter 100dvh than
- * window.innerHeight, leaving a theme-color strip below #root — use the layout
- * viewport (innerHeight) when the keyboard is closed.
+ * Height for the mobile web shell. Prefer layout viewport (innerHeight) over dvh —
+ * on iOS Safari/PWA, 100dvh often lags behind chrome expand/collapse and leaves a
+ * theme-color strip below fixed shells and bottom bars.
  */
 export function readWebShellHeight(win: WebWindow): number {
   const vv = win.visualViewport;
-  const layoutH = win.innerHeight ?? 0;
+  const doc = (globalThis as { document?: { documentElement?: { clientHeight?: number } } })
+    .document;
+  const inner = Math.round(win.innerHeight ?? 0);
+  const client = Math.round(doc?.documentElement?.clientHeight ?? 0);
 
   if (vv && keyboardLikelyOpen(win)) {
     return Math.round(vv.height);
   }
 
-  const visualFull = vv
-    ? Math.round(vv.height + (vv.offsetTop ?? 0))
-    : layoutH;
-  const dvh = measureCssLength("height", "100dvh");
-  const svh = measureCssLength("height", "100svh");
-  const lvh = measureCssLength("height", "100lvh");
-  const fillAvail = measureCssLength("height", "-webkit-fill-available");
-  const screen = (globalThis as { screen?: { height?: number; availHeight?: number } }).screen;
-  const screenAvail = screen?.availHeight ?? 0;
-
-  // Prefer the tallest credible device height so fixed shell + felt reach the
-  // physical bottom (home-indicator band) on iOS Safari and standalone PWA.
-  let h = Math.max(
-    layoutH,
-    visualFull,
-    dvh,
-    svh,
-    lvh,
-    fillAvail,
-    screenAvail,
-  );
-
-  // iOS often ends the layout viewport above the home-indicator band; extend the
-  // shell so body/felt/bar meet the physical bottom instead of a theme-color strip.
-  if (Platform.OS === "web" && isMobileWeb()) {
-    const safeBottom = resolveWebBottomInset(readWebSafeAreaInsets().bottom);
-    h = Math.max(h, layoutH + safeBottom);
-  }
+  const h = Math.max(inner, client);
 
   if (Platform.OS === "web") {
     cachedShellHeight = h;
   }
   return h;
+}
+
+/** Top offset for the shell — only when the keyboard is open. */
+export function readWebShellTop(win: WebWindow): number {
+  if (!win.visualViewport || !keyboardLikelyOpen(win)) return 0;
+  return Math.max(0, Math.round(win.visualViewport.offsetTop));
 }
 
 /** Sync html/body/#root/#ps-body-portal/#ps-felt-layer to the visible viewport. */
@@ -249,10 +234,10 @@ export function applyMobileWebShellHeight(win: WebWindow): number {
   if (!doc) return readWebShellHeight(win);
 
   const vv = win.visualViewport;
-  const topPx = vv ? Math.max(0, Math.round(vv.offsetTop)) : 0;
+  const topPx = readWebShellTop(win);
   const h = readWebShellHeight(win);
 
-  applyShellGeometry(doc, h, keyboardLikelyOpen(win) || topPx > 0 ? topPx : 0);
+  applyShellGeometry(doc, h, topPx);
   return h;
 }
 

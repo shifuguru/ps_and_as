@@ -78,6 +78,8 @@ export function readShellLayoutMetrics(): Record<string, unknown> {
 
   const doc = (globalThis as { document?: any }).document;
   const vv = win?.visualViewport;
+  const inner = win?.innerHeight ?? null;
+  const client = doc?.documentElement?.clientHeight ?? null;
   const visualBottom = vv
     ? Math.round((vv.offsetTop ?? 0) + vv.height)
     : win?.innerHeight ?? null;
@@ -88,7 +90,11 @@ export function readShellLayoutMetrics(): Record<string, unknown> {
   const barBottom = bottomBar?.bottom ?? null;
 
   return {
-    viewportHeight: win?.innerHeight ?? null,
+    innerHeight: inner,
+    documentClientHeight: client,
+    innerVsClient:
+      inner != null && client != null ? Math.round(inner - client) : null,
+    viewportHeight: inner,
     viewportWidth: win?.innerWidth ?? null,
     visualViewportBottom: visualBottom,
     screenAvailHeight: g.screen?.availHeight ?? null,

@@ -1,11 +1,12 @@
 /**
  * iOS PWA / mobile Safari shell — loaded LAST in production index.html so it
  * overrides Expo's #expo-reset (height: 100% breaks viewport-fit=cover).
- * Shell height/top are driven by --app-shell-h / --app-shell-top (JS via applyMobileWebShellHeight).
+ * Shell height/top are driven by --app-shell-h / --app-height (JS innerHeight) and --app-shell-top.
  */
 :root {
   --ps-felt-tint: #0f5132;
   --app-shell-h: 100dvh;
+  --app-height: var(--app-shell-h);
   --app-shell-top: 0px;
 }
 
@@ -21,8 +22,8 @@ body {
   overflow: hidden !important;
   overscroll-behavior: none !important;
   touch-action: manipulation !important;
-  height: var(--app-shell-h, 100dvh) !important;
-  max-height: var(--app-shell-h, 100dvh) !important;
+  height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
+  max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
   min-height: 0 !important;
   background-color: var(--ps-felt-tint) !important;
 }
@@ -33,8 +34,8 @@ body {
   left: 0 !important;
   right: 0 !important;
   width: 100% !important;
-  height: var(--app-shell-h, 100dvh) !important;
-  max-height: var(--app-shell-h, 100dvh) !important;
+  height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
+  max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
   min-height: 0 !important;
   z-index: -1 !important;
   pointer-events: none !important;
@@ -64,8 +65,8 @@ body {
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
-  height: var(--app-shell-h, 100dvh) !important;
-  max-height: var(--app-shell-h, 100dvh) !important;
+  height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
+  max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
   min-height: 0 !important;
   background-color: transparent !important;
 }
@@ -76,8 +77,8 @@ body {
   left: 0 !important;
   right: 0 !important;
   width: 100% !important;
-  height: var(--app-shell-h, 100dvh) !important;
-  max-height: var(--app-shell-h, 100dvh) !important;
+  height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
+  max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
   min-height: 0 !important;
   pointer-events: none !important;
   z-index: 50 !important;
@@ -94,8 +95,8 @@ body {
   left: 0 !important;
   right: 0 !important;
   width: 100% !important;
-  height: var(--app-shell-h, 100dvh) !important;
-  max-height: var(--app-shell-h, 100dvh) !important;
+  height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
+  max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
   min-height: 0 !important;
 }
 

@@ -1,5 +1,8 @@
 import { Platform } from "react-native";
-import { WEB_BODY_PORTAL_ID } from "./webViewport";
+import {
+  applyMobileWebShellHeight,
+  WEB_BODY_PORTAL_ID,
+} from "./webViewport";
 
 /** Viewport-fixed host appended to document.body (escapes #root clipping on iOS PWA). */
 export function getWebBodyPortalHost(): any {
@@ -14,5 +17,13 @@ export function getWebBodyPortalHost(): any {
   host = doc.createElement("div");
   host.id = WEB_BODY_PORTAL_ID;
   doc.body.appendChild(host);
+
+  const win = (globalThis as {
+    window?: Parameters<typeof applyMobileWebShellHeight>[0];
+  }).window;
+  if (win) {
+    applyMobileWebShellHeight(win);
+  }
+
   return host;
 }

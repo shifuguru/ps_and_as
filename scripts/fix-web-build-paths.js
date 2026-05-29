@@ -212,6 +212,24 @@ function writeVersionJson(meta) {
   console.log(`Wrote version.json (${meta.version}, ${meta.buildId})`);
 }
 
+function injectEarlyShellHeight(html) {
+  const script = `<script>
+(function(){
+  function sync(){
+    var h=window.innerHeight+"px";
+    var r=document.documentElement.style;
+    r.setProperty("--app-shell-h",h);
+    r.setProperty("--app-height",h);
+  }
+  sync();
+  window.addEventListener("resize",sync);
+  window.addEventListener("orientationchange",sync);
+})();
+</script>`;
+  if (html.includes('setProperty("--app-height"')) return html;
+  return html.replace("<head>", `<head>\n    ${script}`);
+}
+
 function injectBootGuard(html) {
   const script = `<script>
 (function(){
@@ -260,6 +278,7 @@ function injectBuildMeta(html, meta) {
 let html = fs.readFileSync(buildIndex, "utf8");
 const buildMeta = resolveBuildMeta();
 html = injectServerUrl(html);
+html = injectEarlyShellHeight(html);
 html = injectBuildMeta(html, buildMeta);
 html = injectBootGuard(html);
 html = rewriteHtmlPaths(html);

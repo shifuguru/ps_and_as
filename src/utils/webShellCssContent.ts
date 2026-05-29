@@ -4,6 +4,7 @@ export function getWebShellCssText(feltTint: string): string {
     :root {
       --ps-felt-tint: ${feltTint};
       --app-shell-h: 100dvh;
+      --app-height: var(--app-shell-h);
       --app-shell-top: 0px;
     }
     html, body {
@@ -17,8 +18,8 @@ export function getWebShellCssText(feltTint: string): string {
       overflow: hidden !important;
       overscroll-behavior: none !important;
       touch-action: manipulation !important;
-      height: var(--app-shell-h, 100dvh) !important;
-      max-height: var(--app-shell-h, 100dvh) !important;
+      height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
+      max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
       min-height: 0 !important;
       background-color: var(--ps-felt-tint) !important;
     }
@@ -28,8 +29,8 @@ export function getWebShellCssText(feltTint: string): string {
       left: 0 !important;
       right: 0 !important;
       width: 100% !important;
-      height: var(--app-shell-h, 100dvh) !important;
-      max-height: var(--app-shell-h, 100dvh) !important;
+      height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
+      max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
       min-height: 0 !important;
       z-index: -1 !important;
       pointer-events: none !important;
@@ -57,8 +58,8 @@ export function getWebShellCssText(feltTint: string): string {
       margin: 0 !important;
       padding: 0 !important;
       overflow: hidden !important;
-      height: var(--app-shell-h, 100dvh) !important;
-      max-height: var(--app-shell-h, 100dvh) !important;
+      height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
+      max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
       min-height: 0 !important;
       background-color: transparent !important;
     }
@@ -68,8 +69,8 @@ export function getWebShellCssText(feltTint: string): string {
       left: 0 !important;
       right: 0 !important;
       width: 100% !important;
-      height: var(--app-shell-h, 100dvh) !important;
-      max-height: var(--app-shell-h, 100dvh) !important;
+      height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
+      max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
       min-height: 0 !important;
       pointer-events: none !important;
       z-index: 50 !important;
@@ -82,8 +83,8 @@ export function getWebShellCssText(feltTint: string): string {
       left: 0 !important;
       right: 0 !important;
       width: 100% !important;
-      height: var(--app-shell-h, 100dvh) !important;
-      max-height: var(--app-shell-h, 100dvh) !important;
+      height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
+      max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
       min-height: 0 !important;
     }
     .ps-bottom-bar-shell {

@@ -31,7 +31,7 @@ import { DEFAULT_FELT_COLOR, getWallpaperTint } from "./src/services/wallpaper";
 import { openReadmeFallbackPage } from "./src/utils/readmeFallback";
 import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
 import { tryCollapseSafariChrome } from "./src/utils/safariChrome";
-import { useVisualViewportSize } from "./src/hooks/useVisualViewportSize";
+import { useVisualViewportSize, useWebShellLayout } from "./src/hooks/useVisualViewportSize";
 import { isMobileWeb, installWebShellCss } from "./src/utils/webViewport";
 import { useAppFonts } from "./src/hooks/useAppFonts";
 import { useBuildUpdateCheck } from "./src/hooks/useBuildUpdateCheck";
@@ -42,6 +42,7 @@ import { StatusBar } from "expo-status-bar";
 function AppContent() {
   const { colors, ui, blur, feltTint, setFeltTint, refreshFeltTint } = useAppTheme();
   const viewport = useVisualViewportSize();
+  const shell = useWebShellLayout();
   // splashVisible: whether the splash overlay is still mounted
   // menuVisible: whether the main menu should be shown (after splash fully hidden)
   const [splashVisible, setSplashVisible] = useState(true);
@@ -546,12 +547,12 @@ function AppContent() {
           (isMobileWeb()
             ? ({
                 position: "fixed",
-                top: 0,
+                top: shell.shellTop,
                 left: 0,
                 right: 0,
                 width: "100%",
-                height: viewport.height,
-                maxHeight: viewport.height,
+                height: shell.height,
+                maxHeight: shell.height,
                 overflow: "hidden",
               } as object)
             : {
@@ -945,8 +946,8 @@ const appStyles = StyleSheet.create({
   webFontBoot: {
     position: "fixed",
     inset: 0,
-    minHeight: "100dvh",
     width: "100%",
+    height: "100%",
   } as object,
   appContent: {
     flex: 1,

@@ -4,6 +4,7 @@ import {
   isMobileWeb,
   keyboardLikelyOpen,
   readWebShellHeight,
+  readWebShellTop,
 } from "../utils/webViewport";
 
 type WebWindow = {
@@ -92,4 +93,43 @@ export function useVisualViewportSize(): ScaledSize {
   }, [windowDims.width, windowDims.height]);
 
   return Platform.OS === "web" ? size : windowDims;
+}
+
+/** Mobile web layout box aligned with html/body/#root shell geometry. */
+export function useWebShellLayout(): {
+  width: number;
+  height: number;
+  shellTop: number;
+} {
+  const size = useVisualViewportSize();
+  const [shellTop, setShellTop] = useState(0);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || !isMobileWeb()) {
+      setShellTop(0);
+      return;
+    }
+    const win = (globalThis as { window?: WebWindow }).window;
+    if (!win) return;
+
+    const syncTop = () => {
+      const next = readWebShellTop(win);
+      setShellTop((prev) => (prev === next ? prev : next));
+    };
+
+    syncTop();
+    const vv = win.visualViewport;
+    vv?.addEventListener("resize", syncTop);
+    vv?.addEventListener("scroll", syncTop);
+    win.addEventListener("resize", syncTop);
+    win.addEventListener("orientationchange", syncTop);
+    return () => {
+      vv?.removeEventListener("resize", syncTop);
+      vv?.removeEventListener("scroll", syncTop);
+      win.removeEventListener("resize", syncTop);
+      win.removeEventListener("orientationchange", syncTop);
+    };
+  }, [size.height]);
+
+  return { width: size.width, height: size.height, shellTop };
 }
