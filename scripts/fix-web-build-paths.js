@@ -216,7 +216,10 @@ function injectEarlyShellHeight(html) {
   const script = `<script>
 (function(){
   function sync(){
-    var h=window.innerHeight+"px";
+    var vv=window.visualViewport;
+    var h=Math.max(window.innerHeight,document.documentElement.clientHeight||0);
+    if(vv) h=Math.max(h,Math.round(vv.height+(vv.offsetTop||0)));
+    h=h+"px";
     var r=document.documentElement.style;
     r.setProperty("--app-shell-h",h);
     r.setProperty("--app-height",h);
@@ -224,6 +227,7 @@ function injectEarlyShellHeight(html) {
   sync();
   window.addEventListener("resize",sync);
   window.addEventListener("orientationchange",sync);
+  window.visualViewport?.addEventListener("resize",sync);
 })();
 </script>`;
   if (html.includes('setProperty("--app-height"')) return html;

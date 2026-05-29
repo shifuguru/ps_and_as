@@ -42,7 +42,8 @@ function useWebBottomBarShell(): boolean {
 /** Inner padding below controls inside the bar shell (above home indicator). */
 export function bottomContentInset(safeBottom = 0): number {
   if (Platform.OS === "web" && isMobileWeb()) {
-    return CONTENT_MARGIN + resolveWebBottomInset(safeBottom);
+    // Home-indicator inset is on .ps-bottom-bar-shell via CSS env(safe-area-inset-bottom).
+    return CONTENT_MARGIN;
   }
   const chrome = resolveWebBottomInset(safeBottom);
   if (Platform.OS === "ios") {
@@ -106,11 +107,8 @@ export default function BottomBar({
   const { colors, blur } = useAppTheme();
   const insets = useLayoutInsets();
   const contentInset = bottomContentInset(insets.bottom);
-  const safeAreaBand = resolveWebBottomInset(insets.bottom);
   const webShell = useWebBottomBarShell();
   const portalHost = webShell ? getWebBodyPortalHost() : null;
-  const scrimRgb = colors.mode === "light" ? "255, 255, 255" : "8, 28, 18";
-  const safeAreaFill = `rgba(${scrimRgb}, ${blur.chrome.webOpacity})`;
 
   const bar = (
     <BlurPanel
@@ -121,21 +119,15 @@ export default function BottomBar({
         style,
         minHeight ? { minHeight } : undefined,
         webShell ? (styles.webShell as object) : null,
+        !webShell && insets.bottom > 0
+          ? { paddingBottom: insets.bottom }
+          : null,
       ]}
       preset={blur.chrome}
     >
       <View style={[styles.inner, { paddingBottom: contentInset }]}>
         {children}
       </View>
-      {webShell && safeAreaBand > 0 ? (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.safeAreaCap,
-            { height: safeAreaBand, backgroundColor: safeAreaFill },
-          ]}
-        />
-      ) : null}
     </BlurPanel>
   );
 
@@ -241,13 +233,6 @@ const styles = StyleSheet.create({
   } as object,
   inner: {
     width: "100%",
-  },
-  safeAreaCap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 2,
   },
   handZone: {
     width: "100%",

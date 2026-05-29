@@ -100,11 +100,13 @@ body {
   min-height: 0 !important;
 }
 
-/* Bottom bar: body portal positions at viewport bottom; safe-area on inner wrapper */
+/* Bottom bar: portal shell sits flush to viewport bottom; safe area via env() */
 .ps-bottom-bar-shell {
   position: absolute !important;
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
   box-sizing: border-box !important;
+  padding-bottom: constant(safe-area-inset-bottom) !important;
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
 }

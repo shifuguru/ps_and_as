@@ -142,8 +142,8 @@ export function resolveWebBottomInset(measured = 0): number {
   if (Platform.OS !== "web") return Math.max(0, measured);
   const n = Math.max(0, measured);
   if (n > 0) return n;
+  // Standalone PWA only — Safari tab should use 0 when env() reads 0 (no fake band).
   if (isStandaloneWebApp() && isMobileWeb()) return IOS_HOME_INDICATOR_FALLBACK;
-  if (isMobileWeb()) return 20;
   return 0;
 }
 
@@ -212,7 +212,10 @@ export function readWebShellHeight(win: WebWindow): number {
     return Math.round(vv.height);
   }
 
-  const h = Math.max(inner, client);
+  const visualBottom = vv
+    ? Math.round(vv.height + (vv.offsetTop ?? 0))
+    : 0;
+  const h = Math.max(inner, client, visualBottom);
 
   if (Platform.OS === "web") {
     cachedShellHeight = h;

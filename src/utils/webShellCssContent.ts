@@ -93,6 +93,8 @@ export function getWebShellCssText(feltTint: string): string {
       right: 0 !important;
       bottom: 0 !important;
       box-sizing: border-box !important;
+      padding-bottom: constant(safe-area-inset-bottom) !important;
+      padding-bottom: env(safe-area-inset-bottom, 0px) !important;
     }
   `;
 }
