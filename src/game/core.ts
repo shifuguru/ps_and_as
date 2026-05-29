@@ -78,13 +78,14 @@ export function isDoubleTensPile(pile: Card[]): boolean {
   );
 }
 
-/** Pile contexts where the leader gets an on-top! beat before the trick clears. */
+/** Pile contexts where the leader gets an on-top! turn before the trick clears. */
 export function isOnTopEligiblePile(
   pile: Card[],
   pileHistory?: Card[][],
   currentTrick?: TrickHistory,
   players?: Player[],
   finishedOrder: string[] = [],
+  tenRule?: { active: boolean; direction: "higher" | "lower" | null },
 ): boolean {
   const { inRunContext } = resolveRunContext(
     pile,
@@ -93,7 +94,8 @@ export function isOnTopEligiblePile(
     players,
     finishedOrder,
   );
-  return inRunContext || isDoubleTensPile(pile);
+  if (inRunContext) return true;
+  return !!(tenRule?.active && tenRule.direction && pile.length > 0);
 }
 
 export type GameState = {
@@ -118,7 +120,7 @@ export type GameState = {
   };
   tenRulePending?: boolean;
   fourOfAKindChallenge?: FourOfAKindChallenge;
-  /** Run or double-10 ended — leader gets one beat-the-pile turn ("on top!"). */
+  /** Run or 10-rule (higher/lower) ended — leader gets one contextual beat ("on top!"). */
   runOnTop?: RunOnTop;
   // Tracks the last clearing play type within the current trick so we can
   // enforce precedence (joker > four-of-a-kind challenge > two)
@@ -1002,7 +1004,7 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   }
   // 7. Joker rules — a single joker beats any set on the pile (not during an active run)
   if (isSingleJoker(cards) && pileCount > 0) {
-    if (inRunContext && !runOnTop) return false;
+    if (inRunContext) return false;
     const pileItselfIsRun =
       pile.length >= MIN_RUN_CONTEXT_LENGTH && isRunContextSequence(pile);
     if (pileItselfIsRun) return false;
@@ -1014,9 +1016,9 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   if (pileCount === 0) return true;
   // 8b. Closing to four-of-a-kind across turns (before 10-rule — same-rank
   // completion must be allowed even when tens triggered higher/lower mode).
-  if (closesToQuad && (!inRunContext || runOnTop)) return true;
-  // 9. 10 Rule: only outside run contexts and not during on-top!
-  if (tenRule?.active && tenRule.direction && !inRunContext && !runOnTop) {
+  if (closesToQuad && !inRunContext) return true;
+  // 9. 10 Rule: only outside run contexts (including on top!)
+  if (tenRule?.active && tenRule.direction && !inRunContext) {
     if (!allSameValue(cards)) return false;
     const pileRank = rankIndex(pile[0].value);
     const playRank = rankIndex(cards[0].value);
@@ -1026,21 +1028,15 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
       return playRank < pileRank;
     }
   }
-  // 10. Run logic: extend a consecutive sequence (3+ cards); 9 and J both valid after 10
-  if (inRunContext && !runOnTop && !isJoker(cards[0])) {
+  // 10. Run logic: extend with an adjacent rank (required on top! for runs)
+  if (inRunContext && !isJoker(cards[0])) {
     if (playCount !== runMultiplicity) return false;
     const lastCard = runSeq[runSeq.length - 1];
     const lastRank = rankIndex(lastCard.value);
     const playRank = rankIndex(cards[0].value);
-    return Math.abs(playRank - lastRank) === 1;
-  }
-  // 10b. On top! — beat the run tail normally; adjacent ranks still extend, not on-top
-  if (inRunContext && runOnTop && !isJoker(cards[0])) {
-    if (playCount !== runMultiplicity) return false;
-    const lastCard = runSeq[runSeq.length - 1];
-    const lastRank = rankIndex(lastCard.value);
-    const playRank = rankIndex(cards[0].value);
-    if (Math.abs(playRank - lastRank) === 1) return false;
+    const isAdjacent = Math.abs(playRank - lastRank) === 1;
+    if (isAdjacent) return true;
+    if (runOnTop) return false;
   }
   // 11. Twos rule: only Joker or completing quad can beat 2s (not when 2 is run tail)
   const pileIsTwos =
@@ -1322,7 +1318,7 @@ export function findCPUPlay(
         : trickRunInfo.multiplicity || 1
       : trickRunInfo.multiplicity || 1;
   const inRunContext = isRunContextSequence(runSeq);
-  if (inRunContext && !runOnTop) {
+  if (inRunContext) {
     const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
     if (runMultiplicity === 1) {
       const adjCandidates = hand.filter((c) => {
@@ -1348,6 +1344,7 @@ export function findCPUPlay(
         }
       }
     }
+    if (runOnTop) return null;
   }
 
   // Completed four-of-a-kind across turns: unbeatable — CPU must pass
@@ -1389,7 +1386,7 @@ export function findCPUPlay(
       if (value === 16) return; // skip jokers here
       if (cards.length >= pileCount) {
         const valueRankIndex = rankIndex(value);
-        if (tenRule?.active && tenRule.direction && !runOnTop) {
+        if (tenRule?.active && tenRule.direction) {
           if (tenRule.direction === "higher" && valueRankIndex <= pileRankIndex) return;
           if (tenRule.direction === "lower" && valueRankIndex >= pileRankIndex) return;
         } else {
@@ -1615,6 +1612,7 @@ export function passTurn(state: GameState, playerId: string): GameState {
         state.currentTrick,
         state.players,
         state.finishedOrder || [],
+        state.tenRule,
       );
       if (
         onTopEligible &&

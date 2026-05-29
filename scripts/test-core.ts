@@ -704,7 +704,7 @@ function makeEmptyGame(names: string[]): GameState {
 
   const six: Card = { suit: "hearts", value: 6 };
   assert.ok(
-    !isValidPlay(
+    isValidPlay(
       [six],
       s.pile,
       s.tenRule,
@@ -718,10 +718,10 @@ function makeEmptyGame(names: string[]): GameState {
       "3",
       true,
     ),
-    "Run extension should be invalid during on top!",
+    "Consecutive run extension should be valid during on top!",
   );
   assert.ok(
-    isValidPlay(
+    !isValidPlay(
       [seven],
       s.pile,
       s.tenRule,
@@ -735,12 +735,12 @@ function makeEmptyGame(names: string[]): GameState {
       "3",
       true,
     ),
-    "Normal beat should be valid during on top!",
+    "Non-consecutive beat should be invalid during on top!",
   );
 
-  s = playCards(s, "3", [seven]);
+  s = playCards(s, "3", [six]);
   assert.ok(!s.runOnTop?.active, "On top! clears after a play");
-  assert.strictEqual(s.pile[0].value, 7, "On top! play replaces the pile");
+  assert.strictEqual(s.pile[0].value, 6, "On top! play replaces the pile");
 }
 
 {
@@ -805,7 +805,7 @@ function makeEmptyGame(names: string[]): GameState {
   s = passTurn(s, "3");
   s = passTurn(s, "4");
 
-  assert.ok(s.runOnTop?.active, "Double-10 leader should get on top!");
+  assert.ok(s.runOnTop?.active, "10-rule leader should get on top!");
   assert.strictEqual(s.runOnTop?.playerIndex, 0);
 
   assert.ok(
@@ -823,7 +823,7 @@ function makeEmptyGame(names: string[]): GameState {
       "1",
       true,
     ),
-    "Pair of 9s cannot beat pair of 10s during on top!",
+    "Lower pair cannot beat pair of 10s during higher on top!",
   );
   assert.ok(
     isValidPlay(
@@ -840,12 +840,106 @@ function makeEmptyGame(names: string[]): GameState {
       "1",
       true,
     ),
-    "Pair of jacks beats pair of 10s during on top!",
+    "Higher pair beats pair of 10s during higher on top!",
   );
 
   s = playCards(s, "1", [jackH, jackD]);
   assert.ok(!s.runOnTop?.active);
   assert.strictEqual(s.pile[0].value, 11);
+}
+
+{
+  const tenH: Card = { suit: "hearts", value: 10 };
+  const nineH: Card = { suit: "hearts", value: 9 };
+  const nineD: Card = { suit: "diamonds", value: 9 };
+  const eightH: Card = { suit: "hearts", value: 8 };
+  const eightD: Card = { suit: "diamonds", value: 8 };
+
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+  g.lastRoundOrder = ["1", "2", "3", "4"];
+
+  g.players[0].hand = [tenH, nineH, nineD, { suit: "clubs", value: 3 }];
+  g.players[1].hand = [{ suit: "clubs", value: 4 }];
+  g.players[2].hand = [{ suit: "spades", value: 5 }];
+  g.players[3].hand = [{ suit: "clubs", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [tenH]);
+  s = setTenRuleDirection(s, "lower");
+  s = passTurn(s, "2");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+
+  assert.ok(s.runOnTop?.active, "Single 10 with lower rule should grant on top!");
+  assert.ok(
+    isValidPlay(
+      [nineH, nineD],
+      s.pile,
+      s.tenRule,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "Lower pair should beat single 10 during lower on top!",
+  );
+  assert.ok(
+    !isValidPlay(
+      [eightH, eightD],
+      s.pile,
+      s.tenRule,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "Pair below 9 cannot beat single 10 during lower on top!",
+  );
+}
+
+{
+  const tenH: Card = { suit: "hearts", value: 10 };
+  const tenD: Card = { suit: "diamonds", value: 10 };
+
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [tenH, tenD];
+  g.pileHistory = [[tenH, tenD]];
+  g.currentTrick = {
+    trickNumber: 1,
+    actions: [{ type: "play", playerId: "1", playerName: "P1", cards: [tenH, tenD], timestamp: 1 }],
+  };
+  g.mustPlay = false;
+  g.lastRoundOrder = ["1", "2", "3", "4"];
+  g.lastPlayPlayerIndex = 0;
+  g.tenRule = { active: false, direction: null };
+  g.players[0].hand = [{ suit: "clubs", value: 3 }];
+  g.players[1].hand = [{ suit: "clubs", value: 4 }];
+  g.players[2].hand = [{ suit: "spades", value: 5 }];
+  g.players[3].hand = [{ suit: "clubs", value: 6 }];
+  g.currentPlayerIndex = 1;
+
+  let s = passTurn(g, "2");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+
+  assert.ok(!s.runOnTop?.active, "Pair of 10s without an active 10 rule should not grant on top!");
+  assert.strictEqual(s.pile.length, 0, "Trick should clear normally");
 }
 
 {

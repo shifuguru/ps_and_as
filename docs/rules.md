@@ -23,7 +23,7 @@ Empty your hand first. Next round, ranks: President, VP, ... Arsehole.
 - **High end:** K-A-2 is a valid run (2 follows Ace on the rank ladder).
 - **No wraps** below 3 (e.g. A-2-3 is invalid).
 - **To beat a run:** same length & count; strictly higher sequence, or extend with an adjacent rank while the run is active.
-- **On top!:** when a run ends (everyone else passes without extending), the last player who played on the run gets one extra turn to beat the pile normally — not extend the run (adjacent ranks still count as extensions and are not allowed). The same applies when everyone passes on a **pair of 10s** — the player who played them may play on top, or pass to take the trick if they have nothing to beat it with.
+- **On top!:** when a run ends (everyone else passes without extending), the last player who played on the run gets one extra turn to play the next **consecutive** rank (same as extending the run). The same applies when everyone passes under an active **10 rule** (higher or lower) — the player who set the rule may play on top following that direction, or pass to take the trick if they have nothing legal.
 - **Completed quads:** when a rank is completed across turns (e.g. one 3 then three more 3s), that play is unbeatable — everyone else must pass until the trick clears.
 - **Single-play quads:** playing all four of a rank at once is a bomb — beatable by higher quads or a joker.
 - **Quads run:** three or more consecutive ranks each played as four-of-a-kind (e.g. 5555 → 6666 → 7777). Jokers cannot be played during any active run, including quads runs; extend with the next rank’s quad.

@@ -257,21 +257,13 @@ function canCardBePlayedAtAll(
       : trickRunInfo?.multiplicity || 1;
   const inRunContext = isRunContextSequence(runSeq);
 
-  if (inRunContext && !runOnTop) {
+  if (inRunContext) {
     const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
     if (Math.abs(rankIndex(cardValue) - lastRank) === 1) {
       if (sameValue.length < runMultiplicity) return false;
       return matchesValid(sameValue.slice(0, runMultiplicity));
     }
     return false;
-  }
-
-  if (inRunContext && runOnTop) {
-    const lastRank = rankIndex(runSeq[runSeq.length - 1].value);
-    if (Math.abs(rankIndex(cardValue) - lastRank) === 1) return false;
-    const requiredCount = cardsNeededToPlay(pile, cardValue);
-    if (sameValue.length < requiredCount) return false;
-    return matchesValid(sameValue.slice(0, requiredCount));
   }
 
   // Regular play: match pile count, or fewer when completing a quad across turns
