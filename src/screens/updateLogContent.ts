@@ -1,5 +1,5 @@
 export type UpdateEntry = {
-  /** UTC ISO 8601 instant (…Z) — shown in the user's local date & time. */
+  /** UTC ISO 8601 instant (…Z) — shown in the user's local date & time. NZST is UTC+12 (e.g. 2pm NZST → 02:00Z). */
   publishedAt: string;
   title: string;
   items: string[];
@@ -20,7 +20,7 @@ export { formatUpdateTimestamp } from "../utils/formatLocalDateTime";
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: "2026-05-29T20:00:00.000Z",
+    publishedAt: "2026-05-29T08:00:00.000Z",
     title: "Read Me & UI glass",
     items: [
       "Read Me — opens in-app like Settings (no full-page refresh); README links styled as gold theme pills",
@@ -30,7 +30,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: "2026-05-29T14:00:00.000Z",
+    publishedAt: "2026-05-29T02:00:00.000Z",
     title: "Hand fan, deal flow & table polish",
     items: [
       "Opening player — turn ring and “who leads” hints stay hidden until dealing and President/Asshole trades finish",
