@@ -75,6 +75,13 @@ async function main() {
 
   const guest = await joinPlayer("Guest", "profile-guest");
   const third = await joinPlayer("Third", "profile-third");
+  const fourth = await joinPlayer("Fourth", "profile-fourth");
+  if (fourth.state.errors.length) {
+    throw new Error(`Fourth join failed: ${fourth.state.errors.join("; ")}`);
+  }
+  console.log("PASS lobby accepts 4th player pre-game");
+  fourth.socket.disconnect();
+  await wait(100);
 
   for (const c of [guest, third]) {
     c.socket.emit("toggleReady", { roomId: ROOM, ready: true });

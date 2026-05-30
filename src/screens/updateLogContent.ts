@@ -26,25 +26,29 @@ export function nzst(local: string): string {
 
 export function nzdt(local: string): string {
   const base = local.length === 16 ? `${local}:00` : local;
-  return `${base}+13:00`;
+  return `${base}+13:00`;
 }
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-05-30T16:20"),
-    title: "Table fixes",
+    publishedAt: nzst("2026-05-30T18:00"),
+    title: "Table & round end",
     items: [
-      "Card piles no longer clip on the right during an active trick",
-      "On top! — other players can see the winning play before the table clears",
+      "Turn hints on the table — Your turn, Waiting for…, and Dealing cards… sit below the play-type badge; Your turn pulses like Pass",
+      "Play-type pill highlights when a run or special rule is active; plain Singles stays gold",
+      "Run bonus XP pool above the play pile during 4+ card runs — trick winner takes the pool when the trick ends",
+      "At round end everyone sees the last player's remaining hand before the rankings screen",
+      "Brighter glow on the active player's avatar ring",
+      "Online lobbies accept up to 8 players before the game starts",
     ],
   },
   {
-    publishedAt: nzst("2026-05-30T15:51"),
-    title: "Fixes",
+    publishedAt: nzst("2026-05-30T16:20"),
+    title: "Table visibility",
     items: [
-      "Table — card remnants no longer linger after a trick is won",
-      "Skip deal animations — role trades no longer duplicate cards or lock you in the trade menu when other players still watch the deal",
-      "Turn hint shows \"Your turn\" when it's your play",
+      "Card piles no longer clip on the right during an active trick",
+      "On top! — other players can see the winning play before the table clears",
+      "Card remnants no longer linger after a trick is won",
     ],
   },
   {
@@ -55,47 +59,12 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: nzst("2026-05-30T13:39"),
-    title: "Fixes",
-    items: [
-      "What's New — scroll bar is now visible on web and phone (blue track on the right)",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-30T12:09"),
-    title: "Polish",
-    items: [
-      "What's New — scroll bar shows where you are in the list",
-      "Stats button — accent shimmer sweeps across the label every 10 seconds",
-    ],
-  },
-  {
     publishedAt: nzst("2026-05-30T10:21"),
-    title: "Runs, profiles & fixes",
+    title: "Runs & profiles",
     items: [
-      "Run bonus XP builds on the table during a run — trick winner takes the pool at trick end",
       "Tap an opponent's avatar mid-game to open their player profile",
-      "Quick Game — deal animations no longer crash after cards are dealt",
-      "Hand cards — centred card rank and suit text matches overlapping cards",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-30T09:20"),
-    title: "What's New cleanup",
-    items: [
-      "What's New — shorter list focused on gameplay changes, not behind-the-scenes notes",
-      "Known issues trimmed to things we're still watching",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-30T09:11"),
-    title: "Runs & XP",
-    items: [
       "Runs stay active through step-backs and bounce-backs (e.g. J-Q-J-K, 10-J-Q-J-Q)",
-      "+15 XP for everyone still in the trick when a run reaches 3+ cards and keeps growing",
-      "XP, rounds, and role counts sync while you play online",
-      "Dark mode cards in Settings → Appearance; skip deal animations works offline too",
-      "Dead hand — dealer can reshuffle when the dead hand gets all four 3s and nobody can open",
+      "Skip deal animations — role trades no longer duplicate cards when others are still watching the deal",
     ],
   },
   {
@@ -105,22 +74,19 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
       "Runs follow one direction; Runs! stays on through valid extensions",
       "On top! — extra turn when a run ends and everyone passes; 10 rule works on top too",
       "Fresh round — skips President↔Asshole trade if the same player is Asshole three rounds in a row",
-      "Four-of-a-kind across turns no longer breaks turn order online",
-      "Fixed games freezing after a trick win or an on-top! pass",
       "Everyone in the lobby must ready up before the host can start",
+      "Dead hand — dealer can reshuffle when the dead hand gets all four 3s and nobody can open",
     ],
   },
   {
     publishedAt: nzst("2026-05-29T16:01"),
-    title: "Deal flow & table layout",
+    title: "Deal flow & hand layout",
     items: [
       "After trades, whoever holds the 3♣ leads",
       "Hand fans in an arc; your centre card stays upright and opens on new deals",
       "Skip deal animations in Settings; turn hints wait until deals and trades finish",
-      "Riffle shuffle on phone and iOS; live card counts while dealing",
       "Must pick higher or lower when a 10 is your last card before you're out",
-      "Read Me opens in-app; trick win celebration centred on the winner",
-      "Lobby Ready flashes when you can ready; Leave turns red mid-game",
+      "Rankings XP animates into career totals at round end",
     ],
   },
   {
@@ -142,18 +108,8 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
       "Ready up when the lobby is full; tap avatars for player profiles",
       "Spectator mode — watch a game and claim the dead hand seat next round",
       "Dead hand in 2-player games; opening rules when the dead hand holds 3♣",
-      "Rejoin mid-game without replaying the deal; leave confirmation before exiting",
+      "Rejoin mid-game without replaying the deal",
       "President/Asshole trades and deal ceremony work every round online",
-      "Disconnect grace period — seat held ~20–30s so players can rejoin",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-28T21:03"),
-    title: "Quick Game & refreshes",
-    items: [
-      "Quick Game no longer stuck on “Setting up table…”",
-      "Prompt to refresh when a newer version is available",
-      "Round 1 deals reshuffle until someone can legally open",
     ],
   },
   {
@@ -161,9 +117,9 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     title: "Look & feel",
     items: [
       "Custom felt tint with a colour picker",
-      "Light, dark, or system appearance",
+      "Light, dark, or system appearance; dark mode cards in Settings",
       "Riffle shuffle and faster dealing between rounds",
-      "Room codes copy in one tap; profanity filter on names and room titles",
+      "Room codes copy in one tap",
     ],
   },
 ];
@@ -174,11 +130,5 @@ export const KNOWN_ISSUES: KnownIssue[] = [
     status: "Monitoring",
     updatedAt: nzst("2026-05-28T17:36"),
     note: "You can view your own achievements from a player profile. Other players' progress isn't shared yet.",
-  },
-  {
-    title: "Room name editing on mobile web",
-    status: "Monitoring",
-    updatedAt: nzst("2026-05-28T17:15"),
-    note: "Tap the field, edit, then tap away or press Enter to save. Tell us if it still misbehaves.",
   },
 ];

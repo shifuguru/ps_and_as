@@ -1123,10 +1123,6 @@ io.on('connection', (socket) => {
         socket.emit('error', { message: 'Room is full' });
         return;
       }
-      if (!room.inGame && seated >= 3) {
-        socket.emit('error', { message: 'Room is full' });
-        return;
-      }
       if (room.inGame && seated >= 3) {
         socket.emit('error', { message: 'Game is full' });
         return;
