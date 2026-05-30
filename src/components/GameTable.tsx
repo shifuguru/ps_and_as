@@ -18,12 +18,21 @@ import {
   computePlayStackLayout,
   layoutPlayBundle,
   MAX_SPREAD_WIDTH_RATIO,
+  STACK_CENTER_Y,
 } from "../utils/tablePlayLayout";
 
 /** z-index stride per play group — cards within use 0..stride-1 by left-to-right order. */
 const GROUP_Z_STRIDE = 100;
 /** Gap between the card row and the play-type pill. */
 const PLAY_TYPE_BADGE_GAP = 16;
+/** Approximate rendered height of the play-type pill (padding + text). */
+const PLAY_TYPE_BADGE_HEIGHT = 30;
+/** Gap between the play-type pill and the turn hint pill. */
+const TURN_HINT_GAP = 8;
+/** Run pool badge block height (chips + copy + padding). */
+const RUN_XP_POOL_BADGE_HEIGHT = 58;
+/** Clear space between the run pool badge bottom and the top card edge. */
+const RUN_XP_POOL_GAP = 18;
 
 function playKey(play: TrickPlayDisplay, index: number): string {
   return `${index}-${play.playerId}-${play.cards.map((c) => `${c.suit}${c.value}`).join("-")}`;
@@ -59,6 +68,10 @@ type Props = {
   runXpPoolAmount?: number;
   /** Short hint under the pool, e.g. who wins it. */
   runXpPoolHint?: string | null;
+  /** "Your turn" / "Waiting for …" shown below the play-type badge. */
+  turnHintText?: string | null;
+  /** Pulse the turn hint like the Pass button when it's the local player's turn. */
+  turnHintFlash?: boolean;
 };
 
 export default function GameTable({
@@ -72,10 +85,13 @@ export default function GameTable({
   hiddenPlayKeys,
   runXpPoolAmount = 0,
   runXpPoolHint = null,
+  turnHintText = null,
+  turnHintFlash = false,
 }: Props) {
   const [zoneSize, setZoneSize] = useState({ width: 0, height: 0 });
   const collectAnim = useRef(new Animated.Value(0)).current;
   const tableFadeAnim = useRef(new Animated.Value(1)).current;
+  const turnHintFlashAnim = useRef(new Animated.Value(0)).current;
   const collectHeldRef = useRef(false);
   const [tableCardsVisible, setTableCardsVisible] = useState(true);
 
@@ -254,13 +270,33 @@ export default function GameTable({
   }, [zoneSize.width]);
 
   const playTypeBadgeTop = useMemo(() => {
-    if (tableRows.length === 0) return 0;
-    let rowBottom = 0;
-    for (const row of tableRows) {
-      rowBottom = Math.max(rowBottom, row.pos.top + row.groupHeight);
+    const refCardH = cardH || layout.cardHeight;
+    if (zoneSize.height <= 0 || refCardH <= 0) return 0;
+
+    if (tableRows.length > 0) {
+      let rowBottom = 0;
+      for (const row of tableRows) {
+        rowBottom = Math.max(rowBottom, row.pos.top + row.groupHeight);
+      }
+      return rowBottom + PLAY_TYPE_BADGE_GAP;
     }
-    return rowBottom + PLAY_TYPE_BADGE_GAP;
-  }, [tableRows]);
+
+    // Empty table — match layoutChronologicalPlays row center so pills align
+    // with where they sit once cards land.
+    const centerY = zoneSize.height * STACK_CENTER_Y;
+    return centerY + refCardH / 2 + PLAY_TYPE_BADGE_GAP;
+  }, [tableRows, zoneSize.height, cardH, layout.cardHeight]);
+
+  const turnHintTop = useMemo(() => {
+    if (zoneSize.height <= 0) return 0;
+    if (playTypeLabel) {
+      return playTypeBadgeTop + PLAY_TYPE_BADGE_HEIGHT + TURN_HINT_GAP;
+    }
+    return playTypeBadgeTop;
+  }, [zoneSize.height, playTypeLabel, playTypeBadgeTop]);
+
+  const showBadgeColumn =
+    zoneSize.height > 0 && (!!playTypeLabel || !!turnHintText);
 
   const runXpPoolTop = useMemo(() => {
     if (tableRows.length === 0) return 8;
@@ -268,8 +304,12 @@ export default function GameTable({
     for (const row of tableRows) {
       rowTop = Math.min(rowTop, row.pos.top);
     }
-    return Math.max(8, rowTop - 52);
-  }, [tableRows]);
+    const clearance =
+      RUN_XP_POOL_BADGE_HEIGHT +
+      RUN_XP_POOL_GAP +
+      Math.round(Math.max(0, cardH * 0.12));
+    return Math.max(4, rowTop - clearance);
+  }, [tableRows, cardH]);
 
   const showRunXpPool = (runXpPoolAmount ?? 0) > 0;
 
@@ -278,6 +318,52 @@ export default function GameTable({
     outputRange: [1, 0],
     extrapolate: "clamp",
   });
+
+  useEffect(() => {
+    if (!turnHintFlash) {
+      turnHintFlashAnim.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(turnHintFlashAnim, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,
+        }),
+        Animated.timing(turnHintFlashAnim, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [turnHintFlash, turnHintFlashAnim]);
+
+  const turnHintBackground = turnHintFlash
+    ? turnHintFlashAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["rgba(255, 255, 255, 0.12)", "rgba(255, 255, 255, 0.92)"],
+      })
+    : undefined;
+
+  const turnHintBorder = turnHintFlash
+    ? turnHintFlashAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["rgba(255, 255, 255, 0.18)", "rgba(255, 255, 255, 0.95)"],
+      })
+    : undefined;
+
+  const turnHintTextColor = turnHintFlash
+    ? turnHintFlashAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["rgba(255, 255, 255, 0.85)", "#111111"],
+      })
+    : undefined;
 
   return (
     <View style={styles.tableFrame} onLayout={onZoneLayout}>
@@ -418,7 +504,11 @@ export default function GameTable({
                 <Animated.View
                   style={[
                     styles.runXpPoolBadge,
-                    { top: runXpPoolTop, opacity: badgeOpacity },
+                    {
+                      top: runXpPoolTop,
+                      opacity: badgeOpacity,
+                      zIndex: GROUP_Z_STRIDE * Math.max(playCount, 1) + 50,
+                    },
                   ]}
                   pointerEvents="none"
                 >
@@ -448,21 +538,72 @@ export default function GameTable({
                   </View>
                 </Animated.View>
               ) : null}
-              {playTypeLabel ? (
-                <Animated.View
-                  style={[
-                    styles.playTypeBadge,
-                    { top: playTypeBadgeTop, opacity: badgeOpacity },
-                  ]}
-                  pointerEvents="none"
-                >
-                  <Text style={styles.playTypeBadgeText}>{playTypeLabel}</Text>
-                </Animated.View>
-              ) : null}
               </View>
 
           </Animated.View>
         )}
+        {showBadgeColumn ? (
+          <Animated.View
+            style={[
+              styles.badgeColumnOverlay,
+              playCount > 0 ? { opacity: tableFadeAnim } : null,
+            ]}
+            pointerEvents="none"
+          >
+            {playTypeLabel ? (
+              <Animated.View
+                style={[
+                  styles.playTypeBadge,
+                  {
+                    top: playTypeBadgeTop,
+                    opacity: collectToStack ? badgeOpacity : 1,
+                  },
+                ]}
+                pointerEvents="none"
+              >
+                <Text style={styles.playTypeBadgeText}>{playTypeLabel}</Text>
+              </Animated.View>
+            ) : null}
+            {turnHintText ? (
+              <Animated.View
+                style={[
+                  styles.turnHintPill,
+                  {
+                    top: turnHintTop,
+                    opacity: collectToStack ? badgeOpacity : 1,
+                  },
+                ]}
+                pointerEvents="none"
+              >
+                {turnHintFlash ? (
+                  <Animated.View
+                    style={[
+                      styles.turnHintPillBody,
+                      styles.turnHintPillFlash,
+                      {
+                        backgroundColor: turnHintBackground,
+                        borderColor: turnHintBorder,
+                      },
+                    ]}
+                  >
+                    <Animated.Text
+                      style={[
+                        styles.turnHintTextLabel,
+                        { color: turnHintTextColor },
+                      ]}
+                    >
+                      {turnHintText}
+                    </Animated.Text>
+                  </Animated.View>
+                ) : (
+                  <View style={styles.turnHintPillBody}>
+                    <Text style={styles.turnHintText}>{turnHintText}</Text>
+                  </View>
+                )}
+              </Animated.View>
+            ) : null}
+          </Animated.View>
+        ) : null}
       </View>
     </View>
   );
@@ -483,6 +624,10 @@ const styles = StyleSheet.create({
   },
   playStack: {
     position: "relative",
+  },
+  badgeColumnOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: GROUP_Z_STRIDE * 4,
   },
   playGroup: {
     position: "absolute",
@@ -547,6 +692,41 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: "center",
     letterSpacing: 0.4,
+  },
+  turnHintPill: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  turnHintPillBody: {
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255, 255, 255, 0.18)",
+  },
+  turnHintPillFlash: Platform.select({
+    ios: {
+      shadowColor: "#fff",
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.35,
+      shadowRadius: 10,
+    },
+    android: { elevation: 5 },
+    default: {},
+  }),
+  turnHintText: {
+    color: "rgba(255, 255, 255, 0.85)",
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  turnHintTextLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
   },
   runXpPoolBadge: {
     position: "absolute",

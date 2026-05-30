@@ -38,6 +38,9 @@ type RingProps = Omit<
 type Props = RingProps & {
   lastPlayPlayerId?: string | null;
   playTypeLabel?: string | null;
+  /** "Your turn" / "Waiting for …" below the play-type badge on the table. */
+  turnHintText?: string | null;
+  turnHintFlash?: boolean;
   plays?: TrickPlayDisplay[];
   /** Skip fly-in (trick-end pause snapshot, etc.) */
   skipPlayFlights?: boolean;
@@ -71,6 +74,8 @@ export default function GamePlayArea({
   passedPlayerIds,
   lastPlayPlayerId,
   playTypeLabel,
+  turnHintText,
+  turnHintFlash,
   plays = [],
   skipPlayFlights = false,
   flightDurationMs = 480,
@@ -311,11 +316,15 @@ export default function GamePlayArea({
           children as React.ReactElement<{
             layoutHint?: typeof layout;
             playTypeLabel?: string | null;
+            turnHintText?: string | null;
+            turnHintFlash?: boolean;
             hiddenPlayKeys?: Set<string>;
           }>,
           {
             layoutHint: layout,
             playTypeLabel,
+            turnHintText,
+            turnHintFlash,
             hiddenPlayKeys,
           },
         )

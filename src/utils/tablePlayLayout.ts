@@ -59,7 +59,7 @@ export const MAX_SPREAD_WIDTH_RATIO = 0.84;
 const MIN_TABLE_SCALE = Platform.OS === "web" ? 0.86 : 0.82;
 const MAX_TABLE_SCALE = Platform.OS === "web" ? 1.62 : 1.54;
 
-const STACK_CENTER_Y = 0.5;
+export const STACK_CENTER_Y = 0.5;
 
 /** Oldest singles beyond this count stack tightly at the left of the row. */
 export const MAX_VISIBLE_SINGLES = 4;

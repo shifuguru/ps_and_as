@@ -31,7 +31,7 @@ export const BOTTOM_LEAVE_ROW_HEIGHT = 48;
 /** Gap between the hand fan and the action buttons */
 export const HAND_CONTROLS_GAP = 14;
 
-/** Empty space above the fan inside the hand zone (clears the status pill). */
+/** Empty space above the fan inside the hand zone. */
 export const HAND_ZONE_TOP_CLEARANCE = 8;
 
 const CONTENT_MARGIN = 8;

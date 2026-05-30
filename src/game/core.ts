@@ -169,7 +169,10 @@ function finalizeLoneRemainingPlayer(state: GameState): void {
   const allOthersPlaced = living
     .filter((p) => p.id !== last.id)
     .every((p) => state.finishedOrder.includes(p.id));
-  if (allOthersPlaced) {
+  if (!allOthersPlaced) return;
+  // 3+ living: last player with cards is auto-asshole. With 2 living, they must
+  // empty their hand first (opponent keeps playing after the first goes out).
+  if (living.length >= 3 || last.hand.length === 0) {
     state.finishedOrder.push(last.id);
   }
 }
@@ -1083,7 +1086,12 @@ export function consecutiveSequenceInfo(
   const fromHist = collectConsecutiveFromHistory(pileHistory, pile);
   const best =
     fromTrick.repCards.length >= fromHist.repCards.length ? fromTrick : fromHist;
-  if (best.repCards.length >= MIN_RUN_CONTEXT_LENGTH) return best;
+  if (
+    best.repCards.length >= MIN_RUN_CONTEXT_LENGTH &&
+    (!pile?.length || pile.length === best.multiplicity)
+  ) {
+    return best;
+  }
 
   // Special case: treat a single (or same-multiplicity) `pile` entry appended
   // to a recent `fromHist`/`fromTrick` sequence as a continuing run when
@@ -1516,6 +1524,19 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
     if (!allSameValue(cards)) return false;
     const pileRank = rankIndex(pile[0].value);
     const playRank = rankIndex(cards[0].value);
+    if (runOnTop) {
+      // On top: beat by exactly one rank step; lower may use a higher multiplicity
+      // (e.g. pair 9s over single 10 during lower on top).
+      if (tenRule.direction === "higher") {
+        if (playCount !== pileCount || playRank !== pileRank + 1) return false;
+        return true;
+      }
+      if (tenRule.direction === "lower") {
+        if (playRank !== pileRank - 1) return false;
+        if (playCount < pileCount) return false;
+        return true;
+      }
+    }
     if (tenRule.direction === "higher") {
       return playRank > pileRank;
     } else if (tenRule.direction === "lower") {

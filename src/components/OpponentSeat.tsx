@@ -141,14 +141,38 @@ export default function OpponentSeat({
 
   const ringScale = pulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, 1.18],
+    outputRange: [1, 1.12],
   });
   const ringOpacity = pulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.35, 0.95],
+    outputRange: [0.82, 1],
+  });
+  const coreOpacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.55, 1],
+  });
+  const glowScale = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.12],
+  });
+  const glowOpacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.4, 0.88],
+  });
+  const haloScale = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.22],
+  });
+  const haloOpacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.18, 0.52],
   });
 
   const avatarSize = avatarSizeForSeat(dims, { compact, isLocal });
+  const turnHaloPad = 30;
+  const turnGlowPad = 16;
+  const turnRingPad = 10;
+  const turnCorePad = 6;
   const isDeadHand = !!player.isDeadHand;
   const isGraveyard = isDeadHand && graveyardMode;
   const sidelinedCount = player.sidelinedCount ?? 0;
@@ -206,21 +230,68 @@ export default function OpponentSeat({
         />
       )}
       {isActive && !isOut && (
-        <Animated.View
-          style={[
-            styles.turnRing,
-            {
-              width: avatarSize + 10,
-              height: avatarSize + 10,
-              borderRadius: (avatarSize + 10) / 2,
-              left: -5,
-              top: -5,
-              transform: [{ scale: ringScale }],
-              opacity: ringOpacity,
-            },
-          ]}
-          pointerEvents="none"
-        />
+        <>
+          <Animated.View
+            style={[
+              styles.turnRingHalo,
+              {
+                width: avatarSize + turnHaloPad,
+                height: avatarSize + turnHaloPad,
+                borderRadius: (avatarSize + turnHaloPad) / 2,
+                left: -turnHaloPad / 2,
+                top: -turnHaloPad / 2,
+                transform: [{ scale: haloScale }],
+                opacity: haloOpacity,
+              },
+            ]}
+            pointerEvents="none"
+          />
+          <Animated.View
+            style={[
+              styles.turnRingGlow,
+              {
+                width: avatarSize + turnGlowPad,
+                height: avatarSize + turnGlowPad,
+                borderRadius: (avatarSize + turnGlowPad) / 2,
+                left: -turnGlowPad / 2,
+                top: -turnGlowPad / 2,
+                transform: [{ scale: glowScale }],
+                opacity: glowOpacity,
+              },
+            ]}
+            pointerEvents="none"
+          />
+          <Animated.View
+            style={[
+              styles.turnRing,
+              {
+                width: avatarSize + turnRingPad,
+                height: avatarSize + turnRingPad,
+                borderRadius: (avatarSize + turnRingPad) / 2,
+                left: -turnRingPad / 2,
+                top: -turnRingPad / 2,
+                transform: [{ scale: ringScale }],
+                opacity: ringOpacity,
+              },
+            ]}
+            pointerEvents="none"
+          />
+          <Animated.View
+            style={[
+              styles.turnRingCore,
+              {
+                width: avatarSize + turnCorePad,
+                height: avatarSize + turnCorePad,
+                borderRadius: (avatarSize + turnCorePad) / 2,
+                left: -turnCorePad / 2,
+                top: -turnCorePad / 2,
+                transform: [{ scale: ringScale }],
+                opacity: coreOpacity,
+              },
+            ]}
+            pointerEvents="none"
+          />
+        </>
       )}
       <View
         style={[
@@ -490,12 +561,31 @@ export default function OpponentSeat({
 
 function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   const accent = colors.gold;
+  const accentBright = palette.complementBright;
   const accentSoft = hexToRgba(accent, 0.55);
   const accentFill = hexToRgba(accent, 0.08);
-  const accentRing = hexToRgba(accent, 0.95);
+  const accentBlade = hexToRgba(accentBright, 1);
+  const accentHalo = hexToRgba(accentBright, 0.26);
+  const accentBloom = hexToRgba(accentBright, 0.5);
   const accentLocal = hexToRgba(accent, 0.75);
   const accentBadge = hexToRgba(accent, 0.35);
   const onFelt = colors.onFelt;
+  const saberShadow = (radius: number, opacity = 1) =>
+    Platform.select({
+      ios: {
+        shadowColor: accentBright,
+        shadowOpacity: opacity,
+        shadowRadius: radius,
+        shadowOffset: { width: 0, height: 0 },
+      },
+      android: { elevation: Math.round(radius / 2.5) },
+      default: {
+        shadowColor: accentBright,
+        shadowOpacity: opacity,
+        shadowRadius: radius,
+        shadowOffset: { width: 0, height: 0 },
+      },
+    });
 
   return StyleSheet.create({
   seat: {
@@ -604,19 +694,27 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   avatarWrapCelebrate: {
     zIndex: 12,
   },
+  turnRingHalo: {
+    position: "absolute",
+    backgroundColor: accentHalo,
+    ...saberShadow(20, 0.72),
+  },
+  turnRingGlow: {
+    position: "absolute",
+    backgroundColor: accentBloom,
+    ...saberShadow(12, 0.85),
+  },
   turnRing: {
     position: "absolute",
-    borderWidth: 2,
-    borderColor: accentRing,
-    ...Platform.select({
-      ios: {
-        shadowColor: accent,
-        shadowOpacity: 0.45,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 0 },
-      },
-      default: {},
-    }),
+    borderWidth: 3,
+    borderColor: accentBlade,
+    ...saberShadow(14, 1),
+  },
+  turnRingCore: {
+    position: "absolute",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.92)",
+    ...saberShadow(8, 0.85),
   },
   lastPlayRing: {
     position: "absolute",

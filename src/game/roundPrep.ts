@@ -337,6 +337,17 @@ export function completeWinnerReturn(
   removeCardsFromHand(winner.hand, selectedReturn);
   winner.hand = winner.hand.concat(trade.incoming);
   loser.hand = loser.hand.concat(selectedReturn);
+
+  // 3♣ traded up for the round opener must return to the asshole after the
+  // president picks their return cards (even if those cards are not 3♣).
+  const threeClubsFromTrade = trade.incoming.find(
+    (c) => c.value === 3 && c.suit === "clubs",
+  );
+  if (threeClubsFromTrade) {
+    removeCardsFromHand(winner.hand, [threeClubsFromTrade]);
+    loser.hand.push(threeClubsFromTrade);
+  }
+
   trade.completed = true;
   return true;
 }

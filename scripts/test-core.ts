@@ -36,6 +36,7 @@ import {
   buildFreshRoundState,
   clonePlayersForRound,
   completeWinnerReturn,
+  pickHighestCards,
   resolveCeremonyTrades,
   buildTradesFromServerPending,
 } from "../src/game/roundPrep";
@@ -177,9 +178,18 @@ assert.strictEqual(
   "K-A-2 should be a run context sequence"
 );
 assert.strictEqual(
-  isValidPlay([ka2Ace], [ka2Two], undefined, undefined, undefined, undefined, trickKA2),
+  isValidPlay(
+    [ka2Ace],
+    [ka2Two],
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    trickKA2,
+    createGame(["P1", "P2", "P3", "P4"]).players,
+  ),
   true,
-  "Ace should be valid adjacency on 2 after K-A-2 run"
+  "Ace should be valid adjacency on 2 after K-A-2 run",
 );
 
 // Two singles 3-4: normal play — must beat 4, not wrap back to 3
@@ -291,6 +301,15 @@ function makeEmptyGame(names: string[]): GameState {
   g.lastPlayPlayerIndex = null;
   g.mustPlay = false;
   g.tenRule = { active: false, direction: null };
+  // One completed trick so mid-trick tests can lead with any card (not session-opening 3♣).
+  g.trickHistory = [
+    {
+      trickNumber: 1,
+      actions: [],
+      winnerName: names[0] ?? "P1",
+      winnerId: "1",
+    },
+  ];
   return g;
 }
 
@@ -301,7 +320,7 @@ function makeEmptyGame(names: string[]): GameState {
   const fiveH: Card = { suit: "hearts", value: 5 };
   const sixH: Card = { suit: "hearts", value: 6 };
   const sevenH: Card = { suit: "hearts", value: 7 };
-  const joker: Card = { suit: "joker", value: 15 };
+  const joker: Card = { suit: "joker", value: 16 };
   g.players[0].hand = [fiveH];
   g.players[1].hand = [sixH];
   g.players[2].hand = [sevenH];
@@ -333,14 +352,14 @@ function makeEmptyGame(names: string[]): GameState {
 // 2) Playing one joker should remove only that joker when the player holds duplicates
 {
   const g = makeEmptyGame(["P1", "P2"]);
-  const jokerA: Card = { suit: "joker", value: 15 };
-  const jokerB: Card = { suit: "joker", value: 15 };
+  const jokerA: Card = { suit: "joker", value: 16 };
+  const jokerB: Card = { suit: "joker", value: 16 };
   g.players[0].hand = [jokerA, jokerB];
   g.currentPlayerIndex = 0;
 
   const s = playCards(g, g.players[0].id, [jokerA]);
   assert.strictEqual(s.players[0].hand.length, 1, "Playing one joker should leave one joker in hand");
-  assert.strictEqual(s.players[0].hand[0].value, 15, "Remaining card should still be a joker");
+  assert.strictEqual(s.players[0].hand[0].value, 16, "Remaining card should still be a joker");
   assert.strictEqual(s.players[0].hand[0].suit, "joker", "Remaining card should still be a joker");
   assert.strictEqual(s.pile.length, 1, "Pile should show only one joker played");
 }
@@ -387,8 +406,13 @@ function makeEmptyGame(names: string[]): GameState {
   const names = ["A","B","C","D","E","F","G","H"];
   const g = makeEmptyGame(names);
   const fiveH: Card = { suit: "hearts", value: 5 };
-  // Give A the 5H, others empty hands so they can pass
-  g.players[0].hand = [fiveH];
+  const passCard: Card = { suit: "spades", value: 3 };
+  const spareA: Card = { suit: "diamonds", value: 4 };
+  // Give A the 5H plus a spare so they remain in to lead the next trick
+  g.players[0].hand = [fiveH, spareA];
+  for (let i = 1; i < names.length; i++) {
+    g.players[i].hand = [passCard];
+  }
   g.currentPlayerIndex = 0;
   let s = playCards(g, g.players[0].id, [fiveH]); // A plays, becomes leader
   // Everyone else passes in order
@@ -1534,7 +1558,7 @@ console.log("Mandatory trade rank tests passed");
   const localTrades = applyMandatoryTrades(players);
   assert.strictEqual(localTrades.length, 1);
 
-  const incoming = [{ suit: "spades", value: 15, hidden: false }];
+  const incoming = [{ suit: "spades" as const, value: 15 }];
   const serverPending = {
     president: {
       fromId: "4",

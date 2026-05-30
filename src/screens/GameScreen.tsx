@@ -377,6 +377,8 @@ function GameScreen({
   });
   /** Trick-win XP earned this game session (persists across rounds). */
   const [gameXpByPlayerId, setGameXpByPlayerId] = useState<Record<string, number>>({});
+  /** Trick-win XP earned in the current round only (resets each round). */
+  const [roundXpByPlayerId, setRoundXpByPlayerId] = useState<Record<string, number>>({});
   const [localCareerXp, setLocalCareerXp] = useState<number | null>(null);
   const [awayTick, setAwayTick] = useState(0);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
@@ -497,6 +499,11 @@ function GameScreen({
     return xp;
   }, [gameXpByPlayerId, myPlayerId, localCareerXp]);
 
+  const xpAnimationReady =
+    !humanPlayer?.id ||
+    humanPlayer.id !== myPlayerId ||
+    localCareerXp != null;
+
   const turnPlayerId = state?.players[state.currentPlayerIndex]?.id ?? null;
   const turnPlayerName = state?.players[state.currentPlayerIndex]?.name;
   const turnPlayerIsCpu =
@@ -560,6 +567,7 @@ function GameScreen({
       setActiveTrade(null);
       setTradeReturnPick([]);
       setGameplayLocked(false);
+      setRoundXpByPlayerId({});
       ceremonyDoneForRoundRef.current = roundCeremonyKey(next);
     },
     [resolvedHostId],
@@ -985,10 +993,14 @@ function GameScreen({
     );
     const runBonusXp = runTrickBonusXpAmount(runLength, RUN_STEP_XP);
     if (winnerId) {
+      const trickXp = TRICK_WIN_XP + runBonusXp;
       setGameXpByPlayerId((prev) => ({
         ...prev,
-        [winnerId]:
-          (prev[winnerId] ?? 0) + TRICK_WIN_XP + runBonusXp,
+        [winnerId]: (prev[winnerId] ?? 0) + trickXp,
+      }));
+      setRoundXpByPlayerId((prev) => ({
+        ...prev,
+        [winnerId]: (prev[winnerId] ?? 0) + trickXp,
       }));
     }
     setTrickPauseSnapshot({
@@ -1851,6 +1863,8 @@ function GameScreen({
         handleTurnBellPress,
         resolveSeatFeltTint,
         scoreboardXpByPlayerId,
+        roundXpByPlayerId,
+        xpAnimationReady,
         lastTrickLenRef,
       }}
     >
@@ -1933,6 +1947,8 @@ function GameScreenBoard() {
     handleTurnBellPress,
     resolveSeatFeltTint,
     scoreboardXpByPlayerId,
+    roundXpByPlayerId,
+    xpAnimationReady,
     lastTrickLenRef,
   } = useContext(GameScreenRuntimeContext)! as {
     state: GameState;
@@ -2031,6 +2047,8 @@ function GameScreenBoard() {
     handleTurnBellPress: (playerId: string) => void;
     resolveSeatFeltTint: (player: { id: string; name: string }) => string | undefined;
     scoreboardXpByPlayerId: Record<string, number>;
+    roundXpByPlayerId: Record<string, number>;
+    xpAnimationReady: boolean;
     lastTrickLenRef: React.MutableRefObject<number>;
   };
 
@@ -2716,6 +2734,24 @@ function GameScreenBoard() {
 
   const playTypeLabel = getPlayTypeLabel();
 
+  const turnHintText =
+    ceremonyPrep && ceremonyStatusText
+      ? ceremonyStatusText
+      : gameplayLocked && !tradePhase
+        ? ceremonyStatusText ?? "Dealing cards…"
+        : revealTurnHighlight &&
+            !tradePhase &&
+            !readOnlyOnline &&
+            !awaitingDealerReshuffle &&
+            !trickPauseActive &&
+            !roundOver
+          ? isHumanTurn
+            ? "Your turn"
+            : `Waiting for ${current.name}…`
+          : null;
+
+  const turnHintFlash = turnHintText === "Your turn";
+
   const activeRunXpPool = useMemo(() => {
     if (
       !state ||
@@ -2780,18 +2816,12 @@ function GameScreenBoard() {
           <Text style={local.roomNoticeText}>{bannerNotice}</Text>
         </View>
       ) : null}
-      {onNavigateToSettings || onNavigateToAchievements || ceremonyStatusText ? (
+      {onNavigateToSettings || onNavigateToAchievements ? (
         <View
           style={[local.topHeaderRow, { top: contentTopPadding + 4 }]}
           pointerEvents="box-none"
         >
-          {ceremonyStatusText ? (
-            <View style={local.ceremonyStatusPill} pointerEvents="none">
-              <Text style={local.ceremonyStatusText}>{ceremonyStatusText}</Text>
-            </View>
-          ) : (
-            <View style={local.topHeaderSpacer} />
-          )}
+          <View style={local.topHeaderSpacer} />
           {onNavigateToSettings || onNavigateToAchievements ? (
             <View style={local.topFabRow}>
               {onNavigateToSettings ? (
@@ -2931,6 +2961,8 @@ function GameScreenBoard() {
           playTypeLabel={
             playTypeLabel && !trickPauseFrozen ? playTypeLabel : null
           }
+          turnHintText={turnHintText}
+          turnHintFlash={turnHintFlash}
           tableSeatCount={tableSeats.layoutSeatCount}
           deadHandId={tableSeats.deadHandId}
           layoutSeatIds={tableSeats.layoutSeatIds}
@@ -3020,14 +3052,6 @@ function GameScreenBoard() {
       <BottomBar>
         {handInBottomBar ? (
           <BottomBarHand height={HAND_FAN_HEIGHT + HAND_ZONE_TOP_CLEARANCE}>
-            {revealTurnHighlight ? (
-              <View style={local.waitingPill}>
-                <Text style={local.waitingPillText}>
-                  {isHumanTurn ? "Your turn" : `Waiting for ${current.name}…`}
-                </Text>
-              </View>
-            ) : null}
-
             <PlayerHand
               ref={handRef}
               cards={hand}
@@ -3073,16 +3097,6 @@ function GameScreenBoard() {
                 {isCeremonyDealer
                   ? "All four 3s on the dead hand — tap Reshuffle in the center"
                   : "All four 3s on the dead hand — waiting for dealer to reshuffle…"}
-              </Text>
-            </View>
-          ) : gameplayLocked ? (
-            <View style={[local.waitingPill, local.waitingPillCollapsed]}>
-              <Text style={local.waitingPillText}>Dealing cards…</Text>
-            </View>
-          ) : !handVisible && revealTurnHighlight ? (
-            <View style={[local.waitingPill, local.waitingPillCollapsed]}>
-              <Text style={local.waitingPillText}>
-                {isHumanTurn ? "Your turn" : `Waiting for ${current.name}…`}
               </Text>
             </View>
           ) : null}
@@ -3213,6 +3227,8 @@ function GameScreenBoard() {
         players={state.players.filter((p) => !isDeadHandPlayer(p))}
         readyStates={playerReadyStates}
         playerXp={scoreboardXpByPlayerId}
+        playerRoundXp={roundXpByPlayerId}
+        xpAnimationReady={xpAnimationReady}
         localPlayerId={humanPlayer?.id ?? myPlayerId ?? undefined}
         spectatorMode={spectatorMode}
         deadHandSeatOpen={state.players.some(isDeadHandPlayer)}
