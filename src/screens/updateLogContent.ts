@@ -31,7 +31,15 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-05-30T18:12"),
+    publishedAt: nzst("2026-05-30T16:20"),
+    title: "Table fixes",
+    items: [
+      "Card piles no longer clip on the right during an active trick",
+      "On top! — other players can see the winning play before the table clears",
+    ],
+  },
+  {
+    publishedAt: nzst("2026-05-30T15:51"),
     title: "Fixes",
     items: [
       "Table — card remnants no longer linger after a trick is won",

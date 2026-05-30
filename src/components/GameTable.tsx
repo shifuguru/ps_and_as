@@ -77,7 +77,7 @@ export default function GameTable({
   const collectAnim = useRef(new Animated.Value(0)).current;
   const tableFadeAnim = useRef(new Animated.Value(1)).current;
   const collectHeldRef = useRef(false);
-  const [tableCardsVisible, setTableCardsVisible] = useState(false);
+  const [tableCardsVisible, setTableCardsVisible] = useState(true);
 
   const scaleLimits = useMemo(
     () =>
@@ -124,7 +124,6 @@ export default function GameTable({
 
   useLayoutEffect(() => {
     if (plays.length === 0) {
-      setTableCardsVisible(false);
       collectHeldRef.current = false;
       collectAnim.stopAnimation();
       collectAnim.setValue(0);
@@ -306,6 +305,7 @@ export default function GameTable({
                 {
                   width: zoneSize.width,
                   height: zoneSize.height,
+                  overflow: collectToStack ? "hidden" : "visible",
                 },
               ]}
             >
@@ -483,7 +483,6 @@ const styles = StyleSheet.create({
   },
   playStack: {
     position: "relative",
-    overflow: "hidden",
   },
   playGroup: {
     position: "absolute",
