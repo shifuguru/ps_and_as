@@ -42,15 +42,31 @@ jobs:
           path: .
 
       - name: Sync gh-pages build onto main (branch Pages fallback)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .
-          publish_branch: main
-          keep_files: true
-          commit_message: "chore: recover web build on main [skip ci]"
-          user_name: github-actions[bot]
-          user_email: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p /tmp/pages-sync/_expo /tmp/pages-sync/assets
+          cp index.html version.json 404.html readme-fallback.html web-shell.css \
+            favicon.ico manifest.webmanifest metadata.json .nojekyll /tmp/pages-sync/
+          cp -R _expo/. /tmp/pages-sync/_expo/
+          cp -R assets/. /tmp/pages-sync/assets/
+          git fetch origin main
+          git checkout origin/main
+          cp /tmp/pages-sync/index.html /tmp/pages-sync/version.json /tmp/pages-sync/404.html \
+            /tmp/pages-sync/readme-fallback.html /tmp/pages-sync/web-shell.css \
+            /tmp/pages-sync/favicon.ico /tmp/pages-sync/manifest.webmanifest \
+            /tmp/pages-sync/metadata.json /tmp/pages-sync/.nojekyll .
+          rm -rf _expo
+          cp -R /tmp/pages-sync/_expo _expo
+          cp -R /tmp/pages-sync/assets/. assets/
+          git add index.html version.json 404.html readme-fallback.html web-shell.css \
+            favicon.ico manifest.webmanifest metadata.json .nojekyll _expo assets
+          if git diff --staged --quiet; then
+            echo "Main already has current web build."
+            exit 0
+          fi
+          git commit -m "chore: recover web build on main [skip ci]"
+          git push origin HEAD:main
 
   deploy:
     needs: recover

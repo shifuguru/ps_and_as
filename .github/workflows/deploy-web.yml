@@ -91,15 +91,23 @@ jobs:
       # Keep index.html (and assets) on main so branch-based GitHub Pages does not
       # 404 after [skip ci] version-bump commits that only touch package.json.
       - name: Sync web build onto main (branch Pages fallback)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: web-build
-          publish_branch: main
-          keep_files: true
-          commit_message: "chore: sync web build to main [skip ci]"
-          user_name: github-actions[bot]
-          user_email: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp web-build/index.html web-build/version.json web-build/404.html \
+            web-build/readme-fallback.html web-build/web-shell.css web-build/favicon.ico \
+            web-build/manifest.webmanifest web-build/metadata.json web-build/.nojekyll .
+          rm -rf _expo
+          cp -R web-build/_expo _expo
+          cp -R web-build/assets/. assets/
+          git add index.html version.json 404.html readme-fallback.html web-shell.css \
+            favicon.ico manifest.webmanifest metadata.json .nojekyll _expo assets
+          if git diff --staged --quiet; then
+            echo "No web files to sync on main."
+            exit 0
+          fi
+          git commit -m "chore: sync web build to main [skip ci]"
+          git push origin HEAD:main
 
   deploy:
     needs: build
