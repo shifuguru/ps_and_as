@@ -18,6 +18,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.0.15": "Pool Noodle",
   "1.0.16": "Full House Party",
   "1.0.17": "Four Of A Kind Mind",
+  "1.0.18": "Wild Draw Four Energy",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
