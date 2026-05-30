@@ -26,6 +26,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.0.23": "Pile On Patrol",
   "1.0.24": "Underhand Overhand",
   "1.0.25": "Misdeal Mayhem",
+  "1.0.26": "President's Day Off",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
