@@ -128,3 +128,63 @@ body {
   padding-bottom: constant(safe-area-inset-bottom) !important;
   padding-bottom: env(safe-area-inset-bottom, 0px) !important;
 }
+
+/* Themed scrollbars — accent via --scroll-thumb / --scroll-track on the element */
+.ps-themed-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb, #5b9fd4) var(--scroll-track, rgba(255, 255, 255, 0.08));
+}
+.ps-themed-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+.ps-themed-scrollbar::-webkit-scrollbar-track {
+  background: var(--scroll-track, rgba(255, 255, 255, 0.08));
+  border-radius: 999px;
+  margin: 6px 0;
+}
+.ps-themed-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb, #5b9fd4);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.ps-themed-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover, var(--scroll-thumb, #5b9fd4));
+}
+
+/* Shimmer text — accent gradient sweep; colors via --shimmer-* on the element */
+.ps-shimmer-text {
+  display: inline-block;
+  background-repeat: no-repeat;
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--shimmer-base) 0%,
+    var(--shimmer-base) 38%,
+    var(--shimmer-soft) 44%,
+    var(--shimmer-mid) 48%,
+    var(--shimmer-hot) 50%,
+    var(--shimmer-mid) 52%,
+    var(--shimmer-soft) 56%,
+    var(--shimmer-base) 62%,
+    var(--shimmer-base) 100%
+  );
+  animation-name: ps-shimmer-text-sweep;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+@keyframes ps-shimmer-text-sweep {
+  0% {
+    background-position: 130% 50%;
+  }
+  12% {
+    background-position: -30% 50%;
+  }
+  100% {
+    background-position: -30% 50%;
+  }
+}

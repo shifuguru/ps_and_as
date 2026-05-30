@@ -31,6 +31,14 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-05-30T12:09"),
+    title: "Polish",
+    items: [
+      "What's New — scroll bar shows where you are in the list",
+      "Stats button — accent shimmer sweeps across the label every 10 seconds",
+    ],
+  },
+  {
     publishedAt: nzst("2026-05-30T10:21"),
     title: "Runs, profiles & fixes",
     items: [

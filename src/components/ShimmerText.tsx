@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -8,25 +8,24 @@ import {
   Text,
   TextStyle,
   View,
+  ViewStyle,
 } from "react-native";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
+import { PS_SHIMMER_TEXT_CLASS } from "../utils/shimmerTextCss";
 
 type Props = {
   children: string;
   style?: TextStyle;
-  /** Shimmer sweep duration in ms. */
+  /** Full repeat period — gradient sweeps once per cycle. */
+  cycleMs?: number;
+  /** How long the left-to-right sweep takes within each cycle. */
   sweepMs?: number;
-  /** Minimum idle time between sweeps. */
-  intervalMinMs?: number;
-  /** Maximum idle time between sweeps. */
-  intervalMaxMs?: number;
 };
 
-const DEFAULT_SWEEP_MS = 1400;
-const DEFAULT_INTERVAL_MIN_MS = 20_000;
-const DEFAULT_INTERVAL_MAX_MS = 30_000;
+const DEFAULT_CYCLE_MS = 10_000;
+const DEFAULT_SWEEP_MS = 1_200;
 
 function flattenColor(style: TextStyle | undefined, fallback: string): string {
   const flat = StyleSheet.flatten(style);
@@ -36,60 +35,39 @@ function flattenColor(style: TextStyle | undefined, fallback: string): string {
 export default function ShimmerText({
   children,
   style,
+  cycleMs = DEFAULT_CYCLE_MS,
   sweepMs = DEFAULT_SWEEP_MS,
-  intervalMinMs = DEFAULT_INTERVAL_MIN_MS,
-  intervalMaxMs = DEFAULT_INTERVAL_MAX_MS,
 }: Props) {
   const { colors } = useAppTheme();
   const progress = useRef(new Animated.Value(0)).current;
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const [webBgPos, setWebBgPos] = useState("100% 0");
   const baseColor = flattenColor(style, colors.onFelt.textPrimary);
 
-  useEffect(() => {
-    let cancelled = false;
-    let waitTimer: ReturnType<typeof setTimeout> | null = null;
-    let anim: Animated.CompositeAnimation | null = null;
+  const goldSoft = hexToRgba(colors.gold, 0.55);
+  const goldMid = hexToRgba(colors.gold, 0.88);
+  const hotCore = hexToRgba("#fffef5", 0.95);
 
-    const scheduleSweep = () => {
-      if (cancelled) return;
-      const span = Math.max(0, intervalMaxMs - intervalMinMs);
-      const wait = intervalMinMs + Math.random() * span;
-      waitTimer = setTimeout(runSweep, wait);
-    };
-
-    const runSweep = () => {
-      if (cancelled) return;
-      progress.setValue(0);
-      anim = Animated.timing(progress, {
-        toValue: 1,
-        duration: sweepMs,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: Platform.OS !== "web",
-      });
-      anim.start(({ finished }) => {
-        anim = null;
-        if (finished && !cancelled) scheduleSweep();
-      });
-    };
-
-    scheduleSweep();
-
-    return () => {
-      cancelled = true;
-      if (waitTimer) clearTimeout(waitTimer);
-      anim?.stop();
-    };
-  }, [progress, sweepMs, intervalMinMs, intervalMaxMs]);
+  const idleMs = Math.max(0, cycleMs - sweepMs);
 
   useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const id = progress.addListener(({ value }) => {
-      const x = 110 - value * 130;
-      setWebBgPos(`${x}% 0`);
-    });
-    return () => progress.removeListener(id);
-  }, [progress]);
+    if (Platform.OS === "web") return;
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(progress, {
+          toValue: 1,
+          duration: sweepMs,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.delay(idleMs),
+      ]),
+    );
+
+    progress.setValue(0);
+    loop.start();
+    return () => loop.stop();
+  }, [progress, sweepMs, idleMs]);
 
   const translateX =
     size.w > 0
@@ -106,39 +84,38 @@ export default function ShimmerText({
     );
   };
 
-  const goldSoft = hexToRgba(colors.gold, 0.55);
-  const goldMid = hexToRgba(colors.gold, 0.88);
-  const hotCore = hexToRgba("#fffef5", 0.95);
+  const webShimmerStyle = useMemo(
+    (): ViewStyle =>
+      Platform.OS === "web"
+        ? ({
+            ["--shimmer-base" as string]: baseColor,
+            ["--shimmer-soft" as string]: goldSoft,
+            ["--shimmer-mid" as string]: goldMid,
+            ["--shimmer-hot" as string]: hotCore,
+            animationDuration: `${cycleMs}ms`,
+          } as ViewStyle)
+        : {},
+    [baseColor, goldSoft, goldMid, hotCore, cycleMs],
+  );
+
+  if (Platform.OS === "web") {
+    return (
+      <Text
+        style={[style, webShimmerStyle]}
+        // @ts-expect-error className is supported on RN Web
+        className={PS_SHIMMER_TEXT_CLASS}
+        numberOfLines={1}
+      >
+        {children}
+      </Text>
+    );
+  }
 
   const maskText = (
     <Text style={[style, styles.maskText]} numberOfLines={1}>
       {children}
     </Text>
   );
-
-  if (Platform.OS === "web") {
-    const gradient = `linear-gradient(90deg, ${baseColor} 0%, ${baseColor} 38%, ${goldSoft} 44%, ${goldMid} 48%, ${hotCore} 50%, ${goldMid} 52%, ${goldSoft} 56%, ${baseColor} 62%, ${baseColor} 100%)`;
-    return (
-      <Text
-        style={[
-          style,
-          styles.webText,
-          {
-            backgroundImage: gradient,
-            backgroundSize: "220% 100%",
-            backgroundPosition: webBgPos,
-            backgroundClip: "text",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          } as object,
-        ]}
-        numberOfLines={1}
-        onLayout={onLayout}
-      >
-        {children}
-      </Text>
-    );
-  }
 
   const shimmerBand = (
     <Animated.View
@@ -159,17 +136,25 @@ export default function ShimmerText({
   );
 
   return (
-    <View style={styles.root} onLayout={onLayout}>
+    <View style={styles.root} onLayout={onLayout} collapsable={false}>
       {size.w > 0 ? (
         <MaskedView
           style={{ width: size.w, height: size.h }}
-          maskElement={<View style={styles.maskWrap}>{maskText}</View>}
+          maskElement={
+            <View
+              style={[styles.maskWrap, { width: size.w, height: size.h }]}
+              collapsable={false}
+            >
+              {maskText}
+            </View>
+          }
         >
           <View
             style={[
               styles.fill,
               { width: size.w, height: size.h, backgroundColor: baseColor },
             ]}
+            collapsable={false}
           >
             {shimmerBand}
           </View>
@@ -189,15 +174,14 @@ const styles = StyleSheet.create({
   },
   maskWrap: {
     backgroundColor: "transparent",
+    justifyContent: "center",
+    alignItems: "center",
   },
   maskText: {
     color: "#000000",
   },
   fill: {
     overflow: "hidden",
-  },
-  webText: {
-    color: "transparent",
   },
   band: {
     position: "absolute",

@@ -1,3 +1,6 @@
+import { PS_THEMED_SCROLLBAR_CSS } from "./themedScrollbar";
+import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
+
 /** Runtime shell CSS (dev + production fallback). Keep in sync with web-shell.css */
 export function getWebShellCssText(feltTint: string): string {
   return `
@@ -110,5 +113,7 @@ export function getWebShellCssText(feltTint: string): string {
       padding-bottom: constant(safe-area-inset-bottom) !important;
       padding-bottom: env(safe-area-inset-bottom, 0px) !important;
     }
+    ${PS_THEMED_SCROLLBAR_CSS}
+    ${PS_SHIMMER_TEXT_CSS}
   `;
 }

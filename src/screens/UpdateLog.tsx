@@ -2,11 +2,11 @@ import React, { useMemo } from "react";
 import {
   View,
   Text,
-  ScrollView,
   StyleSheet,
   useWindowDimensions,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
+import ThemedScrollView from "../components/ThemedScrollView";
 import BlurPanel from "../components/BlurPanel";
 import ScreenTopBar from "../components/ScreenTopBar";
 import BottomBar, {
@@ -46,7 +46,7 @@ export default function UpdateLog({ onBack }: { onBack: () => void }) {
 
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
-      <ScrollView
+      <ThemedScrollView
         style={styles.scroll}
         contentContainerStyle={[
           ui.scrollContent,
@@ -55,7 +55,6 @@ export default function UpdateLog({ onBack }: { onBack: () => void }) {
             paddingBottom: bottomBarHeight,
           },
         ]}
-        showsVerticalScrollIndicator={false}
       >
         <View style={[styles.content, { maxWidth: contentMax }]}>
           <ScreenTopBar title="What's New" />
@@ -127,7 +126,7 @@ export default function UpdateLog({ onBack }: { onBack: () => void }) {
             </>
           ) : null}
         </View>
-      </ScrollView>
+      </ThemedScrollView>
 
       <BottomBar>
         <BottomBarControls style={styles.bottomControls}>
