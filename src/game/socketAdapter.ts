@@ -508,6 +508,7 @@ export class SocketAdapter implements NetworkAdapter {
             finishOrder: data.finishOrder,
             roles: data.roles,
             stats: data.stats,
+            lastPlayerHand: data.lastPlayerHand ?? null,
           },
         }),
       );

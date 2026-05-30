@@ -1464,7 +1464,23 @@ io.on('connection', (socket) => {
     initReadyForNextRound(room);
     room.gameState.roles = roles;
 
-    io.to(roomId).emit('roundEnded', { finishOrder, roles });
+    const livingOrder = livingFinishOrder(room.gameState, finishOrder || []);
+    const lastPlayerId = livingOrder.length ? livingOrder[livingOrder.length - 1] : null;
+    const lastCards =
+      lastPlayerId && hands && hands[lastPlayerId] ? hands[lastPlayerId] : [];
+    const lastPlayer = lastPlayerId
+      ? room.gameState.players.find((p) => p.id === lastPlayerId)
+      : null;
+    const lastPlayerHand =
+      lastPlayerId && lastCards.length > 0
+        ? {
+            playerId: lastPlayerId,
+            playerName: lastPlayer?.name || 'Player',
+            cards: lastCards,
+          }
+        : null;
+
+    io.to(roomId).emit('roundEnded', { finishOrder, roles, lastPlayerHand });
     io.to(roomId).emit('playerReadyUpdate', {
       readyForNextRound: room.gameState.readyForNextRound,
     });

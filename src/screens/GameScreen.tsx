@@ -99,6 +99,7 @@ import PlayerHand, {
 import ActionBar from "../components/ActionBar";
 import MenuIcon from "../components/MenuIcon";
 import RoundCompleteModal from "../components/RoundCompleteModal";
+import LastHandRevealOverlay from "../components/LastHandRevealOverlay";
 import LeaveGameConfirmModal from "../components/LeaveGameConfirmModal";
 import TenRuleModal from "../components/TenRuleModal";
 import GameTable from "../components/GameTable";
@@ -142,6 +143,29 @@ type GameStateWithDealSeed = GameState & { dealSeed?: number };
 function roundCeremonyKey(state: GameStateWithDealSeed): string {
   const seed = state.dealSeed ?? "none";
   return `${state.id}:${seed}`;
+}
+
+const LAST_HAND_REVEAL_MS = 4000;
+
+type LastHandRevealPayload = {
+  playerId: string;
+  playerName: string;
+  cards: CardType[];
+};
+
+function visibleHandCards(cards: CardType[]): CardType[] {
+  return cards.filter((c) => !c.hidden && c.value !== 0);
+}
+
+function lastPlayerHandFromState(state: GameState): LastHandRevealPayload | null {
+  const order = livingFinishedOrder(state.players, state.finishedOrder);
+  const lastId = order[order.length - 1];
+  if (!lastId) return null;
+  const lastPlayer = state.players.find((p) => p.id === lastId);
+  if (!lastPlayer) return null;
+  const cards = visibleHandCards(lastPlayer.hand);
+  if (cards.length === 0) return null;
+  return { playerId: lastId, playerName: lastPlayer.name, cards };
 }
 
 /** Mid-game rejoin should apply server state directly — no deal animation. */
@@ -347,6 +371,9 @@ function GameScreen({
   const [activeTrade, setActiveTrade] = useState<ClientPendingTrade | null>(null);
   const [tradeReturnPick, setTradeReturnPick] = useState<CardType[]>([]);
   const [roundOver, setRoundOver] = useState(false);
+  const [lastHandReveal, setLastHandReveal] = useState<LastHandRevealPayload | null>(
+    null,
+  );
   const [playerReadyStates, setPlayerReadyStates] = useState<{
     [playerId: string]: boolean;
   }>({});
@@ -415,6 +442,9 @@ function GameScreen({
     null,
   );
   const trickCollectTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const lastHandRevealTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
   const stateSyncedRef = useRef(false);
@@ -541,6 +571,26 @@ function GameScreen({
     onBack?.();
   }, [onBack]);
 
+  const clearLastHandReveal = useCallback(() => {
+    if (lastHandRevealTimerRef.current) {
+      clearTimeout(lastHandRevealTimerRef.current);
+      lastHandRevealTimerRef.current = null;
+    }
+    setLastHandReveal(null);
+  }, []);
+
+  const startLastHandReveal = useCallback(
+    (payload: LastHandRevealPayload) => {
+      clearLastHandReveal();
+      setLastHandReveal(payload);
+      lastHandRevealTimerRef.current = setTimeout(() => {
+        lastHandRevealTimerRef.current = null;
+        setLastHandReveal(null);
+      }, LAST_HAND_REVEAL_MS);
+    },
+    [clearLastHandReveal],
+  );
+
   const finalizeCeremonyRound = useCallback(
     (
       players: GameState["players"],
@@ -553,6 +603,7 @@ function GameScreen({
         ? applyServerPlayerHands(players, handsSource)
         : players;
       pendingTradesCompleteRef.current = null;
+      clearLastHandReveal();
       const next = buildFreshRoundState(baseState, merged, {
         hostId: resolvedHostId,
         lastRoundOrder: baseState.lastRoundOrder,
@@ -570,7 +621,7 @@ function GameScreen({
       setRoundXpByPlayerId({});
       ceremonyDoneForRoundRef.current = roundCeremonyKey(next);
     },
-    [resolvedHostId],
+    [resolvedHostId, clearLastHandReveal],
   );
 
   const beginTradePhase = useCallback(
@@ -617,6 +668,7 @@ function GameScreen({
 
   const launchRoundAfterDeal = useCallback(
     (prep: CeremonyPrepPayload, hiddenState: GameState) => {
+      clearLastHandReveal();
       setRoundOver(false);
       setPlayerReadyStates({});
       roundStatsRecordedRef.current = false;
@@ -650,7 +702,7 @@ function GameScreen({
       setCeremonyPrep(prep);
       setState(hiddenState);
     },
-    [beginTradePhase, finalizeCeremonyRound, shouldSkipDealAnimations],
+    [beginTradePhase, finalizeCeremonyRound, shouldSkipDealAnimations, clearLastHandReveal],
   );
 
   const launchCeremonyFromDeal = useCallback(
@@ -710,6 +762,7 @@ function GameScreen({
   const startRoundCeremony = useCallback(
     (baseState: GameState, finishedOrder: string[], nextDealSeed?: number) => {
       setAwaitingDealerReshuffle(false);
+      clearLastHandReveal();
       const deal = executeCeremonyDeal(baseState, finishedOrder, {
         dealSeed: nextDealSeed,
         hostId: resolvedHostId,
@@ -740,7 +793,7 @@ function GameScreen({
         deal.openingPlayerIndex,
       );
     },
-    [resolvedHostId, launchCeremonyFromDeal],
+    [resolvedHostId, launchCeremonyFromDeal, clearLastHandReveal],
   );
 
   const handleTradeConfirm = useCallback(
@@ -1076,6 +1129,13 @@ function GameScreen({
     const allPlayersFinished =
       isRoundCompleteForLiving(state) && !state.tenRulePending;
     if (allPlayersFinished && !roundOver) {
+      if (onlineMultiplayer) return;
+
+      const reveal = lastPlayerHandFromState(state);
+      if (reveal) {
+        startLastHandReveal(reveal);
+      }
+
       setRoundOver(true);
       if (!roundStatsRecordedRef.current) {
         roundStatsRecordedRef.current = true;
@@ -1101,7 +1161,15 @@ function GameScreen({
       });
       setPlayerReadyStates(newReady);
     }
-  }, [state, roundOver, localPlayerId, localPlayerName, humanPlayer]);
+  }, [
+    state,
+    roundOver,
+    localPlayerId,
+    localPlayerName,
+    humanPlayer,
+    onlineMultiplayer,
+    startLastHandReveal,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -1117,11 +1185,14 @@ function GameScreen({
       if (roomNoticeTimerRef.current) {
         clearTimeout(roomNoticeTimerRef.current);
       }
+      if (lastHandRevealTimerRef.current) {
+        clearTimeout(lastHandRevealTimerRef.current);
+      }
     };
   }, []);
 
   useEffect(() => {
-    if (!roundOver || onlineMultiplayer) return;
+    if (!roundOver || onlineMultiplayer || lastHandReveal) return;
     if (!state) return;
     const readyIds = Object.keys(playerReadyStates);
     if (readyIds.length === 0) return;
@@ -1130,7 +1201,7 @@ function GameScreen({
       .every((p) => !!playerReadyStates[p.id]);
     if (!allReady) return;
     startNextRound();
-  }, [playerReadyStates, roundOver, state, onlineMultiplayer]);
+  }, [playerReadyStates, roundOver, lastHandReveal, state, onlineMultiplayer]);
 
   const offlineInitRef = useRef(false);
 
@@ -1453,8 +1524,17 @@ function GameScreen({
           setPlayerReadyStates({ ...readyMap });
         }
       } else if (ev.type === "state" && ev.state?.type === "roundEnded") {
+        const lph = ev.state.lastPlayerHand as LastHandRevealPayload | null | undefined;
+        if (lph?.playerId && lph.cards?.length) {
+          startLastHandReveal({
+            playerId: lph.playerId,
+            playerName: lph.playerName || "Player",
+            cards: lph.cards,
+          });
+        }
         setRoundOver(true);
       } else if (ev.type === "state" && ev.state?.type === "nextRoundStarting") {
+        clearLastHandReveal();
         if (onlineMultiplayer) {
           setRoundOver(false);
           roundStatsRecordedRef.current = false;
@@ -1518,7 +1598,7 @@ function GameScreen({
         void fallbackAdapterRef.current?.disconnect();
       }
     };
-  }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId, preferencesLoaded]);
+  }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId, preferencesLoaded, startLastHandReveal, clearLastHandReveal]);
 
   useEffect(() => {
     if (!roundOver) {
@@ -1807,6 +1887,8 @@ function GameScreen({
         focused,
         setFocused,
         roundOver,
+        lastHandReveal,
+        clearLastHandReveal,
         trickPauseActive,
         trickPauseSnapshot,
         showWinnerBanner,
@@ -1891,6 +1973,8 @@ function GameScreenBoard() {
     focused,
     setFocused,
     roundOver,
+    lastHandReveal,
+    clearLastHandReveal,
     trickPauseActive,
     trickPauseSnapshot,
     showWinnerBanner,
@@ -1979,6 +2063,8 @@ function GameScreenBoard() {
     focused: number | null;
     setFocused: React.Dispatch<React.SetStateAction<number | null>>;
     roundOver: boolean;
+    lastHandReveal: LastHandRevealPayload | null;
+    clearLastHandReveal: () => void;
     trickPauseActive: boolean;
     trickPauseSnapshot: TrickPauseSnapshot | null;
     showWinnerBanner: boolean;
@@ -3217,8 +3303,15 @@ function GameScreenBoard() {
         onConfirm={handleTradeConfirm}
       />
 
+      <LastHandRevealOverlay
+        visible={!!lastHandReveal}
+        playerName={lastHandReveal?.playerName ?? ""}
+        cards={lastHandReveal?.cards ?? []}
+        onDismiss={clearLastHandReveal}
+      />
+
       <RoundCompleteModal
-        visible={roundOver && !ceremonyPrep && !tradePhase}
+        visible={roundOver && !lastHandReveal && !ceremonyPrep && !tradePhase}
         finishedOrder={state.finishedOrder.filter((id) =>
           state.players.some(
             (p) => p.id === id && !isDeadHandPlayer(p),
