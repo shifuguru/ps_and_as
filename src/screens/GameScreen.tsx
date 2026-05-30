@@ -2203,6 +2203,95 @@ function GameScreen({
     onlineMultiplayer,
   ]);
 
+  useEffect(() => {
+    if (!state) return;
+    if (!tradeReturnRevealActive || tradeReturnFlight) return;
+    const pending = tradeReturnRevealPendingRef.current;
+    if (!pending) return;
+
+    const fallback = setTimeout(() => {
+      if (tradeReturnRevealPendingRef.current) {
+        finishTradeReturnReveal();
+      }
+    }, 1400);
+
+    const tableSeats = buildTableSeatConfig(state.players, myPlayerId);
+    const contentTopPadding = insets.top + 8;
+    const localPlayerOutForLayout =
+      !!humanPlayer && state.finishedOrder.includes(humanPlayer.id);
+    const handReserveForLayout =
+      ((humanPlayer?.hand.length ?? 0) > 0 && !gameplayLocked) ||
+      localPlayerOutForLayout;
+    const playAreaGameHeight = Math.max(
+      0,
+      playAreaSize.height -
+        contentTopPadding -
+        reservedBottomHeight(insets.bottom || 0, handReserveForLayout),
+    );
+    const playAreaLayout =
+      playAreaSize.width <= 0 || playAreaGameHeight <= 0
+        ? null
+        : computePlayAreaLayout(
+            playAreaSize.width,
+            playAreaGameHeight,
+            tableSeats.layoutSeatCount,
+          );
+    const ceremonyPlayAreaLayout =
+      livePlayAreaMetrics?.layout ?? playAreaLayout;
+    const ceremonyPlayAreaHeight =
+      livePlayAreaMetrics?.height ?? playAreaGameHeight;
+    const localControlledIds = humanPlayer ? [humanPlayer.id] : [];
+
+    const receive = receiveSlotRectRef.current;
+    const playArea = playAreaScreenRectRef.current;
+    const layout = ceremonyPlayAreaLayout ?? playAreaLayout;
+    const height = ceremonyPlayAreaHeight || playAreaGameHeight;
+    if (!receive || !playArea || !layout || height <= 0) {
+      return () => clearTimeout(fallback);
+    }
+
+    const from = seatOriginInPlayArea(
+      layout,
+      height,
+      pending.trade.winnerId,
+      tableSeats.layoutSeatIds,
+      localControlledIds,
+      { deadHandId: tableSeats.deadHandId },
+    );
+    if (!from) {
+      clearTimeout(fallback);
+      finishTradeReturnReveal();
+      return;
+    }
+
+    clearTimeout(fallback);
+    setTradeReturnFlight({
+      id: `trade-return-${pending.trade.key}`,
+      cards: pending.cards,
+      fromX: playArea.x + from.x,
+      fromY: playArea.y + from.y,
+      toX: receive.x + receive.width / 2,
+      toY: receive.y + receive.height / 2,
+      cardW: 52,
+      cardH: 74,
+    });
+
+    return () => clearTimeout(fallback);
+  }, [
+    state,
+    tradeReturnRevealActive,
+    tradeReturnFlight,
+    livePlayAreaMetrics,
+    playAreaSize,
+    insets.top,
+    insets.bottom,
+    humanPlayer,
+    myPlayerId,
+    gameplayLocked,
+    finishTradeReturnReveal,
+    tradeReturnLayoutTick,
+  ]);
+
   if (!state) {
     return (
       <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
@@ -2274,65 +2363,6 @@ function GameScreen({
   const localControlledIds = humanPlayer ? [humanPlayer.id] : [];
   const deadHandGraveyard =
     !gameplayLocked && !ceremonyPrep && !tradePhase;
-
-  useEffect(() => {
-    if (!tradeReturnRevealActive || tradeReturnFlight) return;
-    const pending = tradeReturnRevealPendingRef.current;
-    if (!pending) return;
-
-    const fallback = setTimeout(() => {
-      if (tradeReturnRevealPendingRef.current) {
-        finishTradeReturnReveal();
-      }
-    }, 1400);
-
-    const receive = receiveSlotRectRef.current;
-    const playArea = playAreaScreenRectRef.current;
-    const layout = ceremonyPlayAreaLayout ?? playAreaLayout;
-    const height = ceremonyPlayAreaHeight || playAreaGameHeight;
-    if (!receive || !playArea || !layout || height <= 0) {
-      return () => clearTimeout(fallback);
-    }
-
-    const from = seatOriginInPlayArea(
-      layout,
-      height,
-      pending.trade.winnerId,
-      tableSeats.layoutSeatIds,
-      localControlledIds,
-      { deadHandId: tableSeats.deadHandId },
-    );
-    if (!from) {
-      clearTimeout(fallback);
-      finishTradeReturnReveal();
-      return;
-    }
-
-    clearTimeout(fallback);
-    setTradeReturnFlight({
-      id: `trade-return-${pending.trade.key}`,
-      cards: pending.cards,
-      fromX: playArea.x + from.x,
-      fromY: playArea.y + from.y,
-      toX: receive.x + receive.width / 2,
-      toY: receive.y + receive.height / 2,
-      cardW: 52,
-      cardH: 74,
-    });
-
-    return () => clearTimeout(fallback);
-  }, [
-    tradeReturnRevealActive,
-    tradeReturnFlight,
-    ceremonyPlayAreaLayout,
-    playAreaLayout,
-    ceremonyPlayAreaHeight,
-    playAreaGameHeight,
-    tableSeats,
-    localControlledIds,
-    finishTradeReturnReveal,
-    tradeReturnLayoutTick,
-  ]);
 
   return (
     <GameScreenRuntimeContext.Provider
