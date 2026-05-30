@@ -30,11 +30,11 @@ const PLAY_TYPE_BADGE_HEIGHT = 30;
 /** Gap between the play-type pill and the turn hint pill. */
 const TURN_HINT_GAP = 8;
 /** Run pool badge block height (chips + copy + padding). */
-const RUN_XP_POOL_BADGE_HEIGHT = 58;
+const RUN_XP_POOL_BADGE_HEIGHT = 54;
 /** Clear space between the run pool badge bottom and the top card edge. */
-const RUN_XP_POOL_GAP = 18;
-/** Top padding for the run pool badge in the play area. */
-const RUN_XP_POOL_TOP = 6;
+const RUN_XP_POOL_GAP = 12;
+/** Lift the run pool toward the top ring — negative extends above the card zone. */
+const RUN_XP_POOL_TOP = -16;
 
 function playKey(play: TrickPlayDisplay, index: number): string {
   return `${index}-${play.playerId}-${play.cards.map((c) => `${c.suit}${c.value}`).join("-")}`;
@@ -107,7 +107,10 @@ export default function GameTable({
 
   const showRunXpPool = (runXpPoolAmount ?? 0) > 0;
   const runPoolTopInset = showRunXpPool
-    ? RUN_XP_POOL_BADGE_HEIGHT + RUN_XP_POOL_GAP
+    ? Math.max(
+        28,
+        RUN_XP_POOL_TOP + RUN_XP_POOL_BADGE_HEIGHT + RUN_XP_POOL_GAP,
+      )
     : 0;
 
   const layout = useMemo(() => {
@@ -623,11 +626,13 @@ const styles = StyleSheet.create({
   tableFrame: {
     flex: 1,
     minHeight: 0,
+    overflow: "visible",
   },
   anchorHost: {
     flex: 1,
     minHeight: 0,
     position: "relative",
+    overflow: "visible",
   },
   playCluster: {
     ...StyleSheet.absoluteFillObject,

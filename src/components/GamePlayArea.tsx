@@ -405,6 +405,7 @@ const styles = StyleSheet.create({
   cardZone: {
     position: "absolute",
     zIndex: 8,
+    overflow: "visible",
   },
   flightLayer: {
     ...StyleSheet.absoluteFillObject,
