@@ -88,6 +88,19 @@ jobs:
           force_orphan: true
           commit_message: "Deploy web app ${{ github.sha }}"
 
+      # Keep index.html (and assets) on main so branch-based GitHub Pages does not
+      # 404 after [skip ci] version-bump commits that only touch package.json.
+      - name: Sync web build onto main (branch Pages fallback)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: web-build
+          publish_branch: main
+          keep_files: true
+          commit_message: "chore: sync web build to main [skip ci]"
+          user_name: github-actions[bot]
+          user_email: 41898282+github-actions[bot]@users.noreply.github.com
+
   deploy:
     needs: build
     runs-on: ubuntu-latest

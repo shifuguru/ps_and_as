@@ -41,6 +41,17 @@ jobs:
         with:
           path: .
 
+      - name: Sync gh-pages build onto main (branch Pages fallback)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          publish_branch: main
+          keep_files: true
+          commit_message: "chore: recover web build on main [skip ci]"
+          user_name: github-actions[bot]
+          user_email: 41898282+github-actions[bot]@users.noreply.github.com
+
   deploy:
     needs: recover
     runs-on: ubuntu-latest
