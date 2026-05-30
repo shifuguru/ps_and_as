@@ -48,7 +48,9 @@ import {
   clonePlayersForRound,
   completeWinnerReturn,
   executeCeremonyDeal,
+  resolveCeremonyTrades,
   type ClientPendingTrade,
+  type ServerPendingTrades,
 } from "../game/roundPrep";
 import {
   openingLeadCardIndex,
@@ -354,6 +356,8 @@ function GameScreen({
   const [trickPauseActive, setTrickPauseActive] = useState(false);
   const [trickPauseSnapshot, setTrickPauseSnapshot] =
     useState<TrickPauseSnapshot | null>(null);
+  const [tableRenderKey, setTableRenderKey] = useState(0);
+  const prevTrickPauseRef = useRef(trickPauseActive);
   const [roomNotice, setRoomNotice] = useState<string | null>(null);
   const [awayPlayers, setAwayPlayers] = useState<Record<string, AwayPlayer>>({});
   const [playerFeltTints, setPlayerFeltTints] = useState<Record<string, string>>(() => {
@@ -567,6 +571,12 @@ function GameScreen({
       players: GameState["players"],
       trades: ClientPendingTrade[],
     ) => {
+      const pendingHands = pendingTradesCompleteRef.current;
+      if (onlineMultiplayer && pendingHands) {
+        finalizeCeremonyRound(players, baseState, pendingHands);
+        return;
+      }
+
       const playersCopy = clonePlayersForRound(players);
       const tradesCopy = trades.map((t) => ({ ...t, incoming: [...t.incoming] }));
 
@@ -612,6 +622,14 @@ function GameScreen({
           setAwaitingDealerReshuffle(true);
           return;
         }
+        if (pendingTradesCompleteRef.current) {
+          finalizeCeremonyRound(
+            prep.players,
+            prep.baseState,
+            pendingTradesCompleteRef.current,
+          );
+          return;
+        }
         const tradesPending =
           prep.trades.length > 0 && !prep.trades.every((t) => t.completed);
         if (tradesPending) {
@@ -624,7 +642,7 @@ function GameScreen({
       setCeremonyPrep(prep);
       setState(hiddenState);
     },
-    [beginTradePhase, shouldSkipDealAnimations],
+    [beginTradePhase, finalizeCeremonyRound, shouldSkipDealAnimations],
   );
 
   const launchCeremonyFromDeal = useCallback(
@@ -655,6 +673,14 @@ function GameScreen({
       return;
     }
     if (prep) {
+      if (pendingTradesCompleteRef.current) {
+        finalizeCeremonyRound(
+          prep.players,
+          prep.baseState,
+          pendingTradesCompleteRef.current,
+        );
+        return;
+      }
       beginTradePhase(prep.baseState, prep.players, prep.trades);
       return;
     }
@@ -1027,6 +1053,13 @@ function GameScreen({
   }, [trickPauseActive]);
 
   useEffect(() => {
+    if (prevTrickPauseRef.current && !trickPauseActive) {
+      setTableRenderKey((key) => key + 1);
+    }
+    prevTrickPauseRef.current = trickPauseActive;
+  }, [trickPauseActive]);
+
+  useEffect(() => {
     if (!state) return;
     const allPlayersFinished =
       isRoundCompleteForLiving(state) && !state.tenRulePending;
@@ -1135,8 +1168,13 @@ function GameScreen({
         if (needsCeremony) {
         ceremonyStartedForRoundRef.current = roundKey;
         awaitingDealCeremonyRef.current = false;
-        const serverPending = (parsed as GameState & { pendingTrades?: Record<string, { fromId: string; count: number; incoming: CardType[]; selected?: CardType[] | null }> }).pendingTrades;
+        const serverPending = (
+          parsed as GameState & { pendingTrades?: ServerPendingTrades }
+        ).pendingTrades;
         const serverRoles = (parsed as GameState & { roles?: Record<string, string> }).roles;
+        const serverPlayerHands = (
+          parsed as GameState & { playerHands?: Record<string, CardType[]> }
+        ).playerHands;
         const roundDealSeed =
           (parsed as GameState & { dealSeed?: number }).dealSeed ??
           pendingDealSeedRef.current ??
@@ -1151,53 +1189,22 @@ function GameScreen({
           dealSeed: roundDealSeed,
           hostId: resolvedHostId,
         });
-        let trades = deal.trades;
-        if (serverPending && serverRoles) {
-          const roleValues = Object.values(serverRoles);
-          const hasPresident = roleValues.includes("president");
-          const hasAsshole = roleValues.includes("asshole");
-          if (hasPresident && hasAsshole) {
-          if (serverPending.president) {
-            const presId = Object.keys(serverRoles).find((k) => serverRoles[k] === "president");
-            const trade = serverPending.president;
-            if (presId) {
-              trades.push({
-                key: "president",
-                winnerId: presId,
-                loserId: trade.fromId,
-                winnerName: deal.players.find((p) => p.id === presId)?.name ?? "President",
-                loserName: deal.players.find((p) => p.id === trade.fromId)?.name ?? "Asshole",
-                incoming: trade.incoming ?? [],
-                returnCount: trade.count ?? trade.incoming?.length ?? 1,
-                completed: !!trade.selected,
-              });
-            }
-          }
-          if (serverPending.vicePresident) {
-            const vpId = Object.keys(serverRoles).find((k) => serverRoles[k] === "vice_president");
-            const trade = serverPending.vicePresident;
-            if (vpId) {
-              trades.push({
-                key: "vicePresident",
-                winnerId: vpId,
-                loserId: trade.fromId,
-                winnerName: deal.players.find((p) => p.id === vpId)?.name ?? "Vice President",
-                loserName: deal.players.find((p) => p.id === trade.fromId)?.name ?? "Vice Asshole",
-                incoming: trade.incoming ?? [],
-                returnCount: trade.count ?? trade.incoming?.length ?? 1,
-                completed: !!trade.selected,
-              });
-            }
-          }
-          }
-        }
+        const ceremonyPlayers = serverPlayerHands
+          ? applyServerPlayerHands(deal.players, serverPlayerHands)
+          : deal.players;
+        const trades = resolveCeremonyTrades(
+          deal.trades,
+          serverPending,
+          serverRoles,
+          ceremonyPlayers,
+        );
 
         setRoundOver(false);
         setPlayerReadyStates({});
         setAwaitingDealerReshuffle(false);
         const prep: CeremonyPrepPayload = {
           baseState: parsed,
-          players: deal.players,
+          players: ceremonyPlayers,
           trades,
           dealSeed: roundDealSeed,
           finishOrder,
@@ -1792,6 +1799,7 @@ function GameScreen({
         trickPauseSnapshot,
         showWinnerBanner,
         stackCollecting,
+        tableRenderKey,
         playerReadyStates,
         setPlayerReadyStates,
         leaveConfirmVisible,
@@ -1873,6 +1881,7 @@ function GameScreenBoard() {
     trickPauseSnapshot,
     showWinnerBanner,
     stackCollecting,
+    tableRenderKey,
     playerReadyStates,
     setPlayerReadyStates,
     leaveConfirmVisible,
@@ -1958,6 +1967,7 @@ function GameScreenBoard() {
     trickPauseSnapshot: TrickPauseSnapshot | null;
     showWinnerBanner: boolean;
     stackCollecting: boolean;
+    tableRenderKey: number;
     playerReadyStates: { [playerId: string]: boolean };
     setPlayerReadyStates: React.Dispatch<
       React.SetStateAction<{ [playerId: string]: boolean }>
@@ -2933,6 +2943,7 @@ function GameScreenBoard() {
           onPlayAreaMetrics={setLivePlayAreaMetrics}
         >
           <GameTable
+            key={tableRenderKey}
             plays={displayPlays}
             collectToStack={trickPauseActive && stackCollecting}
             collectDurationMs={trickStackCollectMs}
@@ -3009,10 +3020,10 @@ function GameScreenBoard() {
       <BottomBar>
         {handInBottomBar ? (
           <BottomBarHand height={HAND_FAN_HEIGHT + HAND_ZONE_TOP_CLEARANCE}>
-            {!isHumanTurn && revealTurnHighlight ? (
+            {revealTurnHighlight ? (
               <View style={local.waitingPill}>
                 <Text style={local.waitingPillText}>
-                  Waiting for {current.name}…
+                  {isHumanTurn ? "Your turn" : `Waiting for ${current.name}…`}
                 </Text>
               </View>
             ) : null}
@@ -3068,10 +3079,10 @@ function GameScreenBoard() {
             <View style={[local.waitingPill, local.waitingPillCollapsed]}>
               <Text style={local.waitingPillText}>Dealing cards…</Text>
             </View>
-          ) : !handVisible && !isHumanTurn && revealTurnHighlight ? (
+          ) : !handVisible && revealTurnHighlight ? (
             <View style={[local.waitingPill, local.waitingPillCollapsed]}>
               <Text style={local.waitingPillText}>
-                Waiting for {current.name}…
+                {isHumanTurn ? "Your turn" : `Waiting for ${current.name}…`}
               </Text>
             </View>
           ) : null}

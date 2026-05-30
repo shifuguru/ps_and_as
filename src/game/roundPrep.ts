@@ -216,6 +216,88 @@ export function applyMandatoryTrades(
   return pending;
 }
 
+export type ServerPendingTrade = {
+  fromId: string;
+  count: number;
+  incoming: Card[];
+  selected?: Card[] | null;
+};
+
+export type ServerPendingTrades = {
+  president?: ServerPendingTrade;
+  vicePresident?: ServerPendingTrade;
+};
+
+/** Authoritative pending trades from the server — one entry per role, never duplicated. */
+export function buildTradesFromServerPending(
+  players: Player[],
+  roles: Record<string, string>,
+  pending: ServerPendingTrades,
+): ClientPendingTrade[] {
+  const trades: ClientPendingTrade[] = [];
+  const nameOf = (id: string) =>
+    players.find((p) => p.id === id)?.name ?? "Player";
+
+  if (pending.president) {
+    const presId = Object.keys(roles).find((k) => roles[k] === "president");
+    const trade = pending.president;
+    if (presId) {
+      trades.push({
+        key: "president",
+        winnerId: presId,
+        loserId: trade.fromId,
+        winnerName: nameOf(presId),
+        loserName: nameOf(trade.fromId),
+        incoming: [...(trade.incoming ?? [])],
+        returnCount: trade.count ?? trade.incoming?.length ?? 1,
+        completed: !!trade.selected,
+      });
+    }
+  }
+
+  if (pending.vicePresident) {
+    const vpId = Object.keys(roles).find((k) => roles[k] === "vice_president");
+    const trade = pending.vicePresident;
+    if (vpId) {
+      trades.push({
+        key: "vicePresident",
+        winnerId: vpId,
+        loserId: trade.fromId,
+        winnerName: nameOf(vpId),
+        loserName: nameOf(trade.fromId),
+        incoming: [...(trade.incoming ?? [])],
+        returnCount: trade.count ?? trade.incoming?.length ?? 1,
+        completed: !!trade.selected,
+      });
+    }
+  }
+
+  return trades;
+}
+
+/** Prefer server pending trades when roles are assigned — avoids duplicating local mandatory trades. */
+export function resolveCeremonyTrades(
+  localTrades: ClientPendingTrade[],
+  serverPending: ServerPendingTrades | null | undefined,
+  serverRoles: Record<string, string> | null | undefined,
+  players: Player[],
+): ClientPendingTrade[] {
+  if (!serverPending || !serverRoles) return localTrades;
+  const roleValues = Object.values(serverRoles);
+  if (
+    !roleValues.includes("president") ||
+    !roleValues.includes("asshole")
+  ) {
+    return localTrades;
+  }
+  const fromServer = buildTradesFromServerPending(
+    players,
+    serverRoles,
+    serverPending,
+  );
+  return fromServer.length > 0 ? fromServer : localTrades;
+}
+
 /** Offline: president/VP CPUs instantly return their lowest cards. */
 export function autoCompleteCpuWinnerTrades(
   players: Player[],

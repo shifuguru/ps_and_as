@@ -1,4 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { View, StyleSheet, LayoutChangeEvent } from "react-native";
 import OpponentRing from "./OpponentRing";
 import TableCardFlight, { type CardFlightSpec } from "./TableCardFlight";
@@ -157,13 +164,18 @@ export default function GamePlayArea({
     [deadHandId],
   );
 
+  useLayoutEffect(() => {
+    if (plays.length !== 0) return;
+    flightsInitializedRef.current = false;
+    prevPlayKeysRef.current = new Set();
+    setLandedKeys(new Set());
+    setActiveFlights([]);
+  }, [plays.length]);
+
   useEffect(() => {
     const currentKeys = new Set(plays.map(playDisplayKey));
 
     if (plays.length === 0) {
-      prevPlayKeysRef.current = new Set();
-      setLandedKeys(new Set());
-      setActiveFlights([]);
       return;
     }
 

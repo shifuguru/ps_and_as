@@ -36,7 +36,8 @@ import {
   buildFreshRoundState,
   clonePlayersForRound,
   completeWinnerReturn,
-  pickHighestCards,
+  resolveCeremonyTrades,
+  buildTradesFromServerPending,
 } from "../src/game/roundPrep";
 import { applyFinishOrderRoles, roleForPlacement, supportsViceRoles } from "../src/utils/roundRoles";
 import {
@@ -1519,5 +1520,56 @@ console.log("Mandatory trade rank tests passed");
     "Vice Asshole waits until the round is fully ranked",
   );
 }
+
+{
+  const players = createGame(["P1", "P2", "P3", "P4"]).players;
+  assignPlayerRoles(players, ["1", "2", "3", "4"]);
+  players.forEach((p) => {
+    p.hand = [
+      { suit: "spades", value: 15 },
+      { suit: "hearts", value: 14 },
+      { suit: "clubs", value: 5 },
+    ];
+  });
+  const localTrades = applyMandatoryTrades(players);
+  assert.strictEqual(localTrades.length, 1);
+
+  const incoming = [{ suit: "spades", value: 15, hidden: false }];
+  const serverPending = {
+    president: {
+      fromId: "4",
+      count: 1,
+      incoming,
+      selected: null,
+    },
+  };
+  const serverRoles = {
+    "1": "president",
+    "4": "asshole",
+  };
+
+  const merged = resolveCeremonyTrades(
+    localTrades,
+    serverPending,
+    serverRoles,
+    players,
+  );
+  assert.strictEqual(
+    merged.length,
+    1,
+    "server pending trades must not duplicate local mandatory trades",
+  );
+  assert.strictEqual(merged[0]?.key, "president");
+  assert.strictEqual(merged[0]?.incoming.length, 1);
+
+  const fromServer = buildTradesFromServerPending(
+    players,
+    serverRoles,
+    serverPending,
+  );
+  assert.strictEqual(fromServer.length, 1);
+}
+
+console.log("Ceremony trade merge tests passed");
 
 console.log("Fresh round tests passed");

@@ -31,6 +31,15 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-05-30T18:12"),
+    title: "Fixes",
+    items: [
+      "Table — card remnants no longer linger after a trick is won",
+      "Skip deal animations — role trades no longer duplicate cards or lock you in the trade menu when other players still watch the deal",
+      "Turn hint shows \"Your turn\" when it's your play",
+    ],
+  },
+  {
     publishedAt: nzst("2026-05-30T13:55"),
     title: "Roles & trades",
     items: [

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -77,6 +77,7 @@ export default function GameTable({
   const collectAnim = useRef(new Animated.Value(0)).current;
   const tableFadeAnim = useRef(new Animated.Value(1)).current;
   const collectHeldRef = useRef(false);
+  const [tableCardsVisible, setTableCardsVisible] = useState(false);
 
   const scaleLimits = useMemo(
     () =>
@@ -121,18 +122,49 @@ export default function GameTable({
     });
   }, [collectToStack, collectAnim, collectDurationMs]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (plays.length === 0) {
+      setTableCardsVisible(false);
       collectHeldRef.current = false;
+      collectAnim.stopAnimation();
+      collectAnim.setValue(0);
+      tableFadeAnim.stopAnimation();
       tableFadeAnim.setValue(1);
       return;
     }
-    Animated.timing(tableFadeAnim, {
-      toValue: fadeOut ? 0 : 1,
-      duration: fadeOut ? fadeOutDurationMs : 120,
+    if (!fadeOut && !collectToStack) {
+      setTableCardsVisible(true);
+      tableFadeAnim.setValue(1);
+    }
+  }, [plays.length, fadeOut, collectToStack, collectAnim, tableFadeAnim]);
+
+  useEffect(() => {
+    if (plays.length === 0) return;
+
+    if (fadeOut) {
+      setTableCardsVisible(true);
+      tableFadeAnim.setValue(1);
+      const anim = Animated.timing(tableFadeAnim, {
+        toValue: 0,
+        duration: fadeOutDurationMs,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      });
+      anim.start(({ finished }) => {
+        if (finished) setTableCardsVisible(false);
+      });
+      return () => anim.stop();
+    }
+
+    setTableCardsVisible(true);
+    const anim = Animated.timing(tableFadeAnim, {
+      toValue: 1,
+      duration: 120,
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
-    }).start();
+    });
+    anim.start();
+    return () => anim.stop();
   }, [fadeOut, fadeOutDurationMs, plays.length, tableFadeAnim]);
 
   const onZoneLayout = (event: LayoutChangeEvent) => {
@@ -264,6 +296,8 @@ export default function GameTable({
               {emptyMessage}
             </Text>
           </View>
+        ) : !tableCardsVisible ? (
+          <View style={styles.emptyHost} pointerEvents="none" />
         ) : (
           <Animated.View style={[styles.playCluster, { opacity: tableFadeAnim }]}>
             <View
@@ -449,6 +483,7 @@ const styles = StyleSheet.create({
   },
   playStack: {
     position: "relative",
+    overflow: "hidden",
   },
   playGroup: {
     position: "absolute",
