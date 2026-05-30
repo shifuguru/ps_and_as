@@ -21,6 +21,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.0.18": "Wild Draw Four Energy",
   "1.0.19": "Bottom Deck Energy",
   "1.0.20": "Ten High Drama",
+  "1.0.21": "Bluff Buffet",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
