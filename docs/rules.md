@@ -33,7 +33,7 @@ Empty your hand first. Next round, ranks: President, VP, ... Arsehole.
 
 ## President & Asshole trades
 - After round 1, the **Asshole** gives their best card(s) to the **President**, who returns the same number of their worst cards.
-- In 5+ player games, **Vice Asshole** ↔ **Vice President** trades also apply (one card each).
+- **5+ players:** **Vice Asshole** ↔ **Vice President** trades also apply (one card each). Middle-ranked players (“middle man”) stay neutral — no trade.
 - **Fresh round:** if the same player is Asshole **three rounds in a row**, the next round skips the President↔Asshole trade only. Play otherwise continues normally (deal, open, VP trades in 5+ games). Trades resume from the following round.
 
 ## Edge cases

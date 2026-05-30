@@ -21,7 +21,7 @@ import {
   resolveLeadPlayerIndexAfterTrades,
   resolveOpeningPlayerIndex,
 } from "../utils/tableSeats";
-import { applyFinishOrderRoles } from "../utils/roundRoles";
+import { applyFinishOrderRoles, supportsViceRoles } from "../utils/roundRoles";
 import { isCpuPlayer } from "../utils/localPlayer";
 
 export type ClientPendingTrade = {
@@ -90,8 +90,8 @@ export function mandatoryTradeCounts(playerCount: number): {
   vice: number;
 } {
   return {
-    president: playerCount >= 5 ? 2 : 1,
-    vice: playerCount >= 5 ? 1 : 0,
+    president: supportsViceRoles(playerCount) ? 2 : 1,
+    vice: supportsViceRoles(playerCount) ? 1 : 0,
   };
 }
 

@@ -38,7 +38,7 @@ import {
   completeWinnerReturn,
   pickHighestCards,
 } from "../src/game/roundPrep";
-import { applyFinishOrderRoles } from "../src/utils/roundRoles";
+import { applyFinishOrderRoles, roleForPlacement, supportsViceRoles } from "../src/utils/roundRoles";
 import {
   resolveFirstRoundLeadPlayerIndex,
   resolveLeadPlayerIndexAfterTrades,
@@ -1468,6 +1468,56 @@ console.log("Mandatory trade rank tests passed");
   const trades = applyMandatoryTrades(players, { skipPresidentTrade: true });
   assert.strictEqual(trades.length, 1, "Fresh round still runs VP trade in 5-player game");
   assert.strictEqual(trades[0].key, "vicePresident");
+}
+
+{
+  assert.ok(!supportsViceRoles(4));
+  assert.ok(supportsViceRoles(5));
+
+  const four = createGame(["P1", "P2", "P3", "P4"]).players;
+  assignPlayerRoles(four, ["1", "2", "3", "4"]);
+  assert.strictEqual(four.find((p) => p.id === "1")!.role, "President");
+  assert.strictEqual(four.find((p) => p.id === "2")!.role, "Neutral");
+  assert.strictEqual(four.find((p) => p.id === "4")!.role, "Asshole");
+  assert.strictEqual(roleForPlacement(1, 4), "Middle Man");
+  four.forEach((p) => {
+    p.hand = [{ suit: "spades", value: 10 }];
+  });
+  assert.strictEqual(applyMandatoryTrades(four).length, 1);
+
+  const five = createGame(["P1", "P2", "P3", "P4", "P5"]).players;
+  assignPlayerRoles(five, ["1", "2", "3", "4", "5"]);
+  assert.strictEqual(five.find((p) => p.id === "2")!.role, "Vice President");
+  assert.strictEqual(five.find((p) => p.id === "3")!.role, "Neutral");
+  assert.strictEqual(five.find((p) => p.id === "4")!.role, "Vice Asshole");
+  assert.strictEqual(five.find((p) => p.id === "5")!.role, "Asshole");
+  assert.strictEqual(roleForPlacement(2, 5), "Middle Man");
+  five.forEach((p) => {
+    p.hand = [{ suit: "spades", value: 10 }, { suit: "hearts", value: 11 }];
+  });
+  const fiveTrades = applyMandatoryTrades(five);
+  assert.strictEqual(fiveTrades.length, 2);
+  assert.deepStrictEqual(
+    fiveTrades.map((t) => t.key).sort(),
+    ["president", "vicePresident"],
+  );
+
+  const six = createGame(["P1", "P2", "P3", "P4", "P5", "P6"]).players;
+  assignPlayerRoles(six, ["1", "2", "3", "4", "5", "6"]);
+  assert.strictEqual(six.find((p) => p.id === "3")!.role, "Neutral");
+  assert.strictEqual(six.find((p) => p.id === "4")!.role, "Neutral");
+  assert.strictEqual(roleForPlacement(2, 6), "Middle Man");
+  assert.strictEqual(roleForPlacement(3, 6), "Middle Man");
+  assert.strictEqual(six.find((p) => p.id === "5")!.role, "Vice Asshole");
+
+  const midRound = createGame(["P1", "P2", "P3", "P4", "P5"]).players;
+  applyFinishOrderRoles(midRound, ["1", "2", "3", "4"]);
+  assert.strictEqual(midRound.find((p) => p.id === "4")!.role, "Neutral");
+  assert.strictEqual(
+    midRound.find((p) => p.id === "3")!.role,
+    "Neutral",
+    "Vice Asshole waits until the round is fully ranked",
+  );
 }
 
 console.log("Fresh round tests passed");

@@ -106,16 +106,17 @@ export function assignRoles(players: Player[]): void {
   // Sort players by the order they finished (e.g., first to finish is ranked highest)
   players.sort((a, b) => a.hand.length - b.hand.length);
 
+  const count = players.length;
   // Assign roles based on rankings
   players.forEach((player, index) => {
     if (index === 0) {
       player.role = "President";
-    } else if (index === 1) {
-      player.role = "Vice President";
-    } else if (index === players.length - 2) {
-      player.role = "Vice Asshole";
-    } else if (index === players.length - 1) {
+    } else if (index === count - 1) {
       player.role = "Asshole";
+    } else if (count >= 5 && index === 1) {
+      player.role = "Vice President";
+    } else if (count >= 5 && index === count - 2) {
+      player.role = "Vice Asshole";
     } else {
       player.role = "Neutral";
     }

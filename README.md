@@ -219,6 +219,8 @@ After the first round:
 * the President gives away their worst cards,
 * the Asshole gives away their best cards.
 
+**5+ players:** the **Vice Asshole** and **Vice President** also trade one card each. Anyone ranked in the middle (“middle man”) has no trade.
+
 The rich get richer.
 
 The poor become strategically interesting.

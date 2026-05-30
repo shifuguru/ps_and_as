@@ -31,6 +31,13 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-05-30T13:55"),
+    title: "Roles & trades",
+    items: [
+      "5+ players — Vice President and Vice Asshole roles with card trades; middle-ranked players have no trade",
+    ],
+  },
+  {
     publishedAt: nzst("2026-05-30T13:39"),
     title: "Fixes",
     items: [

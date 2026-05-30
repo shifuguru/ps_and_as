@@ -289,7 +289,7 @@ function assignRolesFromFinishOrder(gameState, playersCount, finishOrder) {
   const lastIdx = order.length - 1;
   roles[order[lastIdx]] = 'asshole';
 
-  if (playersCount >= 5 && order.length >= 4) {
+  if (playersCount >= 5 && order.length >= playersCount) {
     roles[order[1]] = 'vice_president';
     roles[order[lastIdx - 1]] = 'vice_asshole';
   }

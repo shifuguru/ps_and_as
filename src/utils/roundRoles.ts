@@ -7,7 +7,12 @@ export type RoundRoleLabel =
   | "Vice President"
   | "Vice Asshole"
   | "Asshole"
-  | "Civilian";
+  | "Middle Man";
+
+/** 5+ living players — second & second-last finisher become VP / Vice Asshole. */
+export function supportsViceRoles(playerCount: number): boolean {
+  return playerCount >= 5;
+}
 
 /** Normalize server or client role strings for badge display. */
 export function normalizePlayerRole(
@@ -35,6 +40,7 @@ export function normalizePlayerRole(
 /**
  * Map finish order index to role for `playerCount` players.
  * Index 0 = first out (President), last index = Asshole.
+ * 5+ players: index 1 = VP, index n-2 = Vice Asshole, middle ranks = Middle Man.
  */
 export function roleForPlacement(
   index: number,
@@ -42,9 +48,11 @@ export function roleForPlacement(
 ): RoundRoleLabel {
   if (index === 0) return "President";
   if (index === playerCount - 1) return "Asshole";
-  if (playerCount >= 5 && index === 1) return "Vice President";
-  if (playerCount >= 5 && index === playerCount - 2) return "Vice Asshole";
-  return "Civilian";
+  if (supportsViceRoles(playerCount) && index === 1) return "Vice President";
+  if (supportsViceRoles(playerCount) && index === playerCount - 2) {
+    return "Vice Asshole";
+  }
+  return "Middle Man";
 }
 
 export function roleEmoji(role: RoundRoleLabel | Player["role"]): string | null {
@@ -87,11 +95,13 @@ export function applyFinishOrderRoles(
   };
 
   setRole(order[0], "President");
-  if (count >= 5 && finished >= 2) setRole(order[1], "Vice President");
-  if (count >= 5 && finished >= count - 1) {
-    setRole(order[order.length - 2], "Vice Asshole");
+  if (supportsViceRoles(count) && finished >= 2) {
+    setRole(order[1], "Vice President");
   }
   if (finished >= count && count >= 2) {
+    if (supportsViceRoles(count)) {
+      setRole(order[order.length - 2], "Vice Asshole");
+    }
     setRole(order[order.length - 1], "Asshole");
   }
 }
