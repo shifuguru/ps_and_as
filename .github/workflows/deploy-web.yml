@@ -17,6 +17,11 @@ concurrency:
 
 jobs:
   build:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+       !contains(github.event.head_commit.message, '[skip ci]') &&
+       !contains(github.event.head_commit.message, 'chore: bump version'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -116,3 +121,39 @@ jobs:
           echo "Fix: Settings → Pages → Build and deployment → Source → GitHub Actions"
           echo "Do NOT deploy from the main branch — it has no index.html and will 404."
           exit 1
+
+  # After a successful deploy, bump patch version on main for the next release.
+  # [skip ci] on the bump commit + build/deploy skip guard above avoids a deploy loop.
+  bump-version:
+    needs: deploy
+    if: >-
+      github.event_name == 'push' &&
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !contains(github.event.head_commit.message, 'chore: bump version')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Bump version for next release
+        run: npm run bump-version
+
+      - name: Commit and push version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json app.json package-lock.json src/config/buildCodenames.ts
+          if git diff --staged --quiet; then
+            echo "Version files unchanged; skipping commit."
+            exit 0
+          fi
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          git commit -m "chore: bump version to v${NEW_VERSION} [skip ci]"
+          git push origin HEAD:main

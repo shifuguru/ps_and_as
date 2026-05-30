@@ -12,13 +12,10 @@ When the user asks to **push to GitHub** (or deploy / publish to the live site v
    - Add a new entry at the **top** of `UPDATE_ENTRIES` with a short title and bullet items in **plain player language** (rules, UX, fixes — not dev/deployment jargon).
    - Merge into a recent entry when the change is small; keep the page concise.
    - Update `KNOWN_ISSUES` only for active **Monitoring** items players should know about — remove or don't add rows for shipped fixes (those belong in updates).
-3. **Bump version** before committing:
-   ```bash
-   npm run bump-version
-   ```
-4. **Commit** with the version bump, What's New, and all push-related changes together.
-   - Include `package.json`, `app.json`, `package-lock.json`, and `src/screens/updateLogContent.ts`.
-   - Mention the new version in the commit message (e.g. `v1.0.2 — …`).
+3. **Version** — do **not** run `npm run bump-version` before a normal push. The deploy workflow ships the current `package.json` version, then a post-deploy job bumps patch + codename on `main` with `[skip ci]`. Only bump manually if you're starting a new patch locally before that post-deploy commit has landed (e.g. after the bump job was disabled).
+4. **Commit** with What's New and all push-related changes together.
+   - Include `src/screens/updateLogContent.ts` and any code changes.
+   - Mention the shipping version in the commit message (e.g. `v1.0.20 — …`).
 5. **Set actual timestamps** from the commit you just created (author date, NZ local):
    ```bash
    git log -1 --format=%ci

@@ -1,6 +1,6 @@
 {
   "name": "ps_and_as",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "main": "index.ts",
   "scripts": {
     "start": "node ./scripts/expo-dev-env.js",

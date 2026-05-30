@@ -32,6 +32,18 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-05-30T22:29"),
+    title: "Runs, trades & XP",
+    items: [
+      "10s during a run — once Runs! is active, 10s play as normal cards (no higher/lower prompt), including when a 10 completes the run",
+      "Role trades — the president's return card flies into the asshole's receive slot before the round opens",
+      "Round XP — trick and run bonus XP tally during play and land on the scoreboard at round end; leaving early forfeits your earned XP for that round",
+      "Multiplayer — trick-win shouts and avatar reward borders show on other players' screens",
+      "Your seat sits slightly lower on the table so your avatar isn't tucked under the play area",
+      "Settings — cleaner appearance panel with inline toggles; skip-deal option marked as beta",
+    ],
+  },
+  {
     publishedAt: nzst("2026-05-30T21:00"),
     title: "Rewards & bots",
     items: [

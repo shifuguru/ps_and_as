@@ -79,13 +79,12 @@ import {
 } from "../rewards/cpuProfiles";
 import {
   recordRoundResult,
-  recordTrickWin,
-  recordRunStepXp,
+  commitRoundXpEarned,
   TRICK_WIN_XP,
   RUN_STEP_XP,
   getPlayerStats,
 } from "../services/playerStats";
-import { fetchCloudPlayerStats } from "../services/playerStatsCloud";
+import { fetchCloudPlayerStats, pushCloudPlayerStats } from "../services/playerStatsCloud";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { useGamePreferences } from "../hooks/useGamePreferences";
 import { getSkipDealAnimationsSync } from "../services/gamePreferences";
@@ -118,6 +117,8 @@ import DealCeremonyOverlay from "../components/DealCeremonyOverlay";
 import DealerReshuffleButton from "../components/DealerReshuffleButton";
 import RoleTradeModal from "../components/RoleTradeModal";
 import RoleTradeStrip from "../components/RoleTradeStrip";
+import TableCardFlight, { type CardFlightSpec } from "../components/TableCardFlight";
+import { seatOriginInPlayArea } from "../utils/tablePlayFlight";
 import { computePlayAreaLayout } from "../utils/tableLayout";
 import OpponentSeat from "../components/OpponentSeat";
 import LobbyPlayerModal, {
@@ -156,6 +157,8 @@ function roundCeremonyKey(state: GameStateWithDealSeed): string {
 }
 
 const LAST_HAND_REVEAL_MS = 4000;
+const TRADE_RETURN_FLIGHT_MS = 520;
+const TRADE_RETURN_HOLD_MS = 650;
 
 type LastHandRevealPayload = {
   playerId: string;
@@ -311,6 +314,8 @@ type TrickPauseSnapshot = {
   passedPlayerIds: string[];
   winnerName: string;
   winnerId: string;
+  /** Trick index (1-based count in trickHistory) when the trick was won. */
+  trickIndex: number;
   /** Run bonus XP awarded to the trick winner (0 for a 3-card run). */
   runBonusXp: number;
 };
@@ -375,6 +380,30 @@ function GameScreen({
   } | null>(null);
   const [activeTrade, setActiveTrade] = useState<ClientPendingTrade | null>(null);
   const [tradeReturnPick, setTradeReturnPick] = useState<CardType[]>([]);
+  const [tradeReturnFlight, setTradeReturnFlight] = useState<CardFlightSpec | null>(
+    null,
+  );
+  const [tradeReturnReceiveLanded, setTradeReturnReceiveLanded] = useState(false);
+  const [tradeReturnRevealActive, setTradeReturnRevealActive] = useState(false);
+  const [tradeReturnLayoutTick, setTradeReturnLayoutTick] = useState(0);
+  const receiveSlotRectRef = useRef<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const playAreaScreenRectRef = useRef<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const tradeReturnRevealPendingRef = useRef<{
+    cards: CardType[];
+    trade: ClientPendingTrade;
+    onDone: () => void;
+  } | null>(null);
+  const tradeReturnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [roundOver, setRoundOver] = useState(false);
   const [lastHandReveal, setLastHandReveal] = useState<LastHandRevealPayload | null>(
     null,
@@ -414,6 +443,10 @@ function GameScreen({
   const [gameXpByPlayerId, setGameXpByPlayerId] = useState<Record<string, number>>({});
   /** Trick-win XP earned in the current round only (resets each round). */
   const [roundXpByPlayerId, setRoundXpByPlayerId] = useState<Record<string, number>>({});
+  /** Players who left or timed out — forfeit in-round XP for this round. */
+  const [forfeitedXpPlayerIds, setForfeitedXpPlayerIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [localCareerXp, setLocalCareerXp] = useState<number | null>(null);
   /** Career XP baseline for opponents (cloud stats, pre-round). */
   const [careerXpByPlayerId, setCareerXpByPlayerId] = useState<
@@ -449,6 +482,7 @@ function GameScreen({
   const lastRecordedTrickXpRef = React.useRef(0);
   const lastRecordedTrickRunBonusTrickRef = React.useRef(0);
   const roundStatsRecordedRef = React.useRef(false);
+  const xpCommittedForRoundRef = React.useRef(false);
   const trickPauseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -477,6 +511,13 @@ function GameScreen({
       players: GameState["players"],
       baseState: GameState,
       serverHands?: Record<string, CardType[]> | null,
+    ) => void
+  >(() => {});
+  const scheduleTradeReturnRevealRef = useRef<
+    (
+      returnedCards: CardType[],
+      trade: ClientPendingTrade,
+      onDone: () => void,
     ) => void
   >(() => {});
 
@@ -546,14 +587,40 @@ function GameScreen({
     [awayPlayers],
   );
 
+  const forfeitPlayerXp = useCallback((playerId: string) => {
+    if (!playerId) return;
+    setForfeitedXpPlayerIds((prev) => {
+      if (prev.has(playerId)) return prev;
+      const next = new Set(prev);
+      next.add(playerId);
+      return next;
+    });
+    setRoundXpByPlayerId((prev) => ({ ...prev, [playerId]: 0 }));
+    setGameXpByPlayerId((prev) => ({ ...prev, [playerId]: 0 }));
+  }, []);
+
+  const scoreboardRoundXpByPlayerId = useMemo(() => {
+    const out: Record<string, number> = {};
+    const living =
+      state?.players.filter((p) => !isDeadHandPlayer(p)) ?? [];
+    for (const player of living) {
+      if (forfeitedXpPlayerIds.has(player.id)) {
+        out[player.id] = 0;
+        continue;
+      }
+      out[player.id] = roundXpByPlayerId[player.id] ?? 0;
+    }
+    return out;
+  }, [state?.players, roundXpByPlayerId, forfeitedXpPlayerIds]);
+
   const scoreboardXpByPlayerId = useMemo(() => {
     const xp: Record<string, number> = {};
     const living =
       state?.players.filter((p) => !isDeadHandPlayer(p)) ?? [];
     for (const player of living) {
-      const roundEarned = roundXpByPlayerId[player.id] ?? 0;
+      const roundEarned = scoreboardRoundXpByPlayerId[player.id] ?? 0;
       if (player.id === myPlayerId && localCareerXp != null) {
-        xp[player.id] = localCareerXp;
+        xp[player.id] = localCareerXp + roundEarned;
         continue;
       }
       const careerBaseline = careerXpByPlayerId[player.id];
@@ -571,7 +638,7 @@ function GameScreen({
     return xp;
   }, [
     state?.players,
-    roundXpByPlayerId,
+    scoreboardRoundXpByPlayerId,
     myPlayerId,
     localCareerXp,
     careerXpByPlayerId,
@@ -619,8 +686,11 @@ function GameScreen({
 
   const confirmLeaveGame = useCallback(() => {
     setLeaveConfirmVisible(false);
+    if (myPlayerIdRef.current) {
+      forfeitPlayerXp(myPlayerIdRef.current);
+    }
     onBack?.();
-  }, [onBack]);
+  }, [onBack, forfeitPlayerXp]);
 
   const clearLastHandReveal = useCallback(() => {
     if (lastHandRevealTimerRef.current) {
@@ -642,6 +712,65 @@ function GameScreen({
     [clearLastHandReveal],
   );
 
+  const clearTradeReturnReveal = useCallback(() => {
+    if (tradeReturnTimerRef.current) {
+      clearTimeout(tradeReturnTimerRef.current);
+      tradeReturnTimerRef.current = null;
+    }
+    tradeReturnRevealPendingRef.current = null;
+    receiveSlotRectRef.current = null;
+    setTradeReturnFlight(null);
+    setTradeReturnReceiveLanded(false);
+    setTradeReturnRevealActive(false);
+  }, []);
+
+  const finishTradeReturnReveal = useCallback(() => {
+    const pending = tradeReturnRevealPendingRef.current;
+    if (!pending) return;
+    tradeReturnRevealPendingRef.current = null;
+    setTradeReturnFlight(null);
+    setTradeReturnReceiveLanded(true);
+    if (tradeReturnTimerRef.current) {
+      clearTimeout(tradeReturnTimerRef.current);
+    }
+    tradeReturnTimerRef.current = setTimeout(() => {
+      tradeReturnTimerRef.current = null;
+      setTradeReturnReceiveLanded(false);
+      setTradeReturnRevealActive(false);
+      pending.onDone();
+    }, TRADE_RETURN_HOLD_MS);
+  }, []);
+
+  const scheduleTradeReturnReveal = useCallback(
+    (
+      returnedCards: CardType[],
+      trade: ClientPendingTrade,
+      onDone: () => void,
+    ) => {
+      setTradeReturnPick(returnedCards);
+      const localId = myPlayerIdRef.current;
+      const isLocalLoser = !!localId && trade.loserId === localId;
+
+      if (!isLocalLoser || skipDealAnimationsRef.current || returnedCards.length === 0) {
+        const delay = isLocalLoser && returnedCards.length > 0 ? 450 : 200;
+        if (tradeReturnTimerRef.current) {
+          clearTimeout(tradeReturnTimerRef.current);
+        }
+        tradeReturnTimerRef.current = setTimeout(() => {
+          tradeReturnTimerRef.current = null;
+          onDone();
+        }, delay);
+        return;
+      }
+
+      clearTradeReturnReveal();
+      tradeReturnRevealPendingRef.current = { cards: returnedCards, trade, onDone };
+      setTradeReturnRevealActive(true);
+      setTradeReturnReceiveLanded(false);
+    },
+    [clearTradeReturnReveal],
+  );
+
   const finalizeCeremonyRound = useCallback(
     (
       players: GameState["players"],
@@ -655,6 +784,7 @@ function GameScreen({
         : players;
       pendingTradesCompleteRef.current = null;
       clearLastHandReveal();
+      clearTradeReturnReveal();
       const next = buildFreshRoundState(baseState, merged, {
         hostId: resolvedHostId,
         lastRoundOrder: baseState.lastRoundOrder,
@@ -663,6 +793,8 @@ function GameScreen({
       setState(next);
       setRoundOver(false);
       roundStatsRecordedRef.current = false;
+      xpCommittedForRoundRef.current = false;
+      setForfeitedXpPlayerIds(new Set());
       setPlayerReadyStates({});
       setCeremonyPrep(null);
       setTradePhase(null);
@@ -670,9 +802,11 @@ function GameScreen({
       setTradeReturnPick([]);
       setGameplayLocked(false);
       setRoundXpByPlayerId({});
+      setForfeitedXpPlayerIds(new Set());
+      xpCommittedForRoundRef.current = false;
       ceremonyDoneForRoundRef.current = roundCeremonyKey(next);
     },
-    [resolvedHostId, clearLastHandReveal],
+    [resolvedHostId, clearLastHandReveal, clearTradeReturnReveal],
   );
 
   const beginTradePhase = useCallback(
@@ -695,6 +829,28 @@ function GameScreen({
       }
 
       if (tradesCopy.length === 0 || tradesCopy.every((t) => t.completed)) {
+        const localId = myPlayerIdRef.current;
+        const revealTrade = tradesCopy.find(
+          (t) =>
+            t.completed &&
+            t.loserId === localId &&
+            (t.returnedCards?.length ?? 0) > 0,
+        );
+        if (revealTrade?.returnedCards?.length) {
+          setTradePhase({
+            baseState,
+            players: playersCopy,
+            trades: tradesCopy,
+          });
+          setCeremonyPrep(null);
+          setActiveTrade(revealTrade);
+          scheduleTradeReturnReveal(
+            revealTrade.returnedCards,
+            revealTrade,
+            () => finalizeCeremonyRound(playersCopy, baseState),
+          );
+          return;
+        }
         finalizeCeremonyRound(playersCopy, baseState);
         return;
       }
@@ -704,7 +860,7 @@ function GameScreen({
       const first = tradesCopy.find((t) => !t.completed) ?? null;
       setActiveTrade(first);
     },
-    [finalizeCeremonyRound, onlineMultiplayer],
+    [finalizeCeremonyRound, onlineMultiplayer, scheduleTradeReturnReveal],
   );
 
   type CeremonyPrepPayload = {
@@ -723,6 +879,8 @@ function GameScreen({
       setRoundOver(false);
       setPlayerReadyStates({});
       roundStatsRecordedRef.current = false;
+      xpCommittedForRoundRef.current = false;
+      setForfeitedXpPlayerIds(new Set());
       setGameplayLocked(true);
 
       if (shouldSkipDealAnimations()) {
@@ -855,14 +1013,19 @@ function GameScreen({
       if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
         networkAdapter.submitTradeSelection(roomId, selected);
       }
+      const completedTrade = activeTrade;
       const remaining = tradePhase.trades.filter((t) => !t.completed);
-      if (remaining.length === 0) {
-        if (!onlineMultiplayer) {
-          finalizeCeremonyRound(tradePhase.players, tradePhase.baseState);
+      const proceed = () => {
+        setTradeReturnPick([]);
+        if (remaining.length === 0) {
+          if (!onlineMultiplayer) {
+            finalizeCeremonyRound(tradePhase.players, tradePhase.baseState);
+          }
+        } else {
+          setActiveTrade(remaining[0]);
         }
-      } else {
-        setActiveTrade(remaining[0]);
-      }
+      };
+      scheduleTradeReturnReveal(selected, completedTrade, proceed);
     },
     [
       tradePhase,
@@ -871,6 +1034,7 @@ function GameScreen({
       networkAdapter,
       roomId,
       finalizeCeremonyRound,
+      scheduleTradeReturnReveal,
     ],
   );
 
@@ -894,6 +1058,23 @@ function GameScreen({
 
   startNextRoundRef.current = startNextRound;
   finalizeCeremonyRoundRef.current = finalizeCeremonyRound;
+  scheduleTradeReturnRevealRef.current = scheduleTradeReturnReveal;
+
+  const onReceiveSlotMeasure = useCallback(
+    (rect: { x: number; y: number; width: number; height: number }) => {
+      receiveSlotRectRef.current = rect;
+      setTradeReturnLayoutTick((n) => n + 1);
+    },
+    [],
+  );
+
+  const onPlayAreaScreenMeasure = useCallback(
+    (rect: { x: number; y: number; width: number; height: number }) => {
+      playAreaScreenRectRef.current = rect;
+      setTradeReturnLayoutTick((n) => n + 1);
+    },
+    [],
+  );
 
   const bannerNotice = awayNotice ?? roomNotice;
 
@@ -1092,6 +1273,13 @@ function GameScreen({
   }, []);
 
   useEffect(() => {
+    if (!onlineMultiplayer || !myPlayerId) return;
+    void getPlayerStats().then((stats) => {
+      void pushCloudPlayerStats(myPlayerId, stats);
+    });
+  }, [onlineMultiplayer, myPlayerId]);
+
+  useEffect(() => {
     if (!showWinnerBanner || !myPlayerId || trickPauseSnapshot?.winnerId !== myPlayerId) {
       return;
     }
@@ -1105,7 +1293,10 @@ function GameScreen({
   useLayoutEffect(() => {
     if (!state) return;
     const len = state.trickHistory ? state.trickHistory.length : 0;
-    if (len <= (lastTrickLenRef.current || 0)) return;
+    if (len < lastTrickLenRef.current) {
+      lastTrickLenRef.current = len;
+    }
+    if (len <= lastTrickLenRef.current) return;
 
     lastTrickLenRef.current = len;
 
@@ -1138,7 +1329,8 @@ function GameScreen({
       plays: buildPlaysFromTrick(last),
       passedPlayerIds: passedIdsFromTrick(last),
       winnerName: last.winnerName,
-      winnerId: last.winnerId ?? "",
+      winnerId: winnerId ?? "",
+      trickIndex: len,
       runBonusXp,
     });
     setShowWinnerBanner(false);
@@ -1225,7 +1417,10 @@ function GameScreen({
         );
         if (human) {
           const placement = state.finishedOrder.indexOf(human.id);
-          if (placement >= 0) {
+          if (
+            placement >= 0 &&
+            !forfeitedXpPlayerIds.has(human.id)
+          ) {
             void recordRoundResult(placement, livingPlayerIds(state.players).length);
           }
         }
@@ -1250,6 +1445,34 @@ function GameScreen({
     onlineMultiplayer,
     startLastHandReveal,
     networkAdapter,
+    forfeitedXpPlayerIds,
+  ]);
+
+  /** Record placement stats when an online round ends via server broadcast. */
+  useEffect(() => {
+    if (!roundOver || !state || !onlineMultiplayer || roundStatsRecordedRef.current) {
+      return;
+    }
+    roundStatsRecordedRef.current = true;
+    const human = resolveLocalHumanPlayer(
+      state.players,
+      localPlayerName,
+      localPlayerId,
+      networkAdapter,
+    );
+    if (!human || forfeitedXpPlayerIds.has(human.id)) return;
+    const placement = state.finishedOrder.indexOf(human.id);
+    if (placement >= 0) {
+      void recordRoundResult(placement, livingPlayerIds(state.players).length);
+    }
+  }, [
+    roundOver,
+    state,
+    onlineMultiplayer,
+    localPlayerName,
+    localPlayerId,
+    networkAdapter,
+    forfeitedXpPlayerIds,
   ]);
 
   useEffect(() => {
@@ -1448,9 +1671,13 @@ function GameScreen({
         const grace = ev.state.gracePeriod ?? 25000;
         const reconnectUntil =
           ev.state.reconnectUntil ?? Date.now() + grace;
+        const playerId = ev.state.playerId as string | undefined;
+        if (playerId && ev.state.reason === "left") {
+          forfeitPlayerXp(playerId);
+        }
         setAwayPlayers((prev) => ({
           ...prev,
-          [ev.state.playerId]: {
+          [playerId ?? ""]: {
             name: ev.state.playerName ?? "Player",
             until: reconnectUntil,
             reason: ev.state.reason,
@@ -1479,6 +1706,9 @@ function GameScreen({
               const next: Record<string, AwayPlayer> = {};
               for (const member of members as LobbyMember[]) {
                 if (!member.disconnected) continue;
+                if (member.awayReason === "left") {
+                  forfeitPlayerXp(member.id);
+                }
                 next[member.id] = {
                   name: member.name,
                   until:
@@ -1520,6 +1750,10 @@ function GameScreen({
         (ev.state?.type === "playerLeft" ||
           ev.state?.type === "playerRemoved")
       ) {
+        const removedId = ev.state.playerId as string | undefined;
+        if (removedId) {
+          forfeitPlayerXp(removedId);
+        }
         const notice = roomEventMessage(
           ev.state.playerName,
           ev.state.type,
@@ -1637,6 +1871,8 @@ function GameScreen({
         if (onlineMultiplayer) {
           setRoundOver(false);
           roundStatsRecordedRef.current = false;
+          xpCommittedForRoundRef.current = false;
+          setForfeitedXpPlayerIds(new Set());
           setPlayerReadyStates({});
           const promotedId = ev.state.promotedPlayerId as string | null | undefined;
           const localId =
@@ -1673,10 +1909,34 @@ function GameScreen({
         }
         const tp = tradePhaseRef.current;
         if (tp && hands) {
+          const localId = myPlayerIdRef.current;
+          const loserTrade = tp.trades.find((t) => t.loserId === localId);
+          let returned = loserTrade?.returnedCards;
+          if (loserTrade && !returned?.length) {
+            const loser = tp.players.find((p) => p.id === loserTrade.loserId);
+            const oldHand = loser?.hand ?? [];
+            const newHand = hands[loserTrade.loserId] ?? [];
+            returned = newHand.filter(
+              (c) =>
+                !oldHand.some((h) => h.suit === c.suit && h.value === c.value),
+            );
+            loserTrade.returnedCards = returned;
+          }
+          for (const t of tp.trades) {
+            t.completed = true;
+          }
           for (const p of tp.players) {
             if (hands[p.id]) p.hand = hands[p.id];
           }
-          finalizeCeremonyRoundRef.current(tp.players, tp.baseState, hands);
+          if (loserTrade && returned?.length) {
+            setTradePhase({ ...tp, players: [...tp.players], trades: [...tp.trades] });
+            setActiveTrade(loserTrade);
+            scheduleTradeReturnRevealRef.current(returned, loserTrade, () =>
+              finalizeCeremonyRoundRef.current(tp.players, tp.baseState, hands),
+            );
+          } else {
+            finalizeCeremonyRoundRef.current(tp.players, tp.baseState, hands);
+          }
         }
       }
       // Legacy support for MockAdapter — only apply full game snapshots.
@@ -1697,7 +1957,7 @@ function GameScreen({
         void fallbackAdapterRef.current?.disconnect();
       }
     };
-  }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId, preferencesLoaded, startLastHandReveal, clearLastHandReveal]);
+  }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId, preferencesLoaded, startLastHandReveal, clearLastHandReveal, forfeitPlayerXp]);
 
   useEffect(() => {
     if (!roundOver) {
@@ -1742,26 +2002,35 @@ function GameScreen({
     };
   }, [roundOver, state, myPlayerId]);
 
+  /** Persist tallied round XP when the scoreboard opens (not during play). */
   useEffect(() => {
-    if (!showWinnerBanner || !trickPauseSnapshot?.winnerId || !myPlayerId) return;
-    if (trickPauseSnapshot.winnerId !== myPlayerId) return;
-    const trickNum = state?.trickHistory?.length ?? 0;
-    if (trickNum <= lastRecordedTrickXpRef.current) return;
-    lastRecordedTrickXpRef.current = trickNum;
-    void recordTrickWin();
-    if (
-      trickPauseSnapshot.runBonusXp > 0 &&
-      trickNum > lastRecordedTrickRunBonusTrickRef.current
-    ) {
-      lastRecordedTrickRunBonusTrickRef.current = trickNum;
-      void recordRunStepXp(trickPauseSnapshot.runBonusXp);
+    if (!roundOver || !state || xpCommittedForRoundRef.current) return;
+    const id = myPlayerId;
+    if (!id || forfeitedXpPlayerIds.has(id)) {
+      xpCommittedForRoundRef.current = true;
+      return;
     }
+    if (localCareerXp === null) return;
+
+    const earned = roundXpByPlayerId[id] ?? 0;
+    xpCommittedForRoundRef.current = true;
+    if (earned <= 0) return;
+
+    const tricksWon = (state.trickHistory ?? []).filter((t) => {
+      const winnerId =
+        t.winnerId ??
+        state.players.find((p) => p.name === t.winnerName)?.id;
+      return winnerId === id;
+    }).length;
+
+    void commitRoundXpEarned(earned, tricksWon);
   }, [
-    showWinnerBanner,
-    trickPauseSnapshot?.winnerId,
-    trickPauseSnapshot?.runBonusXp,
+    roundOver,
+    state,
     myPlayerId,
-    state?.trickHistory?.length,
+    localCareerXp,
+    roundXpByPlayerId,
+    forfeitedXpPlayerIds,
   ]);
 
   useEffect(() => {
@@ -1773,14 +2042,27 @@ function GameScreen({
     if (!changed) return;
 
     if (allTradesCompleted(trades)) {
-      finalizeCeremonyRound(players, tradePhase.baseState);
+      const localId = myPlayerIdRef.current;
+      const revealTrade = trades.find(
+        (t) =>
+          t.loserId === localId && (t.returnedCards?.length ?? 0) > 0,
+      );
+      if (revealTrade?.returnedCards?.length) {
+        scheduleTradeReturnReveal(
+          revealTrade.returnedCards,
+          revealTrade,
+          () => finalizeCeremonyRound(players, tradePhase.baseState),
+        );
+      } else {
+        finalizeCeremonyRound(players, tradePhase.baseState);
+      }
       return;
     }
 
     const nextTrade = trades.find((t) => !t.completed) ?? null;
     setTradePhase({ ...tradePhase, players: [...players], trades: [...trades] });
     setActiveTrade(nextTrade);
-  }, [tradePhase, onlineMultiplayer, finalizeCeremonyRound]);
+  }, [tradePhase, onlineMultiplayer, finalizeCeremonyRound, scheduleTradeReturnReveal]);
 
   // CPU auto-play effect (offline only — online uses authoritative server state)
   useEffect(() => {
@@ -1993,6 +2275,65 @@ function GameScreen({
   const deadHandGraveyard =
     !gameplayLocked && !ceremonyPrep && !tradePhase;
 
+  useEffect(() => {
+    if (!tradeReturnRevealActive || tradeReturnFlight) return;
+    const pending = tradeReturnRevealPendingRef.current;
+    if (!pending) return;
+
+    const fallback = setTimeout(() => {
+      if (tradeReturnRevealPendingRef.current) {
+        finishTradeReturnReveal();
+      }
+    }, 1400);
+
+    const receive = receiveSlotRectRef.current;
+    const playArea = playAreaScreenRectRef.current;
+    const layout = ceremonyPlayAreaLayout ?? playAreaLayout;
+    const height = ceremonyPlayAreaHeight || playAreaGameHeight;
+    if (!receive || !playArea || !layout || height <= 0) {
+      return () => clearTimeout(fallback);
+    }
+
+    const from = seatOriginInPlayArea(
+      layout,
+      height,
+      pending.trade.winnerId,
+      tableSeats.layoutSeatIds,
+      localControlledIds,
+      { deadHandId: tableSeats.deadHandId },
+    );
+    if (!from) {
+      clearTimeout(fallback);
+      finishTradeReturnReveal();
+      return;
+    }
+
+    clearTimeout(fallback);
+    setTradeReturnFlight({
+      id: `trade-return-${pending.trade.key}`,
+      cards: pending.cards,
+      fromX: playArea.x + from.x,
+      fromY: playArea.y + from.y,
+      toX: receive.x + receive.width / 2,
+      toY: receive.y + receive.height / 2,
+      cardW: 52,
+      cardH: 74,
+    });
+
+    return () => clearTimeout(fallback);
+  }, [
+    tradeReturnRevealActive,
+    tradeReturnFlight,
+    ceremonyPlayAreaLayout,
+    playAreaLayout,
+    ceremonyPlayAreaHeight,
+    playAreaGameHeight,
+    tableSeats,
+    localControlledIds,
+    finishTradeReturnReveal,
+    tradeReturnLayoutTick,
+  ]);
+
   return (
     <GameScreenRuntimeContext.Provider
       value={{
@@ -2065,6 +2406,13 @@ function GameScreen({
         broadcastGameAction,
         trickStackCollectMs: TRICK_STACK_COLLECT_MS,
         tradeReturnPick,
+        tradeReturnFlight,
+        tradeReturnReceiveLanded,
+        tradeReturnRevealActive,
+        onReceiveSlotMeasure,
+        onPlayAreaScreenMeasure,
+        finishTradeReturnReveal,
+        scoreboardRoundXpByPlayerId,
         readOnlyOnline,
         onBack,
         turnBellPlayerId,
@@ -2154,12 +2502,19 @@ function GameScreenBoard() {
     broadcastGameAction,
     trickStackCollectMs,
     tradeReturnPick,
+    tradeReturnFlight,
+    tradeReturnReceiveLanded,
+    tradeReturnRevealActive,
+    onReceiveSlotMeasure,
+    onPlayAreaScreenMeasure,
+    finishTradeReturnReveal,
     readOnlyOnline,
     onBack,
     turnBellPlayerId,
     handleTurnBellPress,
     resolveSeatFeltTint,
     scoreboardXpByPlayerId,
+    scoreboardRoundXpByPlayerId,
     roundXpByPlayerId,
     xpAnimationReady,
     maybeStartNextOfflineRound,
@@ -2259,12 +2614,29 @@ function GameScreenBoard() {
     broadcastGameAction: (action: Record<string, unknown>) => void;
     trickStackCollectMs: number;
     tradeReturnPick: CardType[];
+    tradeReturnFlight: CardFlightSpec | null;
+    tradeReturnReceiveLanded: boolean;
+    tradeReturnRevealActive: boolean;
+    onReceiveSlotMeasure: (rect: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }) => void;
+    onPlayAreaScreenMeasure: (rect: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }) => void;
+    finishTradeReturnReveal: () => void;
     readOnlyOnline: boolean;
     onBack: (() => void) | undefined;
     turnBellPlayerId: string | null;
     handleTurnBellPress: (playerId: string) => void;
     resolveSeatFeltTint: (player: { id: string; name: string }) => string | undefined;
     scoreboardXpByPlayerId: Record<string, number>;
+    scoreboardRoundXpByPlayerId: Record<string, number>;
     roundXpByPlayerId: Record<string, number>;
     xpAnimationReady: boolean;
     maybeStartNextOfflineRound: (readyMap: Record<string, boolean>) => void;
@@ -2279,8 +2651,47 @@ function GameScreenBoard() {
     null,
   );
   const { ui, blur } = useAppTheme();
+  const playAreaHostRef = useRef<View>(null);
   const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
+  const [remoteAvatarBordersByPlayerId, setRemoteAvatarBordersByPlayerId] =
+    useState<Record<string, AvatarBorderDesign>>({});
+
+  const onlineHumanPlayerKey = useMemo(() => {
+    if (!onlineMultiplayer) return "";
+    return state.players
+      .filter((p) => !isDeadHandPlayer(p) && !isCpuPlayer(p))
+      .map((p) => p.id)
+      .sort()
+      .join("\0");
+  }, [onlineMultiplayer, state.players]);
+
+  useEffect(() => {
+    if (!onlineMultiplayer || !onlineHumanPlayerKey) {
+      setRemoteAvatarBordersByPlayerId({});
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const borders: Record<string, AvatarBorderDesign> = {};
+      const humans = state.players.filter(
+        (p) => !isDeadHandPlayer(p) && !isCpuPlayer(p),
+      );
+      await Promise.all(
+        humans.map(async (player) => {
+          if (player.id === myPlayerId) return;
+          const cloud = await fetchCloudPlayerStats(player.id);
+          if (!cloud) return;
+          const border = resolveAvatarBorder(cloud);
+          if (border) borders[player.id] = border;
+        }),
+      );
+      if (!cancelled) setRemoteAvatarBordersByPlayerId(borders);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [onlineMultiplayer, onlineHumanPlayerKey, myPlayerId, state.players]);
 
   const handlePlayerProfilePress = useCallback(
     (playerId: string) => {
@@ -2719,7 +3130,7 @@ function GameScreenBoard() {
       : passedPlayerIds;
 
   const trickWinnerPlayerId =
-    showWinnerBanner && trickPauseSnapshot?.winnerId
+    trickPauseActive && trickPauseSnapshot?.winnerId
       ? trickPauseSnapshot.winnerId
       : null;
   const trickWinnerXpAmount =
@@ -2730,7 +3141,7 @@ function GameScreenBoard() {
     trickWinnerPlayerId && trickPauseSnapshot
       ? pickTrickShout(
           trickWinnerPlayerId,
-          state.trickHistory?.length ?? 0,
+          trickPauseSnapshot.trickIndex,
           trickPauseSnapshot.runBonusXp > 0,
         )
       : null;
@@ -2745,9 +3156,17 @@ function GameScreenBoard() {
         const border = getCpuAvatarBorder(player);
         if (border) borders[player.id] = border;
       }
+      return borders;
     }
+    Object.assign(borders, remoteAvatarBordersByPlayerId);
     return borders;
-  }, [localAvatarBorder, myPlayerId, state.players, onlineMultiplayer]);
+  }, [
+    localAvatarBorder,
+    myPlayerId,
+    state.players,
+    onlineMultiplayer,
+    remoteAvatarBordersByPlayerId,
+  ]);
 
   const localSeatPlayer = humanPlayer
     ? {
@@ -2919,14 +3338,8 @@ function GameScreenBoard() {
       return "Quads!";
     }
 
-    // If a 10 was just played and direction is pending
-    if (state.tenRulePending) return "10 - Choose!";
-
     // If pile is empty, nothing to show
     if (!state.pile || state.pile.length === 0) return null;
-
-    // Joker detection
-    if (state.pile.some((c) => isJoker(c))) return "Joker!";
 
     // Runs take precedence over the 10 rule — tens never govern active runs.
     const { inRunContext, runMultiplicity } = resolveRunContext(
@@ -2950,6 +3363,12 @@ function GameScreenBoard() {
                 : `${m}x`;
       return `${kind} - Runs!`;
     }
+
+    // If a 10 was just played and direction is pending (only outside runs)
+    if (state.tenRulePending) return "10 - Choose!";
+
+    // Joker detection
+    if (state.pile.some((c) => isJoker(c))) return "Joker!";
 
     // If a ten-rule is active with a direction (only when not in a run)
     if (state.tenRule?.active && state.tenRule.direction) {
@@ -3175,6 +3594,7 @@ function GameScreenBoard() {
 
       {/* Game content — pad for bottom hand sheet */}
       <View
+        ref={playAreaHostRef}
         style={{
           flex: 1,
           position: "relative",
@@ -3187,6 +3607,9 @@ function GameScreenBoard() {
           setPlayAreaSize((prev) =>
             prev.width === width && prev.height === height ? prev : { width, height },
           );
+          playAreaHostRef.current?.measureInWindow((x, y, w, h) => {
+            onPlayAreaScreenMeasure({ x, y, width: w, height: h });
+          });
         }}
       >
         <GamePlayArea
@@ -3321,12 +3744,23 @@ function GameScreenBoard() {
                 trade={activeTrade}
                 localPlayerId={myPlayerId}
                 selectedReturn={tradeReturnPick}
+                hideReceiveCard={tradeReturnRevealActive && !tradeReturnReceiveLanded}
+                receiveLanded={tradeReturnReceiveLanded}
+                onReceiveSlotMeasure={onReceiveSlotMeasure}
               />
-              {activeTrade.winnerId !== myPlayerId ? (
+              {activeTrade.winnerId !== myPlayerId && !activeTrade.completed ? (
                 <View style={[local.waitingPill, local.waitingPillCollapsed]}>
                   <Text style={local.waitingPillText}>
                     Waiting for {activeTrade.winnerName} to pick return cards…
                   </Text>
+                </View>
+              ) : null}
+              {activeTrade.loserId === myPlayerId &&
+              activeTrade.completed &&
+              tradeReturnRevealActive &&
+              !tradeReturnReceiveLanded ? (
+                <View style={[local.waitingPill, local.waitingPillCollapsed]}>
+                  <Text style={local.waitingPillText}>Receiving return card…</Text>
                 </View>
               ) : null}
             </>
@@ -3456,7 +3890,12 @@ function GameScreenBoard() {
       />
 
       <RoleTradeModal
-        visible={!!tradePhase && !!activeTrade}
+        visible={
+          !!tradePhase &&
+          !!activeTrade &&
+          !activeTrade.completed &&
+          !tradeReturnRevealActive
+        }
         trade={activeTrade}
         hand={
           tradePhase?.players.find((p) => p.id === activeTrade?.winnerId)
@@ -3466,6 +3905,16 @@ function GameScreenBoard() {
         onSelectionChange={setTradeReturnPick}
         onConfirm={handleTradeConfirm}
       />
+
+      {tradeReturnFlight ? (
+        <View style={local.tradeReturnFlightLayer} pointerEvents="none">
+          <TableCardFlight
+            flight={tradeReturnFlight}
+            durationMs={TRADE_RETURN_FLIGHT_MS}
+            onComplete={() => finishTradeReturnReveal()}
+          />
+        </View>
+      ) : null}
 
       <LastHandRevealOverlay
         visible={!!lastHandReveal}
@@ -3484,7 +3933,7 @@ function GameScreenBoard() {
         players={state.players.filter((p) => !isDeadHandPlayer(p))}
         readyStates={playerReadyStates}
         playerXp={scoreboardXpByPlayerId}
-        playerRoundXp={roundXpByPlayerId}
+        playerRoundXp={scoreboardRoundXpByPlayerId}
         xpAnimationReady={xpAnimationReady}
         localPlayerId={myPlayerId ?? undefined}
         spectatorMode={spectatorMode}
@@ -3738,6 +4187,10 @@ const local = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     fontStyle: "italic",
+  },
+  tradeReturnFlightLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 5000,
   },
   waitingPill: {
     position: "absolute",

@@ -249,7 +249,7 @@ export async function recordRoundResult(
   return stats;
 }
 
-/** Award XP when the local human wins a trick. */
+/** Award XP when the local human wins a trick (legacy — prefer commitRoundXpEarned). */
 export async function recordTrickWin(
   xp = TRICK_WIN_XP,
 ): Promise<PlayerStats> {
@@ -260,13 +260,32 @@ export async function recordTrickWin(
   return stats;
 }
 
-/** Award XP when the local human wins a run bonus pool at trick end. */
+/** Award XP when the local human wins a run bonus pool at trick end (legacy). */
 export async function recordRunStepXp(
   xp = RUN_STEP_XP,
 ): Promise<PlayerStats> {
   const stats = await getPlayerStats();
   stats.xp += xp;
   await savePlayerStats(stats);
+  return stats;
+}
+
+/** Persist round XP tallied in-game — call only after a completed round scoreboard. */
+export async function commitRoundXpEarned(
+  xpEarned: number,
+  tricksWon = 0,
+): Promise<PlayerStats> {
+  if (xpEarned <= 0 && tricksWon <= 0) {
+    return getPlayerStats();
+  }
+  const stats = await getPlayerStats();
+  if (xpEarned > 0) stats.xp += xpEarned;
+  if (tricksWon > 0) stats.tricksWon += tricksWon;
+  await savePlayerStats(stats);
+  if (Platform.OS === "ios") {
+    const { syncStatsToGameCenter } = await import("./gameCenterSync");
+    void syncStatsToGameCenter(stats);
+  }
   return stats;
 }
 

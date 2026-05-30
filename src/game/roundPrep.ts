@@ -33,6 +33,8 @@ export type ClientPendingTrade = {
   incoming: Card[];
   returnCount: number;
   completed?: boolean;
+  /** Cards the winner returned to the loser (set when trade completes). */
+  returnedCards?: Card[];
 };
 
 export function serverRoleToPlayerRole(role: string | undefined): Player["role"] {
@@ -337,6 +339,8 @@ export function completeWinnerReturn(
   removeCardsFromHand(winner.hand, selectedReturn);
   winner.hand = winner.hand.concat(trade.incoming);
   loser.hand = loser.hand.concat(selectedReturn);
+
+  trade.returnedCards = selectedReturn.slice();
 
   // 3♣ traded up for the round opener must return to the asshole after the
   // president picks their return cards (even if those cards are not 3♣).

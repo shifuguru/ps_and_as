@@ -199,4 +199,33 @@ function advancePastInactiveSeats(state: ReturnType<typeof createGame>) {
   console.log('PASS: 10-rule not activated during run');
 })();
 
+// 5) 10 completing a 3-card run (8-9-10) must not trigger higher/lower
+(function tenRuleWhenCompletingRun() {
+  const eight: Card = { suit: 'hearts', value: 8 };
+  const nine: Card = { suit: 'clubs', value: 9 };
+  const ten: Card = { suit: 'diamonds', value: 10 };
+  const g = createGame(['A', 'B', 'C']);
+  g.pile = [nine];
+  g.pileHistory = [[eight], [nine]];
+  g.pileOwners = ['1', '2'];
+  g.currentTrick = {
+    trickNumber: 1,
+    actions: [
+      { type: 'play', playerId: '1', playerName: 'A', cards: [eight], timestamp: 1 },
+      { type: 'play', playerId: '2', playerName: 'B', cards: [nine], timestamp: 2 },
+    ],
+  };
+  g.currentPlayerIndex = 2;
+  g.players[2].hand = [ten, { suit: 'spades', value: 5 }];
+  g.trickHistory = [{ trickNumber: 0, actions: [{ type: 'play', playerId: '1', playerName: 'A', cards: [{ suit: 'spades', value: 3 }], timestamp: 0 }] }];
+  g.started = true;
+  g.mustPlay = false;
+
+  const s = playCards(g, g.players[2].id, [ten]);
+  assert(!s.tenRulePending, '10-rule must not activate when 10 completes 8-9-10 run');
+  assert.strictEqual(s.pile[0].value, 10, '10 should land on the pile');
+  assert(!s.tenRule?.active, 'tenRule should stay inactive during run');
+  console.log('PASS: 10-rule not activated when 10 completes run');
+})();
+
 console.log('All edge-case tests passed');

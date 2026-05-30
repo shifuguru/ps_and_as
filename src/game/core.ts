@@ -408,7 +408,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   } : undefined;
 
   const seqForTen = consecutiveSequenceInfo(
-    state.pile,
+    cards,
     state.pileHistory,
     simulatedTrick,
     state.players,
@@ -416,6 +416,12 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   );
   const isActiveRun = isRunContextSequence(seqForTen.repCards);
   const playedTen = containsTen(cards);
+  // Tens never trigger higher/lower once a run is declared (including when this
+  // play is the third card that completes the run).
+  if (isActiveRun && (state.tenRule?.active || state.tenRulePending)) {
+    state.tenRule = { active: false, direction: null };
+    state.tenRulePending = false;
+  }
   const activatingTenRule =
     playedTen && !state.tenRule?.active && !isActiveRun;
 

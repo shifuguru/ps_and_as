@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React, { useMemo, useRef, useCallback, useEffect } from "react";
+import { View, Text, StyleSheet, Animated, Easing } from "react-native";
 import Card from "./Card";
 import type { Card as CardType } from "../game/ruleset";
 import type { ClientPendingTrade } from "../game/roundPrep";
@@ -10,6 +10,17 @@ type Props = {
   localPlayerId?: string | null;
   /** Cards the local winner has selected to return (president / VP). */
   selectedReturn?: CardType[];
+  /** Hide receive slot card while a flight animation is in progress. */
+  hideReceiveCard?: boolean;
+  /** Receive slot card has landed — play a brief pop-in. */
+  receiveLanded?: boolean;
+  /** Screen coordinates of the receive slot (for card flight target). */
+  onReceiveSlotMeasure?: (rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) => void;
 };
 
 function TradeCardSlot({
@@ -17,28 +28,76 @@ function TradeCardSlot({
   arrow,
   label,
   faceDown = false,
+  hidden = false,
+  landed = false,
+  onMeasure,
 }: {
   card?: CardType;
   arrow: "up" | "down";
   label: string;
   faceDown?: boolean;
+  hidden?: boolean;
+  landed?: boolean;
+  onMeasure?: (rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) => void;
 }) {
   const { colors } = useAppTheme();
+  const slotRef = useRef<View>(null);
+  const popAnim = useRef(new Animated.Value(landed ? 1 : 0.6)).current;
+
+  const measureSlot = useCallback(() => {
+    if (!onMeasure || !slotRef.current) return;
+    slotRef.current.measureInWindow((x, y, width, height) => {
+      onMeasure({ x, y, width, height });
+    });
+  }, [onMeasure]);
+
+  useEffect(() => {
+    if (!landed) {
+      popAnim.setValue(0.6);
+      return;
+    }
+    Animated.spring(popAnim, {
+      toValue: 1,
+      friction: 6,
+      tension: 120,
+      useNativeDriver: true,
+    }).start();
+  }, [landed, popAnim]);
+
+  useEffect(() => {
+    if (!onMeasure) return;
+    const timer = setTimeout(measureSlot, 0);
+    return () => clearTimeout(timer);
+  }, [onMeasure, measureSlot, card, hidden, label]);
+
+  const showCard = !!card && !hidden;
+
   return (
     <View style={styles.slotWrap}>
       <Text style={[styles.arrow, { color: colors.gold }]}>
         {arrow === "up" ? "↑" : "↓"}
       </Text>
-      <View style={[styles.cardSlot, { borderColor: colors.panelBorder }]}>
-        {card ? (
-          <Card
-            card={card}
-            compact
-            selected={false}
-            faceDown={faceDown}
-            onPress={() => {}}
-            style={styles.cardSize}
-          />
+      <View
+        ref={slotRef}
+        onLayout={onMeasure ? measureSlot : undefined}
+        style={[styles.cardSlot, { borderColor: colors.panelBorder }]}
+      >
+        {showCard ? (
+          <Animated.View style={{ transform: [{ scale: popAnim }], opacity: popAnim }}>
+            <Card
+              card={card}
+              compact
+              selected={false}
+              faceDown={faceDown}
+              onPress={() => {}}
+              style={styles.cardSize}
+            />
+          </Animated.View>
         ) : (
           <View style={styles.cardPlaceholder}>
             <Text style={styles.placeholderText}>?</Text>
@@ -57,6 +116,9 @@ export default function RoleTradeStrip({
   trade,
   localPlayerId,
   selectedReturn = [],
+  hideReceiveCard = false,
+  receiveLanded = false,
+  onReceiveSlotMeasure,
 }: Props) {
   const { colors, ui } = useAppTheme();
   const isWinner = !!localPlayerId && trade.winnerId === localPlayerId;
@@ -64,11 +126,12 @@ export default function RoleTradeStrip({
 
   const { giveCard, receiveCard, giveLabel, receiveLabel } = useMemo(() => {
     const incoming = trade.incoming[0];
-    const outgoing = selectedReturn[0];
+    const outgoing =
+      selectedReturn[0] ?? trade.returnedCards?.[0];
 
     if (isWinner) {
       return {
-        giveCard: outgoing,
+        giveCard: outgoing ?? selectedReturn[0],
         receiveCard: incoming,
         giveLabel: "You give",
         receiveLabel: `From ${trade.loserName}`,
@@ -109,6 +172,9 @@ export default function RoleTradeStrip({
           arrow="down"
           label={receiveLabel}
           faceDown={hideFromOthers && !!receiveCard}
+          hidden={hideReceiveCard}
+          landed={receiveLanded && !!receiveCard}
+          onMeasure={isLoser ? onReceiveSlotMeasure : undefined}
         />
       </View>
       {isWinner ? (
