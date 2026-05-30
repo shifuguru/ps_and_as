@@ -2087,7 +2087,9 @@ function finalizeTrickWin(state: GameState, leaderIndex: number): GameState {
       state.mustPlay = true;
     } else {
       state.currentPlayerIndex = nextActivePlayerIndex(state, leaderIndex);
-      state.mustPlay = false;
+      // Winner went out on the trick-winning play — next living player opens.
+      const nextPlayer = state.players[state.currentPlayerIndex];
+      state.mustPlay = !!nextPlayer && isPlayerStillIn(state, nextPlayer.id);
     }
   }
   return { ...state };

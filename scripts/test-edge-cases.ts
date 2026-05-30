@@ -228,4 +228,52 @@ function advancePastInactiveSeats(state: ReturnType<typeof createGame>) {
   console.log('PASS: 10-rule not activated when 10 completes run');
 })();
 
+// 6) Triple aces as last cards — trick winner out, next player must open
+(function tripleAcesWinnerOutNextMustPlay() {
+  function triple(v: number): Card[] {
+    return [
+      { suit: 'hearts', value: v },
+      { suit: 'diamonds', value: v },
+      { suit: 'clubs', value: v },
+    ];
+  }
+
+  const g = createGame(['A', 'B', 'C', 'D']);
+  g.trickHistory = [{ trickNumber: 0, actions: [] }];
+  g.currentTrick = {
+    trickNumber: 1,
+    actions: [
+      { type: 'play', playerId: '1', playerName: 'A', cards: triple(5), timestamp: 1 },
+      { type: 'play', playerId: '2', playerName: 'B', cards: triple(6), timestamp: 2 },
+      { type: 'play', playerId: '3', playerName: 'C', cards: triple(13), timestamp: 3 },
+    ],
+  };
+  g.pile = triple(13);
+  g.pileHistory = [triple(5), triple(6), triple(13)];
+  g.pileOwners = ['1', '2', '3'];
+  g.lastPlayPlayerIndex = 2;
+  g.currentPlayerIndex = 3;
+  g.players[3].hand = triple(14);
+  g.players[0].hand = [{ suit: 'spades', value: 4 }];
+  g.players[1].hand = [{ suit: 'spades', value: 7 }];
+  g.players[2].hand = [{ suit: 'spades', value: 8 }];
+
+  let s = playCards(g, g.players[3].id, triple(14));
+  assert(s.finishedOrder.includes('4'), 'AAA player should be out');
+
+  // Turn advances to A; remaining players pass in order.
+  s = passTurn(s, '1');
+  s = passTurn(s, '2');
+  s = passTurn(s, '3');
+
+  assert.strictEqual(s.pile.length, 0, 'trick pile should clear after passes');
+  assert((s.trickHistory?.length ?? 0) >= 2, 'trick should be recorded');
+  assert(s.mustPlay, 'next living player must open after out winner');
+  assert(
+    isPlayerStillIn(s, s.players[s.currentPlayerIndex].id),
+    'turn should be on a living player',
+  );
+  console.log('PASS: triple aces winner out — next player mustPlay to open');
+})();
+
 console.log('All edge-case tests passed');
