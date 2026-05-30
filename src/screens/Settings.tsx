@@ -25,10 +25,7 @@ import { useGamePreferences } from "../hooks/useGamePreferences";
 import { playerInitials } from "../utils/playerDisplay";
 import { contentMaxWidth } from "../styles/uiStandards";
 import { useAppTheme } from "../context/ThemeContext";
-import {
-  type AppearancePreference,
-  type TextContrastPreference,
-} from "../services/themePreferences";
+import { type AppearancePreference } from "../services/themePreferences";
 import {
   DEFAULT_FELT_COLOR,
   FELT_PRESETS,
@@ -75,9 +72,7 @@ export default function Settings({
     ui,
     palette,
     appearancePreference,
-    textContrastPreference,
     setAppearancePreference,
-    setTextContrastPreference,
     setFeltTint,
   } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -308,6 +303,64 @@ export default function Settings({
               colors={colors}
             />
 
+            <View style={styles.paletteRow}>
+              {[
+                { label: "Felt", color: palette.feltSurface },
+                { label: "Accent", color: palette.complement },
+                { label: "Highlight", color: palette.complementBright },
+              ].map((swatch) => (
+                <View key={swatch.label} style={styles.paletteItem}>
+                  <View
+                    style={[styles.paletteSwatch, { backgroundColor: swatch.color }]}
+                  />
+                  <Text style={styles.paletteLabel}>{swatch.label}</Text>
+                </View>
+              ))}
+            </View>
+
+            <View
+              style={[
+                styles.textPreview,
+                { backgroundColor: previewTintNormalized },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.textPreviewTitle,
+                  onFeltTextStyle(colors.onFelt, "primary", {
+                    fontSize: 22,
+                    fontWeight: "800",
+                    marginBottom: 4,
+                  }),
+                ]}
+              >
+                P&apos;s & A&apos;s
+              </Text>
+              <Text
+                style={[
+                  styles.textPreviewSubtitle,
+                  onFeltTextStyle(colors.onFelt, "accent", {
+                    fontSize: 13,
+                    fontWeight: "700",
+                    marginBottom: 6,
+                  }),
+                ]}
+              >
+                Accent highlight
+              </Text>
+              <Text
+                style={[
+                  styles.textPreviewBody,
+                  onFeltTextStyle(colors.onFelt, "muted", {
+                    fontSize: 12,
+                    fontWeight: "600",
+                  }),
+                ]}
+              >
+                Muted body text preview
+              </Text>
+            </View>
+
             <View style={styles.appearanceSubsection}>
               <Text style={styles.subsectionEyebrow}>Felt tint</Text>
               <Text style={styles.tintHint}>
@@ -400,23 +453,26 @@ export default function Settings({
               </TouchableOpacity>
             </View>
 
-            <View style={[styles.settingRow, styles.settingRowSpaced]}>
-              <View style={styles.settingRowCopy}>
-                <Text style={styles.settingLabel}>Dark mode cards</Text>
-                <Text style={[styles.tintHint, styles.settingHint]}>
-                  Dark card faces with white spades and clubs.
+            <View style={[styles.settingBlock, styles.settingRowSpaced]}>
+              <View style={styles.settingHeaderRow}>
+                <Text style={[styles.settingLabel, styles.settingLabelInline]}>
+                  Dark mode cards
                 </Text>
+                <View style={styles.settingHeaderSpacer} />
+                <Switch
+                  value={darkModeCards}
+                  onValueChange={(value) => void setDarkModeCards(value)}
+                  trackColor={{
+                    false: colors.panelBorder,
+                    true: colors.gold,
+                  }}
+                  thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
+                  accessibilityLabel="Dark mode cards"
+                />
               </View>
-              <Switch
-                value={darkModeCards}
-                onValueChange={(value) => void setDarkModeCards(value)}
-                trackColor={{
-                  false: colors.panelBorder,
-                  true: colors.gold,
-                }}
-                thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
-                accessibilityLabel="Dark mode cards"
-              />
+              <Text style={[styles.tintHint, styles.settingHint]}>
+                Dark card faces with white spades and clubs.
+              </Text>
             </View>
             <View
               style={[
@@ -453,107 +509,34 @@ export default function Settings({
           </BlurPanel>
 
           <BlurPanel style={ui.panel} intensity={48}>
-            <Text style={ui.panelEyebrow}>Table Text</Text>
-            <Text style={styles.tintHint}>
-              Auto picks readable text for your felt. Light text suits dark
-              tables; dark ink suits light felts — mismatched choices are
-              corrected automatically.
-            </Text>
-            <View style={styles.paletteRow}>
-              {[
-                { label: "Felt", color: palette.feltSurface },
-                { label: "Accent", color: palette.complement },
-                { label: "Highlight", color: palette.complementBright },
-              ].map((swatch) => (
-                <View key={swatch.label} style={styles.paletteItem}>
-                  <View
-                    style={[styles.paletteSwatch, { backgroundColor: swatch.color }]}
-                  />
-                  <Text style={styles.paletteLabel}>{swatch.label}</Text>
-                </View>
-              ))}
-            </View>
-            <SegmentControl
-              options={[
-                { id: "auto", label: "Auto" },
-                { id: "light", label: "Light text" },
-                { id: "dark", label: "Dark ink" },
-              ]}
-              value={textContrastPreference}
-              onChange={(value) =>
-                void setTextContrastPreference(value as TextContrastPreference)
-              }
-              colors={colors}
-            />
-            <View
-              style={[
-                styles.textPreview,
-                { backgroundColor: previewTintNormalized },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.textPreviewTitle,
-                  onFeltTextStyle(colors.onFelt, "primary", {
-                    fontSize: 22,
-                    fontWeight: "800",
-                    marginBottom: 4,
-                  }),
-                ]}
-              >
-                P&apos;s & A&apos;s
-              </Text>
-              <Text
-                style={[
-                  styles.textPreviewSubtitle,
-                  onFeltTextStyle(colors.onFelt, "accent", {
-                    fontSize: 13,
-                    fontWeight: "700",
-                    marginBottom: 6,
-                  }),
-                ]}
-              >
-                Accent highlight
-              </Text>
-              <Text
-                style={[
-                  styles.textPreviewBody,
-                  onFeltTextStyle(colors.onFelt, "muted", {
-                    fontSize: 12,
-                    fontWeight: "600",
-                  }),
-                ]}
-              >
-                Muted body text preview
-              </Text>
-            </View>
-          </BlurPanel>
-
-          <BlurPanel style={ui.panel} intensity={48}>
             <Text style={ui.panelEyebrow}>Gameplay</Text>
-            <View style={styles.settingRow}>
-              <View style={styles.settingRowCopy}>
-                <Text style={styles.settingLabel}>Skip deal animations</Text>
-                <Text style={[styles.tintHint, styles.settingHint]}>
-                  {onlineGuest
-                    ? "Controlled by the host in online games."
-                    : "Jump straight to your hand — no shuffle or dealing animation."}
+            <View style={styles.settingBlock}>
+              <View style={styles.settingHeaderRow}>
+                <Text style={[styles.settingLabel, styles.settingLabelInline]}>
+                  Skip deal animations
                 </Text>
+                <View style={styles.settingHeaderSpacer} />
+                <Text style={styles.betaWarning}>Warning: Beta</Text>
+                <Switch
+                  value={skipDealAnimations}
+                  onValueChange={(value) => {
+                    void setSkipDealAnimations(value);
+                    onSkipDealAnimationsChange?.(value);
+                  }}
+                  disabled={onlineGuest}
+                  trackColor={{
+                    false: colors.panelBorder,
+                    true: colors.gold,
+                  }}
+                  thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
+                  accessibilityLabel="Skip deal animations"
+                />
               </View>
-              <Switch
-                value={skipDealAnimations}
-                onValueChange={(value) => {
-                  void setSkipDealAnimations(value);
-                  onSkipDealAnimationsChange?.(value);
-                }}
-                disabled={onlineGuest}
-                trackColor={{
-                  false: colors.panelBorder,
-                  true: colors.gold,
-                }}
-                thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
-                accessibilityLabel="Skip deal animations"
-              />
+              <Text style={[styles.tintHint, styles.settingHint]}>
+                {onlineGuest
+                  ? "Controlled by the host in online games."
+                  : "Jump straight to your hand — no shuffle or dealing animation."}
+              </Text>
             </View>
           </BlurPanel>
         </View>
@@ -737,12 +720,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     lineHeight: 18,
     marginBottom: 12,
   },
-  settingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 16,
-  },
   settingRowSpaced: {
     marginTop: 16,
     paddingTop: 16,
@@ -763,7 +740,15 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     textTransform: "uppercase",
     marginBottom: 8,
   },
-  settingRowCopy: {
+  settingBlock: {
+    gap: 4,
+  },
+  settingHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  settingHeaderSpacer: {
     flex: 1,
   },
   settingLabel: {
@@ -771,6 +756,16 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     fontSize: 15,
     fontWeight: "700",
     marginBottom: 4,
+  },
+  settingLabelInline: {
+    marginBottom: 0,
+    flexShrink: 1,
+  },
+  betaWarning: {
+    color: "#e53935",
+    fontSize: 12,
+    fontWeight: "700",
+    flexShrink: 0,
   },
   settingHint: {
     marginBottom: 0,
@@ -809,7 +804,8 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   paletteRow: {
     flexDirection: "row",
     gap: 10,
-    marginBottom: 14,
+    marginTop: 14,
+    marginBottom: 4,
   },
   paletteItem: {
     flex: 1,
