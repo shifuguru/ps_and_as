@@ -2738,6 +2738,56 @@ function GameScreenBoard() {
     setCeremonyDealCounts({});
   }, [ceremonyPrep?.dealAttempt, ceremonyPrep?.dealSeed]);
 
+  const avatarBordersByPlayerId = useMemo(() => {
+    const borders: Record<string, AvatarBorderDesign> = {};
+    if (localAvatarBorder && myPlayerId) {
+      borders[myPlayerId] = localAvatarBorder;
+    }
+    if (!onlineMultiplayer) {
+      for (const player of state.players) {
+        if (!isCpuPlayer(player)) continue;
+        const border = getCpuAvatarBorder(player);
+        if (border) borders[player.id] = border;
+      }
+      return borders;
+    }
+    Object.assign(borders, remoteAvatarBordersByPlayerId);
+    return borders;
+  }, [
+    localAvatarBorder,
+    myPlayerId,
+    state.players,
+    onlineMultiplayer,
+    remoteAvatarBordersByPlayerId,
+  ]);
+
+  const activeRunXpPool = useMemo(() => {
+    if (
+      !state ||
+      trickPauseActive ||
+      ceremonyPrep ||
+      tradePhase ||
+      gameplayLocked
+    ) {
+      return null;
+    }
+    const info = activeRunXpPoolInfo(state, RUN_STEP_XP);
+    if (info.poolXp <= 0) return null;
+    const leaderName = info.pileLeaderId
+      ? state.players.find((p) => p.id === info.pileLeaderId)?.name
+      : null;
+    return {
+      amount: info.poolXp,
+      hint: leaderName ? `Goes to ${leaderName} on the win` : "Goes to trick winner",
+    };
+  }, [
+    state,
+    trickPauseActive,
+    ceremonyPrep,
+    tradePhase,
+    gameplayLocked,
+  ]);
+
   const ceremonyCountFor = (playerId: string) =>
     ceremonyPrep ? (ceremonyDealCounts[playerId] ?? 0) : null;
 
@@ -3145,28 +3195,6 @@ function GameScreenBoard() {
           trickPauseSnapshot.runBonusXp > 0,
         )
       : null;
-  const avatarBordersByPlayerId = useMemo(() => {
-    const borders: Record<string, AvatarBorderDesign> = {};
-    if (localAvatarBorder && myPlayerId) {
-      borders[myPlayerId] = localAvatarBorder;
-    }
-    if (!onlineMultiplayer) {
-      for (const player of state.players) {
-        if (!isCpuPlayer(player)) continue;
-        const border = getCpuAvatarBorder(player);
-        if (border) borders[player.id] = border;
-      }
-      return borders;
-    }
-    Object.assign(borders, remoteAvatarBordersByPlayerId);
-    return borders;
-  }, [
-    localAvatarBorder,
-    myPlayerId,
-    state.players,
-    onlineMultiplayer,
-    remoteAvatarBordersByPlayerId,
-  ]);
 
   const localSeatPlayer = humanPlayer
     ? {
@@ -3412,33 +3440,6 @@ function GameScreenBoard() {
           : null;
 
   const turnHintFlash = turnHintText === "Your turn";
-
-  const activeRunXpPool = useMemo(() => {
-    if (
-      !state ||
-      trickPauseActive ||
-      ceremonyPrep ||
-      tradePhase ||
-      gameplayLocked
-    ) {
-      return null;
-    }
-    const info = activeRunXpPoolInfo(state, RUN_STEP_XP);
-    if (info.poolXp <= 0) return null;
-    const leaderName = info.pileLeaderId
-      ? state.players.find((p) => p.id === info.pileLeaderId)?.name
-      : null;
-    return {
-      amount: info.poolXp,
-      hint: leaderName ? `Goes to ${leaderName} on the win` : "Goes to trick winner",
-    };
-  }, [
-    state,
-    trickPauseActive,
-    ceremonyPrep,
-    tradePhase,
-    gameplayLocked,
-  ]);
 
   // Compact structured debug log view (last 20 entries). Produce a concise one-line summary
   const recentStructured = debugLogs.slice(-20).map((d) => {
