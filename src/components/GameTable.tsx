@@ -33,6 +33,8 @@ const TURN_HINT_GAP = 8;
 const RUN_XP_POOL_BADGE_HEIGHT = 58;
 /** Clear space between the run pool badge bottom and the top card edge. */
 const RUN_XP_POOL_GAP = 18;
+/** Top padding for the run pool badge in the play area. */
+const RUN_XP_POOL_TOP = 6;
 
 function playKey(play: TrickPlayDisplay, index: number): string {
   return `${index}-${play.playerId}-${play.cards.map((c) => `${c.suit}${c.value}`).join("-")}`;
@@ -103,6 +105,11 @@ export default function GameTable({
     [layoutHint],
   );
 
+  const showRunXpPool = (runXpPoolAmount ?? 0) > 0;
+  const runPoolTopInset = showRunXpPool
+    ? RUN_XP_POOL_BADGE_HEIGHT + RUN_XP_POOL_GAP
+    : 0;
+
   const layout = useMemo(() => {
     return computePlayStackLayout({
       plays,
@@ -111,8 +118,9 @@ export default function GameTable({
       maxFillScale: scaleLimits.maxFillScale,
       displayScale: scaleLimits.displayScale,
       hiddenPlayKeys,
+      topInset: runPoolTopInset,
     });
-  }, [plays, zoneSize, scaleLimits, hiddenPlayKeys]);
+  }, [plays, zoneSize, scaleLimits, hiddenPlayKeys, runPoolTopInset]);
 
   const maxSpreadWidth =
     zoneSize.width > 0 ? zoneSize.width * MAX_SPREAD_WIDTH_RATIO : undefined;
@@ -296,22 +304,11 @@ export default function GameTable({
   }, [zoneSize.height, playTypeLabel, playTypeBadgeTop]);
 
   const showBadgeColumn =
-    zoneSize.height > 0 && (!!playTypeLabel || !!turnHintText);
+    zoneSize.height > 0 &&
+    (!!playTypeLabel || !!turnHintText || showRunXpPool);
 
-  const runXpPoolTop = useMemo(() => {
-    if (tableRows.length === 0) return 8;
-    let rowTop = tableRows[0]?.pos.top ?? 8;
-    for (const row of tableRows) {
-      rowTop = Math.min(rowTop, row.pos.top);
-    }
-    const clearance =
-      RUN_XP_POOL_BADGE_HEIGHT +
-      RUN_XP_POOL_GAP +
-      Math.round(Math.max(0, cardH * 0.12));
-    return Math.max(4, rowTop - clearance);
-  }, [tableRows, cardH]);
-
-  const showRunXpPool = (runXpPoolAmount ?? 0) > 0;
+  const playTypeHighlighted =
+    !!playTypeLabel && playTypeLabel !== "Singles";
 
   const badgeOpacity = collectAnim.interpolate({
     inputRange: [0, 0.35],
@@ -500,44 +497,6 @@ export default function GameTable({
                     </Animated.View>
                   );
                 })}
-              {showRunXpPool ? (
-                <Animated.View
-                  style={[
-                    styles.runXpPoolBadge,
-                    {
-                      top: runXpPoolTop,
-                      opacity: badgeOpacity,
-                      zIndex: GROUP_Z_STRIDE * Math.max(playCount, 1) + 50,
-                    },
-                  ]}
-                  pointerEvents="none"
-                >
-                  <View style={styles.runXpChipStack} pointerEvents="none">
-                    {[0, 1, 2].map((layer) => (
-                      <View
-                        key={layer}
-                        style={[
-                          styles.runXpChip,
-                          {
-                            top: layer * 4,
-                            left: layer * 5,
-                            zIndex: layer,
-                          },
-                        ]}
-                      />
-                    ))}
-                  </View>
-                  <View style={styles.runXpPoolCopy}>
-                    <Text style={styles.runXpPoolAmount}>
-                      +{runXpPoolAmount} XP
-                    </Text>
-                    <Text style={styles.runXpPoolLabel}>Run pool</Text>
-                    {runXpPoolHint ? (
-                      <Text style={styles.runXpPoolHint}>{runXpPoolHint}</Text>
-                    ) : null}
-                  </View>
-                </Animated.View>
-              ) : null}
               </View>
 
           </Animated.View>
@@ -550,6 +509,43 @@ export default function GameTable({
             ]}
             pointerEvents="none"
           >
+            {showRunXpPool ? (
+              <Animated.View
+                style={[
+                  styles.runXpPoolBadge,
+                  {
+                    top: RUN_XP_POOL_TOP,
+                    opacity: collectToStack ? badgeOpacity : 1,
+                  },
+                ]}
+                pointerEvents="none"
+              >
+                <View style={styles.runXpChipStack} pointerEvents="none">
+                  {[0, 1, 2].map((layer) => (
+                    <View
+                      key={layer}
+                      style={[
+                        styles.runXpChip,
+                        {
+                          top: layer * 4,
+                          left: layer * 5,
+                          zIndex: layer,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+                <View style={styles.runXpPoolCopy}>
+                  <Text style={styles.runXpPoolAmount}>
+                    +{runXpPoolAmount} XP
+                  </Text>
+                  <Text style={styles.runXpPoolLabel}>Run pool</Text>
+                  {runXpPoolHint ? (
+                    <Text style={styles.runXpPoolHint}>{runXpPoolHint}</Text>
+                  ) : null}
+                </View>
+              </Animated.View>
+            ) : null}
             {playTypeLabel ? (
               <Animated.View
                 style={[
@@ -561,7 +557,21 @@ export default function GameTable({
                 ]}
                 pointerEvents="none"
               >
-                <Text style={styles.playTypeBadgeText}>{playTypeLabel}</Text>
+                <View
+                  style={[
+                    styles.playTypeBadgeBody,
+                    playTypeHighlighted && styles.playTypeBadgeBodyHighlighted,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.playTypeBadgeText,
+                      playTypeHighlighted && styles.playTypeBadgeTextHighlighted,
+                    ]}
+                  >
+                    {playTypeLabel}
+                  </Text>
+                </View>
               </Animated.View>
             ) : null}
             {turnHintText ? (
@@ -679,6 +689,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: "center",
+  },
+  playTypeBadgeBody: {
     backgroundColor: "rgba(212, 175, 55, 0.14)",
     borderRadius: 12,
     paddingHorizontal: 12,
@@ -686,12 +698,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(212, 175, 55, 0.38)",
   },
+  playTypeBadgeBodyHighlighted: {
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255, 255, 255, 0.95)",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#fff",
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+      },
+      android: { elevation: 5 },
+      default: {},
+    }),
+  },
   playTypeBadgeText: {
     color: "#d4af37",
     fontWeight: "800",
     fontSize: 11,
     textAlign: "center",
     letterSpacing: 0.4,
+  },
+  playTypeBadgeTextHighlighted: {
+    color: "#111111",
   },
   turnHintPill: {
     position: "absolute",

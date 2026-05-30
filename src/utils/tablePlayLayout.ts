@@ -542,6 +542,7 @@ function layoutChronologicalPlays(
   maxSpreadWidth: number,
   cardWidth: number,
   cardHeight: number,
+  topInset = 0,
 ): VisibleLayoutResult {
   const playCount = plays.length;
   const positions: PlayStackLayout["positions"] = [];
@@ -637,9 +638,9 @@ function layoutChronologicalPlays(
   const rowHeight = Math.max(...bundles.map((bundle) => bundle.height), cardHeight);
   const rowLeft = rowLeftForVisualCenter(bounds, centerX, zoneWidth, edgePad);
   const rowTop = clamp(
-    centerY - rowHeight / 2,
-    edgePad,
-    Math.max(edgePad, zoneHeight - rowHeight - edgePad),
+    centerY - rowHeight / 2 + topInset,
+    edgePad + topInset,
+    Math.max(edgePad + topInset, zoneHeight - rowHeight - edgePad),
   );
 
   for (let playIndex = 0; playIndex < playCount; playIndex++) {
@@ -702,6 +703,8 @@ export function computePlayStackLayout(options: {
   frozenFillScale?: number;
   /** In-flight plays — layout only includes landed cards in the display fan. */
   hiddenPlayKeys?: ReadonlySet<string>;
+  /** Reserve space at the top of the card zone (e.g. run XP pool badge). */
+  topInset?: number;
 }): PlayStackLayout {
   const {
     plays,
@@ -711,6 +714,7 @@ export function computePlayStackLayout(options: {
     displayScale = 1,
     frozenFillScale,
     hiddenPlayKeys: _hiddenPlayKeys,
+    topInset = 0,
   } = options;
 
   const playCount = plays.length;
@@ -748,6 +752,7 @@ export function computePlayStackLayout(options: {
       maxSpreadWidth,
       pixelCardW,
       pixelCardH,
+      topInset,
     );
 
     rawPositions = chronological.positions;
