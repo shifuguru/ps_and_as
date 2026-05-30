@@ -3,18 +3,18 @@ import {
   View,
   ScrollView,
   StyleSheet,
-  Platform,
   NativeSyntheticEvent,
   NativeScrollEvent,
   StyleProp,
   ViewStyle,
 } from "react-native";
 import { useAppTheme } from "../context/ThemeContext";
-import { PS_THEMED_SCROLLBAR_CLASS } from "../utils/themedScrollbar";
+import { hexToRgba } from "../utils/colorTheory";
 
-const SCROLLBAR_WIDTH = 6;
-const SCROLLBAR_INSET = 6;
-const MIN_THUMB_HEIGHT = 32;
+const SCROLLBAR_WIDTH = 8;
+const SCROLLBAR_GUTTER = 14;
+const SCROLLBAR_INSET = 8;
+const MIN_THUMB_HEIGHT = 36;
 
 type Props = {
   children: React.ReactNode;
@@ -46,31 +46,28 @@ export default function ThemedScrollView({
   const thumbTop =
     maxScroll > 0 ? (offsetY / maxScroll) * maxThumbTravel : 0;
 
-  const webScrollbarStyle =
-    Platform.OS === "web"
-      ? ({
-          ["--scroll-thumb" as string]: colors.gold,
-          ["--scroll-track" as string]: colors.actionTrackBg,
-          ["--scroll-thumb-hover" as string]: colors.actionPrimaryBorder,
-        } as ViewStyle)
-      : undefined;
+  const resolvedContentStyle = useMemo(
+    () =>
+      scrollable
+        ? [contentContainerStyle, { paddingRight: SCROLLBAR_GUTTER }]
+        : contentContainerStyle,
+    [contentContainerStyle, scrollable],
+  );
 
   return (
     <View style={[styles.container, style]}>
       <ScrollView
-        style={[styles.scroll, webScrollbarStyle]}
-        contentContainerStyle={contentContainerStyle}
+        style={styles.scroll}
+        contentContainerStyle={resolvedContentStyle}
         onScroll={onScroll}
         scrollEventThrottle={16}
         onLayout={(event) => setLayoutHeight(event.nativeEvent.layout.height)}
         onContentSizeChange={(_, height) => setContentHeight(height)}
         showsVerticalScrollIndicator={false}
-        // @ts-expect-error className is supported on RN Web
-        className={Platform.OS === "web" ? PS_THEMED_SCROLLBAR_CLASS : undefined}
       >
         {children}
       </ScrollView>
-      {scrollable && Platform.OS !== "web" ? (
+      {scrollable ? (
         <View
           style={[styles.track, { top: SCROLLBAR_INSET, bottom: SCROLLBAR_INSET }]}
           pointerEvents="none"
@@ -91,6 +88,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   return StyleSheet.create({
     container: {
       flex: 1,
+      position: "relative",
     },
     scroll: {
       flex: 1,
@@ -100,13 +98,16 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       right: SCROLLBAR_INSET,
       width: SCROLLBAR_WIDTH,
       borderRadius: SCROLLBAR_WIDTH / 2,
-      backgroundColor: colors.actionTrackBg,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.actionTrackBorder,
+      backgroundColor: hexToRgba(colors.gold, colors.mode === "dark" ? 0.14 : 0.1),
+      borderWidth: 1,
+      borderColor: hexToRgba(colors.gold, colors.mode === "dark" ? 0.38 : 0.28),
+      zIndex: 20,
+      overflow: "hidden",
     },
     thumb: {
-      width: SCROLLBAR_WIDTH,
-      borderRadius: SCROLLBAR_WIDTH / 2,
+      width: SCROLLBAR_WIDTH - 2,
+      alignSelf: "center",
+      borderRadius: (SCROLLBAR_WIDTH - 2) / 2,
       backgroundColor: colors.gold,
     },
   });

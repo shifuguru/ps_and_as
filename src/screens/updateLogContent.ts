@@ -31,6 +31,13 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-05-30T13:39"),
+    title: "Fixes",
+    items: [
+      "What's New — scroll bar is now visible on web and phone (blue track on the right)",
+    ],
+  },
+  {
     publishedAt: nzst("2026-05-30T12:09"),
     title: "Polish",
     items: [
