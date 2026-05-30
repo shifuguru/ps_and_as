@@ -187,6 +187,22 @@ function readPackageVersion() {
   }
 }
 
+function readCodename(version) {
+  try {
+    const text = fs.readFileSync(
+      path.resolve(__dirname, "..", "src/config/buildCodenames.ts"),
+      "utf8",
+    );
+    const re = new RegExp(
+      `"${String(version).replace(/\./g, "\\.")}"\\s*:\\s*"([^"]+)"`,
+    );
+    const match = text.match(re);
+    return match ? match[1] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function resolveBuildMeta() {
   const version =
     process.env.EXPO_PUBLIC_APP_VERSION?.trim() || readPackageVersion();
@@ -195,7 +211,8 @@ function resolveBuildMeta() {
     process.env.GITHUB_SHA?.trim()?.slice(0, 12) ||
     `local-${Date.now()}`;
   const builtAt = new Date().toISOString();
-  return { version, buildId, builtAt };
+  const codename = readCodename(version);
+  return { version, buildId, builtAt, codename };
 }
 
 function writeVersionJson(meta) {
@@ -203,13 +220,16 @@ function writeVersionJson(meta) {
     version: meta.version,
     buildId: meta.buildId,
     builtAt: meta.builtAt,
+    ...(meta.codename ? { codename: meta.codename } : {}),
   };
   fs.writeFileSync(
     path.join(buildDir, "version.json"),
     `${JSON.stringify(payload, null, 2)}\n`,
     "utf8",
   );
-  console.log(`Wrote version.json (${meta.version}, ${meta.buildId})`);
+  console.log(
+    `Wrote version.json (${meta.version}${meta.codename ? ` · ${meta.codename}` : ""}, ${meta.buildId})`,
+  );
 }
 
 function injectEarlyShellHeight(html) {

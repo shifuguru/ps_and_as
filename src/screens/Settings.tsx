@@ -41,6 +41,7 @@ import {
   getOrCreatePlayerId,
   type PlayerInfo,
 } from "../services/gameCenter";
+import { getLobbySession } from "../services/lobbySession";
 import { validateDisplayText, displayTextError, isValidDisplayText } from "../utils/profanityFilter";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
@@ -61,11 +62,13 @@ export default function Settings({
   onWallpaperChange,
   onBack,
   onNameSaved,
+  onSkipDealAnimationsChange,
 }: {
   onWallpaperPreview?: (tint: string) => void;
   onWallpaperChange?: () => void;
   onBack?: () => void;
   onNameSaved?: (name: string) => void | Promise<void>;
+  onSkipDealAnimationsChange?: (value: boolean) => void;
 }) {
   const {
     colors,
@@ -95,6 +98,13 @@ export default function Settings({
   const [previewTint, setPreviewTint] = useState(DEFAULT_FELT_COLOR);
   const [hexInput, setHexInput] = useState("");
   const [feltPickerOpen, setFeltPickerOpen] = useState(false);
+  const [onlineGuest, setOnlineGuest] = useState(false);
+
+  useEffect(() => {
+    void getLobbySession().then((session) => {
+      setOnlineGuest(!!session && !session.isHost);
+    });
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -525,12 +535,18 @@ export default function Settings({
               <View style={styles.settingRowCopy}>
                 <Text style={styles.settingLabel}>Skip deal animations</Text>
                 <Text style={[styles.tintHint, styles.settingHint]}>
-                  Jump straight to your hand — no shuffle or dealing animation.
+                  {onlineGuest
+                    ? "Controlled by the host in online games."
+                    : "Jump straight to your hand — no shuffle or dealing animation."}
                 </Text>
               </View>
               <Switch
                 value={skipDealAnimations}
-                onValueChange={(value) => void setSkipDealAnimations(value)}
+                onValueChange={(value) => {
+                  void setSkipDealAnimations(value);
+                  onSkipDealAnimationsChange?.(value);
+                }}
+                disabled={onlineGuest}
                 trackColor={{
                   false: colors.panelBorder,
                   true: colors.gold,

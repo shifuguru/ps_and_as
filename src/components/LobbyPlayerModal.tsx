@@ -15,6 +15,7 @@ import {
   unlockedAchievements,
   type PlayerStats,
 } from "../services/playerStats";
+import { getCpuPlayerStats } from "../rewards/cpuProfiles";
 import type { AppThemeColors } from "../styles/themeColors";
 import type { UiStyles } from "../styles/createUiStyles";
 import type { BlurPreset } from "../styles/themeColors";
@@ -52,16 +53,21 @@ export default function LobbyPlayerModal({
       setStats(null);
       return;
     }
-    if (player.isLocalPlayer && !player.isCPU) {
+    if (player.isCPU) {
+      setStats(getCpuPlayerStats({ id: player.id, name: player.name }));
+      return;
+    }
+    if (player.isLocalPlayer) {
       void getPlayerStats().then(setStats);
       return;
     }
     setStats(null);
-  }, [visible, player?.id, player?.isLocalPlayer, player?.isCPU]);
+  }, [visible, player?.id, player?.isLocalPlayer, player?.isCPU, player?.name]);
 
   const unlocked = stats ? unlockedAchievements(stats) : [];
   const unlockedIds = new Set(unlocked.map((a) => a.id));
-  const canShowStats = !!player?.isLocalPlayer && !player?.isCPU;
+  const canShowStats =
+    !!stats && (!!player?.isCPU || (!!player?.isLocalPlayer && !player?.isCPU));
 
   return (
     <Modal
@@ -99,9 +105,11 @@ export default function LobbyPlayerModal({
               <Text style={ui.panelEyebrow}>Achievements</Text>
               {!canShowStats ? (
                 <Text style={styles.statsHint}>
-                  {player.isCPU
-                    ? "CPU players don't earn achievements."
-                    : "Achievement progress is stored on each player's device and isn't shared yet."}
+                  Achievement progress is stored on each player's device and isn't shared yet.
+                </Text>
+              ) : player.isCPU ? (
+                <Text style={styles.statsHint}>
+                  CPU skill tier — higher numbers have more career XP and rewards.
                 </Text>
               ) : null}
 
@@ -150,7 +158,8 @@ export default function LobbyPlayerModal({
               {canShowStats && stats ? (
                 <Text style={styles.statsSummary}>
                   {unlocked.length} / {ACHIEVEMENTS.length} unlocked ·{" "}
-                  {stats.roundsPlayed} rounds played
+                  {stats.roundsPlayed} rounds played ·{" "}
+                  {stats.xp.toLocaleString()} XP
                 </Text>
               ) : null}
             </>

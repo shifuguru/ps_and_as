@@ -47,6 +47,8 @@ type Props = RingProps & {
   flightDurationMs?: number;
   trickWinnerPlayerId?: string | null;
   trickWinnerXpAmount?: number;
+  trickWinnerShout?: string | null;
+  avatarBordersByPlayerId?: Record<string, import("../rewards/avatarBorders").AvatarBorderDesign>;
   /** Ring geometry seat count (local + visible opponents). Defaults to players + locals. */
   tableSeatCount?: number;
   deadHandId?: string | null;
@@ -81,6 +83,8 @@ export default function GamePlayArea({
   flightDurationMs = 480,
   trickWinnerPlayerId = null,
   trickWinnerXpAmount,
+  trickWinnerShout = null,
+  avatarBordersByPlayerId = {},
   tableSeatCount,
   deadHandId = null,
   layoutSeatIds,
@@ -381,6 +385,8 @@ export default function GamePlayArea({
             lastPlayPlayerId={lastPlayPlayerId}
             trickWinnerPlayerId={trickWinnerPlayerId}
             trickWinnerXpAmount={trickWinnerXpAmount}
+            trickWinnerShout={trickWinnerShout}
+            avatarBordersByPlayerId={avatarBordersByPlayerId}
             layoutSeatIds={seatIds}
             deadHandId={deadHandId}
             deadHandGraveyard={deadHandGraveyard}

@@ -12,6 +12,7 @@ import {
 import BlurPanel from "./BlurPanel";
 import { triggerHaptic } from "../utils/haptics";
 import { useAppTheme } from "../context/ThemeContext";
+import PresidentRewardCelebration from "./PresidentRewardCelebration";
 import AccentBorderButton from "./AccentBorderButton";
 
 import { roleEmoji, roleForPlacement } from "../utils/roundRoles";
@@ -64,10 +65,18 @@ function RankXpDisplay({
   const startTotal = Math.max(0, finalTotal - roundEarned);
   const [displayTotal, setDisplayTotal] = useState(startTotal);
   const [displayRound, setDisplayRound] = useState(roundEarned);
+  const [showRoundXp, setShowRoundXp] = useState(roundEarned > 0);
+
+  const roundOpacity = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+    extrapolate: "clamp",
+  });
 
   useEffect(() => {
     setDisplayTotal(startTotal);
     setDisplayRound(roundEarned);
+    setShowRoundXp(roundEarned > 0);
 
     if (!visible) {
       progress.stopAnimation();
@@ -79,6 +88,7 @@ function RankXpDisplay({
       progress.setValue(0);
       setDisplayTotal(startTotal);
       setDisplayRound(roundEarned);
+      setShowRoundXp(roundEarned > 0);
       return;
     }
 
@@ -86,6 +96,7 @@ function RankXpDisplay({
       progress.setValue(1);
       setDisplayTotal(finalTotal);
       setDisplayRound(0);
+      setShowRoundXp(false);
       return;
     }
 
@@ -102,7 +113,12 @@ function RankXpDisplay({
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     });
-    anim.start();
+    anim.start(({ finished }) => {
+      if (finished) {
+        setDisplayRound(0);
+        setShowRoundXp(false);
+      }
+    });
 
     return () => {
       anim.stop();
@@ -110,20 +126,19 @@ function RankXpDisplay({
     };
   }, [visible, animationReady, finalTotal, roundEarned, rowDelay, startTotal, progress]);
 
-  const roundOpacity =
-    displayRound > 0 ? 1 : roundEarned > 0 ? 0.45 : 0.35;
-
   return (
     <View style={styles.xpBlock}>
+      {showRoundXp ? (
+        <Animated.Text
+          style={[
+            styles.rankXpRound,
+            { color: feltGreen, opacity: roundOpacity },
+          ]}
+        >
+          + {displayRound.toLocaleString()} XP
+        </Animated.Text>
+      ) : null}
       <Text style={styles.rankXpTotal}>{displayTotal.toLocaleString()} XP</Text>
-      <Text
-        style={[
-          styles.rankXpRound,
-          { color: feltGreen, opacity: roundOpacity },
-        ]}
-      >
-        + {displayRound.toLocaleString()} XP
-      </Text>
     </View>
   );
 }
@@ -181,35 +196,47 @@ export default function RoundCompleteModal({
               const finalTotal = playerXp[playerId] ?? 0;
               const roundEarned = playerRoundXp[playerId] ?? 0;
 
+              const isPresident = role === "President";
+
               return (
                 <View
                   key={playerId}
-                  style={[styles.rankRow, isLocal && styles.rankRowLocal]}
+                  style={[styles.rankRow, isLocal && styles.rankRowLocal, isPresident && styles.rankRowPresident]}
                 >
+                  {isPresident ? (
+                    <PresidentRewardCelebration
+                      active={visible && xpAnimationReady}
+                      rowDelay={index * ROW_STAGGER_MS}
+                    />
+                  ) : null}
                   <Text style={styles.rankIndex}>{index + 1}</Text>
                   <View style={styles.rankBody}>
-                    <Text style={styles.rankName} numberOfLines={1}>
-                      {player.name}
-                    </Text>
-                    <Text style={styles.rankRole}>
-                      {emoji ? `${emoji} ` : ""}
-                      {role}
-                    </Text>
-                  </View>
-                  <RankXpDisplay
-                    visible={visible}
-                    animationReady={xpAnimationReady}
-                    rowDelay={index * ROW_STAGGER_MS}
-                    finalTotal={finalTotal}
-                    roundEarned={roundEarned}
-                    feltGreen={feltGreen}
-                    styles={styles}
-                  />
-                  {ready ? (
-                    <View style={styles.readyBadge}>
-                      <Text style={styles.readyBadgeText}>Ready</Text>
+                    <View style={styles.rankTopRow}>
+                      <Text style={styles.rankName} numberOfLines={1}>
+                        {player.name}
+                      </Text>
+                      <RankXpDisplay
+                        visible={visible}
+                        animationReady={xpAnimationReady}
+                        rowDelay={index * ROW_STAGGER_MS}
+                        finalTotal={finalTotal}
+                        roundEarned={roundEarned}
+                        feltGreen={feltGreen}
+                        styles={styles}
+                      />
                     </View>
-                  ) : null}
+                    <View style={styles.rankBottomRow}>
+                      <Text style={styles.rankRole} numberOfLines={1}>
+                        {emoji ? `${emoji} ` : ""}
+                        {role}
+                      </Text>
+                      {ready ? (
+                        <View style={styles.readyBadge}>
+                          <Text style={styles.readyBadgeText}>Ready</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
                 </View>
               );
             })}
@@ -308,6 +335,11 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     borderColor: colors.btnGoldBorder,
     backgroundColor: colors.btnGoldBg,
   },
+  rankRowPresident: {
+    overflow: "visible",
+    borderColor: colors.gold,
+    backgroundColor: colors.btnGoldBg,
+  },
   rankIndex: {
     color: colors.gold,
     fontSize: 16,
@@ -319,19 +351,33 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     flex: 1,
     minWidth: 0,
     marginLeft: 8,
-    marginRight: 8,
+    gap: 4,
+  },
+  rankTopRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 8,
+    minWidth: 0,
+  },
+  rankBottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 0,
   },
   rankName: {
+    flex: 1,
+    minWidth: 0,
     color: colors.textPrimary,
     fontSize: 15,
     fontWeight: "700",
   },
   xpBlock: {
     flexDirection: "row",
+    flexWrap: "nowrap",
     alignItems: "baseline",
-    gap: 8,
+    gap: 6,
     flexShrink: 0,
-    marginLeft: 4,
   },
   rankXpTotal: {
     color: colors.textPrimary,
@@ -347,14 +393,15 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     fontVariant: ["tabular-nums"],
   },
   rankRole: {
+    flex: 1,
+    minWidth: 0,
     color: colors.textMuted,
     fontSize: 11,
     fontWeight: "600",
-    marginTop: 2,
     letterSpacing: 0.2,
   },
   readyBadge: {
-    marginLeft: 8,
+    flexShrink: 0,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,

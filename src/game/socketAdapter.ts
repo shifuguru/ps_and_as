@@ -26,6 +26,7 @@ export class SocketAdapter implements NetworkAdapter {
   /** Room the client belongs to — used to rejoin after socket reconnect. */
   private activeRoomId: string | null = null;
   private cachedHostId: string | null = null;
+  private cachedSkipDealAnimations = false;
   private feltTint: string = DEFAULT_FELT_COLOR;
 
   constructor(
@@ -57,6 +58,10 @@ export class SocketAdapter implements NetworkAdapter {
 
   getHostId(): string | null {
     return this.cachedHostId;
+  }
+
+  getSkipDealAnimations(): boolean {
+    return this.cachedSkipDealAnimations;
   }
 
   getActiveRoomId(): string | null {
@@ -165,6 +170,29 @@ export class SocketAdapter implements NetworkAdapter {
     this.socket.emit("discoverRooms");
   }
 
+  private emitRegisterPresence() {
+    if (!this.socket?.connected) return;
+    const profileId = this.profileId?.trim();
+    if (profileId) {
+      this.socket.emit("registerPresence", { profileId });
+      return;
+    }
+    void (async () => {
+      try {
+        const { getOrCreatePlayerId } = await import("../services/gameCenter");
+        const profile = await getOrCreatePlayerId();
+        this.profileId = profile.id;
+        if (this.socket?.connected) {
+          this.socket.emit("registerPresence", { profileId: profile.id });
+        }
+      } catch {
+        if (this.socket?.connected) {
+          this.socket.emit("registerPresence", {});
+        }
+      }
+    })();
+  }
+
   async connect(): Promise<void> {
     if (this.socket?.connected) return;
     if (this.connectPromise) return this.connectPromise;
@@ -196,6 +224,7 @@ export class SocketAdapter implements NetworkAdapter {
             this.rejoinActiveRoom();
           }
           this.flushDiscoverQueue();
+          this.emitRegisterPresence();
         });
 
         this.socket.on("connect_error", (error: Error) => {
@@ -232,6 +261,9 @@ export class SocketAdapter implements NetworkAdapter {
       if (data?.host) {
         this.cachedHostId = data.host;
       }
+      if (typeof data?.skipDealAnimations === "boolean") {
+        this.cachedSkipDealAnimations = data.skipDealAnimations;
+      }
       this.handlers.forEach((h) =>
         h({
           type: "state",
@@ -240,6 +272,7 @@ export class SocketAdapter implements NetworkAdapter {
             players: data.players,
             host: data.host,
             roomName: data.roomName,
+            skipDealAnimations: !!data.skipDealAnimations,
             deadHandSeatOpen: !!data.deadHandSeatOpen,
             spectatorCount: data.spectatorCount ?? 0,
           },
@@ -251,6 +284,9 @@ export class SocketAdapter implements NetworkAdapter {
       console.log("[SocketAdapter] Received startGame:", data);
       if (data?.hostId) {
         this.cachedHostId = data.hostId;
+      }
+      if (typeof data?.skipDealAnimations === "boolean") {
+        this.cachedSkipDealAnimations = data.skipDealAnimations;
       }
       if (typeof data?.dealSeed === "number") {
         this.cachedDealSeed = data.dealSeed;
@@ -267,6 +303,7 @@ export class SocketAdapter implements NetworkAdapter {
             type: "startGame",
             players,
             dealSeed: data?.dealSeed,
+            skipDealAnimations: !!data?.skipDealAnimations,
             spectator: !!data?.spectator,
           },
         }),
@@ -698,10 +735,18 @@ export class SocketAdapter implements NetworkAdapter {
     this.socket.emit("dismissRoom", { roomId });
   }
 
-  startGame(roomId: string) {
+  startGame(roomId: string, skipDealAnimations?: boolean) {
     if (!this.socket) return;
     console.log("[SocketAdapter] Emitting startGame for roomId:", roomId);
-    this.socket.emit("startGame", { roomId });
+    this.socket.emit("startGame", {
+      roomId,
+      skipDealAnimations: !!skipDealAnimations,
+    });
+  }
+
+  updateRoomOptions(roomId: string, options: { skipDealAnimations?: boolean }) {
+    if (!this.socket) return;
+    this.socket.emit("updateRoomOptions", { roomId, ...options });
   }
 
   kickPlayer(roomId: string, playerName: string) {

@@ -26,10 +26,26 @@ export function nzst(local: string): string {
 
 export function nzdt(local: string): string {
   const base = local.length === 16 ? `${local}:00` : local;
-  return `${base}+13:00`;
+  return `${base}+13:00`;
+
 }
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
+  {
+    publishedAt: nzst("2026-05-30T21:00"),
+    title: "Rewards & bots",
+    items: [
+      "Trick-win shouts — brief callouts when you take a trick (+XP moment)",
+      "Avatar reward borders — wings, flames, laurel, and crown from achievements (shown on your seat and bot opponents)",
+      "President celebration on the round-end scoreboard",
+      "What's New badge — unread count on the main menu until you read the update log",
+      "Multiplayer badge — live count of connected players on the Multiplayer button",
+      "Quick Game fills the table with seven named bot opponents, each with different career XP and rewards",
+      "Bot seats use short random names instead of CPU 1, CPU 2, …",
+      "Fix: round-end scoreboard no longer crashes; avatar borders render correctly",
+      "Fix: online game no longer pauses when someone leaves the lobby before the deal",
+    ],
+  },
   {
     publishedAt: nzst("2026-05-30T18:00"),
     title: "Table & round end",
@@ -132,3 +148,30 @@ export const KNOWN_ISSUES: KnownIssue[] = [
     note: "You can view your own achievements from a player profile. Other players' progress isn't shared yet.",
   },
 ];
+
+/** Latest publish/update instant across entries and known issues (ISO). */
+export function latestUpdateLogTimestamp(): string {
+  let latest = 0;
+  for (const entry of UPDATE_ENTRIES) {
+    latest = Math.max(latest, Date.parse(entry.publishedAt));
+  }
+  for (const issue of KNOWN_ISSUES) {
+    if (issue.updatedAt) {
+      latest = Math.max(latest, Date.parse(issue.updatedAt));
+    }
+  }
+  return new Date(latest).toISOString();
+}
+
+/** Count update entries and known-issue updates newer than last seen (ISO). */
+export function countUnreadUpdateNotifications(lastSeenAt: string | null): number {
+  const seenMs = lastSeenAt ? Date.parse(lastSeenAt) : Number.NEGATIVE_INFINITY;
+  let count = 0;
+  for (const entry of UPDATE_ENTRIES) {
+    if (Date.parse(entry.publishedAt) > seenMs) count += 1;
+  }
+  for (const issue of KNOWN_ISSUES) {
+    if (issue.updatedAt && Date.parse(issue.updatedAt) > seenMs) count += 1;
+  }
+  return count;
+}

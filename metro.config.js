@@ -48,7 +48,8 @@ function proxySocketIo(req, res) {
 
 config.server.enhanceMiddleware = (middleware) => {
   return (req, res, next) => {
-    if (req.url && req.url.startsWith("/socket.io")) {
+    const url = req.url?.split("?")[0] ?? "";
+    if (url.startsWith("/socket.io") || url.startsWith("/api/")) {
       proxySocketIo(req, res);
       return;
     }

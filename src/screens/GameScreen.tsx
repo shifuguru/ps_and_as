@@ -68,6 +68,15 @@ import {
   parseServerGameState,
   resolveLocalHumanPlayer,
 } from "../utils/localPlayer";
+import { pickTrickShout } from "../rewards/trickShouts";
+import {
+  resolveAvatarBorder,
+  type AvatarBorderDesign,
+} from "../rewards/avatarBorders";
+import {
+  getCpuAvatarBorder,
+  getCpuCareerXp,
+} from "../rewards/cpuProfiles";
 import {
   recordRoundResult,
   recordTrickWin,
@@ -76,6 +85,7 @@ import {
   RUN_STEP_XP,
   getPlayerStats,
 } from "../services/playerStats";
+import { fetchCloudPlayerStats } from "../services/playerStatsCloud";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { useGamePreferences } from "../hooks/useGamePreferences";
 import { getSkipDealAnimationsSync } from "../services/gamePreferences";
@@ -358,11 +368,6 @@ function GameScreen({
   const { skipDealAnimations, loaded: preferencesLoaded } = useGamePreferences();
   const skipDealAnimationsRef = useRef(skipDealAnimations);
   skipDealAnimationsRef.current = skipDealAnimations;
-
-  const shouldSkipDealAnimations = useCallback(
-    () => skipDealAnimationsRef.current || getSkipDealAnimationsSync(),
-    [],
-  );
   const [tradePhase, setTradePhase] = useState<{
     baseState: GameState;
     players: GameState["players"];
@@ -377,6 +382,9 @@ function GameScreen({
   const [playerReadyStates, setPlayerReadyStates] = useState<{
     [playerId: string]: boolean;
   }>({});
+  const [localAvatarBorder, setLocalAvatarBorder] = useState<AvatarBorderDesign | null>(
+    null,
+  );
   const [lastTrickWinner, setLastTrickWinner] = useState<string | null>(null);
   const [showWinnerBanner, setShowWinnerBanner] = useState(false);
   const [stackCollecting, setStackCollecting] = useState(false);
@@ -407,6 +415,12 @@ function GameScreen({
   /** Trick-win XP earned in the current round only (resets each round). */
   const [roundXpByPlayerId, setRoundXpByPlayerId] = useState<Record<string, number>>({});
   const [localCareerXp, setLocalCareerXp] = useState<number | null>(null);
+  /** Career XP baseline for opponents (cloud stats, pre-round). */
+  const [careerXpByPlayerId, setCareerXpByPlayerId] = useState<
+    Record<string, number>
+  >({});
+  const [scoreboardCareerXpLoading, setScoreboardCareerXpLoading] =
+    useState(false);
   const [awayTick, setAwayTick] = useState(0);
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
   const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
@@ -470,13 +484,27 @@ function GameScreen({
     fallbackAdapterRef.current = new MockAdapter();
   }
   const adapter = networkAdapter ?? fallbackAdapterRef.current!;
-  const onlineMultiplayer = isSocketAdapter(networkAdapter) && !!roomId;
+  const effectiveRoomId =
+    roomId ??
+    (isSocketAdapter(networkAdapter)
+      ? networkAdapter.getActiveRoomId() ?? undefined
+      : undefined);
+  const onlineMultiplayer = isSocketAdapter(networkAdapter) && !!effectiveRoomId;
   const resolvedHostId =
     (isSocketAdapter(networkAdapter) ? networkAdapter.getHostId() : null) ??
     initialLobbyPlayers?.[0]?.id ??
     null;
+
+  const shouldSkipDealAnimations = useCallback(() => {
+    if (onlineMultiplayer && isSocketAdapter(networkAdapter)) {
+      return networkAdapter.getSkipDealAnimations();
+    }
+    return skipDealAnimationsRef.current || getSkipDealAnimationsSync();
+  }, [onlineMultiplayer, networkAdapter]);
   const readOnlyOnline = onlineMultiplayer && spectatorMode;
-  const readOnlyGame = gameplayLocked || readOnlyOnline;
+  const gamePausedForAway =
+    onlineMultiplayer && Object.keys(awayPlayers).length > 0;
+  const readOnlyGame = gameplayLocked || readOnlyOnline || gamePausedForAway;
 
   const insets = useLayoutInsets();
   const { colors, feltTint: localFeltTint } = useAppTheme();
@@ -507,13 +535,10 @@ function GameScreen({
     void awayTick;
     const entries = Object.entries(awayPlayers);
     if (entries.length === 0) return null;
-    return entries
-      .map(([, info]) => {
-        const secs = Math.max(0, Math.ceil((info.until - Date.now()) / 1000));
-        const verb = info.reason === "left" ? "left" : "disconnected";
-        return `${info.name} ${verb} — seat held ${secs}s`;
-      })
-      .join(" · ");
+    const names = entries.map(([, info]) => info.name).join(", ");
+    const minUntil = Math.min(...entries.map(([, info]) => info.until));
+    const secs = Math.max(0, Math.ceil((minUntil - Date.now()) / 1000));
+    return `Game paused — waiting for ${names} to return (${secs}s)`;
   }, [awayPlayers, awayTick]);
 
   const disconnectedPlayerIds = useMemo(
@@ -522,26 +547,52 @@ function GameScreen({
   );
 
   const scoreboardXpByPlayerId = useMemo(() => {
-    const xp = { ...gameXpByPlayerId };
-    if (myPlayerId && localCareerXp != null) {
-      xp[myPlayerId] = localCareerXp;
+    const xp: Record<string, number> = {};
+    const living =
+      state?.players.filter((p) => !isDeadHandPlayer(p)) ?? [];
+    for (const player of living) {
+      const roundEarned = roundXpByPlayerId[player.id] ?? 0;
+      if (player.id === myPlayerId && localCareerXp != null) {
+        xp[player.id] = localCareerXp;
+        continue;
+      }
+      const careerBaseline = careerXpByPlayerId[player.id];
+      if (careerBaseline != null) {
+        xp[player.id] = careerBaseline + roundEarned;
+        continue;
+      }
+      if (!onlineMultiplayer && isCpuPlayer(player)) {
+        const base = getCpuCareerXp(player) ?? 0;
+        xp[player.id] = base + roundEarned;
+      } else if (roundEarned > 0) {
+        xp[player.id] = roundEarned;
+      }
     }
     return xp;
-  }, [gameXpByPlayerId, myPlayerId, localCareerXp]);
+  }, [
+    state?.players,
+    roundXpByPlayerId,
+    myPlayerId,
+    localCareerXp,
+    careerXpByPlayerId,
+    onlineMultiplayer,
+  ]);
 
   const xpAnimationReady =
-    !humanPlayer?.id ||
-    humanPlayer.id !== myPlayerId ||
-    localCareerXp != null;
+    !roundOver ||
+    ((!humanPlayer?.id ||
+      humanPlayer.id !== myPlayerId ||
+      localCareerXp != null) &&
+      (!onlineMultiplayer || !scoreboardCareerXpLoading));
 
-  const turnPlayerId = state?.players[state.currentPlayerIndex]?.id ?? null;
-  const turnPlayerName = state?.players[state.currentPlayerIndex]?.name;
-  const turnPlayerIsCpu =
-    typeof turnPlayerName === "string" && turnPlayerName.startsWith("CPU");
+  const turnPlayer = state?.players[state.currentPlayerIndex];
+  const turnPlayerId = turnPlayer?.id ?? null;
+  const turnPlayerIsCpu = isCpuPlayer(turnPlayer);
   const bellPaused =
     !state ||
     trickPauseActive ||
     gameplayLocked ||
+    gamePausedForAway ||
     roundOver ||
     !!ceremonyPrep ||
     !!tradePhase ||
@@ -829,6 +880,18 @@ function GameScreen({
     startRoundCeremony(state, finishedOrder, nextDealSeed);
   }
 
+  const maybeStartNextOfflineRound = useCallback(
+    (readyMap: Record<string, boolean>) => {
+      if (onlineMultiplayer || lastHandReveal || !roundOver || !state) return;
+      const living = state.players.filter((p) => !isDeadHandPlayer(p));
+      if (living.length === 0) return;
+      if (living.every((p) => !!readyMap[p.id])) {
+        startNextRoundRef.current();
+      }
+    },
+    [onlineMultiplayer, lastHandReveal, roundOver, state],
+  );
+
   startNextRoundRef.current = startNextRound;
   finalizeCeremonyRoundRef.current = finalizeCeremonyRound;
 
@@ -1022,6 +1085,21 @@ function GameScreen({
     return () => clearInterval(id);
   }, [awayPlayers]);
 
+  useEffect(() => {
+    void getPlayerStats().then((stats) => {
+      setLocalAvatarBorder(resolveAvatarBorder(stats));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!showWinnerBanner || !myPlayerId || trickPauseSnapshot?.winnerId !== myPlayerId) {
+      return;
+    }
+    void getPlayerStats().then((stats) => {
+      setLocalAvatarBorder(resolveAvatarBorder(stats));
+    });
+  }, [showWinnerBanner, myPlayerId, trickPauseSnapshot?.winnerId]);
+
   // Detect trick wins (pause briefly) and round completion — layout effect
   // commits the snapshot before paint so the table never freezes on stale plays.
   useLayoutEffect(() => {
@@ -1153,11 +1231,14 @@ function GameScreen({
         }
       }
       const newReady: { [playerId: string]: boolean } = {};
+      const localHuman = resolveLocalHumanPlayer(
+        state.players,
+        localPlayerName,
+        localPlayerId,
+        networkAdapter,
+      );
       state.players.filter((p) => !isDeadHandPlayer(p)).forEach((p) => {
-        const isLocalHuman =
-          (humanPlayer && p.id === humanPlayer.id) ||
-          (localPlayerId && p.id === localPlayerId);
-        newReady[p.id] = !isLocalHuman;
+        newReady[p.id] = !(localHuman && p.id === localHuman.id);
       });
       setPlayerReadyStates(newReady);
     }
@@ -1166,9 +1247,9 @@ function GameScreen({
     roundOver,
     localPlayerId,
     localPlayerName,
-    humanPlayer,
     onlineMultiplayer,
     startLastHandReveal,
+    networkAdapter,
   ]);
 
   useEffect(() => {
@@ -1385,7 +1466,7 @@ function GameScreen({
           return next;
         });
         if (ev.state.playerName) {
-          showRoomNotice(`${ev.state.playerName} rejoined`);
+          showRoomNotice(`${ev.state.playerName} rejoined — game resumed`);
         }
         if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
           networkAdapter.requestGameState(roomId);
@@ -1393,6 +1474,24 @@ function GameScreen({
       } else if (ev.type === "state" && ev.state?.type === "lobby") {
         const members = ev.state.players;
         if (Array.isArray(members)) {
+          if (onlineMultiplayer) {
+            setAwayPlayers((prev) => {
+              const next: Record<string, AwayPlayer> = {};
+              for (const member of members as LobbyMember[]) {
+                if (!member.disconnected) continue;
+                next[member.id] = {
+                  name: member.name,
+                  until:
+                    typeof member.reconnectUntil === "number"
+                      ? member.reconnectUntil
+                      : (prev[member.id]?.until ?? Date.now() + 25000),
+                  reason:
+                    member.awayReason === "left" ? "left" : member.awayReason,
+                };
+              }
+              return next;
+            });
+          }
           setPlayerFeltTints((prev) => {
             const next = { ...prev };
             for (const member of members as LobbyMember[]) {
@@ -1603,10 +1702,45 @@ function GameScreen({
   useEffect(() => {
     if (!roundOver) {
       setLocalCareerXp(null);
+      setCareerXpByPlayerId({});
+      setScoreboardCareerXpLoading(false);
       return;
     }
-    void getPlayerStats().then((stats) => setLocalCareerXp(stats.xp));
-  }, [roundOver]);
+    if (!state) return;
+
+    let cancelled = false;
+    setScoreboardCareerXpLoading(true);
+
+    void (async () => {
+      const living = state.players.filter((p) => !isDeadHandPlayer(p));
+      const baselines: Record<string, number> = {};
+
+      const localStats = await getPlayerStats();
+      if (!cancelled && myPlayerId) {
+        setLocalCareerXp(localStats.xp);
+      }
+
+      await Promise.all(
+        living.map(async (player) => {
+          if (player.id === myPlayerId) return;
+          if (isCpuPlayer(player)) return;
+          const cloud = await fetchCloudPlayerStats(player.id);
+          if (cloud) {
+            baselines[player.id] = cloud.xp;
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        setCareerXpByPlayerId(baselines);
+        setScoreboardCareerXpLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [roundOver, state, myPlayerId]);
 
   useEffect(() => {
     if (!showWinnerBanner || !trickPauseSnapshot?.winnerId || !myPlayerId) return;
@@ -1659,14 +1793,8 @@ function GameScreen({
       const chooser = state.players[chooserIdx];
       if (!chooser || isDeadHandPlayer(chooser)) return;
 
-      const isNamedCPU = !!(
-        chooser.name &&
-        typeof chooser.name === "string" &&
-        chooser.name.startsWith("CPU")
-      );
-      const isHumanChooser =
-        !!(humanPlayer && chooser.id === humanPlayer.id);
-      if (!isNamedCPU || isHumanChooser) return;
+      const isNamedCPU = isCpuPlayer(chooser) && !(humanPlayer && chooser.id === humanPlayer.id);
+      if (!isNamedCPU) return;
 
       const playerId = chooser.id;
       const timer = setTimeout(() => {
@@ -1731,10 +1859,7 @@ function GameScreen({
       return;
     }
 
-    const isNamedCPU = !!(
-      current.name && typeof current.name === "string" && current.name.startsWith("CPU")
-    );
-    let isCPU = isNamedCPU;
+    let isCPU = isCpuPlayer(current);
     if (humanPlayer && current.id === humanPlayer.id) {
       isCPU = false;
     }
@@ -1905,6 +2030,7 @@ function GameScreen({
         onlineMultiplayer,
         networkAdapter,
         roomId,
+        effectiveRoomId,
         localPlayerId,
         readOnlyGame,
         bannerNotice,
@@ -1947,7 +2073,9 @@ function GameScreen({
         scoreboardXpByPlayerId,
         roundXpByPlayerId,
         xpAnimationReady,
+        maybeStartNextOfflineRound,
         lastTrickLenRef,
+        localAvatarBorder,
       }}
     >
       <GameScreenBoard />
@@ -1991,6 +2119,7 @@ function GameScreenBoard() {
     onlineMultiplayer,
     networkAdapter,
     roomId,
+    effectiveRoomId,
     localPlayerId,
     readOnlyGame,
     bannerNotice,
@@ -2033,7 +2162,9 @@ function GameScreenBoard() {
     scoreboardXpByPlayerId,
     roundXpByPlayerId,
     xpAnimationReady,
+    maybeStartNextOfflineRound,
     lastTrickLenRef,
+    localAvatarBorder,
   } = useContext(GameScreenRuntimeContext)! as {
     state: GameState;
     setState: React.Dispatch<React.SetStateAction<GameState | null>>;
@@ -2085,6 +2216,7 @@ function GameScreenBoard() {
     onlineMultiplayer: boolean;
     networkAdapter: NetworkAdapter | MockAdapter | SocketAdapter | undefined;
     roomId: string | undefined;
+    effectiveRoomId: string | undefined;
     localPlayerId: string | undefined;
     readOnlyGame: boolean;
     bannerNotice: string | null;
@@ -2135,7 +2267,9 @@ function GameScreenBoard() {
     scoreboardXpByPlayerId: Record<string, number>;
     roundXpByPlayerId: Record<string, number>;
     xpAnimationReady: boolean;
+    maybeStartNextOfflineRound: (readyMap: Record<string, boolean>) => void;
     lastTrickLenRef: React.MutableRefObject<number>;
+    localAvatarBorder: AvatarBorderDesign | null;
   };
 
   const [ceremonyDealCounts, setCeremonyDealCounts] = useState<
@@ -2592,6 +2726,28 @@ function GameScreenBoard() {
     trickWinnerPlayerId && trickPauseSnapshot
       ? TRICK_WIN_XP + trickPauseSnapshot.runBonusXp
       : undefined;
+  const trickWinnerShout =
+    trickWinnerPlayerId && trickPauseSnapshot
+      ? pickTrickShout(
+          trickWinnerPlayerId,
+          state.trickHistory?.length ?? 0,
+          trickPauseSnapshot.runBonusXp > 0,
+        )
+      : null;
+  const avatarBordersByPlayerId = useMemo(() => {
+    const borders: Record<string, AvatarBorderDesign> = {};
+    if (localAvatarBorder && myPlayerId) {
+      borders[myPlayerId] = localAvatarBorder;
+    }
+    if (!onlineMultiplayer) {
+      for (const player of state.players) {
+        if (!isCpuPlayer(player)) continue;
+        const border = getCpuAvatarBorder(player);
+        if (border) borders[player.id] = border;
+      }
+    }
+    return borders;
+  }, [localAvatarBorder, myPlayerId, state.players, onlineMultiplayer]);
 
   const localSeatPlayer = humanPlayer
     ? {
@@ -3044,6 +3200,8 @@ function GameScreenBoard() {
           skipPlayFlights={trickPauseFrozen}
           trickWinnerPlayerId={trickWinnerPlayerId}
           trickWinnerXpAmount={trickWinnerXpAmount}
+          trickWinnerShout={trickWinnerShout}
+          avatarBordersByPlayerId={avatarBordersByPlayerId}
           playTypeLabel={
             playTypeLabel && !trickPauseFrozen ? playTypeLabel : null
           }
@@ -3117,6 +3275,12 @@ function GameScreenBoard() {
               !!trickWinnerPlayerId &&
               localSeatPlayer.id === trickWinnerPlayerId
             }
+            trickShout={
+              trickWinnerPlayerId === localSeatPlayer.id
+                ? trickWinnerShout
+                : null
+            }
+            avatarBorder={localAvatarBorder}
             showTrickXp={
               !!trickWinnerPlayerId &&
               localSeatPlayer.id === trickWinnerPlayerId
@@ -3322,28 +3486,28 @@ function GameScreenBoard() {
         playerXp={scoreboardXpByPlayerId}
         playerRoundXp={roundXpByPlayerId}
         xpAnimationReady={xpAnimationReady}
-        localPlayerId={humanPlayer?.id ?? myPlayerId ?? undefined}
+        localPlayerId={myPlayerId ?? undefined}
         spectatorMode={spectatorMode}
         deadHandSeatOpen={state.players.some(isDeadHandPlayer)}
         onQuit={requestLeaveGame}
         onToggleReady={() => {
-          const id =
-            humanPlayer?.id ??
-            myPlayerId ??
-            (isSocketAdapter(networkAdapter)
-              ? networkAdapter.getProfileId()
-              : undefined);
+          const id = myPlayerId;
           if (!id) return;
-          if (playerReadyStates[id]) {
-            setPlayerReadyStates((prev) => ({ ...prev, [id]: false }));
+          const nextReady = !playerReadyStates[id];
+          if (onlineMultiplayer && isSocketAdapter(networkAdapter) && effectiveRoomId) {
+            if (nextReady) {
+              networkAdapter.playerReadyForNextRound(effectiveRoomId);
+            }
+            setPlayerReadyStates((prev) => ({ ...prev, [id]: nextReady }));
             return;
           }
-          if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
-            networkAdapter.playerReadyForNextRound(roomId);
-            setPlayerReadyStates((prev) => ({ ...prev, [id]: true }));
-            return;
-          }
-          setPlayerReadyStates((prev) => ({ ...prev, [id]: true }));
+          setPlayerReadyStates((prev) => {
+            const next = { ...prev, [id]: nextReady };
+            if (nextReady) {
+              maybeStartNextOfflineRound(next);
+            }
+            return next;
+          });
         }}
       />
 

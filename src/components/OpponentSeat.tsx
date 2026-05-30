@@ -11,6 +11,9 @@ import {
 import { Player } from "../game/ruleset";
 import { playerInitials } from "../utils/playerDisplay";
 import TrickWinCelebration from "./TrickWinCelebration";
+import TrickWinShout from "./TrickWinShout";
+import AvatarRewardBorder from "./AvatarRewardBorder";
+import type { AvatarBorderDesign } from "../rewards/avatarBorders";
 import Card from "./Card";
 import {
   avatarSizeForSeat,
@@ -61,6 +64,10 @@ type Props = {
   isLastPlay?: boolean;
   /** Brief confetti / flag after winning a trick */
   celebrateTrickWin?: boolean;
+  /** Shout bubble when winning a trick (+XP moment). */
+  trickShout?: string | null;
+  /** Achievement-based border at bottom of avatar. */
+  avatarBorder?: AvatarBorderDesign | null;
   /** Floating +XP with the checkered flag (includes run bonus when applicable). */
   showTrickXp?: boolean;
   trickXpAmount?: number;
@@ -93,6 +100,8 @@ export default function OpponentSeat({
   isLocal = false,
   isLastPlay = false,
   celebrateTrickWin = false,
+  trickShout = null,
+  avatarBorder = null,
   showTrickXp = false,
   trickXpAmount,
   seatDims: seatDimsProp,
@@ -206,6 +215,11 @@ export default function OpponentSeat({
 
   const avatarBlock = (
     <>
+      <TrickWinShout
+        active={celebrateTrickWin}
+        text={trickShout ?? ""}
+        avatarSize={avatarSize}
+      />
       <TrickWinCelebration
         active={celebrateTrickWin}
         avatarSize={avatarSize}
@@ -507,6 +521,9 @@ export default function OpponentSeat({
           ]}
         >
           {avatarBlock}
+          {avatarBorder ? (
+            <AvatarRewardBorder design={avatarBorder} avatarSize={avatarSize} />
+          ) : null}
         </TouchableOpacity>
       ) : (
         <View
@@ -517,6 +534,9 @@ export default function OpponentSeat({
           ]}
         >
           {avatarBlock}
+          {avatarBorder ? (
+            <AvatarRewardBorder design={avatarBorder} avatarSize={avatarSize} />
+          ) : null}
         </View>
       )}
 

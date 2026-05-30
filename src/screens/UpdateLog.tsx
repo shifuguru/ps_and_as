@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -36,7 +36,16 @@ function statusColor(
   return "#ffb86c";
 }
 
-export default function UpdateLog({ onBack }: { onBack: () => void }) {
+export default function UpdateLog({
+  onBack,
+  onViewed,
+}: {
+  onBack: () => void;
+  onViewed?: () => void;
+}) {
+  useEffect(() => {
+    void onViewed?.();
+  }, [onViewed]);
   const { colors, ui } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();

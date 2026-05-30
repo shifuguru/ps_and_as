@@ -1,14 +1,14 @@
 {
   "name": "ps_and_as",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "main": "index.ts",
   "scripts": {
-    "start": "expo start",
+    "start": "node ./scripts/expo-dev-env.js",
     "server": "node server/index.js",
     "start:server": "node server/index.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "node ./scripts/sync-readme-public.js && node ./scripts/expo-web-env.js",
+    "web": "node ./scripts/sync-readme-public.js && node ./scripts/expo-dev-env.js --web",
     "build:web": "expo export --platform web --output-dir web-build && node ./scripts/fix-web-build-paths.js",
     "test-core": "ts-node ./scripts/test-core.ts",
     "test-edge": "npx tsx ./scripts/test-edge-cases.ts",

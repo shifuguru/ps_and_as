@@ -39,8 +39,14 @@ import { useVisualViewportSize, useWebShellLayout } from "./src/hooks/useVisualV
 import { isMobileWeb, installWebShellCss } from "./src/utils/webViewport";
 import { useAppFonts } from "./src/hooks/useAppFonts";
 import { useBuildUpdateCheck } from "./src/hooks/useBuildUpdateCheck";
+import { useOnlinePlayerCount } from "./src/hooks/useOnlinePlayerCount";
+import { useUpdateLogUnreadCount } from "./src/hooks/useUpdateLogUnreadCount";
 import { useWebEscapeKey } from "./src/hooks/useWebEscapeKey";
 import UpdateRequiredOverlay from "./src/components/UpdateRequiredOverlay";
+import {
+  makeCpuPlayerId,
+  pickCpuDisplayNames,
+} from "./src/utils/cpuNames";
 import AppErrorBoundary from "./src/components/AppErrorBoundary";
 import { StatusBar } from "expo-status-bar";
 
@@ -76,6 +82,9 @@ function AppContent() {
   const [updateDismissedBuildId, setUpdateDismissedBuildId] = useState<
     string | null
   >(null);
+  const { count: updateLogUnreadCount, markSeen: markUpdateLogSeen } =
+    useUpdateLogUnreadCount(menuVisible, updateLogOpen);
+  const onlinePlayerCount = useOnlinePlayerCount(!splashVisible);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -209,11 +218,13 @@ function AppContent() {
     });
     setLocalPlayerName(hostName);
     setLocalPlayerId(playerInfo.id);
+    const botNames = pickCpuDisplayNames(7, [hostName]);
     setLobbyMembers([
       { id: playerInfo.id, name: hostName, feltTint: savedTint },
-      { id: "2", name: "CPU 1" },
-      { id: "3", name: "CPU 2" },
-      { id: "4", name: "CPU 3" },
+      ...botNames.map((name, i) => ({
+        id: makeCpuPlayerId(i + 1),
+        name,
+      })),
     ]);
     setIsOnlineGame(false);
     setGameInstanceKey((k) => k + 1);
@@ -687,7 +698,24 @@ function AppContent() {
               </View>
             ) : null}
             <MainMenu
-              buttons={primaryButtons}
+              buttons={primaryButtons.map((btn) => {
+                if (btn.label === "What's New") {
+                  return {
+                    ...btn,
+                    badgeCount: updateLogUnreadCount,
+                    badgeA11yLabel: `${updateLogUnreadCount} new updates`,
+                  };
+                }
+                if (btn.label === "Multiplayer") {
+                  return {
+                    ...btn,
+                    badgeCount: onlinePlayerCount,
+                    badgeCap: 99,
+                    badgeA11yLabel: `${onlinePlayerCount} players online`,
+                  };
+                }
+                return btn;
+              })}
               onButtonPress={(action) => {
                 playEffect("click");
                 action();
@@ -915,6 +943,19 @@ function AppContent() {
                     roomAdapter.updatePlayerName(roomId, name);
                   }
                 }}
+                onSkipDealAnimationsChange={(value) => {
+                  const roomId = activeRoomIdRef.current ?? joinedRoomIdRef.current;
+                  if (
+                    roomAdapter &&
+                    isSocketAdapter(roomAdapter) &&
+                    roomId &&
+                    roomAdapter.isConnected()
+                  ) {
+                    roomAdapter.updateRoomOptions(roomId, {
+                      skipDealAnimations: value,
+                    });
+                  }
+                }}
               />
             </View>
           </WebModalPortal>
@@ -937,7 +978,7 @@ function AppContent() {
           <WebModalPortal style={appStyles.settingsOverlay}>
             <FullscreenBlurScrim />
             <View style={appStyles.settingsForeground}>
-              <UpdateLog onBack={closeUpdateLog} />
+              <UpdateLog onBack={closeUpdateLog} onViewed={markUpdateLogSeen} />
             </View>
           </WebModalPortal>
         )}

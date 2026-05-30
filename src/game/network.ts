@@ -20,6 +20,9 @@ export type LobbyMember = {
   name: string;
   ready?: boolean;
   disconnected?: boolean;
+  isSpectator?: boolean;
+  reconnectUntil?: number | null;
+  awayReason?: string | null;
   /** Saved table felt tint — drives this player's avatar color for others. */
   feltTint?: string;
 };

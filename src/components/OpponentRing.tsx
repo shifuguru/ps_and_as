@@ -8,6 +8,8 @@ import {
   opponentSeatPosition,
 } from "../utils/tableLayout";
 import { isDeadHandPlayer } from "../game/deadHand";
+import type { AvatarBorderDesign } from "../rewards/avatarBorders";
+import { isCpuPlayer } from "../utils/localPlayer";
 
 type Props = {
   players: OpponentSeatPlayer[];
@@ -26,6 +28,10 @@ type Props = {
   trickWinnerPlayerId?: string | null;
   /** Total trick-win XP shown on the winner (trick + run bonus). */
   trickWinnerXpAmount?: number;
+  /** Shout bubble on the trick winner's seat. */
+  trickWinnerShout?: string | null;
+  /** Achievement borders keyed by player id. */
+  avatarBordersByPlayerId?: Record<string, AvatarBorderDesign>;
   layoutSeatIds?: string[];
   deadHandId?: string | null;
   deadHandGraveyard?: boolean;
@@ -79,6 +85,8 @@ export default function OpponentRing({
   lastPlayPlayerId,
   trickWinnerPlayerId,
   trickWinnerXpAmount,
+  trickWinnerShout = null,
+  avatarBordersByPlayerId = {},
   layoutSeatIds,
   deadHandId = null,
   deadHandGraveyard = false,
@@ -135,8 +143,7 @@ export default function OpponentRing({
 
         const isOut = finishedSet.has(player.id);
         const isActive = !isOut && player.id === currentPlayerId;
-        const isCPU =
-          typeof player.name === "string" && player.name.startsWith("CPU");
+        const isCPU = isCpuPlayer(player);
         const isLastPlay =
           !!lastPlayPlayerId && player.id === lastPlayPlayerId && !isOut;
         const celebrateTrickWin =
@@ -166,6 +173,8 @@ export default function OpponentRing({
               isThinking={isActive && isCPU}
               isLastPlay={isLastPlay}
               celebrateTrickWin={celebrateTrickWin}
+              trickShout={celebrateTrickWin ? trickWinnerShout : null}
+              avatarBorder={avatarBordersByPlayerId[player.id] ?? null}
               showTrickXp={celebrateTrickWin}
               trickXpAmount={trickWinnerXpAmount}
               compact={compact}

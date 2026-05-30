@@ -2,17 +2,20 @@ import type { Player } from "../game/ruleset";
 import type { GameState } from "../game/core";
 import { isDeadHandPlayer } from "../game/deadHand";
 import { isMockAdapter, type NetworkAdapter } from "../game/network";
+import { isCpuPlayerId, parseCpuTierFromName } from "./cpuNames";
 
 const PLACEHOLDER_NAMES = new Set(["You", "You (Host)", "Player"]);
 
 /** True for offline bot seats (Quick Game CPUs). */
 export function isCpuPlayer(
-  player: Pick<Player, "name"> | null | undefined,
+  player: Pick<Player, "id" | "name"> | null | undefined,
 ): boolean {
+  if (!player) return false;
+  if (isCpuPlayerId(player.id)) return true;
   return !!(
-    player?.name &&
+    player.name &&
     typeof player.name === "string" &&
-    /^CPU\b/i.test(player.name.trim())
+    (/^CPU\b/i.test(player.name.trim()) || parseCpuTierFromName(player.name) != null)
   );
 }
 /** Resolve the human controlled by this device in the current game state. */
@@ -50,10 +53,7 @@ export function resolveLocalHumanPlayer(
   }
 
   if (usingMock) {
-    const humans = candidates.filter(
-      (p) =>
-        !(p.name && typeof p.name === "string" && p.name.startsWith("CPU")),
-    );
+    const humans = candidates.filter((p) => !isCpuPlayer(p));
     if (humans.length === 1) return humans[0];
     return (
       humans.find((p) => !PLACEHOLDER_NAMES.has(p.name)) ??

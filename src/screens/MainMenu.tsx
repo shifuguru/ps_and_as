@@ -22,7 +22,16 @@ export type MainMenuButton = {
   label: string;
   icon: "plus" | "shuffle" | "person" | "globe" | "multiplayer" | "trophy" | "gear" | "list";
   action: () => void;
+  badgeCount?: number;
+  /** Max value before showing "N+" (default 9). */
+  badgeCap?: number;
+  badgeA11yLabel?: string;
 };
+
+function formatBadgeCount(count: number, cap: number): string {
+  if (count > cap) return `${cap}+`;
+  return String(count);
+}
 
 type Props = {
   buttons: MainMenuButton[];
@@ -37,26 +46,44 @@ const MENU_BTN_HPAD = 18;
 function MenuGlassButton({
   label,
   icon,
+  badgeCount = 0,
+  badgeCap = 9,
+  badgeA11yLabel,
   onPress,
 }: {
   label: string;
   icon: MainMenuButton["icon"];
+  badgeCount?: number;
+  badgeCap?: number;
+  badgeA11yLabel?: string;
   onPress: () => void;
 }) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const showBadge = badgeCount > 0;
+  const badgeLabel = formatBadgeCount(badgeCount, badgeCap);
 
   return (
     <TouchableOpacity activeOpacity={0.82} onPress={onPress}>
-      <BlurPanel intensity={52} style={styles.glassBtn}>
-        <View style={styles.glassBtnRow}>
-          <View style={styles.iconColumn}>
-            <MenuIcon name={icon} size={MENU_ICON_SIZE} color={colors.gold} />
+      <View style={styles.glassBtnWrap}>
+        <BlurPanel intensity={52} style={styles.glassBtn}>
+          <View style={styles.glassBtnRow}>
+            <View style={styles.iconColumn}>
+              <MenuIcon name={icon} size={MENU_ICON_SIZE} color={colors.gold} />
+            </View>
+            <Text style={styles.glassBtnText}>{label}</Text>
+            <View style={styles.iconColumn} />
           </View>
-          <Text style={styles.glassBtnText}>{label}</Text>
-          <View style={styles.iconColumn} />
-        </View>
-      </BlurPanel>
+        </BlurPanel>
+        {showBadge ? (
+          <View
+            style={styles.menuBadge}
+            accessibilityLabel={badgeA11yLabel ?? `${badgeCount}`}
+          >
+            <Text style={styles.menuBadgeText}>{badgeLabel}</Text>
+          </View>
+        ) : null}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -97,6 +124,9 @@ export default function MainMenu({ buttons, onButtonPress, style }: Props) {
                 key={btn.label}
                 label={btn.label}
                 icon={btn.icon}
+                badgeCount={btn.badgeCount}
+                badgeCap={btn.badgeCap}
+                badgeA11yLabel={btn.badgeA11yLabel}
                 onPress={() => onButtonPress(btn.action)}
               />
             ))}
@@ -117,6 +147,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       justifyContent: "center",
       alignItems: "center",
       paddingHorizontal: 24,
+      overflow: "visible",
     },
     content: {
       width: "100%",
@@ -146,6 +177,11 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     buttonStack: {
       gap: 10,
+      overflow: "visible",
+    },
+    glassBtnWrap: {
+      position: "relative",
+      overflow: "visible",
     },
     glassBtn: {
       borderRadius: 16,
@@ -164,6 +200,28 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       width: MENU_ICON_SLOT,
       alignItems: "center",
       justifyContent: "center",
+    },
+    menuBadge: {
+      position: "absolute",
+      top: -6,
+      right: 10,
+      minWidth: 18,
+      height: 18,
+      paddingHorizontal: 5,
+      borderRadius: 999,
+      backgroundColor: colors.gold,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.btnGoldBorder,
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1,
+    },
+    menuBadgeText: {
+      color: colors.textOnGold,
+      fontSize: 10,
+      fontWeight: "800",
+      letterSpacing: 0.1,
+      fontVariant: ["tabular-nums"],
     },
     glassBtnText: {
       flex: 1,

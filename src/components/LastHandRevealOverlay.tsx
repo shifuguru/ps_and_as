@@ -80,7 +80,7 @@ export default function LastHandRevealOverlay({
           styles.panel,
           ui.modalCard,
           {
-            borderColor: colors.accentBorder,
+            borderColor: colors.btnGoldBorder,
             transform: [{ translateY: rise }],
             opacity: fade,
           },
@@ -117,12 +117,12 @@ export default function LastHandRevealOverlay({
           ))}
         </ScrollView>
         <TouchableOpacity
-          style={[styles.continueBtn, { borderColor: colors.accentBorder }]}
+          style={[styles.continueBtn, { borderColor: colors.btnGoldBorder }]}
           onPress={onDismiss}
           accessibilityRole="button"
           accessibilityLabel="View rankings"
         >
-          <Text style={[styles.continueText, { color: colors.accent }]}>
+          <Text style={[styles.continueText, { color: colors.gold }]}>
             View rankings
           </Text>
         </TouchableOpacity>

@@ -1,4 +1,4 @@
-/** Avatar initials: first char of each word (e.g. "CPU 1" → "C1"), or first two chars for a single word ("Mike" → "MI"). */
+/** Avatar initials: first char of each word, or first two chars for a single word ("Mike" → "MI"). */
 export function playerInitials(name: string): string {
   const trimmed = (name || "").trim();
   if (!trimmed) return "?";

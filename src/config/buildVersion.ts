@@ -1,9 +1,11 @@
 import { Platform } from "react-native";
+import { resolveBuildCodename } from "./buildCodenames";
 
 export type BuildVersionInfo = {
   version: string;
   buildId: string;
   builtAt?: string;
+  codename?: string;
 };
 
 type RuntimeBuild = {
@@ -44,13 +46,30 @@ function runtimeBuild(): RuntimeBuild | null {
   }
 }
 
+let cachedPackageVersion: string | undefined;
+
+function readPackageVersion(): string | undefined {
+  if (cachedPackageVersion !== undefined) {
+    return cachedPackageVersion || undefined;
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const pkg = require("../../package.json") as { version?: string };
+    cachedPackageVersion = pkg.version?.trim() || "";
+  } catch {
+    cachedPackageVersion = "";
+  }
+  return cachedPackageVersion || undefined;
+}
+
 /** Semantic app version from package.json / app.json (resolved lazily). */
 export function resolveAppVersion(): string {
   return (
     runtimeBuild()?.version?.trim() ||
     readExtraBuild()?.version?.trim() ||
     process.env.EXPO_PUBLIC_APP_VERSION?.trim() ||
-    "1.0.0"
+    readPackageVersion() ||
+    "0.0.0"
   );
 }
 
@@ -81,9 +100,11 @@ function resolveDisplayBuildId(): string {
 
 /** Build metadata for UI labels (main menu, update overlay "Your build"). */
 export function resolveClientBuildInfo(): BuildVersionInfo {
+  const version = resolveAppVersion();
   return {
-    version: resolveAppVersion(),
+    version,
     buildId: resolveDisplayBuildId(),
+    codename: resolveBuildCodename(version),
   };
 }
 
@@ -107,10 +128,13 @@ export function isTrackableBuild(): boolean {
 
 export function formatBuildLabel(info?: BuildVersionInfo | null): string {
   if (!info) return resolveAppVersion();
+  const version = info.version?.trim() || resolveAppVersion();
+  const codename = info.codename?.trim() || resolveBuildCodename(version);
   const id = info.buildId?.trim();
+  const namePart = codename ? `${version} · ${codename}` : version;
   if (!id || id === "dev" || id === "unknown") {
-    return info.version;
+    return namePart;
   }
   const shortId = id.length > 8 ? id.slice(0, 7) : id;
-  return `${info.version} (${shortId})`;
+  return `${namePart} (${shortId})`;
 }

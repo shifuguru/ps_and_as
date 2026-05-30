@@ -17,6 +17,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
+import { useGamePreferences } from "../hooks/useGamePreferences";
 
 const KeyboardShell =
   Platform.OS === "web" ? View : KeyboardAvoidingView;
@@ -55,6 +56,14 @@ import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import { hexToRgba } from "../utils/colorTheory";
 import type { AppThemeColors } from "../styles/themeColors";
 import { polarSeatPosition, ringAngleForSeat, sideAnchorMarginForWidth } from "../utils/tableLayout";
+import {
+  isBotDisplayName,
+  makeCpuPlayerId,
+  pickCpuDisplayName,
+  pickCpuDisplayNames,
+  resolveCpuTierInNameOrder,
+} from "../utils/cpuNames";
+import { isCpuPlayer } from "../utils/localPlayer";
 const MIN_PLAYERS = 2;
 const MIN_PLAYERS_FULL_TABLE = 3;
 const MAX_PLAYERS = 8;
@@ -321,8 +330,13 @@ export default function CreateGame({
   preferredPlayerName?: string;
 }) {
   const { colors, ui, blur, feltTint: localFeltTint } = useAppTheme();
+  const { skipDealAnimations } = useGamePreferences();
   const local = useMemo(() => createLocalStyles(colors), [colors]);
   const [names, setNames] = useState<string[]>([]);
+  const [cpuBotNames, setCpuBotNames] = useState<string[]>([]);
+  const cpuBotNamesRef = useRef<string[]>([]);
+  cpuBotNamesRef.current = cpuBotNames;
+  const cpuBotNameSet = useMemo(() => new Set(cpuBotNames), [cpuBotNames]);
   const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[]>([]);
   const lobbyMembersRef = useRef<LobbyMember[]>([]);
   const playerNameRef = useRef("");
@@ -386,14 +400,23 @@ export default function CreateGame({
 
   const seatMembers = useMemo((): LobbyMember[] => {
     if (usingMock) {
-      return names.map((name, index) => ({
-        id: `mock-${index}-${name}`,
-        name,
-        feltTint: /^CPU\b/i.test(name) ? undefined : localFeltTint,
-      }));
+      return names.map((name, index) => {
+        const isBot = isBotDisplayName(name, cpuBotNameSet);
+        const tier = isBot
+          ? resolveCpuTierInNameOrder(name, names, cpuBotNameSet)
+          : null;
+        return {
+          id:
+            isBot && tier
+              ? makeCpuPlayerId(tier)
+              : `mock-${index}-${name}`,
+          name,
+          feltTint: isBot ? undefined : localFeltTint,
+        };
+      });
     }
     return lobbyMembers;
-  }, [usingMock, names, lobbyMembers, localFeltTint]);
+  }, [usingMock, names, cpuBotNameSet, lobbyMembers, localFeltTint]);
 
   const seatCount = seatMembers.length;
   const showDeadHandSeat = onlineLobby && seatCount === MIN_PLAYERS;
@@ -505,7 +528,7 @@ export default function CreateGame({
     () =>
       displaySeatMembers.map((member, index) => {
         const isDeadHandSeat = member.id === DEAD_HAND_ID;
-        const isCPU = !isDeadHandSeat && member.name.startsWith("CPU ");
+        const isCPU = !isDeadHandSeat && isCpuPlayer(member);
         const isLocalPlayer =
           !isDeadHandSeat &&
           (usingMock
@@ -658,7 +681,7 @@ export default function CreateGame({
         } else if (
           usingMock &&
           typeof ev.state.name === "string" &&
-          ev.state.name.startsWith("CPU ") &&
+          cpuBotNamesRef.current.includes(ev.state.name) &&
           actualRoomId
         ) {
           (net as MockAdapter).toggleReady(actualRoomId, ev.state.id, true);
@@ -750,7 +773,9 @@ export default function CreateGame({
           const hostName = playerName.trim() || "Player";
           m.createRoom(rid, hostName);
           setActualRoomId(rid);
-          setNames([hostName, "CPU 1", "CPU 2"]);
+          const defaultBots = pickCpuDisplayNames(2, [hostName]);
+          setNames([hostName, ...defaultBots]);
+          setCpuBotNames(defaultBots);
           if (!roomName.trim()) {
             setRoomName(defaultRoomNameFromHost(hostName));
           }
@@ -768,19 +793,9 @@ export default function CreateGame({
   const addCpu = () => {
     if (!usingMock) return;
     if (names.length >= MAX_PLAYERS) return;
-    const usedNums = new Set<number>();
-    for (const n of names) {
-      const m = /^CPU\s+(\d+)$/i.exec(n.trim());
-      if (m) usedNums.add(parseInt(m[1], 10));
-    }
-    let i = 1;
-    while (usedNums.has(i)) i++;
-    let cpuName = `CPU ${i}`;
-    while (names.some((n) => n.toLowerCase() === cpuName.toLowerCase())) {
-      i++;
-      cpuName = `CPU ${i}`;
-    }
+    const cpuName = pickCpuDisplayName(names);
     setNames((s) => [...s, cpuName]);
+    setCpuBotNames((s) => [...s, cpuName]);
   };
 
   const canRemovePlayer = (member: LobbyMember, isCPU: boolean) => {
@@ -793,12 +808,13 @@ export default function CreateGame({
     const member = seatMembers[index];
     if (!member) return;
 
-    const isCPU = member.name.startsWith("CPU ");
+    const isCPU = isCpuPlayer(member);
     if (!canRemovePlayer(member, isCPU)) return;
 
     triggerHaptic("light");
     if (isCPU) {
       setNames((s) => s.filter((_, i) => i !== index));
+      setCpuBotNames((s) => s.filter((n) => n !== member.name));
     } else if (adapter && isSocketAdapter(adapter) && actualRoomId) {
       adapter.kickPlayer(actualRoomId, member.name);
     } else {
@@ -807,12 +823,12 @@ export default function CreateGame({
   };
 
   const removeCpu = () => {
-    const lastCPUIndex = names
-      .map((n, i) => ({ n, i }))
+    const lastBotName = [...names]
       .reverse()
-      .find(({ n }) => n.startsWith("CPU "))?.i;
-    if (lastCPUIndex !== undefined) {
-      setNames((s) => s.filter((_, i) => i !== lastCPUIndex));
+      .find((n) => cpuBotNameSet.has(n));
+    if (lastBotName !== undefined) {
+      setNames((s) => s.filter((n) => n !== lastBotName));
+      setCpuBotNames((s) => s.filter((n) => n !== lastBotName));
     }
   };
 
@@ -830,15 +846,11 @@ export default function CreateGame({
   const handleStart = () => {
     triggerHaptic("heavy");
     if (usingMock) {
-      onStart(
-        names.map((name, i) => ({ id: String(i + 1), name })),
-        playerName,
-        undefined,
-      );
+      onStart(seatMembers, playerName, seatMembers[0]?.id);
       return;
     }
-    if ((net as any).startGame && isHost && actualRoomId) {
-      (net as any).startGame(actualRoomId);
+    if (adapter && isSocketAdapter(adapter) && isHost && actualRoomId) {
+      adapter.startGame(actualRoomId, skipDealAnimations);
     }
   };
 
@@ -1199,18 +1211,15 @@ export default function CreateGame({
                 <TouchableOpacity
                   style={[
                     local.stepBtn,
-                    names.filter((n) => n.startsWith("CPU ")).length === 0 &&
-                      local.stepBtnDisabled,
+                    cpuBotNames.length === 0 && local.stepBtnDisabled,
                   ]}
                   onPress={removeCpu}
-                  disabled={
-                    names.filter((n) => n.startsWith("CPU ")).length === 0
-                  }
+                  disabled={cpuBotNames.length === 0}
                 >
                   <Text style={local.stepBtnText}>−</Text>
                 </TouchableOpacity>
                 <Text style={local.cpuCount}>
-                  {names.filter((n) => n.startsWith("CPU ")).length}
+                  {cpuBotNames.length}
                 </Text>
                 <TouchableOpacity
                   style={[

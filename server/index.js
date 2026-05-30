@@ -275,6 +275,54 @@ const HOST = process.env.HOST || '0.0.0.0';
 // }
 const rooms = {};
 
+/** Connected clients keyed by profileId (or socket id when profile unknown). */
+const presenceSocketsByIdentity = new Map();
+const socketPresenceIdentity = new Map();
+
+function presenceIdentity(profileId, socketId) {
+  const pid = typeof profileId === 'string' && profileId.trim() ? profileId.trim() : null;
+  return pid || socketId;
+}
+
+function trackPresence(socket, profileId) {
+  const identity = presenceIdentity(profileId, socket.id);
+  const previous = socketPresenceIdentity.get(socket.id);
+  if (previous && previous !== identity) {
+    untrackPresence(socket);
+  }
+  if (!presenceSocketsByIdentity.has(identity)) {
+    presenceSocketsByIdentity.set(identity, new Set());
+  }
+  presenceSocketsByIdentity.get(identity).add(socket.id);
+  socketPresenceIdentity.set(socket.id, identity);
+}
+
+function untrackPresence(socket) {
+  const identity = socketPresenceIdentity.get(socket.id);
+  if (!identity) return false;
+  const sockets = presenceSocketsByIdentity.get(identity);
+  let countChanged = false;
+  if (sockets) {
+    sockets.delete(socket.id);
+    if (sockets.size === 0) {
+      presenceSocketsByIdentity.delete(identity);
+      countChanged = true;
+    }
+  }
+  socketPresenceIdentity.delete(socket.id);
+  return countChanged;
+}
+
+function totalOnlineConnectedPlayers() {
+  return presenceSocketsByIdentity.size;
+}
+
+function broadcastOnlinePlayerCount() {
+  io.emit('onlinePlayerCount', {
+    activePlayers: totalOnlineConnectedPlayers(),
+  });
+}
+
 // Assign roles based on finish order. Mutates gameState object.
 function assignRolesFromFinishOrder(gameState, playersCount, finishOrder) {
   const order = livingFinishOrder(gameState, finishOrder ?? gameState.lastRoundOrder ?? []);
@@ -499,6 +547,7 @@ function allPlayersReadyForNextRound(room) {
 function tryStartNextRoundIfReady(roomId) {
   const room = rooms[roomId];
   if (!room?.gameState) return;
+  if (isGamePausedForAway(room)) return;
   if (!allPlayersReadyForNextRound(room)) return;
   startNextRound(roomId);
 }
@@ -527,21 +576,16 @@ function cancelAwayRemoval(roomId, playerId) {
   }
 }
 
-function advancePastDisconnectedPlayers(room) {
-  const gs = room?.gameState;
-  if (!gs?.players) return;
-  let working = cloneGameState(gs);
-  let safety = gs.players.length + 2;
-  while (safety-- > 0) {
-    const current = working.players[working.currentPlayerIndex];
-    if (!current) break;
-    const member = room.players.find((p) => p.id === current.id);
-    if (!member?.disconnectedAt) break;
-    const next = passTurn(working, current.id);
-    if (next === working) break;
-    working = next;
-  }
-  room.gameState = cloneGameState(working);
+function awayPlayersInGame(room) {
+  if (!room?.inGame || !room.gameState?.players) return [];
+  const seatedIds = new Set(room.gameState.players.map((p) => p.id));
+  return room.players.filter(
+    (p) => !p.isSpectator && p.disconnectedAt && seatedIds.has(p.id),
+  );
+}
+
+function isGamePausedForAway(room) {
+  return awayPlayersInGame(room).length > 0;
 }
 
 /** Skip seats that cannot act (out, dead hand, already passed this trick). */
@@ -634,16 +678,16 @@ function markPlayerAway(roomId, player, reason = 'disconnected') {
 
   player.disconnectedAt = Date.now();
   player.awayReason = reason;
+  player.reconnectUntil = Date.now() + graceMs;
 
   if (room.inGame && !player.isSpectator && room.gameState) {
-    advancePastDisconnectedPlayers(room);
     broadcastGameState(io, room);
     io.to(roomId).emit('playerDisconnected', {
       playerId: player.id,
       playerName: player.name,
       gracePeriod: graceMs,
       reason,
-      reconnectUntil: Date.now() + graceMs,
+      reconnectUntil: player.reconnectUntil,
     });
   }
 
@@ -655,6 +699,14 @@ function markPlayerAway(roomId, player, reason = 'disconnected') {
 
 function activePlayerCount(room) {
   return room.players.filter((p) => !p.disconnectedAt && !p.isSpectator).length;
+}
+
+function totalActivePlayersAcrossRooms() {
+  let total = 0;
+  for (const room of Object.values(rooms)) {
+    total += activePlayerCount(room);
+  }
+  return total;
 }
 
 function isRoundInProgress(room) {
@@ -752,10 +804,13 @@ function buildLobbyUpdate(room) {
       ready: p.ready,
       disconnected: !!p.disconnectedAt,
       isSpectator: !!p.isSpectator,
+      reconnectUntil: p.disconnectedAt ? p.reconnectUntil ?? null : null,
+      awayReason: p.disconnectedAt ? p.awayReason ?? 'disconnected' : null,
       feltTint: p.feltTint || DEFAULT_FELT_TINT,
     })),
     host: room.host,
     roomName: room.roomName || '',
+    skipDealAnimations: !!room.skipDealAnimations,
     deadHandSeatOpen: deadHandSeatOpen(room),
     spectatorCount: spectatorCount(room),
   };
@@ -805,6 +860,8 @@ function findReconnectPlayer(room, profileId, name) {
 function attachPlayerSocket(player, socket, name) {
   player.socketId = socket.id;
   player.disconnectedAt = null;
+  player.reconnectUntil = null;
+  player.awayReason = null;
   if (name && player.name !== name) {
     player.name = name;
   }
@@ -952,6 +1009,12 @@ io.on('connection', (socket) => {
   const transport = socket.conn && socket.conn.transport ? socket.conn.transport.name : 'unknown';
   console.log('conn', socket.id, 'transport:', transport, 'from', origin);
 
+  const beforeConnect = totalOnlineConnectedPlayers();
+  trackPresence(socket, null);
+  const afterConnect = totalOnlineConnectedPlayers();
+  socket.emit('onlinePlayerCount', { activePlayers: afterConnect });
+  if (afterConnect !== beforeConnect) broadcastOnlinePlayerCount();
+
   // Send available rooms when client requests discovery
   socket.on('discoverRooms', () => {
     const availableRooms = Object.entries(rooms)
@@ -963,6 +1026,20 @@ io.on('connection', (socket) => {
       .map(([roomId, room]) => roomListingPayload(roomId, room));
     
     socket.emit('availableRooms', availableRooms);
+  });
+
+  socket.on('getOnlinePlayerCount', () => {
+    socket.emit('onlinePlayerCount', {
+      activePlayers: totalOnlineConnectedPlayers(),
+    });
+  });
+
+  socket.on('registerPresence', ({ profileId } = {}) => {
+    const before = totalOnlineConnectedPlayers();
+    trackPresence(socket, profileId);
+    const after = totalOnlineConnectedPlayers();
+    socket.emit('onlinePlayerCount', { activePlayers: after });
+    if (after !== before) broadcastOnlinePlayerCount();
   });
 
   socket.on('createRoom', ({ roomId, name, profileId, isPublic = true, roomName, feltTint }) => {
@@ -1002,6 +1079,7 @@ io.on('connection', (socket) => {
       createdAt: Date.now(),
       isPublic: isPublic,
       deadHand: false,
+      skipDealAnimations: false,
       gameState: null,
       inGame: false
     };
@@ -1171,6 +1249,8 @@ io.on('connection', (socket) => {
             name: p.name,
           })),
           dealSeed: room.gameState.dealSeed,
+          hostId: room.host,
+          skipDealAnimations: !!room.skipDealAnimations,
           spectator,
         });
       }
@@ -1220,7 +1300,17 @@ io.on('connection', (socket) => {
     broadcastAvailableRooms();
   });
 
-  socket.on('startGame', ({ roomId }) => {
+  socket.on('updateRoomOptions', ({ roomId, skipDealAnimations }) => {
+    const code = normalizeRoomCode(roomId);
+    const room = rooms[code];
+    if (!room || !isRoomHost(room, socket.id)) return;
+    if (typeof skipDealAnimations === 'boolean') {
+      room.skipDealAnimations = skipDealAnimations;
+      io.to(code).emit('lobbyUpdate', buildLobbyUpdate(room));
+    }
+  });
+
+  socket.on('startGame', ({ roomId, skipDealAnimations }) => {
     console.log('[Server] startGame requested for room:', roomId);
     if (!rooms[roomId]) {
       console.log('[Server] Room not found:', roomId);
@@ -1259,6 +1349,8 @@ io.on('connection', (socket) => {
       io.to(roomId).emit('startGame', {
         players: room.players.map((p) => ({ id: p.id, name: p.name })),
         dealSeed: room.gameState?.dealSeed,
+        hostId: room.host,
+        skipDealAnimations: !!room.skipDealAnimations,
       });
       return;
     }
@@ -1266,6 +1358,9 @@ io.on('connection', (socket) => {
     console.log('[Server] Starting game with players:', room.players.map(p => p.name));
 
     try {
+      if (typeof skipDealAnimations === 'boolean') {
+        room.skipDealAnimations = skipDealAnimations;
+      }
       const dealSeed = Math.floor(Math.random() * 2147483647);
       beginAuthoritativeRound(room, dealSeed);
       room.inGame = true;
@@ -1276,6 +1371,7 @@ io.on('connection', (socket) => {
           .map(p => ({ id: p.id, name: p.name })),
         hostId: room.host,
         dealSeed,
+        skipDealAnimations: !!room.skipDealAnimations,
       });
       emitTradesCompleteIfReady(io, roomId, room.gameState, room.host);
       if (room.isPublic) broadcastAvailableRooms();
@@ -1291,6 +1387,11 @@ io.on('connection', (socket) => {
   socket.on('gameAction', ({ roomId, action }) => {
     const room = rooms[roomId];
     if (!room || !room.inGame || !room.gameState?.players) return;
+
+    if (isGamePausedForAway(room)) {
+      socket.emit('error', { message: 'Game paused — waiting for a player to reconnect' });
+      return;
+    }
 
     if (action?.type === 'turnNudge') {
       const nudger = room.players.find(p => p.socketId === socket.id);
@@ -1487,6 +1588,10 @@ io.on('connection', (socket) => {
   socket.on('playerTradeSelection', ({ roomId, selectedCardObjects }) => {
     const room = rooms[roomId];
     if (!room || !room.gameState) return;
+    if (isGamePausedForAway(room)) {
+      socket.emit('error', { message: 'Game paused — waiting for a player to reconnect' });
+      return;
+    }
     const player = room.players.find(p => p.socketId === socket.id);
     if (!player) return;
 
@@ -1589,6 +1694,10 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`[Server] Socket ${socket.id} disconnected`);
+
+    if (untrackPresence(socket)) {
+      broadcastOnlinePlayerCount();
+    }
     
     for (const [roomId, room] of Object.entries(rooms)) {
       const player = room.players.find(p => p.socketId === socket.id);
@@ -1600,6 +1709,11 @@ io.on('connection', (socket) => {
       }
     }
   });
+});
+
+app.get('/api/online-players', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ activePlayers: totalOnlineConnectedPlayers() });
 });
 
 server.listen(PORT, () => console.log('Server listening on', PORT));

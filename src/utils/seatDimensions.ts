@@ -29,7 +29,7 @@ export type SeatDimensions = {
 };
 
 /** Global avatar / seat footprint scale. */
-export const AVATAR_SIZE_BOOST = 1.1;
+export const AVATAR_SIZE_BOOST = 1.24;
 
 /** How much side seats blend from screen edge back toward the ring (0–1). */
 export const SIDE_ANCHOR_CENTER_BLEND = 0.28;
@@ -59,9 +59,9 @@ export function scaleForWidth(
 
 /** Seat / avatar sizes derived from available horizontal space. */
 export function computeSeatDimensions(width: number, height?: number): SeatDimensions {
-  const avatar = scaleForWidth(width, 32, 40, 46, 52);
-  const avatarLocal = scaleForWidth(width, 36, 44, 50, 56);
-  const avatarCompact = scaleForWidth(width, 26, 34, 38, 42);
+  const avatar = scaleForWidth(width, 36, 44, 50, 56);
+  const avatarLocal = scaleForWidth(width, 40, 48, 54, 60);
+  const avatarCompact = scaleForWidth(width, 30, 38, 42, 46);
   const footprintW = scaleForWidth(width, 58, 76, 86, 96);
   const footprintH = scaleForWidth(width, 70, 92, 104, 114);
   const localBand = scaleForWidth(width, 72, 88, 96, 104);
