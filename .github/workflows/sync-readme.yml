@@ -1,0 +1,87 @@
+# README-only updates — sync to gh-pages without rebuilding the app or bumping version.
+name: Sync README to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - README.md
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-readme
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'src/**'
+              - 'App.tsx'
+              - 'app.json'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'assets/**'
+              - 'scripts/**'
+              - 'index.ts'
+              - 'public/**'
+              - 'readme-fallback.html'
+              - '.github/workflows/deploy-web.yml'
+
+  sync-readme:
+    needs: changes
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.app != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update README on gh-pages
+        run: |
+          git fetch origin gh-pages
+          git checkout origin/gh-pages
+          git checkout origin/main -- README.md
+          if git diff --quiet README.md; then
+            echo "gh-pages README already up to date."
+            exit 0
+          fi
+          git add README.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: sync README from main [skip ci]"
+          git push origin HEAD:gh-pages
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    needs: sync-readme
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

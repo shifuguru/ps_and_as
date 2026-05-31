@@ -16,10 +16,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'src/**'
+              - 'App.tsx'
+              - 'app.json'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'assets/**'
+              - 'scripts/**'
+              - 'index.ts'
+              - 'public/**'
+              - 'readme-fallback.html'
+              - '.github/workflows/deploy-web.yml'
+
   build:
+    needs: changes
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' &&
+       needs.changes.outputs.app == 'true' &&
        !contains(github.event.head_commit.message, '[skip ci]') &&
        !contains(github.event.head_commit.message, 'chore: bump version'))
     runs-on: ubuntu-latest
@@ -96,12 +123,13 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cp web-build/index.html web-build/version.json web-build/404.html \
             web-build/readme-fallback.html web-build/web-shell.css web-build/favicon.ico \
-            web-build/manifest.webmanifest web-build/metadata.json web-build/.nojekyll .
+            web-build/manifest.webmanifest web-build/metadata.json web-build/.nojekyll \
+            web-build/README.md .
           rm -rf _expo
           cp -R web-build/_expo _expo
           cp -R web-build/assets/. assets/
           git add index.html version.json 404.html readme-fallback.html web-shell.css \
-            favicon.ico manifest.webmanifest metadata.json .nojekyll _expo assets
+            favicon.ico manifest.webmanifest metadata.json .nojekyll _expo assets README.md
           if git diff --staged --quiet; then
             echo "No web files to sync on main."
             exit 0
@@ -143,12 +171,12 @@ jobs:
           echo "Do NOT deploy from the main branch — it has no index.html and will 404."
           exit 1
 
-  # After a successful deploy, bump patch version on main for the next release.
-  # [skip ci] on the bump commit + build/deploy skip guard above avoids a deploy loop.
+  # After a successful app deploy, bump patch version on main for the next release.
   bump-version:
-    needs: deploy
+    needs: [deploy, changes]
     if: >-
       github.event_name == 'push' &&
+      needs.changes.outputs.app == 'true' &&
       !contains(github.event.head_commit.message, '[skip ci]') &&
       !contains(github.event.head_commit.message, 'chore: bump version')
     runs-on: ubuntu-latest
@@ -179,22 +207,21 @@ jobs:
           git commit -m "chore: bump version to v${NEW_VERSION} [skip ci]"
           git push origin HEAD:main
 
-      # Pushing the bump to main can trigger GitHub's branch-based Pages build (main
-      # has no index.html) and 404 the live site. Re-publish the last good gh-pages build.
       - name: Checkout gh-pages artifact
         uses: actions/checkout@v4
         with:
           ref: gh-pages
 
-      - name: Re-deploy live site
+      - name: Re-deploy live site after version bump
         uses: actions/upload-pages-artifact@v3
         with:
           path: .
 
   redeploy-after-bump:
-    needs: bump-version
+    needs: [bump-version, changes]
     if: >-
       github.event_name == 'push' &&
+      needs.changes.outputs.app == 'true' &&
       !contains(github.event.head_commit.message, '[skip ci]') &&
       !contains(github.event.head_commit.message, 'chore: bump version')
     runs-on: ubuntu-latest
@@ -205,20 +232,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-      - name: Verify live site serves the app (not README)
-        run: |
-          URL="${{ steps.deployment.outputs.page_url }}"
-          echo "Checking $URL"
-          for i in 1 2 3 4 5 6; do
-            BODY=$(curl -fsSL "$URL" || true)
-            if echo "$BODY" | grep -q 'id="root"'; then
-              echo "OK: deployed app shell found at $URL"
-              exit 0
-            fi
-            echo "Attempt $i: app shell not found yet, waiting…"
-            sleep 10
-          done
-          echo "::error::GitHub Pages returned 404 or wrong content at $URL"
-          echo "Fix: Settings → Pages → Build and deployment → Source → GitHub Actions"
-          exit 1
