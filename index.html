@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <link rel="apple-touch-icon" href="/ps_and_as/favicon.ico" />
+    <link rel="manifest" href="/ps_and_as/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="P's &amp; A's" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <script>window.__PS_AND_AS_BUILD__={"version":"1.0.29","buildId":"42957ce11c4f67c227ef21f89b51b8bb3b4748ac","builtAt":"2026-06-01T04:07:02.171Z","codename":"Ace Up the Sleeve"};</script>
+    <script>
+(function(){
+  function sync(){
+    var vv=window.visualViewport;
+    var h=Math.max(window.innerHeight,document.documentElement.clientHeight||0);
+    if(vv) h=Math.max(h,Math.round(vv.height+(vv.offsetTop||0)));
+    h=h+"px";
+    var r=document.documentElement.style;
+    r.setProperty("--app-shell-h",h);
+    r.setProperty("--app-height",h);
+  }
+  sync();
+  window.addEventListener("resize",sync);
+  window.addEventListener("orientationchange",sync);
+  window.visualViewport?.addEventListener("resize",sync);
+})();
+</script>
+    <script>window.__PS_AND_AS_SERVER_URL__="https://psandas-production.up.railway.app";</script>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, viewport-fit=cover, user-scalable=no, shrink-to-fit=no" />
+    <title>ps_and_as</title>
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      /* Patched for iOS PWA — shell sizing owned by web-shell.css + JS (--app-shell-h) */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
+        height: 100%;
+      }
+      #root {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+      }
+    </style>
+  <meta name="theme-color" content="#0f5132">
+<link rel="icon" href="/ps_and_as/favicon.ico" />  <link rel="stylesheet" href="/ps_and_as/web-shell.css" id="ps-web-shell-link" />
+  </head>
+
+  <body>
+    <script>
+(function(){
+  var base="/ps_and_as";
+  var fallback=base+"/readme-fallback.html";
+  var reloadAttempts=0;
+  var maxReloads=5;
+  function toFallback(){location.replace(fallback+"?_="+Date.now());}
+  function retryBoot(){
+    if(reloadAttempts>=maxReloads){toFallback();return;}
+    reloadAttempts+=1;
+    setTimeout(function(){location.reload();},700*reloadAttempts);
+  }
+  window.addEventListener("error",function(ev){
+    var el=ev.target;
+    if(el&&el.tagName==="SCRIPT"&&el.src) retryBoot();
+  },true);
+  var timer=window.setTimeout(function(){
+    var root=document.getElementById("root");
+    if(!root||!root.firstElementChild) retryBoot();
+  },20000);
+  window.__PS_AND_AS_CANCEL_BOOT_GUARD__=function(){window.clearTimeout(timer);};
+})();
+</script>
+    <!-- Use static rendering with Expo Router to support running without JavaScript. -->
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
+    <!-- The root element for your Expo app. -->
+    <div id="root"></div>
+  <script src="/ps_and_as/_expo/static/js/web/index-c9d722fc356baa12078b77f5440b7814.js" defer></script>
+</body>
+</html>
