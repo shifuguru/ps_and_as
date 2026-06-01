@@ -101,6 +101,11 @@ if (slot === "dev") {
   const target = path.join(output, "dev");
   rmRecursive(target);
   copyRecursive(source, target);
+  // Keep site-wide 404 router in sync (dev paths must not bounce to production).
+  const router404 = path.join(source, "404.html");
+  if (fs.existsSync(router404)) {
+    fs.copyFileSync(router404, path.join(output, "404.html"));
+  }
   console.log(`Merged dev build into ${path.relative(repoRoot, target)}`);
 } else {
   copyIntoRoot(source, output);

@@ -4,9 +4,10 @@ name: Deploy web app (development)
 # Live URL: https://shifuguru.github.io/ps_and_as/dev/
 #
 # Setup (GitHub → Settings → Secrets and variables → Actions → Variables):
-#   EXPO_PUBLIC_SERVER_URL_DEV — Railway (or other) URL for the *development* game server.
-#     Use a separate Railway service/environment so active production players are unaffected.
-#   Falls back to EXPO_PUBLIC_SERVER_URL if the dev variable is not set (not recommended).
+#   EXPO_PUBLIC_SERVER_URL_DEV — Railway URL for the *development* game server (required for isolation).
+#     GitHub → Settings → Secrets and variables → Actions → Variables → New repository variable
+#     Example: https://your-dev-service.up.railway.app
+#   If unset, the build falls back to EXPO_PUBLIC_SERVER_URL (warning only — deploy still runs).
 
 on:
   push:
@@ -15,7 +16,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -75,6 +76,15 @@ jobs:
 
       - name: Merge into Pages artifact (dev slot)
         run: node scripts/merge-pages-artifact.js --slot=dev --source=web-build --output=pages-artifact
+
+      - name: Verify dev slot in Pages artifact
+        run: |
+          test -f pages-artifact/dev/index.html
+          test -f pages-artifact/dev/version.json
+          grep -q '"channel": "development"' pages-artifact/dev/version.json
+          test -f pages-artifact/404.html
+          grep -q '/ps_and_as/dev' pages-artifact/404.html
+          echo "Dev slot and 404 router look valid."
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3

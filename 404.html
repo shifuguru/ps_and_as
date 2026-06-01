@@ -36,7 +36,9 @@
     <script>
       (function () {
         var path = location.pathname || "";
-        var base = path.indexOf("/ps_and_as") >= 0 ? "/ps_and_as" : "";
+        var base = "";
+        if (path.indexOf("/ps_and_as/dev") >= 0) base = "/ps_and_as/dev";
+        else if (path.indexOf("/ps_and_as") >= 0) base = "/ps_and_as";
         var fallback = base + "/readme-fallback.html?_=" + Date.now();
         var appRoot = base + "/";
 
