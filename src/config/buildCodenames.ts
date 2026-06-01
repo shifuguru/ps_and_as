@@ -30,6 +30,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.0.27": "Cut the Deck",
   "1.0.28": "Table Stakes Tantrum",
   "1.0.29": "High Card Hijinks",
+  "1.0.30": "Rank And File",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
