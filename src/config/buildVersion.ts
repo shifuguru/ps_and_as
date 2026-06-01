@@ -6,12 +6,14 @@ export type BuildVersionInfo = {
   buildId: string;
   builtAt?: string;
   codename?: string;
+  channel?: "production" | "development";
 };
 
 type RuntimeBuild = {
   version?: string;
   buildId?: string;
   builtAt?: string;
+  channel?: "production" | "development";
 };
 
 function readExtraBuild(): RuntimeBuild | null {
@@ -98,6 +100,12 @@ function resolveDisplayBuildId(): string {
   return env || extra || runtime || resolveClientBuildId();
 }
 
+/** Deploy channel baked into version.json / index.html on CI builds. */
+export function resolveDeployChannel(): "production" | "development" {
+  const channel = runtimeBuild()?.channel;
+  return channel === "development" ? "development" : "production";
+}
+
 /** Build metadata for UI labels (main menu, update overlay "Your build"). */
 export function resolveClientBuildInfo(): BuildVersionInfo {
   const version = resolveAppVersion();
@@ -105,6 +113,7 @@ export function resolveClientBuildInfo(): BuildVersionInfo {
     version,
     buildId: resolveDisplayBuildId(),
     codename: resolveBuildCodename(version),
+    channel: resolveDeployChannel(),
   };
 }
 
@@ -131,10 +140,11 @@ export function formatBuildLabel(info?: BuildVersionInfo | null): string {
   const version = info.version?.trim() || resolveAppVersion();
   const codename = info.codename?.trim() || resolveBuildCodename(version);
   const id = info.buildId?.trim();
+  const devPrefix = info.channel === "development" ? "Dev · " : "";
   const namePart = codename ? `${version} · ${codename}` : version;
   if (!id || id === "dev" || id === "unknown") {
-    return namePart;
+    return `${devPrefix}${namePart}`;
   }
   const shortId = id.length > 8 ? id.slice(0, 7) : id;
-  return `${namePart} (${shortId})`;
+  return `${devPrefix}${namePart} (${shortId})`;
 }

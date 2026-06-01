@@ -56,7 +56,8 @@ function bundleCapForTable(
 
 type Props = {
   plays: TrickPlayDisplay[];
-  playTypeLabel?: string | null;
+  playCountLabel?: string | null;
+  playModifierLabel?: string | null;
   layoutHint?: PlayAreaLayout | null;
   /** Slide all plays onto the first pile (trick-end collect). */
   collectToStack?: boolean;
@@ -78,7 +79,8 @@ type Props = {
 
 export default function GameTable({
   plays,
-  playTypeLabel,
+  playCountLabel,
+  playModifierLabel,
   layoutHint,
   collectToStack = false,
   collectDurationMs = 520,
@@ -286,20 +288,19 @@ export default function GameTable({
     return centerY + refCardH / 2 + PLAY_TYPE_BADGE_GAP;
   }, [tableRows, zoneSize.height, cardH, layout.cardHeight]);
 
+  const showPlayTypePills = !!(playCountLabel || playModifierLabel);
+
   const turnHintTop = useMemo(() => {
     if (zoneSize.height <= 0) return 0;
-    if (playTypeLabel) {
+    if (showPlayTypePills) {
       return playTypeBadgeTop + PLAY_TYPE_BADGE_HEIGHT + TURN_HINT_GAP;
     }
     return playTypeBadgeTop;
-  }, [zoneSize.height, playTypeLabel, playTypeBadgeTop]);
+  }, [zoneSize.height, showPlayTypePills, playTypeBadgeTop]);
 
   const showBadgeColumn =
     zoneSize.height > 0 &&
-    (!!playTypeLabel || !!turnHintText || showRunXpPool);
-
-  const playTypeHighlighted =
-    !!playTypeLabel && playTypeLabel !== "Singles";
+    (showPlayTypePills || !!turnHintText || showRunXpPool);
 
   const badgeOpacity = collectAnim.interpolate({
     inputRange: [0, 0.35],
@@ -535,7 +536,7 @@ export default function GameTable({
                 </View>
               </Animated.View>
             ) : null}
-            {playTypeLabel ? (
+            {showPlayTypePills ? (
               <Animated.View
                 style={[
                   styles.playTypeBadge,
@@ -546,20 +547,32 @@ export default function GameTable({
                 ]}
                 pointerEvents="none"
               >
-                <View
-                  style={[
-                    styles.playTypeBadgeBody,
-                    playTypeHighlighted && styles.playTypeBadgeBodyHighlighted,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.playTypeBadgeText,
-                      playTypeHighlighted && styles.playTypeBadgeTextHighlighted,
-                    ]}
-                  >
-                    {playTypeLabel}
-                  </Text>
+                <View style={styles.playTypeBadgeRow}>
+                  {playCountLabel ? (
+                    <View style={styles.playTypeBadgeBody}>
+                      <Text numberOfLines={1} style={styles.playTypeBadgeText}>
+                        {playCountLabel}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {playModifierLabel ? (
+                    <View
+                      style={[
+                        styles.playTypeBadgeBody,
+                        styles.playTypeBadgeBodyHighlighted,
+                      ]}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.playTypeBadgeText,
+                          styles.playTypeBadgeTextHighlighted,
+                        ]}
+                      >
+                        {playModifierLabel}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               </Animated.View>
             ) : null}
@@ -681,6 +694,14 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
   },
+  playTypeBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    maxWidth: "100%",
+    flexWrap: "nowrap",
+  },
   playTypeBadgeBody: {
     backgroundColor: "rgba(212, 175, 55, 0.14)",
     borderRadius: 12,
@@ -688,6 +709,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderWidth: 1,
     borderColor: "rgba(212, 175, 55, 0.38)",
+    alignSelf: "center",
+    flexShrink: 0,
+    maxWidth: "100%",
   },
   playTypeBadgeBodyHighlighted: {
     backgroundColor: "rgba(255, 255, 255, 0.92)",
@@ -710,6 +734,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: "center",
     letterSpacing: 0.4,
+    flexShrink: 0,
+    ...(Platform.OS === "web"
+      ? ({ whiteSpace: "nowrap" } as object)
+      : null),
   },
   playTypeBadgeTextHighlighted: {
     color: "#111111",

@@ -23,6 +23,8 @@ type Props = {
 };
 
 const FLIGHT_EASING = Easing.bezier(0.25, 0.85, 0.35, 1);
+/** Progress when the flying copy reaches the table slot — hand off to GameTable here. */
+const LAND_AT = 0.9;
 
 export default function TableCardFlight({
   flight,
@@ -57,6 +59,14 @@ export default function TableCardFlight({
       onCompleteRef.current(flight.id);
     };
 
+    const landListener = progress.addListener(({ value }) => {
+      if (value >= LAND_AT) {
+        progress.removeListener(landListener);
+        animRef.current?.stop();
+        finish();
+      }
+    });
+
     const anim = Animated.timing(progress, {
       toValue: 1,
       duration: durationMs,
@@ -66,36 +76,32 @@ export default function TableCardFlight({
     animRef.current = anim;
 
     anim.start(({ finished }) => {
+      progress.removeListener(landListener);
       if (finished) finish();
     });
 
     return () => {
       anim.stop();
+      progress.removeListener(landListener);
       animRef.current = null;
     };
   }, [flight.id, durationMs, progress]);
 
   const translateX = progress.interpolate({
-    inputRange: [0, 1],
+    inputRange: [0, LAND_AT],
     outputRange: [0, deltaX],
     extrapolate: "clamp",
   });
 
   const translateY = progress.interpolate({
-    inputRange: [0, 0.45, 1],
+    inputRange: [0, 0.45, LAND_AT],
     outputRange: [0, -arcLift, deltaY],
     extrapolate: "clamp",
   });
 
   const scale = progress.interpolate({
-    inputRange: [0, 1],
+    inputRange: [0, LAND_AT],
     outputRange: [0.68, 1],
-    extrapolate: "clamp",
-  });
-
-  const opacity = progress.interpolate({
-    inputRange: [0, 0.08, 0.78, 0.92, 1],
-    outputRange: [1, 1, 1, 0, 0],
     extrapolate: "clamp",
   });
 
@@ -120,7 +126,6 @@ export default function TableCardFlight({
             height: bundle.height,
             marginLeft: -bundle.width / 2,
             marginTop: -bundle.height / 2,
-            opacity,
             transform: [{ translateX }, { translateY }, { scale }],
           },
         ]}

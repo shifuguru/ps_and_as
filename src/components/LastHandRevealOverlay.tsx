@@ -8,8 +8,10 @@ import {
   Animated,
   Easing,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import Card from "./Card";
+import BlurPanel from "./BlurPanel";
 import type { Card as CardType } from "../game/ruleset";
 import { useAppTheme } from "../context/ThemeContext";
 
@@ -30,7 +32,9 @@ export default function LastHandRevealOverlay({
   cards,
   onDismiss,
 }: Props) {
-  const { colors, ui } = useAppTheme();
+  const { colors, ui, blur } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const cardWidth = Math.min(width - 40, 420);
   const fade = useRef(new Animated.Value(0)).current;
   const rise = useRef(new Animated.Value(10)).current;
 
@@ -73,59 +77,62 @@ export default function LastHandRevealOverlay({
         activeOpacity={1}
         onPress={onDismiss}
         accessibilityRole="button"
-        accessibilityLabel="Continue to rankings"
+        accessibilityLabel="Dismiss last hand reveal"
       />
       <Animated.View
         style={[
-          styles.panel,
-          ui.modalCard,
+          styles.panelWrap,
           {
-            borderColor: colors.btnGoldBorder,
             transform: [{ translateY: rise }],
             opacity: fade,
           },
         ]}
       >
-        <Text style={[ui.modalTitle, styles.title]}>Last hand</Text>
-        <Text style={[ui.modalBody, styles.subtitle]}>
-          {playerName} finished with:
-        </Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.fanRow,
-            { width: Math.max(fanWidth, 1), minWidth: "100%" },
+        <BlurPanel
+          style={[
+            ui.modalCard,
+            {
+              width: cardWidth,
+              maxWidth: cardWidth,
+              borderColor: colors.btnGoldBorder,
+              paddingHorizontal: 18,
+              paddingTop: 18,
+              paddingBottom: 18,
+            },
           ]}
-          centerContent={fanWidth < 280}
+          preset={blur.modal}
         >
-          {cards.map((card, index) => (
-            <View
-              key={`${card.suit}-${card.value}-${index}`}
-              style={[
-                styles.cardSlot,
-                { left: index * CARD_STEP, zIndex: index },
-              ]}
-            >
-              <Card
-                card={card}
-                selected={false}
-                style={{ width: CARD_W, height: CARD_H }}
-                onPress={() => {}}
-              />
-            </View>
-          ))}
-        </ScrollView>
-        <TouchableOpacity
-          style={[styles.continueBtn, { borderColor: colors.btnGoldBorder }]}
-          onPress={onDismiss}
-          accessibilityRole="button"
-          accessibilityLabel="View rankings"
-        >
-          <Text style={[styles.continueText, { color: colors.gold }]}>
-            View rankings
+          <Text style={[ui.modalTitle, styles.title]}>Last hand</Text>
+          <Text style={[ui.modalBody, styles.subtitle]}>
+            {playerName} finished with:
           </Text>
-        </TouchableOpacity>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.fanRow,
+              { width: Math.max(fanWidth, 1), minWidth: "100%" },
+            ]}
+            centerContent={fanWidth < 280}
+          >
+            {cards.map((card, index) => (
+              <View
+                key={`${card.suit}-${card.value}-${index}`}
+                style={[
+                  styles.cardSlot,
+                  { left: index * CARD_STEP, zIndex: index },
+                ]}
+              >
+                <Card
+                  card={card}
+                  selected={false}
+                  style={{ width: CARD_W, height: CARD_H }}
+                  onPress={() => {}}
+                />
+              </View>
+            ))}
+          </ScrollView>
+        </BlurPanel>
       </Animated.View>
     </Animated.View>
   );
@@ -141,12 +148,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     backgroundColor: "rgba(0, 0, 0, 0.42)",
   },
-  panel: {
+  panelWrap: {
     width: "100%",
     maxWidth: 420,
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 16,
     alignItems: "center",
   },
   title: {
@@ -161,7 +165,6 @@ const styles = StyleSheet.create({
   fanRow: {
     position: "relative",
     height: CARD_H + 8,
-    marginBottom: 16,
     justifyContent: "center",
   },
   cardSlot: {
@@ -177,17 +180,5 @@ const styles = StyleSheet.create({
       android: { elevation: 4 },
       default: {},
     }),
-  },
-  continueBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
-  },
-  continueText: {
-    fontWeight: "800",
-    fontSize: 13,
-    letterSpacing: 0.3,
   },
 });

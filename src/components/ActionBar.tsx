@@ -15,7 +15,7 @@ import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import { hexToRgba } from "../utils/colorTheory";
 
 /** Fixed height budget for bottom-bar layout math (see GameScreen). */
-export const ACTION_BAR_HEIGHT = 108;
+export const ACTION_BAR_HEIGHT = 98;
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -184,15 +184,7 @@ export default function ActionBar({
   return (
     <View style={[styles.container, { width: barWidth, maxWidth: barWidth }]}>
       {!leaveOnly ? (
-      <View
-        style={[
-          styles.actionTrack,
-          {
-            backgroundColor: colors.actionTrackBg,
-            borderColor: colors.actionTrackBorder,
-          },
-        ]}
-      >
+      <View style={styles.actionTrack}>
         <AnimatedTouchable
           style={[
             styles.passButton,
@@ -327,10 +319,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "stretch",
     gap: 10,
-    padding: 5,
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    minHeight: 58,
+    minHeight: 48,
   },
   passButton: {
     flex: 1,

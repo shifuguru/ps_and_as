@@ -212,7 +212,11 @@ function resolveBuildMeta() {
     `local-${Date.now()}`;
   const builtAt = new Date().toISOString();
   const codename = readCodename(version);
-  return { version, buildId, builtAt, codename };
+  const channel =
+    process.env.DEPLOY_CHANNEL?.trim() === "development"
+      ? "development"
+      : "production";
+  return { version, buildId, builtAt, codename, channel };
 }
 
 function writeVersionJson(meta) {
@@ -220,6 +224,7 @@ function writeVersionJson(meta) {
     version: meta.version,
     buildId: meta.buildId,
     builtAt: meta.builtAt,
+    channel: meta.channel,
     ...(meta.codename ? { codename: meta.codename } : {}),
   };
   fs.writeFileSync(
@@ -251,6 +256,18 @@ function injectEarlyShellHeight(html) {
 })();
 </script>`;
   if (html.includes('setProperty("--app-height"')) return html;
+  return html.replace("<head>", `<head>\n    ${script}`);
+}
+
+function injectReadmeFallbackBase(html) {
+  const assignment = `window.__PS_AND_AS_BASE__=${JSON.stringify(basePath)};`;
+  if (html.includes("__PS_AND_AS_BASE__")) {
+    return html.replace(
+      /window\.__PS_AND_AS_BASE__=window\.__PS_AND_AS_BASE__\|\|"";/,
+      assignment,
+    );
+  }
+  const script = `<script>${assignment}</script>`;
   return html.replace("<head>", `<head>\n    ${script}`);
 }
 
@@ -338,10 +355,11 @@ if (fs.existsSync(readmeSrc)) {
   console.log('Copied README.md into web-build.');
 }
 if (fs.existsSync(readmeFallbackSrc)) {
-  let fallbackHtml = fs.readFileSync(readmeFallbackSrc, 'utf8');
+  let fallbackHtml = fs.readFileSync(readmeFallbackSrc, "utf8");
   fallbackHtml = rewriteHtmlPaths(fallbackHtml);
-  fs.writeFileSync(path.join(buildDir, 'readme-fallback.html'), fallbackHtml, 'utf8');
-  console.log('Wrote readme-fallback.html into web-build.');
+  fallbackHtml = injectReadmeFallbackBase(fallbackHtml);
+  fs.writeFileSync(path.join(buildDir, "readme-fallback.html"), fallbackHtml, "utf8");
+  console.log("Wrote readme-fallback.html into web-build.");
 }
 
 // Prevent Jekyll from stripping or ignoring Expo output folders.

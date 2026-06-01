@@ -7,6 +7,7 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <script>window.__PS_AND_AS_BASE__=window.__PS_AND_AS_BASE__||"";</script>
     <title>Read Me · P's &amp; A's</title>
     <link
       rel="stylesheet"
@@ -225,7 +226,7 @@
     <p id="status">Loading README…</p>
     <article id="readme" class="markdown-body"></article>
     <footer class="readme-bottom-bar">
-      <button type="button" class="readme-back-btn" id="refresh-btn">Back</button>
+      <button type="button" class="readme-back-btn" id="refresh-btn">Try game again</button>
     </footer>
 
     <script type="module">
@@ -236,10 +237,29 @@
       const refreshBtn = document.getElementById("refresh-btn");
 
       function appBasePath() {
+        const configured = window.__PS_AND_AS_BASE__;
+        if (typeof configured === "string" && configured.length > 0) {
+          return configured.replace(/\/+$/, "");
+        }
+
         const path = window.location.pathname;
-        const idx = path.indexOf("/readme-fallback.html");
-        if (idx > 0) return path.slice(0, idx);
+        const marker = "/readme-fallback.html";
+        const idx = path.indexOf(marker);
+        if (idx >= 0) {
+          const prefix = path.slice(0, idx).replace(/\/+$/, "");
+          if (prefix) return prefix;
+        }
+
+        if (path.includes("/ps_and_as/dev")) return "/ps_and_as/dev";
         if (path.includes("/ps_and_as")) return "/ps_and_as";
+
+        // Expo dev serves public/readme-fallback.html at the server root while
+        // the app lives under /ps_and_as (see app.json experiments.baseUrl).
+        const host = window.location.hostname;
+        if (host === "localhost" || host === "127.0.0.1") {
+          return "/ps_and_as";
+        }
+
         return "";
       }
 
@@ -253,7 +273,8 @@
 
       function gameHomeUrl() {
         const base = appBasePath();
-        const url = new URL(base + "/" || "/", window.location.origin);
+        const path = base ? `${base}/` : "/";
+        const url = new URL(path, window.location.origin);
         url.search = "";
         url.hash = "";
         return url.toString();

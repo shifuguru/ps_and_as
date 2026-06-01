@@ -10,7 +10,21 @@ import {
 /** @deprecated Use layout.localBandHeight from computePlayAreaLayout. */
 export const LOCAL_SEAT_BAND = 88;
 /** Pushes the local player avatar up toward the table center (away from the action bar). */
-export const LOCAL_SEAT_TABLE_LIFT = 50;
+export const LOCAL_SEAT_TABLE_LIFT_MAX = 38;
+
+/** @deprecated Use `resolveLocalSeatTableLift()` — fixed lift overlapped pills on short screens. */
+export const LOCAL_SEAT_TABLE_LIFT = LOCAL_SEAT_TABLE_LIFT_MAX;
+
+/** Height-aware lift — less on compact play areas so the seat stays below table pills. */
+export function resolveLocalSeatTableLift(playAreaHeight: number): number {
+  if (playAreaHeight <= 0) return 24;
+  if (playAreaHeight < 360) return 6;
+  if (playAreaHeight < 420) return 10;
+  if (playAreaHeight < 500) return 16;
+  if (playAreaHeight < 580) return 24;
+  if (playAreaHeight < 660) return 30;
+  return LOCAL_SEAT_TABLE_LIFT_MAX;
+}
 export const PLAY_TYPE_PILL_BAND = 12;
 /** @deprecated Use layout seat footprint from computePlayAreaLayout. */
 export const SEAT_FOOTPRINT_H = 92;

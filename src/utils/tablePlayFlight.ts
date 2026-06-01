@@ -6,7 +6,6 @@ import {
   ringAngleForSeat,
 } from "./tableLayout";
 import {
-  avatarBelowCenterOffset,
   avatarCenterOffsetFromTop,
   avatarSizeForSeat,
   countBadgeCenterInAvatarWrap,
@@ -67,15 +66,6 @@ export function seatOriginInPlayArea(
 
   const compact = layoutSeatIds.length >= 6;
   const seatOpts = { compact, isLocal: localPlayerIds.includes(playerId) };
-
-  if (localPlayerIds.includes(playerId)) {
-    return {
-      x: layout.width / 2,
-      y:
-        playAreaHeight -
-        avatarBelowCenterOffset(layout.seatDimensions, seatOpts),
-    };
-  }
 
   const { opponentRing: ring } = layout;
   const angle = ringAngleForSeat(seatIndex, layoutSeatIds.length);

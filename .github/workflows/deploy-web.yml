@@ -12,8 +12,8 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: github-pages
+  cancel-in-progress: false
 
 jobs:
   changes:
@@ -52,6 +52,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -88,6 +90,7 @@ jobs:
           EXPO_PUBLIC_BUILD_ID: ${{ github.sha }}
           EXPO_PUBLIC_APP_VERSION: ${{ steps.bump.outputs.version }}
           EXPO_PUBLIC_BASE_PATH: /ps_and_as
+          DEPLOY_CHANNEL: production
 
       - name: Verify build output
         run: |
@@ -98,6 +101,7 @@ jobs:
           test -f web-build/version.json
           test -f web-build/web-shell.css
           test -f web-build/.nojekyll
+          grep -q '"channel": "production"' web-build/version.json
           grep -q 'id="root"' web-build/index.html
           grep -q 'viewport-fit=cover' web-build/index.html
           grep -q 'web-shell.css' web-build/index.html
@@ -105,19 +109,22 @@ jobs:
           ! grep -q 'height: 100vh' web-build/web-shell.css
           echo "Build artifact looks valid."
 
+      - name: Merge into Pages artifact (production slot)
+        run: node scripts/merge-pages-artifact.js --slot=root --source=web-build --output=pages-artifact
+
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: web-build
+          path: pages-artifact
 
       - name: Publish to gh-pages branch (backup)
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: web-build
+          publish_dir: pages-artifact
           publish_branch: gh-pages
-          force_orphan: true
-          commit_message: "Deploy web app ${{ github.sha }}"
+          force_orphan: false
+          commit_message: "Deploy production web ${{ github.sha }}"
 
       # Keep index.html (and assets) on main so branch-based GitHub Pages does not
       # 404 after [skip ci] version-bump commits that only touch package.json.

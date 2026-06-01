@@ -10,20 +10,50 @@ export const README_FALLBACK_PAGE = "readme-fallback.html";
 export const README_FALLBACK_DEPLOYED_URL =
   "https://shifuguru.github.io/ps_and_as/readme-fallback.html";
 
-function webBasePath(): string {
-  const loc = (globalThis as { location?: { pathname?: string } }).location;
+function isLocalDevHost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+/** App home path — e.g. /ps_and_as on GitHub Pages and Expo web dev. */
+export function resolveAppBasePath(): string {
+  const configured = (globalThis as { __PS_AND_AS_BASE__?: string })
+    .__PS_AND_AS_BASE__;
+  if (typeof configured === "string" && configured.length > 0) {
+    return configured.replace(/\/+$/, "");
+  }
+
+  const loc = (globalThis as { location?: { pathname?: string; hostname?: string } })
+    .location;
   const path = loc?.pathname ?? "";
   const marker = `/${README_FALLBACK_PAGE}`;
   const idx = path.indexOf(marker);
-  if (idx > 0) return path.slice(0, idx);
+  if (idx >= 0) {
+    const prefix = path.slice(0, idx).replace(/\/+$/, "");
+    if (prefix) return prefix;
+  }
+  if (path.includes("/ps_and_as/dev")) return "/ps_and_as/dev";
   if (path.includes("/ps_and_as")) return "/ps_and_as";
+
+  const host = loc?.hostname ?? "";
+  if (isLocalDevHost(host)) {
+    return "/ps_and_as";
+  }
   return "";
 }
 
+function readmeFallbackPath(): string {
+  const loc = (globalThis as { location?: { hostname?: string } }).location;
+  const host = loc?.hostname ?? "";
+  if (isLocalDevHost(host)) {
+    return `/${README_FALLBACK_PAGE}`;
+  }
+  const base = resolveAppBasePath();
+  return `${base}/${README_FALLBACK_PAGE}`.replace(/\/{2,}/g, "/");
+}
+
 function readmeFallbackUrl(origin?: string): string {
-  const base = webBasePath();
   const url = new URL(
-    `${base}/${README_FALLBACK_PAGE}`,
+    readmeFallbackPath(),
     origin ?? "https://shifuguru.github.io",
   );
   url.searchParams.set("_", String(Date.now()));

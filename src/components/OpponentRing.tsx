@@ -4,8 +4,8 @@ import OpponentSeat, { OpponentSeatPlayer } from "./OpponentSeat";
 import type { OpponentRingLayout } from "../utils/tableLayout";
 import type { SeatDimensions } from "../utils/seatDimensions";
 import {
-  opponentRingAngles,
   opponentSeatPosition,
+  ringAngleForSeat,
 } from "../utils/tableLayout";
 import { isDeadHandPlayer } from "../game/deadHand";
 import type { AvatarBorderDesign } from "../rewards/avatarBorders";
@@ -88,7 +88,6 @@ export default function OpponentRing({
   trickWinnerShout = null,
   avatarBordersByPlayerId = {},
   layoutSeatIds,
-  deadHandId = null,
   deadHandGraveyard = false,
   disconnectedPlayerIds = [],
   turnBellPlayerId = null,
@@ -100,19 +99,25 @@ export default function OpponentRing({
     () => new Set(disconnectedPlayerIds),
     [disconnectedPlayerIds],
   );
+  const localSet = useMemo(
+    () => new Set(localPlayerIds),
+    [localPlayerIds],
+  );
   const seatIds = useMemo(() => {
     if (layoutSeatIds && layoutSeatIds.length > 0) return layoutSeatIds;
-    const localSet = new Set(localPlayerIds);
     return [
       ...localPlayerIds,
       ...players.filter((p) => !localSet.has(p.id)).map((p) => p.id),
     ];
-  }, [layoutSeatIds, localPlayerIds, players]);
+  }, [layoutSeatIds, localPlayerIds, players, localSet]);
 
-  const opponents = useMemo(
-    () => orderOpponents(players, localPlayerIds, seatIds),
-    [players, localPlayerIds, seatIds],
-  );
+  const playersById = useMemo(() => {
+    const map = new Map<string, OpponentSeatPlayer>();
+    for (const player of players) {
+      map.set(player.id, player);
+    }
+    return map;
+  }, [players]);
 
   const passedSet = useMemo(
     () => new Set(passedPlayerIds),
@@ -124,23 +129,23 @@ export default function OpponentRing({
     [finishedOrder],
   );
 
-  const angles = useMemo(
-    () => opponentRingAngles(ringLayout.totalPlayers),
-    [ringLayout.totalPlayers],
-  );
-
-  if (opponents.length === 0 || arenaWidth <= 0 || arenaHeight <= 0) {
+  if (seatIds.length === 0 || arenaWidth <= 0 || arenaHeight <= 0) {
     return null;
   }
 
   const compact = ringLayout.totalPlayers >= 6;
+  const totalPlayers = ringLayout.totalPlayers;
 
   return (
     <View style={styles.arena} pointerEvents="box-none">
-      {opponents.map((player, index) => {
-        const angle = angles[index];
-        if (angle === undefined) return null;
+      {seatIds.map((playerId, seatIndex) => {
+        if (seatIndex >= totalPlayers) return null;
 
+        const player = playersById.get(playerId);
+        if (!player) return null;
+
+        const isLocal = localSet.has(playerId);
+        const angle = ringAngleForSeat(seatIndex, totalPlayers);
         const isOut = finishedSet.has(player.id);
         const isActive = !isOut && player.id === currentPlayerId;
         const isCPU = isCpuPlayer(player);
@@ -171,6 +176,7 @@ export default function OpponentRing({
               isOut={isOut}
               hasPassed={passedSet.has(player.id)}
               isThinking={isActive && isCPU}
+              isLocal={isLocal}
               isLastPlay={isLastPlay}
               celebrateTrickWin={celebrateTrickWin}
               trickShout={celebrateTrickWin ? trickWinnerShout : null}
@@ -186,7 +192,8 @@ export default function OpponentRing({
                 !!turnBellPlayerId &&
                 player.id === turnBellPlayerId &&
                 !isOut &&
-                !isCPU
+                !isCPU &&
+                !isLocal
               }
               onTurnBellPress={
                 onTurnBellPress

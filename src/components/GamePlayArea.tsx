@@ -37,7 +37,8 @@ type RingProps = Omit<
 
 type Props = RingProps & {
   lastPlayPlayerId?: string | null;
-  playTypeLabel?: string | null;
+  playCountLabel?: string | null;
+  playModifierLabel?: string | null;
   /** "Your turn" / "Waiting for …" below the play-type badge on the table. */
   turnHintText?: string | null;
   turnHintFlash?: boolean;
@@ -75,7 +76,8 @@ export default function GamePlayArea({
   finishedOrder,
   passedPlayerIds,
   lastPlayPlayerId,
-  playTypeLabel,
+  playCountLabel,
+  playModifierLabel,
   turnHintText,
   turnHintFlash,
   plays = [],
@@ -302,13 +304,13 @@ export default function GamePlayArea({
   ]);
 
   const handleFlightComplete = useCallback((id: string) => {
-    setActiveFlights((prev) => prev.filter((f) => f.id !== id));
     setLandedKeys((prev) => {
       if (prev.has(id)) return prev;
       const next = new Set(prev);
       next.add(id);
       return next;
     });
+    setActiveFlights((prev) => prev.filter((f) => f.id !== id));
   }, []);
 
   const hiddenPlayKeys = useMemo(() => {
@@ -327,14 +329,16 @@ export default function GamePlayArea({
       ? React.cloneElement(
           children as React.ReactElement<{
             layoutHint?: typeof layout;
-            playTypeLabel?: string | null;
+            playCountLabel?: string | null;
+            playModifierLabel?: string | null;
             turnHintText?: string | null;
             turnHintFlash?: boolean;
             hiddenPlayKeys?: Set<string>;
           }>,
           {
             layoutHint: layout,
-            playTypeLabel,
+            playCountLabel,
+            playModifierLabel,
             turnHintText,
             turnHintFlash,
             hiddenPlayKeys,

@@ -98,7 +98,6 @@ import BottomBar, {
   BottomBarHand,
   BottomBarLeave,
   HAND_ZONE_TOP_CLEARANCE,
-  localSeatBottomOffset,
   reservedBottomHeight,
 } from "../components/BottomBar";
 import PlayerHand, {
@@ -120,11 +119,9 @@ import RoleTradeStrip from "../components/RoleTradeStrip";
 import TableCardFlight, { type CardFlightSpec } from "../components/TableCardFlight";
 import { seatOriginInPlayArea } from "../utils/tablePlayFlight";
 import { computePlayAreaLayout } from "../utils/tableLayout";
-import OpponentSeat from "../components/OpponentSeat";
 import LobbyPlayerModal, {
   type LobbyProfilePlayer,
 } from "../components/LobbyPlayerModal";
-import { LOCAL_SEAT_BAND } from "../utils/tableLayout";
 import {
   buildTrickPlayDisplays,
   buildPlaysFromTrick,
@@ -3168,10 +3165,6 @@ function GameScreenBoard() {
     insets.bottom || 0,
     handReserveActive,
   );
-  const localSeatBottom = localSeatBottomOffset(
-    insets.bottom || 0,
-    handReserveActive,
-  );
   const contentTopPadding = insets.top + 8;
   const trickPlays = buildTrickPlayDisplays(state);
   const activeLastPlayId = lastPlayPlayerId(state);
@@ -3183,21 +3176,19 @@ function GameScreenBoard() {
 
   const trickPauseFrozen = trickPauseActive;
 
-  const opponentPlayers = state.players
-    .filter((p) => p.id !== humanPlayer?.id)
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      handCount: ceremonyCountFor(p.id) ?? p.hand.length,
-      role: roleById[p.id] ?? p.role,
-      isDeadHand: isDeadHandPlayer(p),
-      sidelinedCount: isDeadHandPlayer(p)
-        ? ceremonyPrep
-          ? 0
-          : (p.sidelinedHand?.length ?? 0)
-        : 0,
-      feltTint: resolveSeatFeltTint(p),
-    }));
+  const opponentPlayers = state.players.map((p) => ({
+    id: p.id,
+    name: p.name,
+    handCount: ceremonyCountFor(p.id) ?? p.hand.length,
+    role: roleById[p.id] ?? p.role,
+    isDeadHand: isDeadHandPlayer(p),
+    sidelinedCount: isDeadHandPlayer(p)
+      ? ceremonyPrep
+        ? 0
+        : (p.sidelinedHand?.length ?? 0)
+      : 0,
+    feltTint: resolveSeatFeltTint(p),
+  }));
 
   const passedPlayerIds =
     state.currentTrick?.actions
@@ -3225,17 +3216,6 @@ function GameScreenBoard() {
           trickPauseSnapshot.runBonusXp > 0,
         )
       : null;
-
-  const localSeatPlayer = humanPlayer
-    ? {
-        id: humanPlayer.id,
-        name: humanPlayer.name,
-        handCount:
-          ceremonyCountFor(humanPlayer.id) ?? humanPlayer.hand.length,
-        role: roleById[humanPlayer.id] ?? humanPlayer.role,
-        feltTint: resolveSeatFeltTint(humanPlayer),
-      }
-    : null;
 
   // Build log entries
   type LogEntry = { text: string; kind: "play" | "pass" | "win" | "info" };
@@ -3385,21 +3365,28 @@ function GameScreenBoard() {
   // Derived views
   const recentFullLog = fullGameLog;
 
-  // Compute a short label describing the current play type
-  function getPlayTypeLabel(): string | null {
-    if (!state) return null;
+  // Compute labels for the play-type pills (count + modifier on one row).
+  function getPlayTypePills(): {
+    countLabel: string | null;
+    modifierLabel: string | null;
+  } {
+    if (!state) return { countLabel: null, modifierLabel: null };
 
-    if (state.runOnTop?.active) return "On top!";
+    let modifierLabel: string | null = null;
+
+    if (state.runOnTop?.active) modifierLabel = "On top!";
 
     if (state.fourOfAKindChallenge?.active) {
-      if (state.fourOfAKindChallenge.completedAcrossTurns) return "Quads — Pass!";
-      return "Quads!";
+      modifierLabel = state.fourOfAKindChallenge.completedAcrossTurns
+        ? "Rank Closed!"
+        : "Quads!";
     }
 
-    // If pile is empty, nothing to show
-    if (!state.pile || state.pile.length === 0) return null;
+    const hasPile = !!state.pile && state.pile.length > 0;
+    if (!hasPile) {
+      return { countLabel: null, modifierLabel };
+    }
 
-    // Runs take precedence over the 10 rule — tens never govern active runs.
     const { inRunContext, runMultiplicity } = resolveRunContext(
       state.pile,
       state.pileHistory,
@@ -3407,51 +3394,57 @@ function GameScreenBoard() {
       state.players,
       state.finishedOrder || [],
     );
-    if (inRunContext) {
-      const m = runMultiplicity;
-      const kind =
-        m === 1
-          ? "Singles"
-          : m === 2
-            ? "Doubles"
-            : m === 3
-              ? "Triples"
-              : m === 4
-                ? "Quads"
-                : `${m}x`;
-      return `${kind} - Runs!`;
+
+    if (!modifierLabel) {
+      if (inRunContext) {
+        modifierLabel = "Runs!";
+      } else if (state.tenRulePending) {
+        modifierLabel = "10 - Choose!";
+      } else if (state.pile.some((c) => isJoker(c))) {
+        modifierLabel = "Joker!";
+      } else if (state.tenRule?.active && state.tenRule.direction) {
+        const dir =
+          state.tenRule.direction === "higher"
+            ? "Higher"
+            : state.tenRule.direction === "lower"
+              ? "Lower"
+              : state.tenRule.direction;
+        modifierLabel = `10 - ${dir}!`;
+      }
     }
 
-    // If a 10 was just played and direction is pending (only outside runs)
-    if (state.tenRulePending) return "10 - Choose!";
+    const countLabel = inRunContext
+      ? runMultiplicity === 1
+        ? "Singles"
+        : runMultiplicity === 2
+          ? "Doubles"
+          : runMultiplicity === 3
+            ? "Triples"
+            : runMultiplicity === 4
+              ? "Quads"
+              : `${runMultiplicity}x`
+      : state.pile.length === 1
+        ? "Singles"
+        : state.pile.length === 2
+          ? "Doubles"
+          : state.pile.length === 3
+            ? "Triples"
+            : state.pile.length === 4
+              ? "Quads"
+              : `${state.pile.length} Of a Kind`;
 
-    // Joker detection
-    if (state.pile.some((c) => isJoker(c))) return "Joker!";
-
-    // If a ten-rule is active with a direction (only when not in a run)
-    if (state.tenRule?.active && state.tenRule.direction) {
-      const dir =
-        state.tenRule.direction === "higher"
-          ? "Higher"
-          : state.tenRule.direction === "lower"
-            ? "Lower"
-            : state.tenRule.direction;
-      return `10 - ${dir}!`;
-    }
-
-    if (state.pile.some((c) => c.value === 15 || c.value === 2)) return "2!";
-
-    // Otherwise show by count (non-run)
-    const count = state.pile.length;
-    if (count === 1) return "Singles";
-    if (count === 2) return "Doubles";
-    if (count === 3) return "Triples";
-    if (count === 4) return "Quads";
-
-    return `${count} Of a Kind`;
+    return { countLabel, modifierLabel };
   }
 
-  const playTypeLabel = getPlayTypeLabel();
+  const playTypePills = getPlayTypePills();
+  const playCountLabel =
+    playTypePills.countLabel && !trickPauseFrozen
+      ? playTypePills.countLabel
+      : null;
+  const playModifierLabel =
+    playTypePills.modifierLabel && !trickPauseFrozen
+      ? playTypePills.modifierLabel
+      : null;
 
   const turnHintText =
     ceremonyPrep && ceremonyStatusText
@@ -3656,9 +3649,8 @@ function GameScreenBoard() {
           trickWinnerXpAmount={trickWinnerXpAmount}
           trickWinnerShout={trickWinnerShout}
           avatarBordersByPlayerId={avatarBordersByPlayerId}
-          playTypeLabel={
-            playTypeLabel && !trickPauseFrozen ? playTypeLabel : null
-          }
+          playCountLabel={playCountLabel}
+          playModifierLabel={playModifierLabel}
           turnHintText={turnHintText}
           turnHintFlash={turnHintFlash}
           tableSeatCount={tableSeats.layoutSeatCount}
@@ -3703,54 +3695,6 @@ function GameScreenBoard() {
           </View>
         ) : null}
       </View>
-
-      {localSeatPlayer ? (
-        <View
-          style={[
-            local.localSeatOverlay,
-            { bottom: localSeatBottom, minHeight: LOCAL_SEAT_BAND },
-          ]}
-          pointerEvents="box-none"
-        >
-          <OpponentSeat
-            player={localSeatPlayer}
-            isActive={
-              revealTurnHighlight &&
-              !state.finishedOrder.includes(localSeatPlayer.id) &&
-              localSeatPlayer.id === current.id
-            }
-            isOut={state.finishedOrder.includes(localSeatPlayer.id)}
-            hasPassed={displayPassedPlayerIds.includes(localSeatPlayer.id)}
-            isLocal
-            isLastPlay={
-              !!activeLastPlayId && localSeatPlayer.id === activeLastPlayId
-            }
-            celebrateTrickWin={
-              !!trickWinnerPlayerId &&
-              localSeatPlayer.id === trickWinnerPlayerId
-            }
-            trickShout={
-              trickWinnerPlayerId === localSeatPlayer.id
-                ? trickWinnerShout
-                : null
-            }
-            avatarBorder={localAvatarBorder}
-            showTrickXp={
-              !!trickWinnerPlayerId &&
-              localSeatPlayer.id === trickWinnerPlayerId
-            }
-            trickXpAmount={trickWinnerXpAmount}
-            dealtStackCount={
-              ceremonyPrep
-                ? (ceremonyDealCounts[localSeatPlayer.id] ?? 0)
-                : 0
-            }
-            onAvatarPress={() =>
-              handlePlayerProfilePress(localSeatPlayer.id)
-            }
-          />
-        </View>
-      ) : null}
 
       {/* Player hand + actions — sticky bottom sheet */}
       <BottomBar>
@@ -4075,15 +4019,6 @@ const local = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     textAlign: "center",
-  },
-  localSeatOverlay: {
-    position: "absolute",
-    left: 12,
-    right: 12,
-    zIndex: 55,
-    alignItems: "center",
-    justifyContent: "flex-end",
-    overflow: "visible",
   },
   playTypeOverlay: {
     position: "absolute",

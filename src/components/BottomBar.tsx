@@ -12,7 +12,11 @@ import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import BlurPanel from "./BlurPanel";
 import { ACTION_BAR_HEIGHT } from "./ActionBar";
 import { HAND_FAN_HEIGHT } from "./PlayerHand";
-import { LOCAL_SEAT_TABLE_LIFT } from "../utils/tableLayout";
+import {
+  LOCAL_SEAT_BAND,
+  resolveLocalSeatTableLift,
+  type PlayAreaLayout,
+} from "../utils/tableLayout";
 import { getWebBodyPortalHost } from "../utils/webBodyPortal";
 import {
   isMobileWeb,
@@ -79,18 +83,42 @@ export function reservedBottomHeight(
 }
 
 /** How far below the top of the bottom sheet the local seat sits (tune for felt/hand gap). */
-export const LOCAL_SEAT_DROP_FROM_BAR_TOP = 48;
+export const LOCAL_SEAT_DROP_FROM_BAR_TOP = 40;
 
 /** Screen-bottom offset for the local player avatar — just above the hand / action bar. */
 export function localSeatBottomOffset(
   safeBottom = 0,
   handVisible = true,
+  playAreaLayout?: Pick<
+    PlayAreaLayout,
+    "height" | "cardZoneTop" | "cardZoneHeight"
+  > | null,
+  localSeatHeight = LOCAL_SEAT_BAND,
 ): number {
-  return (
-    reservedBottomHeight(safeBottom, handVisible) -
-    LOCAL_SEAT_DROP_FROM_BAR_TOP +
-    LOCAL_SEAT_TABLE_LIFT
-  );
+  const reserved = reservedBottomHeight(safeBottom, handVisible);
+  const lift = resolveLocalSeatTableLift(playAreaLayout?.height ?? 0);
+  let bottom = reserved - LOCAL_SEAT_DROP_FROM_BAR_TOP + lift;
+
+  const minBottom = reserved - LOCAL_SEAT_DROP_FROM_BAR_TOP + 2;
+
+  if (
+    playAreaLayout &&
+    playAreaLayout.height > 0 &&
+    playAreaLayout.cardZoneHeight > 0
+  ) {
+    const cardZoneBottom =
+      playAreaLayout.cardZoneTop + playAreaLayout.cardZoneHeight;
+    const clearanceBelowZone = 6;
+    const maxBottom =
+      reserved +
+      playAreaLayout.height -
+      cardZoneBottom -
+      clearanceBelowZone -
+      localSeatHeight;
+    bottom = Math.max(minBottom, Math.min(bottom, maxBottom));
+  }
+
+  return bottom;
 }
 
 type Props = {

@@ -1,0 +1,118 @@
+name: Deploy web app (development)
+
+# Dev/staging web build — safe to test before merging to main.
+# Live URL: https://shifuguru.github.io/ps_and_as/dev/
+#
+# Setup (GitHub → Settings → Secrets and variables → Actions → Variables):
+#   EXPO_PUBLIC_SERVER_URL_DEV — Railway (or other) URL for the *development* game server.
+#     Use a separate Railway service/environment so active production players are unaffected.
+#   Falls back to EXPO_PUBLIC_SERVER_URL if the dev variable is not set (not recommended).
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve dev server URL
+        id: server
+        run: |
+          URL="${{ vars.EXPO_PUBLIC_SERVER_URL_DEV }}"
+          if [ -z "$URL" ]; then
+            URL="${{ vars.EXPO_PUBLIC_SERVER_URL }}"
+            if [ -z "$URL" ]; then
+              echo "::error::Set EXPO_PUBLIC_SERVER_URL_DEV (preferred) or EXPO_PUBLIC_SERVER_URL"
+              exit 1
+            fi
+            echo "::warning::EXPO_PUBLIC_SERVER_URL_DEV is unset — using production server URL for dev web build."
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Dev web build will use server: $URL"
+
+      - name: Build Expo web app (development)
+        run: npm run build:web
+        env:
+          GITHUB_PAGES_BASE: /ps_and_as/dev
+          EXPO_PUBLIC_BASE_PATH: /ps_and_as/dev
+          DEPLOY_CHANNEL: development
+          EXPO_PUBLIC_SERVER_URL: ${{ steps.server.outputs.url }}
+          EXPO_PUBLIC_BUILD_ID: dev-${{ github.sha }}
+          EXPO_PUBLIC_APP_VERSION: ${{ github.ref_name }}-${{ github.sha }}
+
+      - name: Verify build output
+        run: |
+          test -f web-build/index.html
+          test -f web-build/version.json
+          grep -q '"channel": "development"' web-build/version.json
+          grep -q 'id="root"' web-build/index.html
+          echo "Dev build artifact looks valid."
+
+      - name: Merge into Pages artifact (dev slot)
+        run: node scripts/merge-pages-artifact.js --slot=dev --source=web-build --output=pages-artifact
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages-artifact
+
+      - name: Publish merged artifact to gh-pages branch (backup)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: pages-artifact
+          publish_branch: gh-pages
+          force_orphan: false
+          commit_message: "Deploy dev web ${{ github.sha }}"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: https://shifuguru.github.io/ps_and_as/dev/
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Verify dev site serves the app
+        run: |
+          URL="https://shifuguru.github.io/ps_and_as/dev/"
+          echo "Checking $URL"
+          for i in 1 2 3 4 5 6; do
+            BODY=$(curl -fsSL "$URL" || true)
+            if echo "$BODY" | grep -q 'id="root"'; then
+              echo "OK: dev app shell found at $URL"
+              exit 0
+            fi
+            echo "Attempt $i: dev app shell not found yet, waiting…"
+            sleep 10
+          done
+          echo "::error::Dev site missing app shell at $URL"
+          exit 1

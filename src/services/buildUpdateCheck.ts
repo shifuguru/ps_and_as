@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import {
   resolveAppVersion,
   resolveClientBuildId,
+  resolveDeployChannel,
   WEB_BASE_PATH,
   type BuildVersionInfo,
 } from "../config/buildVersion";
@@ -14,7 +15,9 @@ function parseVersionPayload(raw: unknown): BuildVersionInfo | null {
   const buildId = typeof data.buildId === "string" ? data.buildId : "";
   if (!buildId) return null;
   const builtAt = typeof data.builtAt === "string" ? data.builtAt : undefined;
-  return { version, buildId, builtAt };
+  const channel =
+    data.channel === "development" ? "development" : "production";
+  return { version, buildId, builtAt, channel };
 }
 
 function webVersionJsonUrl(): string | null {
@@ -84,6 +87,9 @@ export function isRemoteBuildNewer(remote: BuildVersionInfo): boolean {
   const clientId = resolveClientBuildId();
   if (!remote.buildId || remote.buildId === clientId) return false;
   if (clientId === "dev" || clientId === "unknown") return false;
+  const localChannel = resolveDeployChannel();
+  const remoteChannel = remote.channel ?? "production";
+  if (localChannel !== remoteChannel) return false;
   return true;
 }
 
