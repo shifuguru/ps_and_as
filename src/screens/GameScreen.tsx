@@ -86,6 +86,8 @@ import {
 } from "../services/playerStats";
 import { fetchCloudPlayerStats, pushCloudPlayerStats } from "../services/playerStatsCloud";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
+import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
+import { resolveHandMetrics } from "../utils/compactGameLayout";
 import { useGamePreferences } from "../hooks/useGamePreferences";
 import { getSkipDealAnimationsSync } from "../services/gamePreferences";
 import DebugViewer from "../components/DebugViewer";
@@ -97,11 +99,9 @@ import BottomBar, {
   BottomBarControls,
   BottomBarHand,
   BottomBarLeave,
-  HAND_ZONE_TOP_CLEARANCE,
   reservedBottomHeight,
 } from "../components/BottomBar";
 import PlayerHand, {
-  HAND_FAN_HEIGHT,
   type PlayerHandHandle,
 } from "../components/PlayerHand";
 import ActionBar from "../components/ActionBar";
@@ -545,6 +545,7 @@ function GameScreen({
   const readOnlyGame = gameplayLocked || readOnlyOnline || gamePausedForAway;
 
   const insets = useLayoutInsets();
+  const { height: shellHeight } = useVisualViewportSize();
   const { colors, feltTint: localFeltTint } = useAppTheme();
 
   const humanPlayer = state
@@ -2223,7 +2224,7 @@ function GameScreen({
       0,
       playAreaSize.height -
         contentTopPadding -
-        reservedBottomHeight(insets.bottom || 0, handReserveForLayout),
+        reservedBottomHeight(insets.bottom || 0, handReserveForLayout, shellHeight),
     );
     const playAreaLayout =
       playAreaSize.width <= 0 || playAreaGameHeight <= 0
@@ -2232,6 +2233,7 @@ function GameScreen({
             playAreaSize.width,
             playAreaGameHeight,
             tableSeats.layoutSeatCount,
+            shellHeight,
           );
     const ceremonyPlayAreaLayout =
       livePlayAreaMetrics?.layout ?? playAreaLayout;
@@ -2287,6 +2289,7 @@ function GameScreen({
     gameplayLocked,
     finishTradeReturnReveal,
     tradeReturnLayoutTick,
+    shellHeight,
   ]);
 
   if (!state) {
@@ -2343,7 +2346,7 @@ function GameScreen({
     0,
     playAreaSize.height -
       contentTopPadding -
-      reservedBottomHeight(insets.bottom || 0, handReserveForLayout),
+      reservedBottomHeight(insets.bottom || 0, handReserveForLayout, shellHeight),
   );
   const playAreaLayout =
     playAreaSize.width <= 0 || playAreaGameHeight <= 0
@@ -2352,6 +2355,7 @@ function GameScreen({
           playAreaSize.width,
           playAreaGameHeight,
           tableSeats.layoutSeatCount,
+          shellHeight,
         );
   const ceremonyPlayAreaLayout =
     livePlayAreaMetrics?.layout ?? playAreaLayout;
@@ -3161,9 +3165,15 @@ function GameScreenBoard() {
     !!humanPlayer && state.finishedOrder.includes(humanPlayer.id);
   /** Keep bottom chrome height stable when the local player is out (hand hidden). */
   const handReserveActive = handInBottomBar || localPlayerOut;
+  const { height: viewportHeight } = useVisualViewportSize();
+  const handMetrics = useMemo(
+    () => resolveHandMetrics(viewportHeight),
+    [viewportHeight],
+  );
   const bottomBarHeight = reservedBottomHeight(
     insets.bottom || 0,
     handReserveActive,
+    viewportHeight,
   );
   const contentTopPadding = insets.top + 8;
   const trickPlays = buildTrickPlayDisplays(state);
@@ -3699,7 +3709,10 @@ function GameScreenBoard() {
       {/* Player hand + actions — sticky bottom sheet */}
       <BottomBar>
         {handInBottomBar ? (
-          <BottomBarHand height={HAND_FAN_HEIGHT + HAND_ZONE_TOP_CLEARANCE}>
+          <BottomBarHand
+            height={handMetrics.fanHeight + handMetrics.handZoneTopClearance}
+            controlsGap={handMetrics.handControlsGap}
+          >
             <PlayerHand
               ref={handRef}
               cards={hand}

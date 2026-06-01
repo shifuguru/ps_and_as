@@ -1,6 +1,8 @@
-import { useMemo } from "react";
-import { breakpoints } from "./responsive";
-import { useResponsiveDimensions } from "./responsive";
+import { breakpoints } from "./breakpoints";
+import {
+  avatarBoostForTier,
+  resolveCompactHeightTier,
+} from "./compactGameLayout";
 
 export type SeatDimensions = {
   avatar: number;
@@ -28,7 +30,7 @@ export type SeatDimensions = {
   nameMaxWCompact: number;
 };
 
-/** Global avatar / seat footprint scale. */
+/** Default avatar / seat footprint scale (comfortable tier). */
 export const AVATAR_SIZE_BOOST = 1.24;
 
 /** How much side seats blend from screen edge back toward the ring (0–1). */
@@ -38,8 +40,8 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function boost(n: number): number {
-  return Math.round(n * AVATAR_SIZE_BOOST);
+function boostWithTier(n: number, tier: ReturnType<typeof resolveCompactHeightTier>): number {
+  return Math.round(n * avatarBoostForTier(tier));
 }
 
 /** Breakpoint-based scale using an explicit width (play area or viewport). */
@@ -58,7 +60,13 @@ export function scaleForWidth(
 }
 
 /** Seat / avatar sizes derived from available horizontal space. */
-export function computeSeatDimensions(width: number, height?: number): SeatDimensions {
+export function computeSeatDimensions(
+  width: number,
+  height?: number,
+  shellHeight?: number,
+): SeatDimensions {
+  const tier = resolveCompactHeightTier(shellHeight ?? height ?? 900);
+  const boost = (n: number) => boostWithTier(n, tier);
   const avatar = scaleForWidth(width, 36, 44, 50, 56);
   const avatarLocal = scaleForWidth(width, 40, 48, 54, 60);
   const avatarCompact = scaleForWidth(width, 30, 38, 42, 46);
@@ -216,13 +224,4 @@ export function computeSeatTableGap(
   const gap = Math.round(minGap + t * (maxGap - minGap));
 
   return { gap, minGap, maxGap };
-}
-
-export function useSeatDimensions(overrideWidth?: number): SeatDimensions {
-  const { width, height } = useResponsiveDimensions();
-  const basis = overrideWidth ?? width;
-  return useMemo(
-    () => computeSeatDimensions(basis, height),
-    [basis, height],
-  );
 }

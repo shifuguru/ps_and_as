@@ -11,6 +11,7 @@ import OpponentRing from "./OpponentRing";
 import TableCardFlight, { type CardFlightSpec } from "./TableCardFlight";
 import { computePlayAreaLayout, tableScaleLimits } from "../utils/tableLayout";
 import type { PlayAreaLayout } from "../utils/tableLayout";
+import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import type { TrickPlayDisplay } from "../utils/trickDisplay";
 import {
   computePlayStackLayout,
@@ -100,6 +101,7 @@ export default function GamePlayArea({
   children,
 }: Props & { children: React.ReactNode }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const { height: shellHeight } = useVisualViewportSize();
   const [activeFlights, setActiveFlights] = useState<CardFlightSpec[]>([]);
   const [landedKeys, setLandedKeys] = useState<Set<string>>(() => new Set());
   const prevPlayKeysRef = useRef<Set<string>>(new Set());
@@ -117,8 +119,8 @@ export default function GamePlayArea({
     const seats =
       tableSeatCount ??
       Math.max(players.length + localPlayerIds.length, 1);
-    return computePlayAreaLayout(size.width, size.height, seats);
-  }, [size.width, size.height, players.length, localPlayerIds.length, tableSeatCount]);
+    return computePlayAreaLayout(size.width, size.height, seats, shellHeight);
+  }, [size.width, size.height, players.length, localPlayerIds.length, tableSeatCount, shellHeight]);
 
   useEffect(() => {
     if (!layout || !onPlayAreaMetrics) return;

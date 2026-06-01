@@ -6,6 +6,10 @@ import {
   SIDE_ANCHOR_CENTER_BLEND,
   type SeatDimensions,
 } from "./seatDimensions";
+import {
+  resolveCompactHeightTier,
+  resolveOpponentTopPad,
+} from "./compactGameLayout";
 
 /** @deprecated Use layout.localBandHeight from computePlayAreaLayout. */
 export const LOCAL_SEAT_BAND = 88;
@@ -208,6 +212,7 @@ export function computePlayAreaLayout(
   width: number,
   height: number,
   totalPlayers = 4,
+  shellHeight?: number,
 ): PlayAreaLayout {
   const aspect = height / Math.max(width, 1);
   const isCompact = height < 560;
@@ -215,11 +220,15 @@ export function computePlayAreaLayout(
   const isTall = aspect > 2.15;
   const isWide = width >= 640;
 
-  const seat = computeSeatDimensions(width, height);
+  const tier = resolveCompactHeightTier(shellHeight ?? height);
+  const seat = computeSeatDimensions(width, height, shellHeight);
   const cx = width / 2;
   const sideMargin = isWide ? 12 : 8;
-  const minTop = OPPONENT_TOP_PAD;
-  const ringBandBottom = height - RING_BOTTOM_PAD;
+  const minTop =
+    shellHeight != null ? resolveOpponentTopPad(shellHeight) : OPPONENT_TOP_PAD;
+  const ringBottomPad =
+    tier === "veryTight" ? 4 : tier === "tight" ? 6 : RING_BOTTOM_PAD;
+  const ringBandBottom = height - ringBottomPad;
   const verticalBudget = ringBandBottom - minTop;
 
   const ringTopY = minTop + seat.footprintH * 0.25;

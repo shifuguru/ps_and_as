@@ -18,10 +18,12 @@ import {
 } from "react-native";
 import Card from "./Card";
 import { Card as CardType } from "../game/ruleset";
+import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
+import { resolveHandMetrics } from "../utils/compactGameLayout";
 
-/** Must match `Card.tsx` dimensions */
-const CARD_WIDTH = 86;
-const CARD_HEIGHT = 124;
+/** Must match `Card.tsx` default dimensions at comfortable tier */
+const BASE_CARD_WIDTH = 86;
+const BASE_CARD_HEIGHT = 124;
 const SELECT_LIFT = 12;
 
 /** Extra separation on each side of the centred card (when fully centred) */
@@ -43,12 +45,12 @@ function fanNormSpan(containerWidth: number, step: number): number {
 /** Padding below card feet inside the hand zone */
 const FAN_BOTTOM_PADDING = 0;
 
-/** Headroom above card tops for arc + selected lift + centre scale */
-const FAN_HEADROOM = SELECT_LIFT + MAX_CENTER_LIFT + 24;
+/** Headroom above card tops for arc + selected lift + centre scale (comfortable tier) */
+const BASE_FAN_HEADROOM = SELECT_LIFT + MAX_CENTER_LIFT + 24;
 
-/** Total height of the hand fan area */
+/** Total height of the hand fan area at comfortable tier — used when shell height is unknown. */
 export const HAND_FAN_HEIGHT =
-  CARD_HEIGHT + FAN_HEADROOM + FAN_BOTTOM_PADDING;
+  BASE_CARD_HEIGHT + BASE_FAN_HEADROOM + FAN_BOTTOM_PADDING;
 
 type Props = {
   cards: CardType[];
@@ -75,8 +77,12 @@ type CarouselSlot = {
 };
 
 /** Horizontal step — tighter overlap, scales slightly with hand size */
-function carouselStep(count: number, containerWidth: number): number {
-  if (count <= 1) return CARD_WIDTH;
+function carouselStep(
+  count: number,
+  containerWidth: number,
+  cardWidth: number,
+): number {
+  if (count <= 1) return cardWidth;
   const slots = Math.min(count - 1, 9);
   const fitStep = (containerWidth * 0.52) / slots;
   return Math.round(Math.max(26, Math.min(32, fitStep)));
@@ -119,24 +125,36 @@ function gutterForScroll(
   containerWidth: number,
   scrollOffset: number,
   step: number,
+  cardWidth: number,
 ): number {
   if (count <= 1) return 0;
-  const focused = focusedCardIndex(count, containerWidth, scrollOffset, step);
-  const idealScroll = scrollToCenterCard(focused, containerWidth, step);
+  const focused = focusedCardIndex(
+    count,
+    containerWidth,
+    scrollOffset,
+    step,
+    cardWidth,
+  );
+  const idealScroll = scrollToCenterCard(focused, containerWidth, step, cardWidth);
   const dist = Math.abs(scrollOffset - idealScroll);
   const fadeRange = step * 0.75;
   const t = Math.max(0, 1 - dist / fadeRange);
   return CENTER_GUTTER * t * t;
 }
 
-function scrollBounds(count: number, containerWidth: number, step: number) {
+function scrollBounds(
+  count: number,
+  containerWidth: number,
+  step: number,
+  cardWidth: number,
+) {
   if (count <= 0) return { min: 0, max: 0 };
   if (count === 1) {
-    const centered = scrollToCenterCard(0, containerWidth, step);
+    const centered = scrollToCenterCard(0, containerWidth, step, cardWidth);
     return { min: centered, max: centered };
   }
-  const min = scrollToCenterCard(0, containerWidth, step);
-  const max = scrollToCenterCard(count - 1, containerWidth, step);
+  const min = scrollToCenterCard(0, containerWidth, step, cardWidth);
+  const max = scrollToCenterCard(count - 1, containerWidth, step, cardWidth);
   return { min: Math.min(min, max), max: Math.max(min, max) };
 }
 
@@ -144,8 +162,9 @@ function scrollToCenterCard(
   index: number,
   containerWidth: number,
   step: number,
+  cardWidth: number,
 ) {
-  return index * step + CARD_WIDTH / 2 - containerWidth / 2;
+  return index * step + cardWidth / 2 - containerWidth / 2;
 }
 
 function clampScroll(value: number, min: number, max: number) {
@@ -157,13 +176,15 @@ function focusedCardIndex(
   containerWidth: number,
   scrollOffset: number,
   step: number,
+  cardWidth: number,
 ): number {
   if (count === 0) return 0;
   const viewportCenter = containerWidth / 2;
   let best = 0;
   let bestDist = Infinity;
   for (let i = 0; i < count; i++) {
-    const cardCenterX = cardLeft(i, i, 0, step) + CARD_WIDTH / 2 - scrollOffset;
+    const cardCenterX =
+      cardLeft(i, i, 0, step) + cardWidth / 2 - scrollOffset;
     const dist = Math.abs(cardCenterX - viewportCenter);
     if (dist < bestDist) {
       bestDist = dist;
@@ -180,10 +201,17 @@ function snapScroll(
   min: number,
   max: number,
   step: number,
+  cardWidth: number,
 ) {
-  const index = focusedCardIndex(count, containerWidth, scrollOffset, step);
+  const index = focusedCardIndex(
+    count,
+    containerWidth,
+    scrollOffset,
+    step,
+    cardWidth,
+  );
   return clampScroll(
-    scrollToCenterCard(index, containerWidth, step),
+    scrollToCenterCard(index, containerWidth, step, cardWidth),
     min,
     max,
   );
@@ -194,6 +222,8 @@ function computeCarouselSlots(
   containerWidth: number,
   scrollOffset: number,
   step: number,
+  cardWidth: number,
+  maxCenterLift: number,
   focusOverride?: number | null,
 ): CarouselSlot[] {
   if (count === 0) return [];
@@ -202,20 +232,25 @@ function computeCarouselSlots(
   const focused =
     focusOverride != null
       ? Math.max(0, Math.min(focusOverride, count - 1))
-      : focusedCardIndex(count, containerWidth, scrollOffset, step);
-  const gutter = gutterForScroll(count, containerWidth, scrollOffset, step);
+      : focusedCardIndex(
+          count,
+          containerWidth,
+          scrollOffset,
+          step,
+          cardWidth,
+        );
+  const gutter = gutterForScroll(count, containerWidth, scrollOffset, step, cardWidth);
   const normSpan = fanNormSpan(containerWidth, step);
 
   return Array.from({ length: count }, (_, i) => {
     const left = cardLeft(i, focused, gutter, step);
-    // Arc from symmetric strip positions — gutter is spacing only, not tilt bias.
-    const symmetricCenterX = i * step + CARD_WIDTH / 2 - scrollOffset;
+    const symmetricCenterX = i * step + cardWidth / 2 - scrollOffset;
     const distFromCenter = symmetricCenterX - handCenterX;
     const norm = Math.max(-1, Math.min(1, distFromCenter / normSpan));
     const absNorm = Math.min(1, Math.abs(norm));
 
     const angle = norm * MAX_ANGLE;
-    const bottom = MAX_CENTER_LIFT * (1 - absNorm * absNorm);
+    const bottom = maxCenterLift * (1 - absNorm * absNorm);
     const scale =
       SIDE_SCALE_MIN + (1 - absNorm) * (FOCUS_SCALE - SIDE_SCALE_MIN);
 
@@ -228,14 +263,19 @@ function computeCarouselSlots(
   });
 }
 
-function pivotAroundBottom(angleDeg: number, scale = 1): ViewStyle["transform"] {
+function pivotAroundBottom(
+  angleDeg: number,
+  cardWidth: number,
+  cardHeight: number,
+  scale = 1,
+): ViewStyle["transform"] {
   return [
-    { translateX: CARD_WIDTH / 2 },
-    { translateY: CARD_HEIGHT },
+    { translateX: cardWidth / 2 },
+    { translateY: cardHeight },
     { rotate: `${angleDeg}deg` },
     { scale },
-    { translateX: -CARD_WIDTH / 2 },
-    { translateY: -CARD_HEIGHT },
+    { translateX: -cardWidth / 2 },
+    { translateY: -cardHeight },
   ];
 }
 
@@ -251,6 +291,19 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   ref,
 ) {
   const { width: windowWidth } = useWindowDimensions();
+  const { height: shellHeight } = useVisualViewportSize();
+  const handMetrics = useMemo(
+    () => resolveHandMetrics(shellHeight),
+    [shellHeight],
+  );
+  const cardWidth = handMetrics.cardWidth;
+  const cardHeight = handMetrics.cardHeight;
+  const fanHeight = handMetrics.fanHeight;
+  const fanHeadroom = fanHeight - cardHeight;
+  const maxCenterLift = Math.round(
+    MAX_CENTER_LIFT * (cardHeight / BASE_CARD_HEIGHT),
+  );
+
   const [measuredWidth, setMeasuredWidth] = useState(windowWidth);
   const [scrollOffset, setScrollOffset] = useState(0);
 
@@ -261,26 +314,33 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   const [pressedIndex, setPressedIndex] = useState<number | null>(null);
 
   const step = useMemo(
-    () => carouselStep(cards.length, layoutWidth),
-    [cards.length, layoutWidth],
+    () => carouselStep(cards.length, layoutWidth, cardWidth),
+    [cards.length, layoutWidth, cardWidth],
   );
 
   const bounds = useMemo(
-    () => scrollBounds(cards.length, layoutWidth, step),
-    [cards.length, layoutWidth, step],
+    () => scrollBounds(cards.length, layoutWidth, step, cardWidth),
+    [cards.length, layoutWidth, step, cardWidth],
   );
 
   const stripWidth = useMemo(
     () =>
       cards.length === 0
         ? layoutWidth
-        : (cards.length - 1) * step + CARD_WIDTH + CENTER_GUTTER * 2,
-    [cards.length, layoutWidth, step],
+        : (cards.length - 1) * step + cardWidth + CENTER_GUTTER * 2,
+    [cards.length, layoutWidth, step, cardWidth],
   );
 
   const focusedIndex = useMemo(
-    () => focusedCardIndex(cards.length, layoutWidth, scrollOffset, step),
-    [cards.length, layoutWidth, scrollOffset, step],
+    () =>
+      focusedCardIndex(
+        cards.length,
+        layoutWidth,
+        scrollOffset,
+        step,
+        cardWidth,
+      ),
+    [cards.length, layoutWidth, scrollOffset, step, cardWidth],
   );
 
   /** Which card is visually centred / expanded in the fan */
@@ -293,9 +353,19 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
         layoutWidth,
         scrollOffset,
         step,
+        cardWidth,
+        maxCenterLift,
         displayFocusIndex,
       ),
-    [cards.length, layoutWidth, scrollOffset, step, displayFocusIndex],
+    [
+      cards.length,
+      layoutWidth,
+      scrollOffset,
+      step,
+      cardWidth,
+      maxCenterLift,
+      displayFocusIndex,
+    ],
   );
 
   useEffect(() => {
@@ -311,6 +381,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   const boundsRef = useRef(bounds);
   const layoutWidthRef = useRef(layoutWidth);
   const stepRef = useRef(step);
+  const cardWidthRef = useRef(cardWidth);
   const cardCountRef = useRef(-1);
   const anchorRankRef = useRef<number | null>(null);
   const anchorIndexRef = useRef(0);
@@ -322,6 +393,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   boundsRef.current = bounds;
   layoutWidthRef.current = layoutWidth;
   stepRef.current = step;
+  cardWidthRef.current = cardWidth;
 
   useEffect(() => {
     const id = scrollX.addListener(({ value }) => {
@@ -353,26 +425,25 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     if (prev === next) return;
 
     const w = layoutWidthRef.current;
-    const s = carouselStep(next, w);
+    const cw = cardWidthRef.current;
+    const s = carouselStep(next, w, cw);
     stepRef.current = s;
-    const b = scrollBounds(next, w, s);
+    const b = scrollBounds(next, w, s, cw);
     boundsRef.current = b;
 
     if (prev < 0 || next > prev) {
-      // Fresh deal or hand grew — centre the middle card in the hand area
       const middle = Math.floor((next - 1) / 2);
-      const targetScroll = scrollToCenterCard(middle, w, s);
+      const targetScroll = scrollToCenterCard(middle, w, s, cw);
       applyScroll(clampScroll(targetScroll, b.min, b.max));
       anchorRankRef.current = cards[middle]?.value ?? cards[0]?.value ?? null;
       anchorIndexRef.current = middle;
     } else {
-      // Card played — stay near the same rank band
       const target = indexAfterPlay(
         cards,
         anchorRankRef.current,
         anchorIndexRef.current,
       );
-      const targetScroll = scrollToCenterCard(target, w, s);
+      const targetScroll = scrollToCenterCard(target, w, s, cw);
       applyScroll(clampScroll(targetScroll, b.min, b.max));
       anchorRankRef.current = cards[target]?.value ?? null;
       anchorIndexRef.current = target;
@@ -430,6 +501,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
             min,
             max,
             stepRef.current,
+            cardWidthRef.current,
           );
 
           scrollRef.current = snapped;
@@ -464,9 +536,10 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     if (cards.length === 0) return;
     const target = Math.max(0, Math.min(index, cards.length - 1));
     const w = layoutWidthRef.current;
+    const cw = cardWidthRef.current;
     const s = stepRef.current;
     const b = boundsRef.current;
-    const targetScroll = scrollToCenterCard(target, w, s);
+    const targetScroll = scrollToCenterCard(target, w, s, cw);
     const clamped = clampScroll(targetScroll, b.min, b.max);
     scrollRef.current = clamped;
     scrollX.stopAnimation();
@@ -512,16 +585,20 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
 
       const count = cardsLengthRef.current;
       const w = layoutWidthRef.current;
+      const cw = cardWidthRef.current;
       const s = stepRef.current;
       const { min, max } = boundsRef.current;
 
-      // One wheel notch = exactly one card (scroll down → next card to the right)
       const direction = delta > 0 ? 1 : -1;
-      const currentIndex = focusedCardIndex(count, w, scrollRef.current, s);
+      const currentIndex = focusedCardIndex(count, w, scrollRef.current, s, cw);
       const nextIndex = Math.max(0, Math.min(count - 1, currentIndex + direction));
       if (nextIndex === currentIndex) return;
 
-      const snapped = clampScroll(scrollToCenterCard(nextIndex, w, s), min, max);
+      const snapped = clampScroll(
+        scrollToCenterCard(nextIndex, w, s, cw),
+        min,
+        max,
+      );
       scrollRef.current = snapped;
       scrollX.stopAnimation();
       Animated.spring(scrollX, {
@@ -542,7 +619,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   return (
     <View
       ref={handOuterRef}
-      style={styles.handOuter}
+      style={[styles.handOuter, { height: fanHeight }]}
       onLayout={onLayout}
       {...(cards.length > 1 ? panResponder.panHandlers : {})}
     >
@@ -551,6 +628,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
           styles.fanStrip,
           {
             width: Math.max(stripWidth, layoutWidth),
+            height: cardHeight + fanHeadroom,
             transform: [{ translateX: Animated.multiply(scrollX, -1) }],
           },
         ]}
@@ -572,13 +650,20 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                 {
                   left: slot.left,
                   bottom: slot.bottom,
+                  width: cardWidth,
+                  height: cardHeight,
                   zIndex: isSelected
                     ? 2000 + slot.zIndex
                     : isPressed || index === pendingFocusIndex
                       ? 2500 + index
                       : slot.zIndex,
                   opacity: isSelected ? 1 : slot.opacity,
-                  transform: pivotAroundBottom(slot.angle, slot.scale),
+                  transform: pivotAroundBottom(
+                    slot.angle,
+                    cardWidth,
+                    cardHeight,
+                    slot.scale,
+                  ),
                 },
               ]}
               onTouchStart={() => setPressedIndex(index)}
@@ -593,6 +678,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                 flash={index === startingCardIndex}
                 disabled={disabled || !isPlayable}
                 onPress={() => handleCardPress(index)}
+                style={{ width: cardWidth, height: cardHeight }}
               />
             </View>
           );
@@ -607,18 +693,14 @@ export default PlayerHand;
 const styles = StyleSheet.create({
   handOuter: {
     width: "100%",
-    height: HAND_FAN_HEIGHT,
     overflow: "visible",
   },
   fanStrip: {
     position: "absolute",
     left: 0,
     bottom: FAN_BOTTOM_PADDING,
-    height: CARD_HEIGHT + FAN_HEADROOM,
   },
   cardSlot: {
     position: "absolute",
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
   },
 });

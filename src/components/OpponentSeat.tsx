@@ -22,9 +22,9 @@ import {
   COUNT_BADGE_PADDING_H,
   dealStackCenterInAvatarWrap,
   seatMiniCardDimensions,
-  useSeatDimensions,
   type SeatDimensions,
 } from "../utils/seatDimensions";
+import { useSeatDimensions } from "../hooks/useSeatDimensions";
 import { ceremonyCardCornerRadius } from "./cardDimensions";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";

@@ -13,6 +13,13 @@ import { triggerHaptic } from "../utils/haptics";
 import { useAppTheme } from "../context/ThemeContext";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import { hexToRgba } from "../utils/colorTheory";
+import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
+import {
+  resolveActionBarHeight,
+  resolveActionButtonMinHeight,
+  resolveActionTrackGap,
+  resolveCompactHeightTier,
+} from "../utils/compactGameLayout";
 
 /** Fixed height budget for bottom-bar layout math (see GameScreen). */
 export const ACTION_BAR_HEIGHT = 98;
@@ -62,7 +69,13 @@ export default function ActionBar({
   const passTurnBgHigh = isLight
     ? hexToRgba(colors.textPrimary, 0.08)
     : "rgba(255,255,255,0.11)";
-  const { width } = useWindowDimensions();
+  const { width, height: shellHeight } = useWindowDimensions();
+  const viewport = useVisualViewportSize();
+  const tier = resolveCompactHeightTier(viewport.height || shellHeight);
+  const actionBarHeight = resolveActionBarHeight(tier);
+  const buttonMinHeight = resolveActionButtonMinHeight(tier);
+  const actionTrackGap = resolveActionTrackGap(tier);
+  const containerGap = tier === "veryTight" || tier === "tight" ? 8 : 12;
   const barWidth = Math.min(width - 32, 440);
 
   const turnGlow = useRef(new Animated.Value(0)).current;
@@ -182,12 +195,18 @@ export default function ActionBar({
       : playIdleBg;
 
   return (
-    <View style={[styles.container, { width: barWidth, maxWidth: barWidth }]}>
+    <View
+      style={[
+        styles.container,
+        { width: barWidth, maxWidth: barWidth, gap: containerGap, minHeight: actionBarHeight },
+      ]}
+    >
       {!leaveOnly ? (
-      <View style={styles.actionTrack}>
+      <View style={[styles.actionTrack, { gap: actionTrackGap, minHeight: buttonMinHeight }]}>
         <AnimatedTouchable
           style={[
             styles.passButton,
+            { minHeight: buttonMinHeight },
             passDisabled && styles.buttonMuted,
             showPassFlash && styles.passButtonFlash,
             {
@@ -244,6 +263,7 @@ export default function ActionBar({
         <AnimatedTouchable
           style={[
             styles.playButton,
+            { minHeight: buttonMinHeight },
             playDisabled && styles.buttonMuted,
             playReady && styles.playButtonReady,
             isPlayerTurn && !playDisabled && !playReady && styles.playButtonTurn,

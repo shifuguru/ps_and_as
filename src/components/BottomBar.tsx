@@ -11,12 +11,8 @@ import { createPortal } from "react-dom";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import BlurPanel from "./BlurPanel";
 import { ACTION_BAR_HEIGHT } from "./ActionBar";
-import { HAND_FAN_HEIGHT } from "./PlayerHand";
-import {
-  LOCAL_SEAT_BAND,
-  resolveLocalSeatTableLift,
-  type PlayAreaLayout,
-} from "../utils/tableLayout";
+import { HAND_FAN_HEIGHT as DEFAULT_HAND_FAN_HEIGHT } from "./PlayerHand";
+import { resolveBottomChromeMetrics } from "../utils/compactGameLayout";
 import { getWebBodyPortalHost } from "../utils/webBodyPortal";
 import {
   isMobileWeb,
@@ -74,51 +70,21 @@ export function menuBottomReserve(safeBottom = 0): number {
 export function reservedBottomHeight(
   safeBottom = 0,
   handVisible = true,
+  shellHeight?: number,
 ): number {
   const outerPad = bottomOuterPad(safeBottom);
+  if (shellHeight != null && shellHeight > 0) {
+    return resolveBottomChromeMetrics(
+      shellHeight,
+      safeBottom,
+      handVisible,
+      outerPad,
+    ).reservedHeight;
+  }
   const handSection = handVisible
-    ? HAND_FAN_HEIGHT + HAND_ZONE_TOP_CLEARANCE + HAND_CONTROLS_GAP + 2
+    ? DEFAULT_HAND_FAN_HEIGHT + HAND_ZONE_TOP_CLEARANCE + HAND_CONTROLS_GAP + 2
     : 0;
   return 8 + handSection + BOTTOM_CONTROLS_HEIGHT + 4 + outerPad;
-}
-
-/** How far below the top of the bottom sheet the local seat sits (tune for felt/hand gap). */
-export const LOCAL_SEAT_DROP_FROM_BAR_TOP = 40;
-
-/** Screen-bottom offset for the local player avatar — just above the hand / action bar. */
-export function localSeatBottomOffset(
-  safeBottom = 0,
-  handVisible = true,
-  playAreaLayout?: Pick<
-    PlayAreaLayout,
-    "height" | "cardZoneTop" | "cardZoneHeight"
-  > | null,
-  localSeatHeight = LOCAL_SEAT_BAND,
-): number {
-  const reserved = reservedBottomHeight(safeBottom, handVisible);
-  const lift = resolveLocalSeatTableLift(playAreaLayout?.height ?? 0);
-  let bottom = reserved - LOCAL_SEAT_DROP_FROM_BAR_TOP + lift;
-
-  const minBottom = reserved - LOCAL_SEAT_DROP_FROM_BAR_TOP + 2;
-
-  if (
-    playAreaLayout &&
-    playAreaLayout.height > 0 &&
-    playAreaLayout.cardZoneHeight > 0
-  ) {
-    const cardZoneBottom =
-      playAreaLayout.cardZoneTop + playAreaLayout.cardZoneHeight;
-    const clearanceBelowZone = 6;
-    const maxBottom =
-      reserved +
-      playAreaLayout.height -
-      cardZoneBottom -
-      clearanceBelowZone -
-      localSeatHeight;
-    bottom = Math.max(minBottom, Math.min(bottom, maxBottom));
-  }
-
-  return bottom;
 }
 
 type Props = {
@@ -173,17 +139,19 @@ export default function BottomBar({
 export function BottomBarHand({
   children,
   height,
+  controlsGap = HAND_CONTROLS_GAP,
   style,
 }: {
   children?: React.ReactNode;
   height: number;
+  controlsGap?: number;
   style?: StyleProp<object>;
 }) {
   return (
     <View
       style={[
         styles.handZone,
-        { height, marginBottom: HAND_CONTROLS_GAP },
+        { height, marginBottom: controlsGap },
         style,
       ]}
     >

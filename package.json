@@ -14,7 +14,8 @@
     "test-edge": "npx tsx ./scripts/test-edge-cases.ts",
     "test-runs": "tsx ./scripts/test-run-detection.ts",
     "bump-version": "node ./scripts/bump-version.js",
-    "test-multiplayer": "node ./scripts/test-multiplayer.mjs"
+    "test-multiplayer": "node ./scripts/test-multiplayer.mjs",
+    "print-game-budget": "npx tsx ./scripts/print-game-budget.ts"
   },
   "dependencies": {
     "@expo-google-fonts/pinyon-script": "^0.4.1",
