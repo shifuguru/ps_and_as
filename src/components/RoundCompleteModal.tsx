@@ -12,11 +12,11 @@ import {
 import BlurPanel from "./BlurPanel";
 import { triggerHaptic } from "../utils/haptics";
 import { useAppTheme } from "../context/ThemeContext";
-import PresidentRewardCelebration from "./PresidentRewardCelebration";
 import AccentBorderButton from "./AccentBorderButton";
 
 import { roleEmoji, roleForPlacement } from "../utils/roundRoles";
 import { livingFinishedOrder } from "../game/deadHand";
+import { hexToRgba } from "../utils/colorTheory";
 
 type Player = { id: string; name: string; isDeadHand?: boolean };
 
@@ -204,10 +204,11 @@ export default function RoundCompleteModal({
                   style={[styles.rankRow, isLocal && styles.rankRowLocal, isPresident && styles.rankRowPresident]}
                 >
                   {isPresident ? (
-                    <PresidentRewardCelebration
-                      active={visible && xpAnimationReady}
-                      rowDelay={index * ROW_STAGGER_MS}
-                    />
+                    <View style={styles.presidentBorderLabelWrap} pointerEvents="none">
+                      <View style={styles.presidentBorderLabel}>
+                        <Text style={styles.presidentBorderLabelText}>PRESIDENT</Text>
+                      </View>
+                    </View>
                   ) : null}
                   <Text style={styles.rankIndex}>{index + 1}</Text>
                   <View style={styles.rankBody}>
@@ -399,6 +400,28 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     fontSize: 11,
     fontWeight: "600",
     letterSpacing: 0.2,
+  },
+  presidentBorderLabelWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: -8,
+    alignItems: "center",
+    zIndex: 1,
+  },
+  presidentBorderLabel: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: hexToRgba(colors.gold, 0.92),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.btnGoldBorder,
+  },
+  presidentBorderLabelText: {
+    color: colors.textOnGold,
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1.4,
   },
   readyBadge: {
     flexShrink: 0,

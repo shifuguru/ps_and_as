@@ -84,6 +84,8 @@ type Props = {
   /** Show nudge bell when this player has taken too long. */
   showTurnBell?: boolean;
   onTurnBellPress?: () => void;
+  /** Anonymous turn-bell nudge — brighter avatar ring for a few seconds. */
+  nudgeHighlighted?: boolean;
   /** Face-down mini-stack during deal ceremony (cards dealt so far). */
   dealtStackCount?: number;
   /** Open player profile / stats card. */
@@ -111,6 +113,7 @@ export default function OpponentSeat({
   isDisconnected = false,
   showTurnBell = false,
   onTurnBellPress,
+  nudgeHighlighted = false,
   dealtStackCount = 0,
   onAvatarPress,
 }: Props) {
@@ -119,6 +122,7 @@ export default function OpponentSeat({
   const hookDims = useSeatDimensions(layoutWidth);
   const dims = seatDimsProp ?? hookDims;
   const pulse = useRef(new Animated.Value(0)).current;
+  const nudgePulse = useRef(new Animated.Value(0)).current;
   const initials = playerInitials(player.name);
   const role = roleEmoji(player.role);
 
@@ -148,6 +152,33 @@ export default function OpponentSeat({
     return () => loop.stop();
   }, [isActive, isOut, pulse]);
 
+  useEffect(() => {
+    if (!nudgeHighlighted || !isActive || isOut) {
+      nudgePulse.stopAnimation();
+      nudgePulse.setValue(0);
+      return;
+    }
+    nudgePulse.setValue(1);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(nudgePulse, {
+          toValue: 0,
+          duration: 450,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(nudgePulse, {
+          toValue: 1,
+          duration: 450,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [nudgeHighlighted, isActive, isOut, nudgePulse]);
+
   const ringScale = pulse.interpolate({
     inputRange: [0, 1],
     outputRange: [1, 1.12],
@@ -176,6 +207,43 @@ export default function OpponentSeat({
     inputRange: [0, 1],
     outputRange: [0.18, 0.52],
   });
+
+  const nudgeRingScale = nudgePulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1.08, 1.22],
+  });
+  const nudgeRingOpacity = nudgePulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.95, 1],
+  });
+  const nudgeCoreOpacity = nudgePulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.82, 1],
+  });
+  const nudgeGlowScale = nudgePulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1.1, 1.24],
+  });
+  const nudgeGlowOpacity = nudgePulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.72, 1],
+  });
+  const nudgeHaloScale = nudgePulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1.14, 1.32],
+  });
+  const nudgeHaloOpacity = nudgePulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.48, 0.92],
+  });
+
+  const activeHaloScale = nudgeHighlighted ? nudgeHaloScale : haloScale;
+  const activeHaloOpacity = nudgeHighlighted ? nudgeHaloOpacity : haloOpacity;
+  const activeGlowScale = nudgeHighlighted ? nudgeGlowScale : glowScale;
+  const activeGlowOpacity = nudgeHighlighted ? nudgeGlowOpacity : glowOpacity;
+  const activeRingScale = nudgeHighlighted ? nudgeRingScale : ringScale;
+  const activeRingOpacity = nudgeHighlighted ? nudgeRingOpacity : ringOpacity;
+  const activeCoreOpacity = nudgeHighlighted ? nudgeCoreOpacity : coreOpacity;
 
   const avatarSize = avatarSizeForSeat(dims, { compact, isLocal });
   const turnHaloPad = 30;
@@ -254,8 +322,8 @@ export default function OpponentSeat({
                 borderRadius: (avatarSize + turnHaloPad) / 2,
                 left: -turnHaloPad / 2,
                 top: -turnHaloPad / 2,
-                transform: [{ scale: haloScale }],
-                opacity: haloOpacity,
+                transform: [{ scale: activeHaloScale }],
+                opacity: activeHaloOpacity,
               },
             ]}
             pointerEvents="none"
@@ -269,8 +337,8 @@ export default function OpponentSeat({
                 borderRadius: (avatarSize + turnGlowPad) / 2,
                 left: -turnGlowPad / 2,
                 top: -turnGlowPad / 2,
-                transform: [{ scale: glowScale }],
-                opacity: glowOpacity,
+                transform: [{ scale: activeGlowScale }],
+                opacity: activeGlowOpacity,
               },
             ]}
             pointerEvents="none"
@@ -284,8 +352,8 @@ export default function OpponentSeat({
                 borderRadius: (avatarSize + turnRingPad) / 2,
                 left: -turnRingPad / 2,
                 top: -turnRingPad / 2,
-                transform: [{ scale: ringScale }],
-                opacity: ringOpacity,
+                transform: [{ scale: activeRingScale }],
+                opacity: activeRingOpacity,
               },
             ]}
             pointerEvents="none"
@@ -299,8 +367,8 @@ export default function OpponentSeat({
                 borderRadius: (avatarSize + turnCorePad) / 2,
                 left: -turnCorePad / 2,
                 top: -turnCorePad / 2,
-                transform: [{ scale: ringScale }],
-                opacity: coreOpacity,
+                transform: [{ scale: activeRingScale }],
+                opacity: activeCoreOpacity,
               },
             ]}
             pointerEvents="none"
@@ -397,6 +465,7 @@ export default function OpponentSeat({
                   top: i * 2,
                   width: miniCardW,
                   height: miniCardH,
+                  zIndex: i,
                 },
               ]}
             >

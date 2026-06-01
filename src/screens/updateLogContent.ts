@@ -32,6 +32,17 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-01T22:27"),
+    title: "Dealing, hand hints & layout",
+    items: [
+      "Deal ceremony — when you're dealer, shuffle and the remaining deck play in your hand zone; cards peel off and fly with natural pacing (slower at the start and finish)",
+      "Scroll hints — when a valid play is off-screen, glass chevrons appear at the edges of your hand; tap to jump to the nearest hidden card",
+      "Smaller screens — hand fan, action bar, and seat ring scale down on short phones so the table stays readable",
+      "Fix: on-top plays after a 10 correctly remember higher or lower for validation",
+      "Round end — president row shows a clean gold label on the scoreboard",
+    ],
+  },
+  {
     publishedAt: nzst("2026-05-30T22:29"),
     title: "Runs, trades & XP",
     items: [

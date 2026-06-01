@@ -22,8 +22,12 @@ import {
 import { useAppTheme } from "../context/ThemeContext";
 import { useInWebOverlayPortal } from "./WebModalPortal";
 
+/** Space between the top of the bottom bar and the Pass / Play row */
+export const BOTTOM_CONTROLS_TOP_PAD = 12;
+
 /** Height of controls below the hand (ActionBar + padding). Keep in sync with ActionBar. */
-export const BOTTOM_CONTROLS_HEIGHT = ACTION_BAR_HEIGHT + 16;
+export const BOTTOM_CONTROLS_HEIGHT =
+  ACTION_BAR_HEIGHT + BOTTOM_CONTROLS_TOP_PAD + 16;
 
 /** Space for the centered leave pill below an action track (gap + button). */
 export const BOTTOM_LEAVE_ROW_HEIGHT = 48;
@@ -235,14 +239,14 @@ const styles = StyleSheet.create({
   },
   handZone: {
     width: "100%",
-    overflow: "visible",
+    overflow: "hidden",
     justifyContent: "flex-end",
     paddingTop: 0,
   },
   controls: {
     width: "100%",
     paddingHorizontal: 16,
-    paddingTop: 0,
+    paddingTop: BOTTOM_CONTROLS_TOP_PAD,
     paddingBottom: 4,
   },
 });

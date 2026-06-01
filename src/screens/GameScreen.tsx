@@ -8,7 +8,7 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Platform, LayoutChangeEvent } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Platform, LayoutChangeEvent, useWindowDimensions } from "react-native";
 import {
   createGame,
   createGameFromLobby,
@@ -38,6 +38,7 @@ import {
   runLengthFromCompletedTrick,
   runTrickBonusXpAmount,
   activeRunXpPoolInfo,
+  resolveEffectiveTenRule,
 } from "../game/core";
 import {
   allTradesCompleted,
@@ -87,7 +88,7 @@ import {
 import { fetchCloudPlayerStats, pushCloudPlayerStats } from "../services/playerStatsCloud";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
-import { resolveHandMetrics } from "../utils/compactGameLayout";
+import { resolveHandMetrics, localHandShuffleScreenCenter } from "../utils/compactGameLayout";
 import { useGamePreferences } from "../hooks/useGamePreferences";
 import { getSkipDealAnimationsSync } from "../services/gamePreferences";
 import DebugViewer from "../components/DebugViewer";
@@ -99,6 +100,7 @@ import BottomBar, {
   BottomBarControls,
   BottomBarHand,
   BottomBarLeave,
+  bottomOuterPad,
   reservedBottomHeight,
 } from "../components/BottomBar";
 import PlayerHand, {
@@ -112,7 +114,11 @@ import LeaveGameConfirmModal from "../components/LeaveGameConfirmModal";
 import TenRuleModal from "../components/TenRuleModal";
 import GameTable from "../components/GameTable";
 import GamePlayArea from "../components/GamePlayArea";
-import DealCeremonyOverlay from "../components/DealCeremonyOverlay";
+import DealCeremonyOverlay, {
+  DEAL_CEREMONY_SHUFFLE_MS,
+} from "../components/DealCeremonyOverlay";
+import DealHandStack from "../components/DealHandStack";
+import DealShuffleAnimation from "../components/DealShuffleAnimation";
 import DealerReshuffleButton from "../components/DealerReshuffleButton";
 import RoleTradeModal from "../components/RoleTradeModal";
 import RoleTradeStrip from "../components/RoleTradeStrip";
@@ -137,7 +143,8 @@ import {
   buildDealerContext,
   resolveDealerId,
 } from "../utils/tableSeats";
-import { useSlowTurnBell } from "../hooks/useSlowTurnBell";
+import { useSlowTurnBell, TURN_NUDGE_HIGHLIGHT_MS } from "../hooks/useSlowTurnBell";
+import { formatWaitingForTurnHint } from "../utils/playerDisplay";
 import {
   IOS_BOTTOM_GAP_DEBUG,
   IOS_GAP_DEBUG_COLORS,
@@ -278,6 +285,7 @@ function canCardBePlayedAtAll(
   }
 
   // Check if pile is in an active run — extend with a rank adjacent to pile top.
+  // During a 10-rule on-top beat, higher/lower still governs (not run adjacency).
   const { runMultiplicity, inRunContext } = resolveRunContext(
     pile,
     pileHistory,
@@ -285,8 +293,15 @@ function canCardBePlayedAtAll(
     players,
     finishedOrder || [],
   );
+  const pileIsUniform = pile.length > 0 && pile.every((c) => c.value === pile[0].value);
+  const tenRuleOnTopBeat =
+    !!runOnTop &&
+    !!tenRule?.active &&
+    !!tenRule.direction &&
+    pileIsUniform &&
+    pile[0].value === 10;
 
-  if (inRunContext) {
+  if (inRunContext && !tenRuleOnTopBeat) {
     if (!isAdjacentToPileTop(pile, cardValue)) return false;
     if (sameValue.length < runMultiplicity) return false;
     return matchesValid(sameValue.slice(0, runMultiplicity));
@@ -420,6 +435,9 @@ function GameScreen({
   const [tableRenderKey, setTableRenderKey] = useState(0);
   const prevTrickPauseRef = useRef(trickPauseActive);
   const [roomNotice, setRoomNotice] = useState<string | null>(null);
+  const [nudgeHighlightPlayerId, setNudgeHighlightPlayerId] = useState<
+    string | null
+  >(null);
   const [awayPlayers, setAwayPlayers] = useState<Record<string, AwayPlayer>>({});
   const [playerFeltTints, setPlayerFeltTints] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
@@ -473,6 +491,7 @@ function GameScreen({
   const myPlayerIdRef = useRef<string | null>(null);
   const explicitFeltThemesRef = useRef<Set<string>>(new Set());
   const roomNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nudgeHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handRef = useRef<PlayerHandHandle>(null);
   const fallbackAdapterRef = useRef<MockAdapter | null>(null);
   const lastTrickLenRef = React.useRef<number>(0);
@@ -1087,6 +1106,20 @@ function GameScreen({
     }, 4500);
   }
 
+  const triggerNudgeHighlight = useCallback((targetPlayerId: string) => {
+    if (!targetPlayerId) return;
+    setNudgeHighlightPlayerId(targetPlayerId);
+    if (nudgeHighlightTimerRef.current) {
+      clearTimeout(nudgeHighlightTimerRef.current);
+    }
+    nudgeHighlightTimerRef.current = setTimeout(() => {
+      setNudgeHighlightPlayerId((current) =>
+        current === targetPlayerId ? null : current,
+      );
+      nudgeHighlightTimerRef.current = null;
+    }, TURN_NUDGE_HIGHLIGHT_MS);
+  }, []);
+
   function roomEventMessage(
     playerName: string | undefined,
     eventType: string,
@@ -1172,16 +1205,14 @@ function GameScreen({
     (targetPlayerId: string) => {
       if (!canRingBell(targetPlayerId, myPlayerId)) return;
       registerBellRing();
-      const targetName =
-        state?.players.find((p) => p.id === targetPlayerId)?.name ?? "Player";
-      showRoomNotice(`🔔 Hurry up, ${targetName}!`);
+      triggerNudgeHighlight(targetPlayerId);
       broadcastGameAction({
         type: "turnNudge",
         targetPlayerId,
         fromPlayerId: myPlayerId,
       });
     },
-    [canRingBell, myPlayerId, registerBellRing, state?.players],
+    [canRingBell, myPlayerId, registerBellRing, triggerNudgeHighlight],
   );
 
   // UX pacing: centralized CPU turn delay for a more relaxed feel
@@ -1487,6 +1518,9 @@ function GameScreen({
       if (roomNoticeTimerRef.current) {
         clearTimeout(roomNoticeTimerRef.current);
       }
+      if (nudgeHighlightTimerRef.current) {
+        clearTimeout(nudgeHighlightTimerRef.current);
+      }
       if (lastHandRevealTimerRef.current) {
         clearTimeout(lastHandRevealTimerRef.current);
       }
@@ -1764,9 +1798,10 @@ function GameScreen({
           networkAdapter.requestGameState(roomId);
         }
       } else if (ev.type === "state" && ev.state?.type === "turnNudge") {
-        const fromName = ev.state.fromPlayerName ?? "Someone";
-        const targetName = ev.state.targetPlayerName ?? "Player";
-        showRoomNotice(`🔔 ${fromName}: Hurry up, ${targetName}!`);
+        const targetId = ev.state.targetPlayerId;
+        if (targetId) {
+          triggerNudgeHighlight(targetId);
+        }
       } else if (ev.type === "state" && ev.state?.type === "error") {
         setSyncError(ev.state.message ?? "Could not sync with server");
       } else if (
@@ -1955,7 +1990,7 @@ function GameScreen({
         void fallbackAdapterRef.current?.disconnect();
       }
     };
-  }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId, preferencesLoaded, startLastHandReveal, clearLastHandReveal, forfeitPlayerXp]);
+  }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId, preferencesLoaded, startLastHandReveal, clearLastHandReveal, forfeitPlayerXp, triggerNudgeHighlight]);
 
   useEffect(() => {
     if (!roundOver) {
@@ -2448,6 +2483,7 @@ function GameScreen({
         onBack,
         turnBellPlayerId,
         handleTurnBellPress,
+        nudgeHighlightPlayerId,
         resolveSeatFeltTint,
         scoreboardXpByPlayerId,
         roundXpByPlayerId,
@@ -2543,6 +2579,7 @@ function GameScreenBoard() {
     onBack,
     turnBellPlayerId,
     handleTurnBellPress,
+    nudgeHighlightPlayerId,
     resolveSeatFeltTint,
     scoreboardXpByPlayerId,
     scoreboardRoundXpByPlayerId,
@@ -2665,6 +2702,7 @@ function GameScreenBoard() {
     onBack: (() => void) | undefined;
     turnBellPlayerId: string | null;
     handleTurnBellPress: (playerId: string) => void;
+    nudgeHighlightPlayerId: string | null;
     resolveSeatFeltTint: (player: { id: string; name: string }) => string | undefined;
     scoreboardXpByPlayerId: Record<string, number>;
     scoreboardRoundXpByPlayerId: Record<string, number>;
@@ -2678,8 +2716,22 @@ function GameScreenBoard() {
   const [ceremonyDealCounts, setCeremonyDealCounts] = useState<
     Record<string, number>
   >({});
+  const [ceremonyDealProgress, setCeremonyDealProgress] = useState<{
+    phase: "shuffle" | "deal" | "trade" | "done";
+    dealRound: number;
+    flightActive: boolean;
+  }>({ phase: "done", dealRound: 0, flightActive: false });
   const [ceremonyStatusText, setCeremonyStatusText] = useState<string | null>(
     null,
+  );
+  const ceremonyControlsRef = useRef<{ completeShuffle: () => void } | null>(
+    null,
+  );
+  const handleCeremonyControls = useCallback(
+    (controls: { completeShuffle: () => void }) => {
+      ceremonyControlsRef.current = controls;
+    },
+    [],
   );
   const { ui, blur } = useAppTheme();
   const playAreaHostRef = useRef<View>(null);
@@ -2844,6 +2896,32 @@ function GameScreenBoard() {
     ceremonyDealerContext,
   );
   const isCeremonyDealer = !!(myPlayerId && ceremonyDealerId === myPlayerId);
+  const ceremonyTotalCards = useMemo(() => {
+    if (!ceremonyPrep) return FULL_DECK_SIZE;
+    return ceremonyPrep.players.reduce(
+      (sum, p) =>
+        sum +
+        (isDeadHandPlayer(p)
+          ? (p.sidelinedHand?.length ?? p.hand.length)
+          : p.hand.length),
+      0,
+    );
+  }, [ceremonyPrep]);
+  const showLocalDealerHandZone =
+    !!ceremonyPrep &&
+    isCeremonyDealer &&
+    (ceremonyDealProgress.phase === "shuffle" ||
+      ceremonyDealProgress.phase === "deal");
+  const localDealStackCount = useMemo(() => {
+    if (!showLocalDealerHandZone) return 0;
+    const { phase, dealRound, flightActive } = ceremonyDealProgress;
+    if (phase === "shuffle") return ceremonyTotalCards;
+    if (phase !== "deal") return 0;
+    return Math.max(
+      0,
+      ceremonyTotalCards - dealRound - (flightActive ? 1 : 0),
+    );
+  }, [showLocalDealerHandZone, ceremonyDealProgress, ceremonyTotalCards]);
   const playCenterLayout = ceremonyPlayAreaLayout ?? playAreaLayout;
   let current = state.players[state.currentPlayerIndex];
   if (!current && inCeremony) {
@@ -2925,13 +3003,14 @@ function GameScreenBoard() {
     !!state.runOnTop?.active &&
     state.runOnTop.playerIndex === state.currentPlayerIndex;
   const humanRunOnTopTurn = runOnTopActive && currentIsLocalHuman;
+  const effectiveTenRule = resolveEffectiveTenRule(state);
 
   const selectedCanPlay =
     selectedCards.length > 0 &&
     isValidPlay(
       selectedCards,
       state.pile,
-      state.tenRule,
+      effectiveTenRule,
       state.pileHistory,
       state.trickHistory,
       state.fourOfAKindChallenge,
@@ -2948,7 +3027,7 @@ function GameScreenBoard() {
       card.value,
       hand,
       state.pile,
-      state.tenRule,
+      effectiveTenRule,
       state.pileHistory,
       state.trickHistory,
       state.currentTrick,
@@ -3160,15 +3239,43 @@ function GameScreenBoard() {
   };
 
   const handVisible = hand.length > 0;
-  const handInBottomBar = handVisible && !gameplayLocked;
+  const localCeremonyDeal = !!(ceremonyPrep && humanPlayer);
   const localPlayerOut =
     !!humanPlayer && state.finishedOrder.includes(humanPlayer.id);
+  const handInBottomBar = handVisible && !gameplayLocked;
   /** Keep bottom chrome height stable when the local player is out (hand hidden). */
-  const handReserveActive = handInBottomBar || localPlayerOut;
-  const { height: viewportHeight } = useVisualViewportSize();
+  const handReserveActive =
+    handInBottomBar || localPlayerOut || showLocalDealerHandZone;
+  const { height: viewportHeight, width: shellWidth } = useVisualViewportSize();
+  const windowWidth = useWindowDimensions().width;
   const handMetrics = useMemo(
     () => resolveHandMetrics(viewportHeight),
     [viewportHeight],
+  );
+  const localHandDealTarget = useMemo(() => {
+    if (!localCeremonyDeal || !isCeremonyDealer) return null;
+    return localHandShuffleScreenCenter(
+      shellWidth || windowWidth,
+      viewportHeight,
+      bottomOuterPad(insets.bottom),
+    );
+  }, [
+    localCeremonyDeal,
+    isCeremonyDealer,
+    shellWidth,
+    windowWidth,
+    viewportHeight,
+    insets.bottom,
+  ]);
+  const localHandDealCardSize = useMemo(
+    () =>
+      localCeremonyDeal && isCeremonyDealer
+        ? {
+            width: handMetrics.cardWidth,
+            height: handMetrics.cardHeight,
+          }
+        : null,
+    [localCeremonyDeal, isCeremonyDealer, handMetrics.cardWidth, handMetrics.cardHeight],
   );
   const bottomBarHeight = reservedBottomHeight(
     insets.bottom || 0,
@@ -3423,25 +3530,19 @@ function GameScreenBoard() {
       }
     }
 
-    const countLabel = inRunContext
-      ? runMultiplicity === 1
-        ? "Singles"
-        : runMultiplicity === 2
+    const playCount = inRunContext ? runMultiplicity : state.pile.length;
+    const countLabel =
+      playCount === 1
+        ? null
+        : playCount === 2
           ? "Doubles"
-          : runMultiplicity === 3
+          : playCount === 3
             ? "Triples"
-            : runMultiplicity === 4
+            : playCount === 4
               ? "Quads"
-              : `${runMultiplicity}x`
-      : state.pile.length === 1
-        ? "Singles"
-        : state.pile.length === 2
-          ? "Doubles"
-          : state.pile.length === 3
-            ? "Triples"
-            : state.pile.length === 4
-              ? "Quads"
-              : `${state.pile.length} Of a Kind`;
+              : inRunContext
+                ? `${playCount}x`
+                : `${playCount} Of a Kind`;
 
     return { countLabel, modifierLabel };
   }
@@ -3469,7 +3570,7 @@ function GameScreenBoard() {
             !roundOver
           ? isHumanTurn
             ? "Your turn"
-            : `Waiting for ${current.name}…`
+            : formatWaitingForTurnHint(current.name)
           : null;
 
   const turnHintFlash = turnHintText === "Your turn";
@@ -3670,6 +3771,7 @@ function GameScreenBoard() {
           disconnectedPlayerIds={disconnectedPlayerIds}
           turnBellPlayerId={turnBellPlayerId}
           onTurnBellPress={handleTurnBellPress}
+          nudgeHighlightPlayerId={nudgeHighlightPlayerId}
           dealtStackCounts={ceremonyPrep ? ceremonyDealCounts : undefined}
           onPlayerPress={handlePlayerProfilePress}
           onPlayAreaMetrics={setLivePlayAreaMetrics}
@@ -3722,6 +3824,34 @@ function GameScreenBoard() {
               disabled={!isHumanTurn}
               onCardPress={handleCardPress}
             />
+          </BottomBarHand>
+        ) : showLocalDealerHandZone ? (
+          <BottomBarHand
+            height={handMetrics.fanHeight + handMetrics.handZoneTopClearance}
+            controlsGap={handMetrics.handControlsGap}
+          >
+            <View style={local.ceremonyHandDeck} pointerEvents="none">
+              {ceremonyDealProgress.phase === "shuffle" ? (
+                <DealShuffleAnimation
+                  embedded
+                  cardW={handMetrics.cardWidth}
+                  cardH={handMetrics.cardHeight}
+                  left={0}
+                  top={0}
+                  deckCount={ceremonyTotalCards}
+                  running
+                  durationMs={DEAL_CEREMONY_SHUFFLE_MS}
+                  onComplete={() => ceremonyControlsRef.current?.completeShuffle()}
+                />
+              ) : localDealStackCount > 0 ? (
+                <DealHandStack
+                  count={localDealStackCount}
+                  cardWidth={handMetrics.cardWidth}
+                  cardHeight={handMetrics.cardHeight}
+                  deckSize={ceremonyTotalCards}
+                />
+              ) : null}
+            </View>
           </BottomBarHand>
         ) : null}
 
@@ -3874,7 +4004,14 @@ function GameScreenBoard() {
         freshRound={!!ceremonyPrep?.baseState.freshRound}
         onDealComplete={handleDealComplete}
         onDealtCountsChange={setCeremonyDealCounts}
+        onDealProgressChange={setCeremonyDealProgress}
         onStatusTextChange={setCeremonyStatusText}
+        localHandShuffleCenter={localHandDealTarget}
+        localHandShuffleCardSize={localHandDealCardSize}
+        localHandDealTarget={localHandDealTarget}
+        localHandDealCardSize={localHandDealCardSize}
+        localDealerDeckInHandZone
+        onCeremonyControls={handleCeremonyControls}
       />
 
       <RoleTradeModal
@@ -4005,6 +4142,12 @@ const local = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.5,
     textTransform: "uppercase",
+  },
+  ceremonyHandDeck: {
+    flex: 1,
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
   },
   statsFab: {
     width: 40,

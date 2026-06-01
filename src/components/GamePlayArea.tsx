@@ -58,6 +58,7 @@ type Props = RingProps & {
   deadHandGraveyard?: boolean;
   turnBellPlayerId?: string | null;
   onTurnBellPress?: (playerId: string) => void;
+  nudgeHighlightPlayerId?: string | null;
   /** Per-player dealt counts during deal ceremony. */
   dealtStackCounts?: Record<string, number>;
   /** Open a player's profile / stats card. */
@@ -95,6 +96,7 @@ export default function GamePlayArea({
   disconnectedPlayerIds = [],
   turnBellPlayerId = null,
   onTurnBellPress,
+  nudgeHighlightPlayerId = null,
   dealtStackCounts,
   onPlayerPress,
   onPlayAreaMetrics,
@@ -407,6 +409,7 @@ export default function GamePlayArea({
             disconnectedPlayerIds={disconnectedPlayerIds}
             turnBellPlayerId={turnBellPlayerId}
             onTurnBellPress={onTurnBellPress}
+            nudgeHighlightPlayerId={nudgeHighlightPlayerId}
             dealtStackCounts={dealtStackCounts}
             onPlayerPress={onPlayerPress}
           />

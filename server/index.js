@@ -1399,10 +1399,7 @@ io.on('connection', (socket) => {
       const target = room.players.find(p => p.id === action.targetPlayerId);
       if (!target) return;
       io.to(roomId).emit('turnNudge', {
-        fromPlayerId: nudger.id,
-        fromPlayerName: nudger.name,
         targetPlayerId: target.id,
-        targetPlayerName: target.name,
       });
       return;
     }

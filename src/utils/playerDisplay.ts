@@ -10,3 +10,20 @@ export function playerInitials(name: string): string {
 
   return trimmed.slice(0, 2).toUpperCase();
 }
+
+/** Table turn-hint / pill labels — keep ellipsis, allow longer names before truncating. */
+export function truncatePillLabel(text: string, maxChars = 24): string {
+  const trimmed = (text || "").trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  return `${trimmed.slice(0, maxChars)}…`;
+}
+
+export function formatWaitingForTurnHint(
+  playerName: string,
+  maxChars = 24,
+): string {
+  const label = truncatePillLabel(playerName, maxChars);
+  return label.endsWith("…")
+    ? `Waiting for ${label}`
+    : `Waiting for ${label}…`;
+}

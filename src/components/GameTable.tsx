@@ -29,6 +29,8 @@ const PLAY_TYPE_BADGE_GAP = 16;
 const PLAY_TYPE_BADGE_HEIGHT = 30;
 /** Gap between the play-type pill and the turn hint pill. */
 const TURN_HINT_GAP = 8;
+/** Approx. width for "Waiting for " + 24-char name + ellipsis (12px font). */
+const TURN_HINT_PILL_MAX_WIDTH = 268;
 /** Run pool badge block height (chips + copy + padding). */
 const RUN_XP_POOL_BADGE_HEIGHT = 54;
 /** Clear space between the run pool badge bottom and the top card edge. */
@@ -97,6 +99,7 @@ export default function GameTable({
   const tableFadeAnim = useRef(new Animated.Value(1)).current;
   const turnHintFlashAnim = useRef(new Animated.Value(0)).current;
   const collectHeldRef = useRef(false);
+  const [stackFaceDown, setStackFaceDown] = useState(false);
 
   const scaleLimits = useMemo(
     () =>
@@ -134,9 +137,11 @@ export default function GameTable({
       // Trick pause ended — always reset so the next trick spreads normally.
       collectHeldRef.current = false;
       collectAnim.setValue(0);
+      setStackFaceDown(false);
       return;
     }
     collectHeldRef.current = false;
+    setStackFaceDown(false);
     collectAnim.setValue(0);
     Animated.timing(collectAnim, {
       toValue: 1,
@@ -146,6 +151,7 @@ export default function GameTable({
     }).start(({ finished }) => {
       if (finished) {
         collectHeldRef.current = true;
+        setStackFaceDown(true);
       }
     });
   }, [collectToStack, collectAnim, collectDurationMs]);
@@ -155,6 +161,7 @@ export default function GameTable({
       collectHeldRef.current = false;
       collectAnim.stopAnimation();
       collectAnim.setValue(0);
+      setStackFaceDown(false);
       tableFadeAnim.stopAnimation();
       tableFadeAnim.setValue(1);
       return;
@@ -298,6 +305,11 @@ export default function GameTable({
     return playTypeBadgeTop;
   }, [zoneSize.height, showPlayTypePills, playTypeBadgeTop]);
 
+  const turnHintMaxWidth = useMemo(() => {
+    if (zoneSize.width <= 0) return TURN_HINT_PILL_MAX_WIDTH;
+    return Math.min(TURN_HINT_PILL_MAX_WIDTH, zoneSize.width - 8);
+  }, [zoneSize.width]);
+
   const showBadgeColumn =
     zoneSize.height > 0 &&
     (showPlayTypePills || !!turnHintText || showRunXpPool);
@@ -415,10 +427,12 @@ export default function GameTable({
                     inputRange: [0, 1],
                     outputRange: [1, playIndex === 0 ? 1 : 0.94],
                   });
-                  const groupOpacity = collectAnim.interpolate({
-                    inputRange: [0, 0.72, 1],
-                    outputRange: [1, playIndex === 0 ? 1 : 0.88, playIndex === 0 ? 1 : 0],
-                  });
+                  /** Keep full opacity while stacking — fade the whole pile after flip. */
+                  const showFaceDown = stackFaceDown || fadeOut;
+                  const stackZIndex =
+                    collectToStack || stackFaceDown || fadeOut
+                      ? (playIndex + 1) * GROUP_Z_STRIDE
+                      : groupZ;
 
                   return (
                     <Animated.View
@@ -437,13 +451,12 @@ export default function GameTable({
                           top: pos.top,
                           width: groupWidth,
                           height: groupHeight,
-                          zIndex: groupZ,
-                          opacity: collectToStack ? groupOpacity : 1,
+                          zIndex: stackZIndex,
                           transform: [
                             { translateX },
                             { translateY },
                             { scale: groupScale },
-                            ...(pos.tier === "buried" && pos.rotation
+                            ...(pos.tier === "buried" && pos.rotation && !collectToStack
                               ? [{ rotate: `${pos.rotation}deg` }]
                               : []),
                           ],
@@ -475,6 +488,7 @@ export default function GameTable({
                               card={card}
                               selected={false}
                               variant="table"
+                              faceDown={showFaceDown}
                               style={{
                                 width: cardW,
                                 height: cardH,
@@ -549,8 +563,19 @@ export default function GameTable({
               >
                 <View style={styles.playTypeBadgeRow}>
                   {playCountLabel ? (
-                    <View style={styles.playTypeBadgeBody}>
-                      <Text numberOfLines={1} style={styles.playTypeBadgeText}>
+                    <View
+                      style={[
+                        styles.playTypeBadgeBody,
+                        styles.playTypeBadgeBodyHighlighted,
+                      ]}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.playTypeBadgeText,
+                          styles.playTypeBadgeTextHighlighted,
+                        ]}
+                      >
                         {playCountLabel}
                       </Text>
                     </View>
@@ -592,6 +617,7 @@ export default function GameTable({
                     style={[
                       styles.turnHintPillBody,
                       styles.turnHintPillFlash,
+                      { maxWidth: turnHintMaxWidth },
                       {
                         backgroundColor: turnHintBackground,
                         borderColor: turnHintBorder,
@@ -599,6 +625,8 @@ export default function GameTable({
                     ]}
                   >
                     <Animated.Text
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
                       style={[
                         styles.turnHintTextLabel,
                         { color: turnHintTextColor },
@@ -608,8 +636,19 @@ export default function GameTable({
                     </Animated.Text>
                   </Animated.View>
                 ) : (
-                  <View style={styles.turnHintPillBody}>
-                    <Text style={styles.turnHintText}>{turnHintText}</Text>
+                  <View
+                    style={[
+                      styles.turnHintPillBody,
+                      { maxWidth: turnHintMaxWidth },
+                    ]}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                      style={styles.turnHintText}
+                    >
+                      {turnHintText}
+                    </Text>
                   </View>
                 )}
               </Animated.View>
@@ -755,6 +794,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.12)",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(255, 255, 255, 0.18)",
+    alignSelf: "center",
+    flexShrink: 0,
+    maxWidth: TURN_HINT_PILL_MAX_WIDTH,
   },
   turnHintPillFlash: Platform.select({
     ios: {
@@ -771,11 +813,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     textAlign: "center",
+    flexShrink: 0,
+    ...(Platform.OS === "web"
+      ? ({ whiteSpace: "nowrap" } as object)
+      : null),
   },
   turnHintTextLabel: {
     fontSize: 12,
     fontWeight: "600",
     textAlign: "center",
+    flexShrink: 0,
+    ...(Platform.OS === "web"
+      ? ({ whiteSpace: "nowrap" } as object)
+      : null),
   },
   runXpPoolBadge: {
     position: "absolute",

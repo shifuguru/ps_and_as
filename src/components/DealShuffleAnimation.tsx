@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import Animated, {
   cancelAnimation,
@@ -12,71 +12,74 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import type { ViewStyle } from "react-native";
-import Card from "./Card";
+import {
+  DealStackPile,
+  handDealStackCenterFrame,
+} from "./DealHandStack";
 
 type Props = {
   cardW: number;
   cardH: number;
-  cornerRadius?: number;
   left: number;
   top: number;
   running: boolean;
   durationMs?: number;
+  deckCount?: number;
   onComplete?: () => void;
+  /** Render inside the bottom hand zone instead of a screen-positioned overlay. */
+  embedded?: boolean;
 };
 
-const CARDS_PER_PACKET = 5;
-const SHUFFLE_CYCLES = 3;
+const SHUFFLE_CYCLES = 4;
 
-function CardPacket({
+function CenteredPile({
   cardW,
   cardH,
-  cornerRadius,
+  count,
+  deckSize,
   style,
 }: {
   cardW: number;
   cardH: number;
-  cornerRadius?: number;
+  count: number;
+  deckSize: number;
   style?: AnimatedStyle<ViewStyle>;
 }) {
+  const frame = useMemo(
+    () => handDealStackCenterFrame(count, cardW, cardH, deckSize),
+    [count, cardW, cardH, deckSize],
+  );
+
   return (
-    <Animated.View style={[styles.packet, style]}>
-      {Array.from({ length: CARDS_PER_PACKET }).map((_, i) => (
-        <View
-          key={i}
-          style={[
-            styles.packetCard,
-            {
-              left: i * 1.8,
-              top: i * 1.2,
-              width: cardW,
-              height: cardH,
-              zIndex: i,
-            },
-          ]}
-        >
-          <Card
-            card={{ suit: "spades", value: 0 }}
-            selected={false}
-            faceDown
-            variant="table"
-            cornerRadius={cornerRadius}
-            onPress={() => {}}
-            style={{ width: cardW, height: cardH }}
-          />
-        </View>
-      ))}
+    <Animated.View
+      style={[
+        styles.pileSlot,
+        {
+          width: frame.width,
+          height: frame.height,
+          marginLeft: frame.left,
+          marginTop: frame.top,
+        },
+        style,
+      ]}
+    >
+      <DealStackPile
+        count={count}
+        cardWidth={cardW}
+        cardHeight={cardH}
+        deckSize={deckSize}
+      />
     </Animated.View>
   );
 }
 
 function riffleWiggleSteps(riffleMs: number) {
-  const riffleTicks = Math.max(3, Math.round(riffleMs / 140));
+  const riffleTicks = Math.max(4, Math.round(riffleMs / 120));
   const steps = [];
   for (let i = 0; i < riffleTicks; i += 1) {
     steps.push(
-      withTiming(1, { duration: 70, easing: Easing.inOut(Easing.quad) }),
-      withTiming(-1, { duration: 70, easing: Easing.inOut(Easing.quad) }),
+      withTiming(1, { duration: 60, easing: Easing.inOut(Easing.quad) }),
+      withTiming(-1, { duration: 60, easing: Easing.inOut(Easing.quad) }),
     );
   }
   return steps;
@@ -85,24 +88,54 @@ function riffleWiggleSteps(riffleMs: number) {
 export default function DealShuffleAnimation({
   cardW,
   cardH,
-  cornerRadius,
   left,
   top,
   running,
-  durationMs = 3600,
+  durationMs = 4800,
+  deckCount = 54,
   onComplete,
+  embedded = false,
 }: Props) {
   const split = useSharedValue(0);
   const riffle = useSharedValue(0);
   const lift = useSharedValue(0);
-  const entry = useSharedValue(0.82);
+  const entry = useSharedValue(0.92);
   const genRef = useRef(0);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
-  const splitX = cardW * 0.48;
-  const baseCenter = -cardW / 2;
-  const packetCenterY = -cardH / 2;
+  const halfCount = Math.max(1, Math.floor(deckCount / 2));
+  const rightCount = deckCount - halfCount;
+  const splitX = cardW * 0.44;
+  const stageFrame = useMemo(
+    () => handDealStackCenterFrame(deckCount, cardW, cardH, deckCount),
+    [deckCount, cardW, cardH],
+  );
+
+  const timing = useMemo(() => {
+    const introMs = 380;
+    const splitOutMs = 520;
+    const mergeInMs = 580;
+    const holdMs = 480;
+    const riffleBudget = Math.max(
+      1600,
+      durationMs - introMs - splitOutMs - mergeInMs - holdMs,
+    );
+    const cycleBudget = riffleBudget / SHUFFLE_CYCLES;
+    const splitMs = Math.round(cycleBudget * 0.32);
+    const riffleMs = Math.round(cycleBudget * 0.4);
+    const mergeCycleMs = Math.round(cycleBudget * 0.28);
+    const riffleStart = introMs + splitOutMs;
+    return {
+      introMs,
+      splitOutMs,
+      mergeInMs,
+      riffleStart,
+      splitMs,
+      riffleMs,
+      mergeCycleMs,
+    };
+  }, [durationMs]);
 
   useEffect(() => {
     if (!running) return;
@@ -111,61 +144,55 @@ export default function DealShuffleAnimation({
     split.value = 0;
     riffle.value = 0;
     lift.value = 0;
-    entry.value = 0.82;
+    entry.value = 0.92;
 
-    const introMs = 220;
-    const settleMs = 260;
-    const cycleBudget = Math.max(
-      700,
-      (durationMs - introMs - settleMs) / SHUFFLE_CYCLES,
-    );
-    const splitMs = Math.round(cycleBudget * 0.32);
-    const riffleMs = Math.round(cycleBudget * 0.38);
-    const mergeMs = Math.round(cycleBudget * 0.3);
+    const { introMs, splitOutMs, mergeInMs, riffleStart, splitMs, riffleMs, mergeCycleMs } =
+      timing;
 
-    const splitCycle = withSequence(
+    const riffleCycle = withSequence(
+      withTiming(0, {
+        duration: mergeCycleMs,
+        easing: Easing.inOut(Easing.cubic),
+      }),
+      withTiming(0, { duration: riffleMs }),
       withTiming(1, {
         duration: splitMs,
         easing: Easing.out(Easing.cubic),
       }),
-      withTiming(0, {
-        duration: mergeMs,
-        easing: Easing.inOut(Easing.cubic),
-      }),
     );
 
     const liftCycle = withSequence(
+      withTiming(0, { duration: mergeCycleMs }),
       withTiming(1, {
-        duration: splitMs,
+        duration: splitMs * 0.85,
         easing: Easing.out(Easing.quad),
       }),
       withTiming(0, {
-        duration: mergeMs,
-        easing: Easing.inOut(Easing.cubic),
+        duration: riffleMs,
+        easing: Easing.inOut(Easing.quad),
       }),
     );
 
     const riffleWiggleCycle = withSequence(
-      withTiming(0, { duration: splitMs }),
+      withTiming(0, { duration: mergeCycleMs }),
       ...riffleWiggleSteps(riffleMs),
-      withTiming(0, { duration: mergeMs }),
+      withTiming(0, { duration: splitMs }),
     );
 
     entry.value = withTiming(1, {
       duration: introMs,
-      easing: Easing.out(Easing.back(1.4)),
+      easing: Easing.out(Easing.cubic),
     });
 
-    split.value = withDelay(
-      introMs,
-      withRepeat(splitCycle, SHUFFLE_CYCLES, false),
+    split.value = withSequence(
+      withDelay(introMs, withTiming(1, { duration: splitOutMs, easing: Easing.inOut(Easing.cubic) })),
+      withRepeat(riffleCycle, SHUFFLE_CYCLES, false),
+      withTiming(0, { duration: mergeInMs, easing: Easing.inOut(Easing.cubic) }),
     );
-    lift.value = withDelay(
-      introMs,
-      withRepeat(liftCycle, SHUFFLE_CYCLES, false),
-    );
+
+    lift.value = withDelay(riffleStart, withRepeat(liftCycle, SHUFFLE_CYCLES, false));
     riffle.value = withDelay(
-      introMs,
+      riffleStart,
       withRepeat(riffleWiggleCycle, SHUFFLE_CYCLES, false),
     );
 
@@ -182,45 +209,109 @@ export default function DealShuffleAnimation({
       cancelAnimation(riffle);
       cancelAnimation(entry);
     };
-  }, [running, durationMs, split, lift, riffle, entry]);
+  }, [running, durationMs, timing, split, lift, riffle, entry]);
 
   const rootStyle = useAnimatedStyle(() => ({
     transform: [{ scale: entry.value }],
   }));
 
+  const fullDeckStyle = useAnimatedStyle(() => {
+    const t = split.value;
+    const visible = t < 0.06 ? 1 : Math.max(0, 1 - (t - 0.06) * 3.5);
+    return { opacity: visible };
+  });
+
+  const halvesStyle = useAnimatedStyle(() => {
+    const t = split.value;
+    const visible = t < 0.04 ? 0 : Math.min(1, t * 2.2);
+    return { opacity: visible };
+  });
+
   const leftStyle = useAnimatedStyle(() => {
-    const translateX =
-      baseCenter + split.value * -splitX + riffle.value * 5;
-    const translateY = lift.value * -cardH * 0.14 + riffle.value * 2;
-    const rotateDeg = -3 + split.value * -13 + riffle.value * 4;
+    const sep = split.value;
+    const translateX = -splitX * sep + riffle.value * 4;
+    const translateY = lift.value * -cardH * 0.12 + riffle.value * 2;
+    const rotateDeg = -2 + sep * -12 + riffle.value * 4;
     return {
-      top: packetCenterY,
-      zIndex: 2,
       transform: [
         { translateX },
         { translateY },
         { rotate: `${rotateDeg}deg` },
       ],
-    } as any;
+    } as ViewStyle;
   });
 
   const rightStyle = useAnimatedStyle(() => {
-    const translateX =
-      baseCenter + split.value * splitX + riffle.value * -5;
+    const sep = split.value;
+    const translateX = splitX * sep + riffle.value * -4;
     const translateY = lift.value * -cardH * 0.1 + riffle.value * -2;
-    const rotateDeg = 3 + split.value * 13 + riffle.value * -4;
+    const rotateDeg = 2 + sep * 12 + riffle.value * -4;
     return {
-      top: packetCenterY,
-      zIndex: 1,
       transform: [
         { translateX },
         { translateY },
         { rotate: `${rotateDeg}deg` },
       ],
-    } as any;
+    } as ViewStyle;
   });
 
   if (!running) return null;
+
+  const stage = (
+    <Animated.View
+      style={[
+        styles.stage,
+        {
+          width: stageFrame.width,
+          height: stageFrame.height,
+          marginLeft: stageFrame.left,
+          marginTop: stageFrame.top,
+        },
+        rootStyle,
+      ]}
+    >
+      <Animated.View style={[styles.pileLayer, fullDeckStyle]}>
+        <DealStackPile
+          count={deckCount}
+          cardWidth={cardW}
+          cardHeight={cardH}
+          deckSize={deckCount}
+        />
+      </Animated.View>
+      <Animated.View style={[styles.pileLayer, halvesStyle]}>
+        <View
+          style={{
+            position: "absolute",
+            left: stageFrame.width / 2,
+            top: stageFrame.height / 2,
+          }}
+        >
+          <CenteredPile
+            cardW={cardW}
+            cardH={cardH}
+            count={halfCount}
+            deckSize={deckCount}
+            style={leftStyle}
+          />
+          <CenteredPile
+            cardW={cardW}
+            cardH={cardH}
+            count={rightCount}
+            deckSize={deckCount}
+            style={rightStyle}
+          />
+        </View>
+      </Animated.View>
+    </Animated.View>
+  );
+
+  if (embedded) {
+    return (
+      <View style={styles.embeddedRoot} pointerEvents="none" collapsable={false}>
+        {stage}
+      </View>
+    );
+  }
 
   return (
     <View
@@ -228,44 +319,32 @@ export default function DealShuffleAnimation({
       pointerEvents="none"
       collapsable={false}
     >
-      <View style={styles.shadow} />
-      <Animated.View style={rootStyle}>
-        <CardPacket
-          cardW={cardW}
-          cardH={cardH}
-          cornerRadius={cornerRadius}
-          style={leftStyle}
-        />
-        <CardPacket
-          cardW={cardW}
-          cardH={cardH}
-          cornerRadius={cornerRadius}
-          style={rightStyle}
-        />
-      </Animated.View>
+      {stage}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    position: "absolute",
-    zIndex: 82,
+  embeddedRoot: {
+    flex: 1,
+    width: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
-  shadow: {
+  root: {
     position: "absolute",
-    width: 72,
-    height: 10,
-    bottom: -6,
-    borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.28)",
+    zIndex: 201,
+    elevation: 201,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  packet: {
-    position: "absolute",
+  stage: {
+    position: "relative",
   },
-  packetCard: {
+  pileLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  pileSlot: {
     position: "absolute",
   },
 });

@@ -84,6 +84,48 @@ export function isDoubleTensPile(pile: Card[]): boolean {
   );
 }
 
+/** Recover higher/lower from the most recent 10 play in the current trick. */
+export function resolveTenRuleDirectionFromTrick(
+  currentTrick?: TrickHistory,
+): "higher" | "lower" | null {
+  if (!currentTrick?.actions?.length) return null;
+  for (let i = currentTrick.actions.length - 1; i >= 0; i--) {
+    const action = currentTrick.actions[i];
+    if (action.type !== "play" || !action.cards?.length) continue;
+    if (action.tenRuleDirection) return action.tenRuleDirection;
+    if (action.cards.some((c) => c.value === 10)) return null;
+  }
+  return null;
+}
+
+/** Ten-rule state for validation — restores direction from the trick during on-top! */
+export function resolveEffectiveTenRule(
+  state: Pick<GameState, "tenRule" | "currentTrick" | "runOnTop" | "pile">,
+): { active: boolean; direction: "higher" | "lower" | null } {
+  if (state.tenRule?.active && state.tenRule.direction) {
+    return state.tenRule;
+  }
+  const recovered = resolveTenRuleDirectionFromTrick(state.currentTrick);
+  const pileIsTen =
+    !!state.pile?.length &&
+    state.pile.every((c) => c.value === state.pile[0].value) &&
+    state.pile[0].value === 10;
+  if (recovered && (state.runOnTop?.active || pileIsTen)) {
+    return { active: true, direction: recovered };
+  }
+  if (state.tenRule?.active) {
+    return state.tenRule;
+  }
+  return { active: false, direction: null };
+}
+
+function syncTenRuleForRunOnTop(state: GameState): void {
+  const effective = resolveEffectiveTenRule(state);
+  if (effective.active && effective.direction) {
+    state.tenRule = effective;
+  }
+}
+
 /** Pile contexts where the leader gets an on-top! turn before the trick clears. */
 export function isOnTopEligiblePile(
   pile: Card[],
@@ -101,7 +143,11 @@ export function isOnTopEligiblePile(
     finishedOrder,
   );
   if (inRunContext) return true;
-  return !!(tenRule?.active && tenRule.direction && pile.length > 0);
+  const direction =
+    tenRule?.active && tenRule.direction
+      ? tenRule.direction
+      : resolveTenRuleDirectionFromTrick(currentTrick);
+  return !!(direction && pile.length > 0);
 }
 
 export type GameState = {
@@ -351,10 +397,19 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     return { ...state };
   }
 
+  const isRunOnTopTurn =
+    state.runOnTop?.active && state.runOnTop.playerIndex === pIndex;
+  const effectiveTenRule = resolveEffectiveTenRule(state);
+
   // If the player already passed in the current trick, they have forfeited
   // the rest of this trick and cannot play again until the pile is cleared
   // and a new trick begins. We check currentTrick actions for a prior pass.
-  if (state.currentTrick && state.currentTrick.actions.some(a => a.type === 'pass' && a.playerId === playerId)) {
+  // The run/10-rule on-top beat is a fresh must-play turn for the leader.
+  if (
+    state.currentTrick &&
+    !isRunOnTopTurn &&
+    state.currentTrick.actions.some(a => a.type === 'pass' && a.playerId === playerId)
+  ) {
     // Player already passed this trick — instead of invoking full
     // `passTurn` (which may finalize the trick immediately), record an
     // additional pass action and advance the turn. This keeps the new pass
@@ -418,7 +473,11 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   const playedTen = containsTen(cards);
   // Tens never trigger higher/lower once a run is declared (including when this
   // play is the third card that completes the run).
-  if (isActiveRun && (state.tenRule?.active || state.tenRulePending)) {
+  if (
+    isActiveRun &&
+    (state.tenRule?.active || state.tenRulePending) &&
+    !isRunOnTopTurn
+  ) {
     state.tenRule = { active: false, direction: null };
     state.tenRulePending = false;
   }
@@ -436,7 +495,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     }
   }
 
-  if (!isValidPlay(cards, state.pile, state.tenRule, state.pileHistory, state.trickHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder, state.lastRoundOrder, state.players[state.currentPlayerIndex]?.id, state.runOnTop?.active && state.runOnTop.playerIndex === pIndex)) {
+  if (!isValidPlay(cards, state.pile, effectiveTenRule, state.pileHistory, state.trickHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder, state.lastRoundOrder, state.players[state.currentPlayerIndex]?.id, isRunOnTopTurn)) {
     // If the attempted play is invalid and the player is required to play,
     // check whether the player truly has any valid alternative play. If no
     // valid plays exist, convert this attempted play into a pass to avoid
@@ -446,7 +505,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
       const possible = findCPUPlay(
         player.hand,
         state.pile,
-        state.tenRule,
+        effectiveTenRule,
         state.pileHistory,
         state.fourOfAKindChallenge,
         state.currentTrick,
@@ -455,11 +514,11 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
         state.trickHistory,
         state.lastRoundOrder,
         player.id,
-        state.runOnTop?.active && state.runOnTop.playerIndex === pIndex,
+        isRunOnTopTurn,
       );
       // If no possible play, or the best possible play is also invalid,
       // allow the player to pass so the game can progress.
-      if (possible === null || !isValidPlay(possible, state.pile, state.tenRule, state.pileHistory, state.trickHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder, state.lastRoundOrder, state.players[state.currentPlayerIndex]?.id, state.runOnTop?.active && state.runOnTop.playerIndex === pIndex)) {
+      if (possible === null || !isValidPlay(possible, state.pile, effectiveTenRule, state.pileHistory, state.trickHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder, state.lastRoundOrder, state.players[state.currentPlayerIndex]?.id, isRunOnTopTurn)) {
         return passTurn(state, playerId);
       }
     }
@@ -468,8 +527,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
 
   // remove cards from player's hand
   player.hand = removeCardsFromHand(player.hand, cards);
-  const wasRunOnTop =
-    state.runOnTop?.active && state.runOnTop.playerIndex === pIndex;
+  const wasRunOnTop = isRunOnTopTurn;
   if (wasRunOnTop) {
     state.runOnTop = undefined;
   }
@@ -525,7 +583,8 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   // Also clear when extending an active run (tens never govern runs).
   if (
     state.tenRule?.active &&
-    (state.tenRule.direction || isActiveRun)
+    (state.tenRule.direction || isActiveRun) &&
+    !wasRunOnTop
   ) {
     state.tenRule = { active: false, direction: null };
   }
@@ -1526,7 +1585,14 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   // completion must be allowed even when tens triggered higher/lower mode).
   if (closesToQuad && !inRunContext) return true;
   // 9. 10 Rule: only outside run contexts (including on top!)
-  if (tenRule?.active && tenRule.direction && !inRunContext) {
+  const tenRuleOnTopBeat =
+    !!runOnTop &&
+    !!tenRule?.active &&
+    !!tenRule.direction &&
+    pileIsUniform &&
+    pile.length > 0 &&
+    pile[0].value === 10;
+  if (tenRule?.active && tenRule.direction && (!inRunContext || tenRuleOnTopBeat)) {
     if (!allSameValue(cards)) return false;
     const pileRank = rankIndex(pile[0].value);
     const playRank = rankIndex(cards[0].value);
@@ -1954,11 +2020,12 @@ export function applyCpuTurn(state: GameState, playerId: string): GameState {
 
   const runOnTop =
     !!state.runOnTop?.active && state.runOnTop.playerIndex === pIndex;
+  const effectiveTenRule = resolveEffectiveTenRule(state);
 
   const cpuPlay = findCPUPlay(
     player.hand,
     state.pile,
-    state.tenRule,
+    effectiveTenRule,
     state.pileHistory,
     state.fourOfAKindChallenge,
     state.currentTrick,
@@ -2035,6 +2102,7 @@ function grantRunOnTopBeat(state: GameState, leaderIndex: number): GameState {
     );
     syncPassCountFromTrick(state);
   }
+  syncTenRuleForRunOnTop(state);
   state.runOnTop = { active: true, playerIndex: leaderIndex };
   state.currentPlayerIndex = leaderIndex;
   state.mustPlay = true;

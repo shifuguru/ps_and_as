@@ -491,10 +491,7 @@ export class SocketAdapter implements NetworkAdapter {
           type: "state",
           state: {
             type: "turnNudge",
-            fromPlayerId: data.fromPlayerId,
-            fromPlayerName: data.fromPlayerName,
             targetPlayerId: data.targetPlayerId,
-            targetPlayerName: data.targetPlayerName,
           },
         }),
       );

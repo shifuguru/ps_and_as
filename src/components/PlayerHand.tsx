@@ -14,12 +14,28 @@ import {
   PanResponder,
   Animated,
   Platform,
+  TouchableOpacity,
+  Text,
   type ViewStyle,
 } from "react-native";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import Card from "./Card";
+import BlurPanel from "./BlurPanel";
 import { Card as CardType } from "../game/ruleset";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import { resolveHandMetrics } from "../utils/compactGameLayout";
+import { buttonLabel } from "../styles/buttonStyles";
+import { useAppTheme } from "../context/ThemeContext";
+import type { BlurPreset, ThemeMode } from "../styles/themeColors";
+
+/** Match `BlurPanel` scrim tint — keeps hand-edge glass aligned with bottom bar chrome. */
+function blurScrimRgb(mode: ThemeMode): string {
+  return mode === "light" ? "255, 255, 255" : "8, 28, 18";
+}
+
+function scrollHintEdgeOpacity(preset: BlurPreset): number {
+  return Math.min(0.82, preset.webOpacity + preset.scrimOpacity * 3.2);
+}
 
 /** Must match `Card.tsx` default dimensions at comfortable tier */
 const BASE_CARD_WIDTH = 86;
@@ -30,6 +46,93 @@ const SELECT_LIFT = 12;
 const CENTER_GUTTER = 10;
 
 const PAN_ACTIVATION_PX = 8;
+const SCROLL_HINT_EDGE = 12;
+const SCROLL_HINT_FIN_WIDTH = 72;
+const SCROLL_HINT_TOUCH_LANE = 72;
+/** Min visible card width (px) before we treat it as off-screen. */
+const SCROLL_HINT_MIN_VISIBLE = 0.5;
+
+type CarouselSlot = {
+  left: number;
+  bottom: number;
+  angle: number;
+  scale: number;
+  zIndex: number;
+  opacity: number;
+  compact: boolean;
+};
+
+function cardViewportSpan(
+  slotLeft: number,
+  scrollOffset: number,
+  cardWidth: number,
+): { left: number; right: number; center: number } {
+  const left = slotLeft - scrollOffset;
+  return { left, right: left + cardWidth, center: left + cardWidth / 2 };
+}
+
+function isPlayableClippedOnSide(
+  direction: "left" | "right",
+  span: { left: number; right: number },
+  containerWidth: number,
+  cardWidth: number,
+): boolean {
+  const margin = SCROLL_HINT_EDGE;
+  const minVisible = cardWidth * SCROLL_HINT_MIN_VISIBLE;
+  if (direction === "left") {
+    return span.right - margin < minVisible;
+  }
+  return containerWidth - margin - span.left < minVisible;
+}
+
+function findHiddenPlayableOnSide(
+  direction: "left" | "right",
+  slots: CarouselSlot[],
+  playableIndices: boolean[],
+  containerWidth: number,
+  scrollOffset: number,
+  cardWidth: number,
+): number | null {
+  if (direction === "left") {
+    let best: number | null = null;
+    for (let i = 0; i < slots.length; i += 1) {
+      if (!playableIndices[i]) continue;
+      const span = cardViewportSpan(slots[i].left, scrollOffset, cardWidth);
+      if (isPlayableClippedOnSide("left", span, containerWidth, cardWidth)) {
+        best = i;
+      }
+    }
+    return best;
+  }
+  for (let i = 0; i < slots.length; i += 1) {
+    if (!playableIndices[i]) continue;
+    const span = cardViewportSpan(slots[i].left, scrollOffset, cardWidth);
+    if (isPlayableClippedOnSide("right", span, containerWidth, cardWidth)) {
+      return i;
+    }
+  }
+  return null;
+}
+
+function hasHiddenPlayableOnSide(
+  direction: "left" | "right",
+  slots: CarouselSlot[],
+  playableIndices: boolean[],
+  containerWidth: number,
+  scrollOffset: number,
+  cardWidth: number,
+): boolean {
+  return (
+    findHiddenPlayableOnSide(
+      direction,
+      slots,
+      playableIndices,
+      containerWidth,
+      scrollOffset,
+      cardWidth,
+    ) != null
+  );
+}
 
 /** Max rotation (deg) for cards away from the hand-area centre */
 const MAX_ANGLE = 18;
@@ -66,17 +169,6 @@ export type PlayerHandHandle = {
   scrollToIndex: (index: number) => void;
 };
 
-type CarouselSlot = {
-  left: number;
-  bottom: number;
-  angle: number;
-  scale: number;
-  zIndex: number;
-  opacity: number;
-  compact: boolean;
-};
-
-/** Horizontal step — tighter overlap, scales slightly with hand size */
 function carouselStep(
   count: number,
   containerWidth: number,
@@ -279,6 +371,170 @@ function pivotAroundBottom(
   ];
 }
 
+function ScrollHintGradient({
+  direction,
+  width,
+  height,
+  scrimRgb,
+  edgeOpacity,
+}: {
+  direction: "left" | "right";
+  width: number;
+  height: number;
+  scrimRgb: string;
+  edgeOpacity: number;
+}) {
+  const gradId = `scroll-hint-${direction}`;
+  const x1 = direction === "left" ? "0%" : "100%";
+  const x2 = direction === "left" ? "100%" : "0%";
+
+  if (Platform.OS === "web") {
+    const gradient =
+      direction === "left"
+        ? `linear-gradient(to right, rgba(${scrimRgb},${edgeOpacity}), rgba(${scrimRgb},0))`
+        : `linear-gradient(to left, rgba(${scrimRgb},${edgeOpacity}), rgba(${scrimRgb},0))`;
+    return (
+      <View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFillObject,
+          { width, height, background: gradient } as ViewStyle,
+        ]}
+      />
+    );
+  }
+
+  return (
+    <Svg
+      pointerEvents="none"
+      width={width}
+      height={height}
+      style={StyleSheet.absoluteFillObject}
+    >
+      <Defs>
+        <LinearGradient id={gradId} x1={x1} y1="0%" x2={x2} y2="0%">
+          <Stop offset="0" stopColor={`rgb(${scrimRgb})`} stopOpacity={edgeOpacity} />
+          <Stop offset="1" stopColor={`rgb(${scrimRgb})`} stopOpacity={0} />
+        </LinearGradient>
+      </Defs>
+      <Rect width={width} height={height} fill={`url(#${gradId})`} />
+    </Svg>
+  );
+}
+
+function ScrollPlayHint({
+  direction,
+  zoneHeight,
+  scrimRgb,
+  edgeOpacity,
+  chevronColor,
+  blur,
+  onPress,
+}: {
+  direction: "left" | "right";
+  zoneHeight: number;
+  scrimRgb: string;
+  edgeOpacity: number;
+  chevronColor: string;
+  blur: BlurPreset;
+  onPress: () => void;
+}) {
+  const isLeft = direction === "left";
+  const finRadius = 16;
+  const chevronSize = Math.round(
+    Math.min(zoneHeight * 0.42, 76, SCROLL_HINT_FIN_WIDTH * 0.92),
+  );
+  const label = isLeft
+    ? "Scroll hand left — playable card hidden"
+    : "Scroll hand right — playable card hidden";
+
+  const finRadii = isLeft
+    ? {
+        borderTopRightRadius: finRadius,
+        borderBottomRightRadius: finRadius,
+      }
+    : {
+        borderTopLeftRadius: finRadius,
+        borderBottomLeftRadius: finRadius,
+      };
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.scrollHintLane,
+        isLeft ? styles.scrollHintLaneLeft : styles.scrollHintLaneRight,
+        { height: zoneHeight },
+      ]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+      activeOpacity={0.86}
+    >
+      <View
+        style={[
+          styles.scrollHintFin,
+          finRadii,
+          {
+            width: SCROLL_HINT_FIN_WIDTH,
+            height: zoneHeight,
+          },
+        ]}
+      >
+        <BlurPanel
+          preset={blur}
+          style={[
+            {
+              width: SCROLL_HINT_FIN_WIDTH,
+              height: zoneHeight,
+              overflow: "hidden",
+            },
+            finRadii,
+          ]}
+        >
+          <View
+            style={{
+              width: SCROLL_HINT_FIN_WIDTH,
+              height: zoneHeight,
+              position: "relative",
+            }}
+          >
+            <ScrollHintGradient
+              direction={direction}
+              width={SCROLL_HINT_FIN_WIDTH}
+              height={zoneHeight}
+              scrimRgb={scrimRgb}
+              edgeOpacity={edgeOpacity}
+            />
+            <View
+              style={[
+                styles.scrollHintFinInner,
+                {
+                  width: SCROLL_HINT_FIN_WIDTH,
+                  height: zoneHeight,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.scrollHintChevron,
+                  buttonLabel(chevronSize, {
+                    color: chevronColor,
+                    fontWeight: "300",
+                    lineHeight: chevronSize,
+                  }),
+                ]}
+              >
+                {isLeft ? "‹" : "›"}
+              </Text>
+            </View>
+          </View>
+        </BlurPanel>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   {
     cards,
@@ -290,6 +546,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   },
   ref,
 ) {
+  const { colors, blur } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const { height: shellHeight } = useVisualViewportSize();
   const handMetrics = useMemo(
@@ -299,6 +556,9 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   const cardWidth = handMetrics.cardWidth;
   const cardHeight = handMetrics.cardHeight;
   const fanHeight = handMetrics.fanHeight;
+  const handZoneHeight = fanHeight + handMetrics.handZoneTopClearance;
+  const scrollHintScrimRgb = blurScrimRgb(colors.mode);
+  const hintEdgeOpacity = scrollHintEdgeOpacity(blur.chrome);
   const fanHeadroom = fanHeight - cardHeight;
   const maxCenterLift = Math.round(
     MAX_CENTER_LIFT * (cardHeight / BASE_CARD_HEIGHT),
@@ -367,6 +627,57 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
       displayFocusIndex,
     ],
   );
+
+  const hasPlayableCards = useMemo(
+    () => playableIndices.some(Boolean),
+    [playableIndices],
+  );
+
+  const showLeftPlayableHint = useMemo(() => {
+    if (disabled || !hasPlayableCards || cards.length <= 1) return false;
+    if (scrollOffset <= bounds.min + 1) return false;
+    return hasHiddenPlayableOnSide(
+      "left",
+      slots,
+      playableIndices,
+      layoutWidth,
+      scrollOffset,
+      cardWidth,
+    );
+  }, [
+    disabled,
+    hasPlayableCards,
+    cards.length,
+    scrollOffset,
+    bounds.min,
+    slots,
+    playableIndices,
+    layoutWidth,
+    cardWidth,
+  ]);
+
+  const showRightPlayableHint = useMemo(() => {
+    if (disabled || !hasPlayableCards || cards.length <= 1) return false;
+    if (scrollOffset >= bounds.max - 1) return false;
+    return hasHiddenPlayableOnSide(
+      "right",
+      slots,
+      playableIndices,
+      layoutWidth,
+      scrollOffset,
+      cardWidth,
+    );
+  }, [
+    disabled,
+    hasPlayableCards,
+    cards.length,
+    scrollOffset,
+    bounds.max,
+    slots,
+    playableIndices,
+    layoutWidth,
+    cardWidth,
+  ]);
 
   useEffect(() => {
     if (pendingFocusIndex == null) return;
@@ -557,6 +868,18 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     setPendingFocusIndex(target);
   };
 
+  const scrollToHiddenPlayable = (direction: "left" | "right") => {
+    const target = findHiddenPlayableOnSide(
+      direction,
+      slots,
+      playableIndices,
+      layoutWidth,
+      scrollOffset,
+      cardWidth,
+    );
+    if (target != null) scrollToIndex(target);
+  };
+
   const handleCardPress = (index: number) => {
     if (disabled) return;
     if (index !== focusedIndex) {
@@ -619,10 +942,32 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   return (
     <View
       ref={handOuterRef}
-      style={[styles.handOuter, { height: fanHeight }]}
+      style={[styles.handOuter, { height: handZoneHeight }]}
       onLayout={onLayout}
       {...(cards.length > 1 ? panResponder.panHandlers : {})}
     >
+      {showLeftPlayableHint ? (
+        <ScrollPlayHint
+          direction="left"
+          zoneHeight={handZoneHeight}
+          scrimRgb={scrollHintScrimRgb}
+          edgeOpacity={hintEdgeOpacity}
+          chevronColor={colors.textPrimary}
+          blur={blur.chrome}
+          onPress={() => scrollToHiddenPlayable("left")}
+        />
+      ) : null}
+      {showRightPlayableHint ? (
+        <ScrollPlayHint
+          direction="right"
+          zoneHeight={handZoneHeight}
+          scrimRgb={scrollHintScrimRgb}
+          edgeOpacity={hintEdgeOpacity}
+          chevronColor={colors.textPrimary}
+          blur={blur.chrome}
+          onPress={() => scrollToHiddenPlayable("right")}
+        />
+      ) : null}
       <Animated.View
         style={[
           styles.fanStrip,
@@ -694,6 +1039,38 @@ const styles = StyleSheet.create({
   handOuter: {
     width: "100%",
     overflow: "visible",
+    position: "relative",
+  },
+  scrollHintLane: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    zIndex: 4000,
+    width: SCROLL_HINT_TOUCH_LANE,
+    justifyContent: "center",
+  },
+  scrollHintLaneLeft: {
+    left: 0,
+    alignItems: "flex-start",
+  },
+  scrollHintLaneRight: {
+    right: 0,
+    alignItems: "flex-end",
+  },
+  scrollHintFin: {
+    overflow: "hidden",
+  },
+  scrollHintFinInner: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  scrollHintChevron: {
+    textAlign: "center",
+    includeFontPadding: false,
   },
   fanStrip: {
     position: "absolute",

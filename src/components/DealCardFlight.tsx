@@ -1,23 +1,7 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 import Card from "./Card";
-import type { Card as CardType } from "../game/ruleset";
-import { layoutPlayBundle } from "../utils/tablePlayLayout";
-
-export type CardFlightSpec = {
-  id: string;
-  cards: CardType[];
-  fromX: number;
-  fromY: number;
-  toX: number;
-  toY: number;
-  cardW: number;
-  cardH: number;
-  cornerRadius?: number;
-  /** Deal ceremony — size of the card on the deck before peel. */
-  fromCardW?: number;
-  fromCardH?: number;
-};
+import type { CardFlightSpec } from "./TableCardFlight";
 
 type Props = {
   flight: CardFlightSpec;
@@ -25,11 +9,11 @@ type Props = {
   onComplete: (id: string) => void;
 };
 
-const FLIGHT_EASING = Easing.bezier(0.25, 0.85, 0.35, 1);
-/** Progress when the flying copy reaches the table slot — hand off to GameTable here. */
 const LAND_AT = 0.9;
+const PEEL_LIFT = -10;
+const PEEL_ROTATE_DEG = 3.5;
 
-export default function TableCardFlight({
+export default function DealCardFlight({
   flight,
   durationMs = 480,
   onComplete,
@@ -41,16 +25,17 @@ export default function TableCardFlight({
 
   onCompleteRef.current = onComplete;
 
-  const bundle = useMemo(
-    () =>
-      layoutPlayBundle(flight.cards.length, flight.cardW, undefined, flight.cardH),
-    [flight.cards.length, flight.cardW, flight.cardH],
-  );
+  const fromW = flight.fromCardW ?? flight.cardW;
+  const fromH = flight.fromCardH ?? flight.cardH;
+  const toScaleX = flight.cardW / fromW;
+  const toScaleY = flight.cardH / fromH;
+  const peelEnd = Math.min(0.18, 90 / Math.max(durationMs, 1));
 
   const deltaX = flight.toX - flight.fromX;
   const deltaY = flight.toY - flight.fromY;
   const travel = Math.hypot(deltaX, deltaY);
   const arcLift = Math.min(36, Math.max(12, travel * 0.14));
+  const flyMid = peelEnd + (LAND_AT - peelEnd) * 0.45;
 
   useEffect(() => {
     completeFiredRef.current = false;
@@ -73,7 +58,7 @@ export default function TableCardFlight({
     const anim = Animated.timing(progress, {
       toValue: 1,
       duration: durationMs,
-      easing: FLIGHT_EASING,
+      easing: Easing.linear,
       useNativeDriver: true,
     });
     animRef.current = anim;
@@ -91,20 +76,32 @@ export default function TableCardFlight({
   }, [flight.id, durationMs, progress]);
 
   const translateX = progress.interpolate({
-    inputRange: [0, LAND_AT],
-    outputRange: [0, deltaX],
+    inputRange: [0, peelEnd, LAND_AT],
+    outputRange: [0, 0, deltaX],
     extrapolate: "clamp",
   });
 
   const translateY = progress.interpolate({
-    inputRange: [0, 0.45, LAND_AT],
-    outputRange: [0, -arcLift, deltaY],
+    inputRange: [0, peelEnd, flyMid, LAND_AT],
+    outputRange: [0, PEEL_LIFT, PEEL_LIFT - arcLift, deltaY],
     extrapolate: "clamp",
   });
 
-  const scale = progress.interpolate({
-    inputRange: [0, LAND_AT],
-    outputRange: [0.68, 1],
+  const rotate = progress.interpolate({
+    inputRange: [0, peelEnd, LAND_AT],
+    outputRange: ["0deg", `${PEEL_ROTATE_DEG}deg`, "0deg"],
+    extrapolate: "clamp",
+  });
+
+  const scaleX = progress.interpolate({
+    inputRange: [0, peelEnd, LAND_AT],
+    outputRange: [1, 1.03, toScaleX],
+    extrapolate: "clamp",
+  });
+
+  const scaleY = progress.interpolate({
+    inputRange: [0, peelEnd, LAND_AT],
+    outputRange: [1, 1.03, toScaleY],
     extrapolate: "clamp",
   });
 
@@ -125,38 +122,29 @@ export default function TableCardFlight({
         style={[
           styles.flight,
           {
-            width: bundle.width,
-            height: bundle.height,
-            marginLeft: -bundle.width / 2,
-            marginTop: -bundle.height / 2,
-            transform: [{ translateX }, { translateY }, { scale }],
+            width: fromW,
+            height: fromH,
+            marginLeft: -fromW / 2,
+            marginTop: -fromH / 2,
+            transform: [
+              { translateX },
+              { translateY },
+              { rotate },
+              { scaleX },
+              { scaleY },
+            ],
           },
         ]}
       >
-        {flight.cards.map((card, cardIndex) => (
-          <View
-            key={`${card.suit}-${card.value}-${cardIndex}`}
-            style={[
-              styles.bundleCard,
-              {
-                left: bundle.cardOffsets[cardIndex] ?? 0,
-                width: flight.cardW,
-                height: flight.cardH,
-                zIndex: cardIndex,
-              },
-            ]}
-          >
-            <Card
-              card={card}
-              selected={false}
-              variant="table"
-              faceDown={!!card.hidden}
-              cornerRadius={flight.cornerRadius}
-              style={{ width: flight.cardW, height: flight.cardH }}
-              onPress={() => {}}
-            />
-          </View>
-        ))}
+        <Card
+          card={flight.cards[0] ?? { suit: "spades", value: 0, hidden: true }}
+          selected={false}
+          variant="table"
+          faceDown={!!flight.cards[0]?.hidden}
+          cornerRadius={flight.cornerRadius}
+          style={{ width: fromW, height: fromH }}
+          onPress={() => {}}
+        />
       </Animated.View>
     </View>
   );
@@ -166,16 +154,12 @@ const styles = StyleSheet.create({
   anchor: {
     position: "absolute",
     overflow: "visible",
+    zIndex: 210,
+    elevation: 210,
   },
   flight: {
     position: "absolute",
     left: 0,
     top: 0,
-    overflow: "hidden",
-  },
-  bundleCard: {
-    position: "absolute",
-    top: 0,
-    overflow: "hidden",
   },
 });

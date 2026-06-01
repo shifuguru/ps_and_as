@@ -27,6 +27,7 @@ import {
   syncFinishedFromEmptyHands,
   isRoundCompleteForLiving,
   setTenRuleDirection,
+  resolveEffectiveTenRule,
 } from "../src/game/core";
 import {
   applyMandatoryTrades,
@@ -1043,6 +1044,57 @@ function makeEmptyGame(names: string[]): GameState {
     ),
     "Pair below 9 cannot beat single 10 during lower on top!",
   );
+}
+
+{
+  const tenH: Card = { suit: "hearts", value: 10 };
+  const nineH: Card = { suit: "hearts", value: 9 };
+  const nineD: Card = { suit: "diamonds", value: 9 };
+
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+  g.lastRoundOrder = ["1", "2", "3", "4"];
+
+  g.players[0].hand = [tenH, nineH, nineD, { suit: "clubs", value: 3 }];
+  g.players[1].hand = [{ suit: "clubs", value: 4 }];
+  g.players[2].hand = [{ suit: "spades", value: 5 }];
+  g.players[3].hand = [{ suit: "clubs", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [tenH]);
+  s = setTenRuleDirection(s, "lower");
+  s = passTurn(s, "2");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+
+  assert.ok(s.runOnTop?.active, "Lower 10 should grant on top!");
+  s.tenRule = { active: false, direction: null };
+
+  assert.ok(
+    isValidPlay(
+      [nineH, nineD],
+      s.pile,
+      resolveEffectiveTenRule(s),
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "On-top validation should recover lower direction from the trick",
+  );
+
+  s = playCards(s, "1", [nineH, nineD]);
+  assert.strictEqual(s.pile.length, 0, "On-top play should win the trick");
+  assert.strictEqual(s.trickHistory?.length, 1);
 }
 
 {

@@ -39,6 +39,8 @@ type Props = {
   /** Show nudge bell on seats taking too long. */
   turnBellPlayerId?: string | null;
   onTurnBellPress?: (playerId: string) => void;
+  /** Player id whose avatar ring should glow brighter after a turn bell. */
+  nudgeHighlightPlayerId?: string | null;
   /** Per-player dealt counts during deal ceremony (face-down mini-stacks). */
   dealtStackCounts?: Record<string, number>;
   /** Open a player's profile / stats card. */
@@ -92,6 +94,7 @@ export default function OpponentRing({
   disconnectedPlayerIds = [],
   turnBellPlayerId = null,
   onTurnBellPress,
+  nudgeHighlightPlayerId = null,
   dealtStackCounts,
   onPlayerPress,
 }: Props) {
@@ -200,6 +203,7 @@ export default function OpponentRing({
                   ? () => onTurnBellPress(player.id)
                   : undefined
               }
+              nudgeHighlighted={player.id === nudgeHighlightPlayerId}
               dealtStackCount={dealtStackCounts?.[player.id] ?? 0}
               onAvatarPress={
                 onPlayerPress && !isDeadHandPlayer(player)

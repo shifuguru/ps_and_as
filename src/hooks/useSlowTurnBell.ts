@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 export const SLOW_TURN_MS = 12_000;
 export const BELL_COOLDOWN_MS = 4_000;
+export const TURN_NUDGE_HIGHLIGHT_MS = 5_000;
 
 type Options = {
   currentPlayerId: string | null | undefined;
