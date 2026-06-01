@@ -72,9 +72,13 @@ jobs:
         env:
           EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
 
-      - name: Read app version
-        id: pkg
-        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      # Bump before build so the deployed bundle and version.json match what users see.
+      # The post-deploy commit job applies the same bump to main (workspace-only here).
+      - name: Bump version for this release
+        id: bump
+        run: |
+          npm run bump-version
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Build Expo web app
         run: npm run build:web
@@ -82,7 +86,7 @@ jobs:
           GITHUB_PAGES_BASE: /ps_and_as
           EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
           EXPO_PUBLIC_BUILD_ID: ${{ github.sha }}
-          EXPO_PUBLIC_APP_VERSION: ${{ steps.pkg.outputs.version }}
+          EXPO_PUBLIC_APP_VERSION: ${{ steps.bump.outputs.version }}
           EXPO_PUBLIC_BASE_PATH: /ps_and_as
 
       - name: Verify build output
@@ -171,7 +175,7 @@ jobs:
           echo "Do NOT deploy from the main branch — it has no index.html and will 404."
           exit 1
 
-  # After a successful app deploy, bump patch version on main for the next release.
+  # After deploy, commit the same patch bump to main (build already used it for this release).
   bump-version:
     needs: [deploy, changes]
     if: >-
@@ -207,28 +211,3 @@ jobs:
           git commit -m "chore: bump version to v${NEW_VERSION} [skip ci]"
           git push origin HEAD:main
 
-      - name: Checkout gh-pages artifact
-        uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-
-      - name: Re-deploy live site after version bump
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-
-  redeploy-after-bump:
-    needs: [bump-version, changes]
-    if: >-
-      github.event_name == 'push' &&
-      needs.changes.outputs.app == 'true' &&
-      !contains(github.event.head_commit.message, '[skip ci]') &&
-      !contains(github.event.head_commit.message, 'chore: bump version')
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
