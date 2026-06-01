@@ -95,7 +95,6 @@ export default function GameTable({
   const tableFadeAnim = useRef(new Animated.Value(1)).current;
   const turnHintFlashAnim = useRef(new Animated.Value(0)).current;
   const collectHeldRef = useRef(false);
-  const [tableCardsVisible, setTableCardsVisible] = useState(true);
 
   const scaleLimits = useMemo(
     () =>
@@ -159,7 +158,6 @@ export default function GameTable({
       return;
     }
     if (!fadeOut && !collectToStack) {
-      setTableCardsVisible(true);
       tableFadeAnim.setValue(1);
     }
   }, [plays.length, fadeOut, collectToStack, collectAnim, tableFadeAnim]);
@@ -168,7 +166,6 @@ export default function GameTable({
     if (plays.length === 0) return;
 
     if (fadeOut) {
-      setTableCardsVisible(true);
       tableFadeAnim.setValue(1);
       const anim = Animated.timing(tableFadeAnim, {
         toValue: 0,
@@ -176,21 +173,12 @@ export default function GameTable({
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       });
-      anim.start(({ finished }) => {
-        if (finished) setTableCardsVisible(false);
-      });
+      anim.start();
       return () => anim.stop();
     }
 
-    setTableCardsVisible(true);
-    const anim = Animated.timing(tableFadeAnim, {
-      toValue: 1,
-      duration: 120,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    });
-    anim.start();
-    return () => anim.stop();
+    tableFadeAnim.setValue(1);
+    return undefined;
   }, [fadeOut, fadeOutDurationMs, plays.length, tableFadeAnim]);
 
   const onZoneLayout = (event: LayoutChangeEvent) => {
@@ -381,8 +369,6 @@ export default function GameTable({
               {emptyMessage}
             </Text>
           </View>
-        ) : !tableCardsVisible ? (
-          <View style={styles.emptyHost} pointerEvents="none" />
         ) : (
           <Animated.View style={[styles.playCluster, { opacity: tableFadeAnim }]}>
             <View
@@ -391,7 +377,7 @@ export default function GameTable({
                 {
                   width: zoneSize.width,
                   height: zoneSize.height,
-                  overflow: collectToStack ? "hidden" : "visible",
+                  overflow: "visible",
                 },
               ]}
             >
@@ -429,8 +415,8 @@ export default function GameTable({
                     outputRange: [1, playIndex === 0 ? 1 : 0.94],
                   });
                   const groupOpacity = collectAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [1, playIndex === 0 ? 1 : 0.88],
+                    inputRange: [0, 0.72, 1],
+                    outputRange: [1, playIndex === 0 ? 1 : 0.88, playIndex === 0 ? 1 : 0],
                   });
 
                   return (

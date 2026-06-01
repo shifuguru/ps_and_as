@@ -41,7 +41,7 @@ function fanNormSpan(containerWidth: number, step: number): number {
   return Math.max(step * 2.4, containerWidth * 0.24);
 }
 /** Padding below card feet inside the hand zone */
-const FAN_BOTTOM_PADDING = 5;
+const FAN_BOTTOM_PADDING = 0;
 
 /** Headroom above card tops for arc + selected lift + centre scale */
 const FAN_HEADROOM = SELECT_LIFT + MAX_CENTER_LIFT + 24;
@@ -208,8 +208,9 @@ function computeCarouselSlots(
 
   return Array.from({ length: count }, (_, i) => {
     const left = cardLeft(i, focused, gutter, step);
-    const cardCenterX = left + CARD_WIDTH / 2 - scrollOffset;
-    const distFromCenter = cardCenterX - handCenterX;
+    // Arc from symmetric strip positions — gutter is spacing only, not tilt bias.
+    const symmetricCenterX = i * step + CARD_WIDTH / 2 - scrollOffset;
+    const distFromCenter = symmetricCenterX - handCenterX;
     const norm = Math.max(-1, Math.min(1, distFromCenter / normSpan));
     const absNorm = Math.min(1, Math.abs(norm));
 

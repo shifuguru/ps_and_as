@@ -181,6 +181,14 @@ export default function GamePlayArea({
     setActiveFlights([]);
   }, [plays.length]);
 
+  useLayoutEffect(() => {
+    if (!skipPlayFlights) return;
+    const currentKeys = new Set(plays.map(playDisplayKey));
+    prevPlayKeysRef.current = currentKeys;
+    setLandedKeys(currentKeys);
+    setActiveFlights([]);
+  }, [skipPlayFlights, plays]);
+
   useEffect(() => {
     const currentKeys = new Set(plays.map(playDisplayKey));
 

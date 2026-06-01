@@ -64,8 +64,8 @@ export default function AddToHomeScreenBanner() {
         <Text style={styles.title}>Play without the browser bar</Text>
         <Text style={styles.body}>
           Add P&apos;s & A&apos;s to your home screen for a full-screen app
-          experience. We&apos;ll open the install prompt when your browser allows
-          it, or walk you through the steps.
+          experience. On iPhone, use Safari&apos;s Share button in the bottom
+          toolbar — we&apos;ll walk you through it.
         </Text>
         <View style={styles.actions}>
           <TouchableOpacity

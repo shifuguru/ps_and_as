@@ -25,8 +25,7 @@ export default function AddToHomeScreenModal({ visible, onClose }: Props) {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(width - 40, 420);
-  const { canInstall, canOpenShare, installButtonLabel, instructions, installNative, openShare } =
-    useWebAppInstall();
+  const { canInstall, installButtonLabel, instructions, installNative } = useWebAppInstall();
   const [installing, setInstalling] = useState(false);
 
   if (Platform.OS !== "web" || !visible) return null;
@@ -35,15 +34,6 @@ export default function AddToHomeScreenModal({ visible, onClose }: Props) {
     setInstalling(true);
     try {
       await installNative();
-    } finally {
-      setInstalling(false);
-    }
-  };
-
-  const handleOpenShare = async () => {
-    setInstalling(true);
-    try {
-      await openShare();
     } finally {
       setInstalling(false);
     }
@@ -82,19 +72,6 @@ export default function AddToHomeScreenModal({ visible, onClose }: Props) {
         >
           <Text style={ui.btnPrimaryText}>
             {installing ? "Opening install…" : installButtonLabel}
-          </Text>
-        </TouchableOpacity>
-      ) : canOpenShare ? (
-        <TouchableOpacity
-          style={[ui.btnPrimary, styles.primaryBtn]}
-          onPress={() => void handleOpenShare()}
-          disabled={installing}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="Open Share menu"
-        >
-          <Text style={ui.btnPrimaryText}>
-            {installing ? "Opening Share…" : "Open Share"}
           </Text>
         </TouchableOpacity>
       ) : null}

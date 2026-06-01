@@ -2,13 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native";
 import {
   canNativeWebInstallPrompt,
-  canIosWebShare,
   ensureWebInstallPromptListener,
   getAddToHomeScreenInstructions,
   getInstallButtonLabel,
-  isIosMobileWeb,
   shouldOfferAddToHomeScreen,
-  triggerIosWebShare,
   triggerNativeWebInstall,
   type AddToHomeScreenInstructions,
 } from "../utils/webAppInstall";
@@ -48,16 +45,11 @@ export function useWebAppInstall() {
     return outcome;
   }, [refreshInstallAvailability]);
 
-  /** Android: native prompt. iOS: Share sheet when available. Otherwise: show modal. */
+  /** Android Chrome: native install prompt when available. Otherwise show manual steps. */
   const requestInstall = useCallback(async (): Promise<"accepted" | "manual"> => {
     if (canNativeWebInstallPrompt()) {
       const outcome = await installNative();
       if (outcome === "accepted") return "accepted";
-    }
-    if (isIosMobileWeb()) {
-      const share = await triggerIosWebShare();
-      if (share === "shared") return "accepted";
-      return "manual";
     }
     return "manual";
   }, [installNative]);
@@ -65,11 +57,9 @@ export function useWebAppInstall() {
   return {
     showOffer: shouldOfferAddToHomeScreen(),
     canInstall,
-    canOpenShare: canIosWebShare(),
     installButtonLabel: getInstallButtonLabel(),
     instructions,
     installNative,
-    openShare: triggerIosWebShare,
     requestInstall,
   };
 }

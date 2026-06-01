@@ -32,7 +32,7 @@ export const BOTTOM_LEAVE_ROW_HEIGHT = 48;
 export const HAND_CONTROLS_GAP = 14;
 
 /** Empty space above the fan inside the hand zone. */
-export const HAND_ZONE_TOP_CLEARANCE = 8;
+export const HAND_ZONE_TOP_CLEARANCE = 4;
 
 const CONTENT_MARGIN = 8;
 
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
     width: "100%",
     overflow: "visible",
     justifyContent: "flex-end",
-    paddingTop: 4,
+    paddingTop: 0,
   },
   controls: {
     width: "100%",

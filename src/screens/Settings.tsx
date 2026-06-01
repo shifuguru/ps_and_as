@@ -520,7 +520,8 @@ export default function Settings({
               <Text style={ui.panelEyebrow}>Full screen</Text>
               <Text style={styles.tintHint}>
                 Playing in Safari or Chrome shows the address bar. Add the game to
-                your home screen for a full-screen app without browser chrome.
+                your home screen for full-screen play. On iPhone, use Safari&apos;s
+                Share button in the bottom toolbar — not an in-page share menu.
               </Text>
               <TouchableOpacity
                 style={[styles.saveBtn, styles.saveBtnActive, { marginTop: 12 }]}

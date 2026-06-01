@@ -63,32 +63,7 @@ export function ensureWebInstallPromptListener(): void {
 
 export function getInstallButtonLabel(): string {
   if (canNativeWebInstallPrompt()) return "Install app";
-  if (isIosMobileWeb() && canIosWebShare()) return "Open Share";
   return "Add to Home Screen";
-}
-
-export function canIosWebShare(): boolean {
-  if (Platform.OS !== "web" || !isIosMobileWeb()) return false;
-  const nav = readNavigator() as Navigator & { share?: (data: ShareData) => Promise<void> };
-  return typeof nav?.share === "function";
-}
-
-/** Opens Safari's Share sheet — user picks Add to Home Screen from there. */
-export async function triggerIosWebShare(): Promise<"shared" | "aborted" | "unavailable"> {
-  if (!canIosWebShare()) return "unavailable";
-  const nav = readNavigator() as Navigator & { share: (data: ShareData) => Promise<void> };
-  const loc = (globalThis as { location?: { href?: string } }).location;
-  try {
-    await nav.share({
-      title: "P's & A's",
-      text: "Presidents & Assholes — full-screen card game",
-      url: loc?.href,
-    });
-    return "shared";
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") return "aborted";
-    return "unavailable";
-  }
 }
 
 export async function triggerNativeWebInstall(): Promise<"accepted" | "dismissed" | "unavailable"> {
@@ -122,10 +97,11 @@ export function getAddToHomeScreenInstructions(): AddToHomeScreenInstructions {
       intro:
         "Safari can't hide its address bar in a normal tab. Add P's & A's to your home screen for full-screen play.",
       steps: [
-        'Tap Share (square with arrow at the bottom of Safari).',
-        'Tap "Add to Home Screen", then tap Add.',
+        "In Safari, tap Share in the bottom toolbar — the square icon with an arrow pointing up.",
+        'Scroll the menu if needed, tap "Add to Home Screen", then tap Add.',
       ],
-      footnote: "Open the new home screen icon each time — not a Safari bookmark.",
+      footnote:
+        "Use Safari's toolbar Share button. In-page share menus do not include Add to Home Screen. Open the new home screen icon each time — not a Safari bookmark.",
     };
   }
 
