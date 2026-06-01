@@ -544,19 +544,14 @@ function makeEmptyGame(names: string[]): GameState {
   let s = playCards(g, g.players[0].id, fourTens);
   s = setTenRuleDirection(s, "lower");
   assert.ok(
-    !s.finishedOrder.includes(g.players[1].id),
-    "Opponent should not be auto-finished while still holding cards after one player goes out",
+    s.finishedOrder.includes(g.players[1].id),
+    "Last player should be auto-finished with cards when opponent goes out",
   );
-  s = playCards(s, g.players[1].id, fourNines);
-  assert.strictEqual(s.lastPlayPlayerIndex, 1, "Responder should lead the pile");
-  s = passTurn(s, g.players[0].id);
-  const lastTrick = s.trickHistory[s.trickHistory.length - 1];
-  assert.ok(lastTrick, "Trick should finalize after the quad closer passes");
-  assert.strictEqual(
-    lastTrick.winnerName,
-    "B",
-    "Ten-rule response play should win the trick when the closer passes",
+  assert.ok(
+    isRoundCompleteForLiving(s),
+    "Round should end once only one player remains",
   );
+  assert.strictEqual(s.players[1].hand.length, 4, "Remaining cards stay in hand for reveal");
 }
 
 // Single-play four 10s: closer wins when everyone else passes under ten rule

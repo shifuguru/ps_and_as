@@ -1435,15 +1435,13 @@ function GameScreen({
     const allPlayersFinished =
       isRoundCompleteForLiving(state) && !state.tenRulePending;
     if (allPlayersFinished && !roundOver) {
-      if (onlineMultiplayer) return;
-
       const reveal = lastPlayerHandFromState(state);
       if (reveal) {
         startLastHandReveal(reveal);
       }
 
       setRoundOver(true);
-      if (!roundStatsRecordedRef.current) {
+      if (!onlineMultiplayer && !roundStatsRecordedRef.current) {
         roundStatsRecordedRef.current = true;
         const human = resolveLocalHumanPlayer(
           state.players,
@@ -1461,17 +1459,19 @@ function GameScreen({
           }
         }
       }
-      const newReady: { [playerId: string]: boolean } = {};
-      const localHuman = resolveLocalHumanPlayer(
-        state.players,
-        localPlayerName,
-        localPlayerId,
-        networkAdapter,
-      );
-      state.players.filter((p) => !isDeadHandPlayer(p)).forEach((p) => {
-        newReady[p.id] = !(localHuman && p.id === localHuman.id);
-      });
-      setPlayerReadyStates(newReady);
+      if (!onlineMultiplayer) {
+        const newReady: { [playerId: string]: boolean } = {};
+        const localHuman = resolveLocalHumanPlayer(
+          state.players,
+          localPlayerName,
+          localPlayerId,
+          networkAdapter,
+        );
+        state.players.filter((p) => !isDeadHandPlayer(p)).forEach((p) => {
+          newReady[p.id] = !(localHuman && p.id === localHuman.id);
+        });
+        setPlayerReadyStates(newReady);
+      }
     }
   }, [
     state,

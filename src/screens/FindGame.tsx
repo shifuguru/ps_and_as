@@ -56,6 +56,7 @@ interface AvailableRoom {
   roundInProgress?: boolean;
   deadHandSeatOpen?: boolean;
   spectatorCount?: number;
+  isBotHosted?: boolean;
 }
 
 function formatTimeAgo(timestamp: number) {
@@ -450,13 +451,15 @@ export default function FindGame({
                 const inPlay = !!room.inGame && !!room.roundInProgress;
                 const betweenRounds = !!room.inGame && !room.roundInProgress;
                 const seatOpen = !!room.deadHandSeatOpen;
+                const isBotTable = !!room.isBotHosted;
                 const full =
-                  !inPlay && room.playerCount >= room.maxPlayers;
+                  !inPlay && !isBotTable && room.playerCount >= room.maxPlayers;
                 const showSpectate =
                   !!onSpectateRoom &&
                   !!room.inGame &&
                   seatOpen &&
-                  room.playerCount >= 2;
+                  room.playerCount >= 2 &&
+                  (isBotTable || inPlay);
                 const actionLabel = showSpectate
                   ? "Spectate"
                   : full
@@ -478,7 +481,9 @@ export default function FindGame({
                           {room.roomName || `${room.hostName}'s Game`}
                         </Text>
                         <Text style={styles.roomHost} numberOfLines={1}>
-                          Host · {room.hostName}
+                          {isBotTable
+                            ? "Bots · seat open for you next round"
+                            : `Host · ${room.hostName}`}
                         </Text>
                         <View style={styles.roomMeta}>
                           <Text style={styles.roomMetaText}>
@@ -493,7 +498,11 @@ export default function FindGame({
                                   styles.roomMetaInPlay,
                                 ]}
                               >
-                                {seatOpen ? "In Play · seat open" : "In Play"}
+                                {isBotTable
+                                  ? "Bots playing · join to watch"
+                                  : seatOpen
+                                    ? "In Play · seat open"
+                                    : "In Play"}
                               </Text>
                             </>
                           ) : betweenRounds ? (

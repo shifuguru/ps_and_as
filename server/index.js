@@ -26,6 +26,7 @@ const {
   isTrickOpeningLead,
 } = require('./gameBridge');
 const { viewForPlayer, viewForMember, broadcastGameState } = require('./gameStateView');
+const botHosted = require('./botHostedRooms');
 const {
   validateDisplayText,
   normalizeRoomCode,
@@ -182,6 +183,9 @@ function startNextRound(roomId) {
     promotedPlayerId: promoted?.id ?? null,
   });
   emitTradesCompleteIfReady(io, roomId, room.gameState, room.host);
+  if (room.isBotHosted) {
+    botHosted.scheduleBotTurns(roomId, getBotContext());
+  }
 }
 
 const app = express();
@@ -543,7 +547,15 @@ function initReadyForNextRound(room) {
 function allPlayersReadyForNextRound(room) {
   const readyMap = room.gameState?.readyForNextRound || {};
   const ids = activeRoundPlayerIds(room);
-  return ids.length > 0 && ids.every((id) => readyMap[id] === true);
+  const seatedReady = ids.length > 0 && ids.every((id) => readyMap[id] === true);
+  if (!seatedReady) return false;
+  if (room.isBotHosted && gameHasDeadHandSlot(room)) {
+    const spectators = room.players.filter((p) => p.isSpectator && !p.disconnectedAt);
+    if (spectators.length > 0) {
+      return spectators.some((s) => readyMap[s.id] === true);
+    }
+  }
+  return true;
 }
 
 function tryStartNextRoundIfReady(roomId) {
@@ -732,11 +744,13 @@ function roomListingPayload(roomId, room) {
     roundInProgress: isRoundInProgress(room),
     deadHandSeatOpen: deadHandSeatOpen(room),
     spectatorCount: spectatorCount(room),
+    ...botHosted.roomListingExtras(room),
   };
 }
 
 function isRoomListedPublic(room) {
   if (!room.isPublic) return false;
+  if (room.isBotHosted) return !!room.inGame;
   if (room.inGame && activePlayerCount(room) > 0) return true;
   return activePlayerCount(room) > 0;
 }
@@ -820,6 +834,11 @@ function buildLobbyUpdate(room) {
 function afterPlayerLeftRoom(roomId) {
   const room = rooms[roomId];
   if (!room) return;
+  if (room.isBotHosted && botHosted.afterBotRoomPlayerLeft(room, getBotContext())) {
+    io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
+    if (room.isPublic) broadcastAvailableRooms();
+    return;
+  }
   if (room.players.length === 0) {
     onRoomEmptied(roomId);
     return;
@@ -979,6 +998,20 @@ function migrateHost(roomId) {
 function abortOnlineGame(roomId, message) {
   const room = rooms[roomId];
   if (!room) return;
+  if (room.isBotHosted) {
+    console.log(`[Server] Resetting bot room ${roomId}: ${message}`);
+    io.to(roomId).emit('gameAborted', { roomId, message });
+    room.players = room.players.filter((p) => botHosted.isBotMember(p));
+    room.inGame = false;
+    room.gameState = null;
+    if (room._botTurnTimer) {
+      clearTimeout(room._botTurnTimer);
+      room._botTurnTimer = null;
+    }
+    botHosted.ensureBotHostedRooms(getBotContext());
+    broadcastAvailableRooms();
+    return;
+  }
   console.log(`[Server] Aborting online game in ${roomId}: ${message}`);
   for (const p of room.players) {
     cancelAwayRemoval(roomId, p.id);
@@ -998,10 +1031,94 @@ function schedulePlayerRemoval(roomId, playerId, _socketId, graceMs = LOBBY_DISC
 // Broadcast available public rooms to all searching clients
 function broadcastAvailableRooms() {
   const availableRooms = Object.entries(rooms)
-    .filter(([_, room]) => isRoomListedPublic(room))
+    .filter(([_, room]) => botHosted.discoverRoomFilter(
+      rooms,
+      room,
+      isRoomListedPublic,
+      activePlayerCount,
+      isRoundInProgress,
+    ))
     .map(([roomId, room]) => roomListingPayload(roomId, room));
-  
+
   io.emit('availableRooms', availableRooms);
+}
+
+function handleRoundFinished(roomId, finishOrder, hands) {
+  const room = rooms[roomId];
+  if (!room) return;
+  if (!room.gameState) room.gameState = {};
+
+  room.gameState.lastRoundOrder = livingFinishOrder(
+    room.gameState,
+    finishOrder || [],
+  );
+  const playersCount =
+    livingPlayerCount(room.gameState) ||
+    room.gameState.lastRoundOrder.length ||
+    0;
+  const roles = assignRolesFromFinishOrder(
+    room.gameState,
+    playersCount,
+    room.gameState.lastRoundOrder,
+  );
+
+  initReadyForNextRound(room);
+  room.gameState.roles = roles;
+
+  const livingOrder = livingFinishOrder(room.gameState, finishOrder || []);
+  const lastPlayerId = livingOrder.length ? livingOrder[livingOrder.length - 1] : null;
+  const lastCards =
+    lastPlayerId && hands && hands[lastPlayerId] ? hands[lastPlayerId] : [];
+  const lastPlayer = lastPlayerId
+    ? room.gameState.players.find((p) => p.id === lastPlayerId)
+    : null;
+  const lastPlayerHand =
+    lastPlayerId && lastCards.length > 0
+      ? {
+          playerId: lastPlayerId,
+          playerName: lastPlayer?.name || 'Player',
+          cards: lastCards,
+        }
+      : null;
+
+  io.to(roomId).emit('roundEnded', { finishOrder, roles, lastPlayerHand });
+  io.to(roomId).emit('playerReadyUpdate', {
+    readyForNextRound: room.gameState.readyForNextRound,
+  });
+
+  if (room.isBotHosted) {
+    botHosted.onBotRoomRoundFinished(room, roomId, getBotContext());
+  }
+  if (room.isPublic) broadcastAvailableRooms();
+}
+
+function getBotContext() {
+  return {
+    rooms,
+    io,
+    roomId: botHosted.BOT_ROOM_CODE,
+    beginAuthoritativeRound,
+    cloneGameState,
+    advancePastInactiveSeats,
+    broadcastGameState,
+    emitTradesCompleteIfReady,
+    finalizePendingTrades,
+    allTradesComplete,
+    snapshotPlayerHands,
+    isRoundComplete,
+    isGamePausedForAway,
+    isRoomListedPublic,
+    tryStartNextRoundIfReady,
+    broadcastAvailableRooms,
+    onRoundComplete: (roomId, room) => {
+      const finishOrder = room.gameState.finishedOrder.slice();
+      const handSnapshot = {};
+      for (const p of room.gameState.players) {
+        handSnapshot[p.id] = p.hand;
+      }
+      handleRoundFinished(roomId, finishOrder, handSnapshot);
+    },
+  };
 }
 
 io.on('connection', (socket) => {
@@ -1018,14 +1135,17 @@ io.on('connection', (socket) => {
 
   // Send available rooms when client requests discovery
   socket.on('discoverRooms', () => {
+    botHosted.ensureBotHostedRooms(getBotContext());
     const availableRooms = Object.entries(rooms)
-      .filter(([_, room]) => {
-        if (!isRoomListedPublic(room)) return false;
-        if (room.inGame && isRoundInProgress(room)) return true;
-        return activePlayerCount(room) < 8;
-      })
+      .filter(([_, room]) => botHosted.discoverRoomFilter(
+        rooms,
+        room,
+        isRoomListedPublic,
+        activePlayerCount,
+        isRoundInProgress,
+      ))
       .map(([roomId, room]) => roomListingPayload(roomId, room));
-    
+
     socket.emit('availableRooms', availableRooms);
   });
 
@@ -1048,6 +1168,10 @@ io.on('connection', (socket) => {
     const code = normalizeRoomCode(roomId);
     if (!isValidRoomCode(code)) {
       socket.emit('error', { message: 'Invalid room code.' });
+      return;
+    }
+    if (code === botHosted.BOT_ROOM_CODE) {
+      socket.emit('error', { message: 'This room code is reserved.' });
       return;
     }
     if (rooms[code]) {
@@ -1291,6 +1415,10 @@ io.on('connection', (socket) => {
   socket.on('dismissRoom', ({ roomId }) => {
     const room = rooms[roomId];
     if (!room) return;
+    if (room.isBotHosted) {
+      socket.emit('error', { message: 'Bot tables cannot be dismissed.' });
+      return;
+    }
     if (!isRoomHost(room, socket.id)) {
       socket.emit('error', { message: 'Only the host can dismiss this room' });
       return;
@@ -1505,11 +1633,13 @@ io.on('connection', (socket) => {
 
     if (isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
       const finishOrder = room.gameState.finishedOrder.slice();
-      const hands = {};
+      const handSnapshot = {};
       for (const p of room.gameState.players) {
-        hands[p.id] = p.hand;
+        handSnapshot[p.id] = p.hand;
       }
-      handleRoundFinished(roomId, finishOrder, hands);
+      handleRoundFinished(roomId, finishOrder, handSnapshot);
+    } else if (room.isBotHosted) {
+      botHosted.scheduleBotTurns(roomId, getBotContext());
     }
   });
 
@@ -1538,50 +1668,6 @@ io.on('connection', (socket) => {
   socket.on('roundFinished', ({ roomId, finishOrder, hands }) => {
     handleRoundFinished(roomId, finishOrder, hands);
   });
-
-  function handleRoundFinished(roomId, finishOrder, hands) {
-    const room = rooms[roomId];
-    if (!room) return;
-    if (!room.gameState) room.gameState = {};
-
-    room.gameState.lastRoundOrder = livingFinishOrder(
-      room.gameState,
-      finishOrder || [],
-    );
-    const playersCount =
-      livingPlayerCount(room.gameState) ||
-      room.gameState.lastRoundOrder.length ||
-      0;
-    const roles = assignRolesFromFinishOrder(
-      room.gameState,
-      playersCount,
-      room.gameState.lastRoundOrder,
-    );
-
-    initReadyForNextRound(room);
-    room.gameState.roles = roles;
-
-    const livingOrder = livingFinishOrder(room.gameState, finishOrder || []);
-    const lastPlayerId = livingOrder.length ? livingOrder[livingOrder.length - 1] : null;
-    const lastCards =
-      lastPlayerId && hands && hands[lastPlayerId] ? hands[lastPlayerId] : [];
-    const lastPlayer = lastPlayerId
-      ? room.gameState.players.find((p) => p.id === lastPlayerId)
-      : null;
-    const lastPlayerHand =
-      lastPlayerId && lastCards.length > 0
-        ? {
-            playerId: lastPlayerId,
-            playerName: lastPlayer?.name || 'Player',
-            cards: lastCards,
-          }
-        : null;
-
-    io.to(roomId).emit('roundEnded', { finishOrder, roles, lastPlayerHand });
-    io.to(roomId).emit('playerReadyUpdate', {
-      readyForNextRound: room.gameState.readyForNextRound,
-    });
-  }
 
   // Winner selects cards to send back to loser
   // payload: { roomId, selectedCardObjects: Card[] }
@@ -1615,6 +1701,9 @@ io.on('connection', (socket) => {
     if (allTradesComplete(room.gameState)) {
       syncOpeningPlayerAfterTrades(room.gameState, room.host);
       io.to(roomId).emit('tradesComplete', { playerHands });
+      if (room.isBotHosted) {
+        botHosted.scheduleBotTurns(roomId, getBotContext());
+      }
     }
   });
 
@@ -1716,4 +1805,7 @@ app.get('/api/online-players', (_req, res) => {
   res.json({ activePlayers: totalOnlineConnectedPlayers() });
 });
 
-server.listen(PORT, () => console.log('Server listening on', PORT));
+server.listen(PORT, () => {
+  console.log('Server listening on', PORT);
+  botHosted.ensureBotHostedRooms(getBotContext());
+});

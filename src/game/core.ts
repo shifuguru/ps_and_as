@@ -238,11 +238,8 @@ function finalizeLoneRemainingPlayer(state: GameState): void {
     .filter((p) => p.id !== last.id)
     .every((p) => state.finishedOrder.includes(p.id));
   if (!allOthersPlaced) return;
-  // 3+ living: last player with cards is auto-asshole. With 2 living, they must
-  // empty their hand first (opponent keeps playing after the first goes out).
-  if (living.length >= 3 || last.hand.length === 0) {
-    state.finishedOrder.push(last.id);
-  }
+  // Last remaining player is auto-asshole — may still hold cards (shown at round end).
+  state.finishedOrder.push(last.id);
 }
 
 /** Sync finish order from empty hands and auto-place the last remaining player. */

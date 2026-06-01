@@ -32,6 +32,14 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-02T11:44"),
+    title: "Bot tables & round end",
+    items: [
+      "Find Game — when no one is hosting, an Open Bot Table appears; spectate the bots and take the open seat to play from the next round",
+      "Round end online — when everyone else is out, the game stops and shows the last player's remaining cards instead of making them play out alone",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-02T10:39"),
     title: "Runs, passes & trades",
     items: [

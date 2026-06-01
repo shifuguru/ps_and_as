@@ -74,13 +74,9 @@ jobs:
         env:
           EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
 
-      # Bump before build so the deployed bundle and version.json match what users see.
-      # The post-deploy commit job applies the same bump to main (workspace-only here).
-      - name: Bump version for this release
-        id: bump
-        run: |
-          npm run bump-version
-          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Read app version for this release
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Build Expo web app
         run: npm run build:web
@@ -88,7 +84,7 @@ jobs:
           GITHUB_PAGES_BASE: /ps_and_as
           EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
           EXPO_PUBLIC_BUILD_ID: ${{ github.sha }}
-          EXPO_PUBLIC_APP_VERSION: ${{ steps.bump.outputs.version }}
+          EXPO_PUBLIC_APP_VERSION: ${{ steps.version.outputs.version }}
           EXPO_PUBLIC_BASE_PATH: /ps_and_as
           DEPLOY_CHANNEL: production
 
@@ -182,7 +178,7 @@ jobs:
           echo "Do NOT deploy from the main branch — it has no index.html and will 404."
           exit 1
 
-  # After deploy, commit the same patch bump to main (build already used it for this release).
+  # After deploy, bump patch on main for the next release (+0.0.1, new codename).
   bump-version:
     needs: [deploy, changes]
     if: >-
