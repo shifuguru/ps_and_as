@@ -9,12 +9,14 @@ import {
   Alert,
   useWindowDimensions,
   Switch,
+  Platform,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import BlurPanel from "../components/BlurPanel";
 import ScreenTopBar from "../components/ScreenTopBar";
 import FeltColorPicker from "../components/FeltColorPicker";
 import MenuIcon from "../components/MenuIcon";
+import AddToHomeScreenModal from "../components/AddToHomeScreenModal";
 import BottomBar, {
   BottomBarControls,
   BottomBarLeave,
@@ -44,6 +46,7 @@ import { onFeltTextStyle } from "../utils/onFeltTypography";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import Card from "../components/Card";
 import type { Card as CardType } from "../game/ruleset";
+import { useWebAppInstall } from "../hooks/useWebAppInstall";
 
 const CARD_PREVIEW_W = 54;
 const CARD_PREVIEW_H = 78;
@@ -94,6 +97,10 @@ export default function Settings({
   const [hexInput, setHexInput] = useState("");
   const [feltPickerOpen, setFeltPickerOpen] = useState(false);
   const [onlineGuest, setOnlineGuest] = useState(false);
+  const [addToHomeOpen, setAddToHomeOpen] = useState(false);
+  const { showOffer: showAddToHomeOffer, installButtonLabel, requestInstall } =
+    useWebAppInstall();
+  const [addToHomeWorking, setAddToHomeWorking] = useState(false);
 
   useEffect(() => {
     void getLobbySession().then((session) => {
@@ -508,6 +515,36 @@ export default function Settings({
             </View>
           </BlurPanel>
 
+          {Platform.OS === "web" && showAddToHomeOffer ? (
+            <BlurPanel style={ui.panel} intensity={48}>
+              <Text style={ui.panelEyebrow}>Full screen</Text>
+              <Text style={styles.tintHint}>
+                Playing in Safari or Chrome shows the address bar. Add the game to
+                your home screen for a full-screen app without browser chrome.
+              </Text>
+              <TouchableOpacity
+                style={[styles.saveBtn, styles.saveBtnActive, { marginTop: 12 }]}
+                onPress={() => {
+                  void (async () => {
+                    setAddToHomeWorking(true);
+                    try {
+                      const result = await requestInstall();
+                      if (result === "manual") setAddToHomeOpen(true);
+                    } finally {
+                      setAddToHomeWorking(false);
+                    }
+                  })();
+                }}
+                disabled={addToHomeWorking}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.saveBtnText, styles.saveBtnTextActive]}>
+                  {addToHomeWorking ? "Opening…" : installButtonLabel}
+                </Text>
+              </TouchableOpacity>
+            </BlurPanel>
+          ) : null}
+
           <BlurPanel style={ui.panel} intensity={48}>
             <Text style={ui.panelEyebrow}>Gameplay</Text>
             <View style={styles.settingBlock}>
@@ -574,6 +611,10 @@ export default function Settings({
           </BottomBarControls>
         </BottomBar>
       ) : null}
+      <AddToHomeScreenModal
+        visible={addToHomeOpen}
+        onClose={() => setAddToHomeOpen(false)}
+      />
     </ScreenContainer>
   );
 }

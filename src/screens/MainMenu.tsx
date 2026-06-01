@@ -10,6 +10,7 @@ import {
   ViewStyle,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
+import AddToHomeScreenBanner from "../components/AddToHomeScreenBanner";
 import BlurPanel from "../components/BlurPanel";
 import MenuIcon from "../components/MenuIcon";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
@@ -117,6 +118,8 @@ export default function MainMenu({ buttons, onButtonPress, style }: Props) {
           </Text>
           <Text style={styles.subtitle}>Presidents & Assholes</Text>
           <Text style={styles.versionLabel}>{versionLabel}</Text>
+
+          <AddToHomeScreenBanner />
 
           <View style={styles.buttonStack}>
             {buttons.map((btn) => (

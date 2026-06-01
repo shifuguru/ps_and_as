@@ -218,7 +218,7 @@ function AppContent() {
     });
     setLocalPlayerName(hostName);
     setLocalPlayerId(playerInfo.id);
-    const botNames = pickCpuDisplayNames(7, [hostName]);
+    const botNames = pickCpuDisplayNames(3, [hostName]);
     setLobbyMembers([
       { id: playerInfo.id, name: hostName, feltTint: savedTint },
       ...botNames.map((name, i) => ({
