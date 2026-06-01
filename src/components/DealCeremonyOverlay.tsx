@@ -255,10 +255,11 @@ export default function DealCeremonyOverlay({
     seatOptions,
   ]);
 
+  const playerIdsKey = playerIds.join("\0");
   const dealSteps = useMemo(() => {
     const recipientOrder = dealRecipientOrder(playerIds, effectiveDealerId);
     return buildClockwiseDealSteps(recipientOrder, totalCards);
-  }, [totalCards, playerIds, effectiveDealerId]);
+  }, [totalCards, playerIdsKey, effectiveDealerId]);
 
   const isLocalDealer =
     effectiveDealerId != null &&
@@ -329,19 +330,29 @@ export default function DealCeremonyOverlay({
     onCeremonyControls?.({ completeShuffle: beginDealPhase });
   }, [beginDealPhase, onCeremonyControls]);
 
+  const ceremonyInitRef = useRef(false);
+
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      ceremonyInitRef.current = false;
+      return;
+    }
+    if (ceremonyInitRef.current) return;
+    ceremonyInitRef.current = true;
+
     ceremonyFinishedRef.current = false;
     dealFlightRoundRef.current = null;
     setActiveFlights([]);
 
+    const steps = dealStepsRef.current;
+
     if (skipDealPhases) {
       const fullCounts: Record<string, number> = {};
-      for (const step of dealSteps) {
+      for (const step of steps) {
         fullCounts[step.playerId] = (fullCounts[step.playerId] ?? 0) + 1;
       }
       setDealtCounts(fullCounts);
-      setDealRound(dealSteps.length);
+      setDealRound(steps.length);
       if (pendingTrades.length > 0) {
         setPhase("trade");
       } else {
@@ -355,7 +366,7 @@ export default function DealCeremonyOverlay({
     setDealRound(0);
     setDealtCounts({});
     onDealtCountsChangeRef.current?.({});
-  }, [visible, skipDealPhases, dealSteps, pendingTrades.length]);
+  }, [visible, skipDealPhases, pendingTrades.length]);
 
   useEffect(() => {
     if (!visible) {

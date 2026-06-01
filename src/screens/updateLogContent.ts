@@ -32,7 +32,7 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-06-02T00:02"),
+    publishedAt: nzst("2026-06-02T10:39"),
     title: "Runs, passes & trades",
     items: [
       "Run bonus XP — +5 XP per card in the run; doubles and triples count every card; step-backs never reduce the pool (e.g. 8-9-10-9-8 stays 25 XP)",
@@ -41,6 +41,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
       "Skip deal animations — still skips shuffle and deal, but President↔Asshole trades always play out",
       "Hand scroll hints — chevrons jump to the lowest playable card off-screen on each side",
       "Round-end XP — the scoreboard waits until it is visible before the +XP tally animates in",
+      "Fix: deal shuffle no longer gets stuck — the ceremony was resetting every frame instead of dealing cards",
     ],
   },
   {
