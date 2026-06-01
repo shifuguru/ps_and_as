@@ -20,6 +20,8 @@ const {
   isDeadHandPlayer,
   isPlayerStillIn,
   hasPassedInCurrentTrick,
+  canAcknowledgmentPass,
+  isTrickAcknowledgmentPassPhase,
   nextActivePlayerIndex,
   isTrickOpeningLead,
 } = require('./gameBridge');
@@ -597,9 +599,8 @@ function advancePastInactiveSeats(room) {
   while (safety-- > 0) {
     const current = working.players[working.currentPlayerIndex];
     if (!current) break;
-    const quadWait =
-      working.fourOfAKindChallenge?.active &&
-      working.fourOfAKindChallenge.completedAcrossTurns &&
+    const ackLeaderWait =
+      isTrickAcknowledgmentPassPhase(working) &&
       working.lastPlayPlayerIndex === working.currentPlayerIndex;
     const runOnTopTurn =
       working.runOnTop?.active &&
@@ -610,9 +611,9 @@ function advancePastInactiveSeats(room) {
       isDeadHandPlayer(current) ||
       !isPlayerStillIn(working, current.id) ||
       (hasPassedInCurrentTrick(working, current.id) && !runOnTopTurn) ||
-      quadWait;
+      ackLeaderWait;
     if (!inactive || mustOpenTrick) break;
-    if (quadWait) {
+    if (ackLeaderWait) {
       working.currentPlayerIndex = nextActivePlayerIndex(working, working.currentPlayerIndex);
       continue;
     }
@@ -1461,7 +1462,9 @@ io.on('connection', (socket) => {
 
     const working = cloneGameState(room.gameState);
     const currentId = working.players[working.currentPlayerIndex]?.id;
-    if (player.id !== currentId) {
+    const ackPass =
+      action?.type === "pass" && canAcknowledgmentPass(working, player.id);
+    if (player.id !== currentId && !ackPass) {
       socket.emit('error', { message: 'Not your turn' });
       return;
     }

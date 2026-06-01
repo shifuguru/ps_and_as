@@ -40,6 +40,7 @@ type Props = RingProps & {
   lastPlayPlayerId?: string | null;
   playCountLabel?: string | null;
   playModifierLabel?: string | null;
+  runXpPoolAmount?: number | null;
   /** "Your turn" / "Waiting for …" below the play-type badge on the table. */
   turnHintText?: string | null;
   turnHintFlash?: boolean;
@@ -80,6 +81,7 @@ export default function GamePlayArea({
   lastPlayPlayerId,
   playCountLabel,
   playModifierLabel,
+  runXpPoolAmount = null,
   turnHintText,
   turnHintFlash,
   plays = [],
@@ -335,6 +337,7 @@ export default function GamePlayArea({
             layoutHint?: typeof layout;
             playCountLabel?: string | null;
             playModifierLabel?: string | null;
+            runXpPoolAmount?: number | null;
             turnHintText?: string | null;
             turnHintFlash?: boolean;
             hiddenPlayKeys?: Set<string>;
@@ -343,6 +346,7 @@ export default function GamePlayArea({
             layoutHint: layout,
             playCountLabel,
             playModifierLabel,
+            runXpPoolAmount,
             turnHintText,
             turnHintFlash,
             hiddenPlayKeys,
@@ -364,6 +368,8 @@ export default function GamePlayArea({
               left: layout.cardZoneLeft,
               width: layout.cardZoneWidth,
               height: layout.cardZoneHeight,
+              minWidth: layout.cardZoneWidth,
+              minHeight: layout.cardZoneHeight,
             },
           ]}
           pointerEvents="box-none"
@@ -425,6 +431,7 @@ const styles = StyleSheet.create({
     position: "relative",
     minHeight: 0,
   },
+  /** Reserved gameplay stage — fixed size; inner layers do not reflow it. */
   cardZone: {
     position: "absolute",
     zIndex: 8,

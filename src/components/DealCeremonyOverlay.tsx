@@ -54,6 +54,8 @@ type Props = {
   pendingTrades?: ClientPendingTrade[];
   /** President↔Asshole trade skipped (triple Asshole streak). */
   freshRound?: boolean;
+  /** Skip shuffle/deal only — still run mandatory role-trade flights. */
+  skipDealPhases?: boolean;
   onDealComplete: () => void;
   onMandatoryTradesAnimated?: () => void;
   /** Live per-player dealt counts while the deal phase runs. */
@@ -162,6 +164,7 @@ export default function DealCeremonyOverlay({
   totalCards = FULL_DECK_SIZE,
   pendingTrades = [],
   freshRound = false,
+  skipDealPhases = false,
   onDealComplete,
   onMandatoryTradesAnimated,
   onDealtCountsChange,
@@ -330,12 +333,29 @@ export default function DealCeremonyOverlay({
     if (!visible) return;
     ceremonyFinishedRef.current = false;
     dealFlightRoundRef.current = null;
+    setActiveFlights([]);
+
+    if (skipDealPhases) {
+      const fullCounts: Record<string, number> = {};
+      for (const step of dealSteps) {
+        fullCounts[step.playerId] = (fullCounts[step.playerId] ?? 0) + 1;
+      }
+      setDealtCounts(fullCounts);
+      setDealRound(dealSteps.length);
+      if (pendingTrades.length > 0) {
+        setPhase("trade");
+      } else {
+        setPhase("done");
+        finishCeremony();
+      }
+      return;
+    }
+
     setPhase("shuffle");
     setDealRound(0);
     setDealtCounts({});
-    setActiveFlights([]);
     onDealtCountsChangeRef.current?.({});
-  }, [visible]);
+  }, [visible, skipDealPhases, dealSteps, pendingTrades.length]);
 
   useEffect(() => {
     if (!visible) {
@@ -363,12 +383,12 @@ export default function DealCeremonyOverlay({
 
   // Web/native fallback — riffle animation can stall without firing onComplete.
   useEffect(() => {
-    if (!visible || phase !== "shuffle") return;
+    if (!visible || phase !== "shuffle" || skipDealPhases) return;
     const timer = setTimeout(() => {
       setPhase((current) => (current === "shuffle" ? "deal" : current));
     }, SHUFFLE_MS + 120);
     return () => clearTimeout(timer);
-  }, [visible, phase]);
+  }, [visible, phase, skipDealPhases]);
 
   useEffect(() => {
     return () => {
@@ -387,13 +407,16 @@ export default function DealCeremonyOverlay({
   useEffect(() => {
     if (!visible) return;
     const perCardMs = estimateDealDurationMs(Math.max(dealSteps.length, 1));
-    const maxMs =
-      SHUFFLE_MS +
-      perCardMs +
-      (pendingTrades.length > 0 ? MANDATORY_TRADE_MS + 600 : 600);
+    const maxMs = skipDealPhases
+      ? pendingTrades.length > 0
+        ? MANDATORY_TRADE_MS + 600
+        : 600
+      : SHUFFLE_MS +
+        perCardMs +
+        (pendingTrades.length > 0 ? MANDATORY_TRADE_MS + 600 : 600);
     const timer = setTimeout(() => finishCeremony(), maxMs);
     return () => clearTimeout(timer);
-  }, [visible, dealSteps.length, pendingTrades.length]);
+  }, [visible, dealSteps.length, pendingTrades.length, skipDealPhases]);
 
   useEffect(() => {
     if (phase !== "deal" || !visible) return;

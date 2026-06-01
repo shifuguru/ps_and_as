@@ -22,6 +22,8 @@ import {
   setTenRuleDirection,
   isValidPlay,
   hasPassedInCurrentTrick,
+  canAcknowledgmentPass,
+  isTrickAcknowledgmentPassPhase,
   resolveRunContext,
   isAdjacentToPileTop,
   nextActivePlayerIndex,
@@ -82,7 +84,7 @@ import {
   recordRoundResult,
   commitRoundXpEarned,
   TRICK_WIN_XP,
-  RUN_STEP_XP,
+  RUN_CARD_XP,
   getPlayerStats,
 } from "../services/playerStats";
 import { fetchCloudPlayerStats, pushCloudPlayerStats } from "../services/playerStatsCloud";
@@ -380,6 +382,7 @@ function GameScreen({
     finishOrder: string[];
     needsDealerReshuffle?: boolean;
     dealAttempt?: number;
+    skipDealPhases?: boolean;
   } | null>(null);
   const [awaitingDealerReshuffle, setAwaitingDealerReshuffle] = useState(false);
   const { skipDealAnimations, loaded: preferencesLoaded } = useGamePreferences();
@@ -768,7 +771,7 @@ function GameScreen({
       const localId = myPlayerIdRef.current;
       const isLocalLoser = !!localId && trade.loserId === localId;
 
-      if (!isLocalLoser || skipDealAnimationsRef.current || returnedCards.length === 0) {
+      if (!isLocalLoser || returnedCards.length === 0) {
         const delay = isLocalLoser && returnedCards.length > 0 ? 450 : 200;
         if (tradeReturnTimerRef.current) {
           clearTimeout(tradeReturnTimerRef.current);
@@ -888,6 +891,8 @@ function GameScreen({
     finishOrder: string[];
     needsDealerReshuffle?: boolean;
     dealAttempt?: number;
+    /** Skip shuffle/deal animation only — role trades still run. */
+    skipDealPhases?: boolean;
   };
 
   const launchRoundAfterDeal = useCallback(
@@ -919,7 +924,9 @@ function GameScreen({
         const tradesPending =
           prep.trades.length > 0 && !prep.trades.every((t) => t.completed);
         if (tradesPending) {
+          setCeremonyPrep({ ...prep, skipDealPhases: true });
           setState(hiddenState);
+          return;
         }
         beginTradePhase(prep.baseState, prep.players, prep.trades);
         return;
@@ -1342,7 +1349,7 @@ function GameScreen({
       state.players,
       state.finishedOrder ?? [],
     );
-    const runBonusXp = runTrickBonusXpAmount(runLength, RUN_STEP_XP);
+    const runBonusXp = runTrickBonusXpAmount(runLength, RUN_CARD_XP);
     if (winnerId) {
       const trickXp = TRICK_WIN_XP + runBonusXp;
       setGameXpByPlayerId((prev) => ({
@@ -2133,6 +2140,40 @@ function GameScreen({
       return () => clearTimeout(timer);
     }
 
+    if (isTrickAcknowledgmentPassPhase(state)) {
+      const ackCpus = state.players
+        .map((p, index) => ({ p, index }))
+        .filter(({ p }) => {
+          if (!isCpuPlayer(p)) return false;
+          if (humanPlayer && p.id === humanPlayer.id) return false;
+          return canAcknowledgmentPass(state, p.id);
+        })
+        .sort((a, b) => a.index - b.index)
+        .map(({ p }) => p);
+      if (ackCpus.length === 0) return;
+
+      const timers = ackCpus.map((cpu, i) =>
+        setTimeout(() => {
+          const live = stateRef.current;
+          if (!live || trickPauseActiveRef.current || gameplayLockedRef.current || roundOverRef.current) {
+            return;
+          }
+          if (!canAcknowledgmentPass(live, cpu.id)) return;
+          const nextState = passTurn(live, cpu.id);
+          if (nextState !== live) {
+            emitDebug("action:pass:cpu:ack", {
+              playerId: cpu.id,
+              playerName: cpu.name,
+              before: snapshotState(live),
+              after: snapshotState(nextState),
+            });
+            setState(nextState);
+          }
+        }, CPU_DELAY_MS + i * 40),
+      );
+      return () => timers.forEach(clearTimeout);
+    }
+
     const current = state.players[state.currentPlayerIndex];
 
     // If current player is out or has no cards, skip their turn.
@@ -2604,6 +2645,7 @@ function GameScreenBoard() {
       finishOrder: string[];
       needsDealerReshuffle?: boolean;
       dealAttempt?: number;
+      skipDealPhases?: boolean;
     } | null;
     awaitingDealerReshuffle: boolean;
     gameplayLocked: boolean;
@@ -2844,7 +2886,7 @@ function GameScreenBoard() {
     remoteAvatarBordersByPlayerId,
   ]);
 
-  const activeRunXpPool = useMemo(() => {
+  const runXpPoolAmount = useMemo(() => {
     if (
       !state ||
       trickPauseActive ||
@@ -2854,15 +2896,8 @@ function GameScreenBoard() {
     ) {
       return null;
     }
-    const info = activeRunXpPoolInfo(state, RUN_STEP_XP);
-    if (info.poolXp <= 0) return null;
-    const leaderName = info.pileLeaderId
-      ? state.players.find((p) => p.id === info.pileLeaderId)?.name
-      : null;
-    return {
-      amount: info.poolXp,
-      hint: leaderName ? `Goes to ${leaderName} on the win` : "Goes to trick winner",
-    };
+    const info = activeRunXpPoolInfo(state, RUN_CARD_XP);
+    return info.poolXp > 0 ? info.poolXp : null;
   }, [
     state,
     trickPauseActive,
@@ -2990,6 +3025,15 @@ function GameScreenBoard() {
     !currentIsOut &&
     !state.tenRulePending;
 
+  const humanCanAckPass =
+    !!myPlayerId &&
+    canAcknowledgmentPass(state, myPlayerId) &&
+    !trickPauseActive &&
+    !currentIsOut &&
+    !state.tenRulePending;
+  const isHumanPassEligible = isHumanTurn || humanCanAckPass;
+  const localHumanId = myPlayerId ?? humanPlayer?.id;
+
   let hand = [] as CardType[];
   const handPlayer =
     (myPlayerId && state.players.find((p) => p.id === myPlayerId)) ??
@@ -3042,10 +3086,10 @@ function GameScreenBoard() {
 
   const hasAnyValidPlay = playableIndices.some(Boolean);
   const noValidPlays =
-    isHumanTurn &&
+    isHumanPassEligible &&
     !roundOver &&
     !hasAnyValidPlay &&
-    !hasPassedInCurrentTrick(state, current.id);
+    !!(localHumanId && !hasPassedInCurrentTrick(state, localHumanId));
 
   const isOpeningLead = isRoundOpeningLead(state);
 
@@ -3195,8 +3239,10 @@ function GameScreenBoard() {
   };
 
   const handlePassPress = () => {
-    if (roundOver || !isHumanTurn || trickPauseActive || readOnlyGame) return;
-    const actor = current;
+    if (roundOver || trickPauseActive || readOnlyGame) return;
+    if (!isHumanPassEligible) return;
+    const actor =
+      (myPlayerId && state.players.find((p) => p.id === myPlayerId)) ?? current;
     if (!actor) return;
     if (hasPassedInCurrentTrick(state, actor.id)) {
       emitDebug("action:pass:blocked", { playerId: actor.id, reason: "already passed" });
@@ -3762,6 +3808,7 @@ function GameScreenBoard() {
           avatarBordersByPlayerId={avatarBordersByPlayerId}
           playCountLabel={playCountLabel}
           playModifierLabel={playModifierLabel}
+          runXpPoolAmount={runXpPoolAmount}
           turnHintText={turnHintText}
           turnHintFlash={turnHintFlash}
           tableSeatCount={tableSeats.layoutSeatCount}
@@ -3782,8 +3829,6 @@ function GameScreenBoard() {
             collectToStack={trickPauseActive && stackCollecting}
             collectDurationMs={trickStackCollectMs}
             fadeOut={trickPauseActive && showWinnerBanner}
-            runXpPoolAmount={activeRunXpPool?.amount ?? 0}
-            runXpPoolHint={activeRunXpPool?.hint ?? null}
           />
         </GamePlayArea>
         {awaitingDealerReshuffle &&
@@ -3910,9 +3955,16 @@ function GameScreenBoard() {
             onPass={handlePassPress}
             onQuit={requestLeaveGame}
             playDisabled={gameplayLocked || !isHumanTurn || roundOver || (hasPassedInCurrentTrick(state, current.id) && !humanRunOnTopTurn) || selected.length === 0 || !selectedCanPlay}
-            passDisabled={gameplayLocked || !isHumanTurn || roundOver || mustLeadOpening}
-            isPlayerTurn={isHumanTurn && !roundOver && !gameplayLocked}
+            passDisabled={
+              gameplayLocked ||
+              !isHumanPassEligible ||
+              roundOver ||
+              mustLeadOpening ||
+              !!(localHumanId && hasPassedInCurrentTrick(state, localHumanId))
+            }
+            isPlayerTurn={isHumanPassEligible && !roundOver && !gameplayLocked}
             noValidPlays={noValidPlays}
+            onTopTurn={humanRunOnTopTurn}
           />
           ) : null}
         </BottomBarControls>
@@ -4002,6 +4054,7 @@ function GameScreenBoard() {
         }
         pendingTrades={ceremonyPrep?.trades.filter((t) => !t.completed) ?? []}
         freshRound={!!ceremonyPrep?.baseState.freshRound}
+        skipDealPhases={!!ceremonyPrep?.skipDealPhases}
         onDealComplete={handleDealComplete}
         onDealtCountsChange={setCeremonyDealCounts}
         onDealProgressChange={setCeremonyDealProgress}

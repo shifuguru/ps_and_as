@@ -36,7 +36,10 @@ export const DEFAULT_PLAYER_STATS: PlayerStats = {
 };
 
 export const TRICK_WIN_XP = 15;
-export const RUN_STEP_XP = 15;
+/** Run bonus: +5 XP per card in the run (doubles/triples count every card). */
+export const RUN_CARD_XP = 5;
+/** @deprecated Use RUN_CARD_XP — kept for imports that still reference the old name. */
+export const RUN_STEP_XP = RUN_CARD_XP;
 
 export const ACHIEVEMENTS: AchievementDef[] = [
   {

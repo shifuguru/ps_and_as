@@ -47,6 +47,7 @@ const OPEN_DELAY_MS = 420;
 function RankXpDisplay({
   visible,
   animationReady,
+  boardDisplayed,
   rowDelay,
   finalTotal,
   roundEarned,
@@ -55,6 +56,7 @@ function RankXpDisplay({
 }: {
   visible: boolean;
   animationReady: boolean;
+  boardDisplayed: boolean;
   rowDelay: number;
   finalTotal: number;
   roundEarned: number;
@@ -65,7 +67,7 @@ function RankXpDisplay({
   const startTotal = Math.max(0, finalTotal - roundEarned);
   const [displayTotal, setDisplayTotal] = useState(startTotal);
   const [displayRound, setDisplayRound] = useState(roundEarned);
-  const [showRoundXp, setShowRoundXp] = useState(roundEarned > 0);
+  const [showRoundXp, setShowRoundXp] = useState(false);
 
   const roundOpacity = progress.interpolate({
     inputRange: [0, 1],
@@ -74,20 +76,20 @@ function RankXpDisplay({
   });
 
   useEffect(() => {
-    setDisplayTotal(startTotal);
-    setDisplayRound(roundEarned);
-    setShowRoundXp(roundEarned > 0);
-
-    if (!visible) {
+    if (!visible || !boardDisplayed) {
       progress.stopAnimation();
-      progress.setValue(0);
-      return;
-    }
-
-    if (!animationReady) {
       progress.setValue(0);
       setDisplayTotal(startTotal);
       setDisplayRound(roundEarned);
+      setShowRoundXp(false);
+      return;
+    }
+
+    setDisplayTotal(startTotal);
+    setDisplayRound(roundEarned);
+
+    if (!animationReady) {
+      progress.setValue(0);
       setShowRoundXp(roundEarned > 0);
       return;
     }
@@ -101,6 +103,7 @@ function RankXpDisplay({
     }
 
     progress.setValue(0);
+    setShowRoundXp(true);
     const listener = progress.addListener(({ value }) => {
       setDisplayTotal(Math.round(startTotal + roundEarned * value));
       setDisplayRound(Math.round(roundEarned * (1 - value)));
@@ -124,7 +127,16 @@ function RankXpDisplay({
       anim.stop();
       progress.removeListener(listener);
     };
-  }, [visible, animationReady, finalTotal, roundEarned, rowDelay, startTotal, progress]);
+  }, [
+    visible,
+    boardDisplayed,
+    animationReady,
+    finalTotal,
+    roundEarned,
+    rowDelay,
+    startTotal,
+    progress,
+  ]);
 
   return (
     <View style={styles.xpBlock}>
@@ -173,9 +185,26 @@ export default function RoundCompleteModal({
     [players, finishedOrder],
   );
   const livingCount = players.filter((p) => !p.isDeadHand && p.id !== "__dead_hand__").length;
+  const [boardDisplayed, setBoardDisplayed] = useState(false);
+
+  useEffect(() => {
+    if (!visible) setBoardDisplayed(false);
+  }, [visible]);
+
+  // Web / edge cases: onShow can lag behind visible — fall back once fade should be done.
+  useEffect(() => {
+    if (!visible || boardDisplayed) return;
+    const timer = setTimeout(() => setBoardDisplayed(true), 360);
+    return () => clearTimeout(timer);
+  }, [visible, boardDisplayed]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onShow={() => setBoardDisplayed(true)}
+    >
       <View style={ui.modalOverlay}>
         <BlurPanel
           style={[ui.modalCard, { width: cardWidth, maxWidth: cardWidth }]}
@@ -219,6 +248,7 @@ export default function RoundCompleteModal({
                       <RankXpDisplay
                         visible={visible}
                         animationReady={xpAnimationReady}
+                        boardDisplayed={boardDisplayed}
                         rowDelay={index * ROW_STAGGER_MS}
                         finalTotal={finalTotal}
                         roundEarned={roundEarned}

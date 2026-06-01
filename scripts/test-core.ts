@@ -28,6 +28,9 @@ import {
   isRoundCompleteForLiving,
   setTenRuleDirection,
   resolveEffectiveTenRule,
+  isOnTopEligiblePile,
+  canAcknowledgmentPass,
+  isTrickAcknowledgmentPassPhase,
 } from "../src/game/core";
 import {
   applyMandatoryTrades,
@@ -696,6 +699,73 @@ function makeEmptyGame(names: string[]): GameState {
   assert.strictEqual(s.mustPlay, true, "Quad completer leads the next trick");
 }
 
+// Concurrent acknowledgment passes after joker — any order, seat order preserved
+{
+  const g = makeEmptyGame(["P1", "P2", "P3", "P4"]);
+  const fiveH: Card = { suit: "hearts", value: 5 };
+  const sevenH: Card = { suit: "hearts", value: 7 };
+  const joker: Card = { suit: "joker", value: 16 };
+  g.players[0].hand = [fiveH, { suit: "spades", value: 3 }];
+  g.players[1].hand = [sevenH, { suit: "diamonds", value: 4 }];
+  g.players[2].hand = [{ suit: "clubs", value: 9 }, { suit: "diamonds", value: 4 }];
+  g.players[3].hand = [joker, { suit: "hearts", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, g.players[0].id, [fiveH]);
+  s = playCards(s, g.players[1].id, [sevenH]);
+  s = playCards(s, g.players[2].id, [{ suit: "clubs", value: 9 }]);
+  s = playCards(s, g.players[3].id, [joker]);
+  assert.ok(isTrickAcknowledgmentPassPhase(s));
+  assert.strictEqual(s.players[s.currentPlayerIndex].id, g.players[0].id);
+
+  s = passTurn(s, g.players[1].id);
+  assert.strictEqual(
+    s.players[s.currentPlayerIndex].id,
+    g.players[2].id,
+    "Turn pointer should continue clockwise from the last passer",
+  );
+
+  s = passTurn(s, g.players[2].id);
+  s = passTurn(s, g.players[0].id);
+  assert.strictEqual(s.pile.length, 0, "Trick clears once all others acknowledge");
+  assert.strictEqual(s.players[s.currentPlayerIndex].id, g.players[3].id);
+}
+
+// Concurrent acknowledgment passes after cross-turn rank close
+{
+  const g = makeEmptyGame(["P1", "P2", "P3"]);
+  g.players[0].hand = [{ suit: "clubs", value: 3 }, { suit: "spades", value: 5 }];
+  g.players[1].hand = [
+    { suit: "hearts", value: 3 },
+    { suit: "diamonds", value: 3 },
+    { suit: "clubs", value: 3 },
+    { suit: "spades", value: 8 },
+  ];
+  g.players[2].hand = [{ suit: "hearts", value: 9 }];
+  g.currentPlayerIndex = 0;
+  g.pile = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+
+  let s = playCards(g, g.players[0].id, [{ suit: "clubs", value: 3 }]);
+  s = playCards(s, s.players[1].id, [
+    { suit: "hearts", value: 3 },
+    { suit: "diamonds", value: 3 },
+    { suit: "clubs", value: 3 },
+  ]);
+  assert.ok(isTrickAcknowledgmentPassPhase(s));
+  assert.strictEqual(s.players[s.currentPlayerIndex].id, g.players[2].id);
+
+  s = passTurn(s, g.players[0].id);
+  assert.strictEqual(
+    s.players[s.currentPlayerIndex].id,
+    g.players[2].id,
+    "Turn pointer should continue from the last passer, skipping the leader",
+  );
+  s = passTurn(s, g.players[2].id);
+  assert.strictEqual(s.pile.length, 0);
+  assert.strictEqual(s.players[s.currentPlayerIndex].id, g.players[1].id);
+}
+
 // Single-play four-of-a-kind bomb is beatable by higher quads or joker
 {
   const joker: Card = { suit: "joker", value: 16 };
@@ -1156,6 +1226,48 @@ function makeEmptyGame(names: string[]): GameState {
   assert.strictEqual(s.pile.length, 0, "Leader wins trick after passing on top!");
   assert.strictEqual((s.trickHistory?.length ?? 0), 1);
   assert.strictEqual(s.trickHistory?.[0]?.winnerId, "1", "10-rule on-top pass winner is last player who played");
+}
+
+{
+  const tenH: Card = { suit: "hearts", value: 10 };
+  const jackH: Card = { suit: "hearts", value: 11 };
+
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+  g.lastRoundOrder = ["1", "2", "3", "4"];
+
+  g.players[0].hand = [tenH, { suit: "clubs", value: 3 }];
+  g.players[1].hand = [jackH, { suit: "clubs", value: 4 }];
+  g.players[2].hand = [{ suit: "spades", value: 5 }];
+  g.players[3].hand = [{ suit: "clubs", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [tenH]);
+  s = setTenRuleDirection(s, "higher");
+  s = playCards(s, "2", [jackH]);
+  assert.ok(!s.tenRule?.active, "10 rule clears once the 10 pile is beaten");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+  s = passTurn(s, "1");
+
+  assert.ok(!s.runOnTop?.active, "No on top! when the trick ends on a beat, not on the 10");
+  assert.strictEqual(s.pile.length, 0, "Trick should clear normally");
+  assert.strictEqual(s.trickHistory?.[0]?.winnerId, "2");
+  assert.ok(
+    !isOnTopEligiblePile(
+      [jackH],
+      s.pileHistory,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      s.tenRule,
+    ),
+    "Beaten pile should not be on-top eligible even if a 10 was played earlier",
+  );
 }
 
 console.log("Pass-lock and 8-player tests passed");

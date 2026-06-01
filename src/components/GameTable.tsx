@@ -18,25 +18,14 @@ import {
   computePlayStackLayout,
   layoutPlayBundle,
   MAX_SPREAD_WIDTH_RATIO,
-  STACK_CENTER_Y,
+  stagePlayTypeBadgeTop,
+  stageTurnHintTop,
 } from "../utils/tablePlayLayout";
 
 /** z-index stride per play group — cards within use 0..stride-1 by left-to-right order. */
 const GROUP_Z_STRIDE = 100;
-/** Gap between the card row and the play-type pill. */
-const PLAY_TYPE_BADGE_GAP = 16;
-/** Approximate rendered height of the play-type pill (padding + text). */
-const PLAY_TYPE_BADGE_HEIGHT = 30;
-/** Gap between the play-type pill and the turn hint pill. */
-const TURN_HINT_GAP = 8;
 /** Approx. width for "Waiting for " + 24-char name + ellipsis (12px font). */
 const TURN_HINT_PILL_MAX_WIDTH = 268;
-/** Run pool badge block height (chips + copy + padding). */
-const RUN_XP_POOL_BADGE_HEIGHT = 54;
-/** Clear space between the run pool badge bottom and the top card edge. */
-const RUN_XP_POOL_GAP = 12;
-/** Lift the run pool toward the top ring — negative extends above the card zone. */
-const RUN_XP_POOL_TOP = -16;
 
 function playKey(play: TrickPlayDisplay, index: number): string {
   return `${index}-${play.playerId}-${play.cards.map((c) => `${c.suit}${c.value}`).join("-")}`;
@@ -60,6 +49,8 @@ type Props = {
   plays: TrickPlayDisplay[];
   playCountLabel?: string | null;
   playModifierLabel?: string | null;
+  /** Live run bonus XP — shown as "+N XP" beside the Runs! pill. */
+  runXpPoolAmount?: number | null;
   layoutHint?: PlayAreaLayout | null;
   /** Slide all plays onto the first pile (trick-end collect). */
   collectToStack?: boolean;
@@ -69,10 +60,6 @@ type Props = {
   fadeOutDurationMs?: number;
   /** Hide plays until their seat-to-table flight finishes. */
   hiddenPlayKeys?: ReadonlySet<string>;
-  /** Accumulated run bonus XP on the table (trick winner takes all at trick end). */
-  runXpPoolAmount?: number;
-  /** Short hint under the pool, e.g. who wins it. */
-  runXpPoolHint?: string | null;
   /** "Your turn" / "Waiting for …" shown below the play-type badge. */
   turnHintText?: string | null;
   /** Pulse the turn hint like the Pass button when it's the local player's turn. */
@@ -83,14 +70,13 @@ export default function GameTable({
   plays,
   playCountLabel,
   playModifierLabel,
+  runXpPoolAmount = null,
   layoutHint,
   collectToStack = false,
   collectDurationMs = 520,
   fadeOut = false,
   fadeOutDurationMs = 200,
   hiddenPlayKeys,
-  runXpPoolAmount = 0,
-  runXpPoolHint = null,
   turnHintText = null,
   turnHintFlash = false,
 }: Props) {
@@ -109,28 +95,24 @@ export default function GameTable({
     [layoutHint],
   );
 
-  const showRunXpPool = (runXpPoolAmount ?? 0) > 0;
-  const runPoolTopInset = showRunXpPool
-    ? Math.max(
-        28,
-        RUN_XP_POOL_TOP + RUN_XP_POOL_BADGE_HEIGHT + RUN_XP_POOL_GAP,
-      )
-    : 0;
+  const stageWidth =
+    zoneSize.width > 0 ? zoneSize.width : layoutHint?.cardZoneWidth ?? 0;
+  const stageHeight =
+    zoneSize.height > 0 ? zoneSize.height : layoutHint?.cardZoneHeight ?? 0;
 
   const layout = useMemo(() => {
     return computePlayStackLayout({
       plays,
-      zoneWidth: zoneSize.width,
-      zoneHeight: zoneSize.height,
+      zoneWidth: stageWidth,
+      zoneHeight: stageHeight,
       maxFillScale: scaleLimits.maxFillScale,
       displayScale: scaleLimits.displayScale,
       hiddenPlayKeys,
-      topInset: runPoolTopInset,
     });
-  }, [plays, zoneSize, scaleLimits, hiddenPlayKeys, runPoolTopInset]);
+  }, [plays, stageWidth, stageHeight, scaleLimits, hiddenPlayKeys]);
 
   const maxSpreadWidth =
-    zoneSize.width > 0 ? zoneSize.width * MAX_SPREAD_WIDTH_RATIO : undefined;
+    stageWidth > 0 ? stageWidth * MAX_SPREAD_WIDTH_RATIO : undefined;
 
   useEffect(() => {
     if (!collectToStack) {
@@ -266,53 +248,44 @@ export default function GameTable({
 
   const emptyMessage = useMemo(() => {
     const narrow =
-      zoneSize.width > 0
-        ? zoneSize.width < 168
+      stageWidth > 0
+        ? stageWidth < 168
         : layoutHint?.isVeryCompact || layoutHint?.isCompact;
     return narrow ? "No plays yet" : "No cards played yet";
-  }, [zoneSize.width, layoutHint?.isCompact, layoutHint?.isVeryCompact]);
+  }, [stageWidth, layoutHint?.isCompact, layoutHint?.isVeryCompact]);
 
   const emptyTextMaxWidth = useMemo(() => {
-    if (zoneSize.width <= 0) return undefined;
-    return Math.max(72, zoneSize.width - 28);
-  }, [zoneSize.width]);
+    if (stageWidth <= 0) return undefined;
+    return Math.max(72, stageWidth - 28);
+  }, [stageWidth]);
 
-  const playTypeBadgeTop = useMemo(() => {
-    const refCardH = cardH || layout.cardHeight;
-    if (zoneSize.height <= 0 || refCardH <= 0) return 0;
+  const refCardHeight = cardH || layout.cardHeight;
 
-    if (tableRows.length > 0) {
-      let rowBottom = 0;
-      for (const row of tableRows) {
-        rowBottom = Math.max(rowBottom, row.pos.top + row.groupHeight);
-      }
-      return rowBottom + PLAY_TYPE_BADGE_GAP;
-    }
+  const playTypeBadgeTop = useMemo(
+    () => stagePlayTypeBadgeTop(stageHeight, refCardHeight),
+    [stageHeight, refCardHeight],
+  );
 
-    // Empty table — match layoutChronologicalPlays row center so pills align
-    // with where they sit once cards land.
-    const centerY = zoneSize.height * STACK_CENTER_Y;
-    return centerY + refCardH / 2 + PLAY_TYPE_BADGE_GAP;
-  }, [tableRows, zoneSize.height, cardH, layout.cardHeight]);
+  const showRunXpPool =
+    runXpPoolAmount != null && runXpPoolAmount > 0;
+  const showPlayTypePills = !!(
+    playCountLabel ||
+    playModifierLabel ||
+    showRunXpPool
+  );
 
-  const showPlayTypePills = !!(playCountLabel || playModifierLabel);
-
-  const turnHintTop = useMemo(() => {
-    if (zoneSize.height <= 0) return 0;
-    if (showPlayTypePills) {
-      return playTypeBadgeTop + PLAY_TYPE_BADGE_HEIGHT + TURN_HINT_GAP;
-    }
-    return playTypeBadgeTop;
-  }, [zoneSize.height, showPlayTypePills, playTypeBadgeTop]);
+  const turnHintTop = useMemo(
+    () => stageTurnHintTop(stageHeight, refCardHeight, showPlayTypePills),
+    [stageHeight, refCardHeight, showPlayTypePills],
+  );
 
   const turnHintMaxWidth = useMemo(() => {
-    if (zoneSize.width <= 0) return TURN_HINT_PILL_MAX_WIDTH;
-    return Math.min(TURN_HINT_PILL_MAX_WIDTH, zoneSize.width - 8);
-  }, [zoneSize.width]);
+    if (stageWidth <= 0) return TURN_HINT_PILL_MAX_WIDTH;
+    return Math.min(TURN_HINT_PILL_MAX_WIDTH, stageWidth - 8);
+  }, [stageWidth]);
 
   const showBadgeColumn =
-    zoneSize.height > 0 &&
-    (showPlayTypePills || !!turnHintText || showRunXpPool);
+    stageHeight > 0 && (showPlayTypePills || !!turnHintText);
 
   const badgeOpacity = collectAnim.interpolate({
     inputRange: [0, 0.35],
@@ -366,34 +339,27 @@ export default function GameTable({
       })
     : undefined;
 
+  const stageStyle =
+    stageWidth > 0 && stageHeight > 0
+      ? { width: stageWidth, height: stageHeight }
+      : null;
+
   return (
     <View style={styles.tableFrame} onLayout={onZoneLayout}>
-      <View style={styles.anchorHost} pointerEvents="box-none">
-        {playCount === 0 ? (
-          <View style={styles.emptyHost} pointerEvents="none">
-            <Text
-              style={[
-                styles.emptyText,
-                emptyTextMaxWidth != null && { maxWidth: emptyTextMaxWidth },
-                (layoutHint?.isVeryCompact || (emptyTextMaxWidth ?? 999) < 140) &&
-                  styles.emptyTextCompact,
-              ]}
-            >
-              {emptyMessage}
-            </Text>
-          </View>
-        ) : (
-          <Animated.View style={[styles.playCluster, { opacity: tableFadeAnim }]}>
-            <View
-              style={[
-                styles.playStack,
-                {
-                  width: zoneSize.width,
-                  height: zoneSize.height,
-                  overflow: "visible",
-                },
-              ]}
-            >
+      <View
+        style={[styles.gameplayStage, stageStyle]}
+        pointerEvents="box-none"
+      >
+        <View style={styles.cardLayer} pointerEvents="box-none">
+          {playCount > 0 ? (
+            <Animated.View style={[styles.playCluster, { opacity: tableFadeAnim }]}>
+              <View
+                style={[
+                  styles.playStack,
+                  stageStyle,
+                  { overflow: "visible" },
+                ]}
+              >
                 {tableRows.map((row) => {
                   const {
                     play,
@@ -502,54 +468,33 @@ export default function GameTable({
                   );
                 })}
               </View>
+            </Animated.View>
+          ) : null}
+        </View>
 
-          </Animated.View>
-        )}
+        {playCount === 0 ? (
+          <View style={styles.emptyOverlay} pointerEvents="none">
+            <Text
+              style={[
+                styles.emptyText,
+                emptyTextMaxWidth != null && { maxWidth: emptyTextMaxWidth },
+                (layoutHint?.isVeryCompact || (emptyTextMaxWidth ?? 999) < 140) &&
+                  styles.emptyTextCompact,
+              ]}
+            >
+              {emptyMessage}
+            </Text>
+          </View>
+        ) : null}
+
         {showBadgeColumn ? (
           <Animated.View
             style={[
-              styles.badgeColumnOverlay,
+              styles.chromeLayer,
               playCount > 0 ? { opacity: tableFadeAnim } : null,
             ]}
             pointerEvents="none"
           >
-            {showRunXpPool ? (
-              <Animated.View
-                style={[
-                  styles.runXpPoolBadge,
-                  {
-                    top: RUN_XP_POOL_TOP,
-                    opacity: collectToStack ? badgeOpacity : 1,
-                  },
-                ]}
-                pointerEvents="none"
-              >
-                <View style={styles.runXpChipStack} pointerEvents="none">
-                  {[0, 1, 2].map((layer) => (
-                    <View
-                      key={layer}
-                      style={[
-                        styles.runXpChip,
-                        {
-                          top: layer * 4,
-                          left: layer * 5,
-                          zIndex: layer,
-                        },
-                      ]}
-                    />
-                  ))}
-                </View>
-                <View style={styles.runXpPoolCopy}>
-                  <Text style={styles.runXpPoolAmount}>
-                    +{runXpPoolAmount} XP
-                  </Text>
-                  <Text style={styles.runXpPoolLabel}>Run pool</Text>
-                  {runXpPoolHint ? (
-                    <Text style={styles.runXpPoolHint}>{runXpPoolHint}</Text>
-                  ) : null}
-                </View>
-              </Animated.View>
-            ) : null}
             {showPlayTypePills ? (
               <Animated.View
                 style={[
@@ -595,6 +540,24 @@ export default function GameTable({
                         ]}
                       >
                         {playModifierLabel}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {showRunXpPool ? (
+                    <View
+                      style={[
+                        styles.playTypeBadgeBody,
+                        styles.playTypeBadgeBodyHighlighted,
+                      ]}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.playTypeBadgeText,
+                          styles.playTypeBadgeTextHighlighted,
+                        ]}
+                      >
+                        +{runXpPoolAmount} XP
                       </Text>
                     </View>
                   ) : null}
@@ -666,10 +629,16 @@ const styles = StyleSheet.create({
     minHeight: 0,
     overflow: "visible",
   },
-  anchorHost: {
+  /** Fixed-size gameplay stage — dimensions come from GamePlayArea card zone. */
+  gameplayStage: {
     flex: 1,
     minHeight: 0,
     position: "relative",
+    overflow: "visible",
+  },
+  cardLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
     overflow: "visible",
   },
   playCluster: {
@@ -678,7 +647,7 @@ const styles = StyleSheet.create({
   playStack: {
     position: "relative",
   },
-  badgeColumnOverlay: {
+  chromeLayer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: GROUP_Z_STRIDE * 4,
   },
@@ -827,58 +796,9 @@ const styles = StyleSheet.create({
       ? ({ whiteSpace: "nowrap" } as object)
       : null),
   },
-  runXpPoolBadge: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  runXpChipStack: {
-    width: 34,
-    height: 28,
-    position: "relative",
-  },
-  runXpChip: {
-    position: "absolute",
-    width: 26,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "rgba(212, 175, 55, 0.92)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.45)",
-  },
-  runXpPoolCopy: {
-    alignItems: "flex-start",
-    maxWidth: "72%",
-  },
-  runXpPoolAmount: {
-    color: "#f5e6a8",
-    fontWeight: "900",
-    fontSize: 15,
-    letterSpacing: 0.3,
-  },
-  runXpPoolLabel: {
-    color: "rgba(212, 175, 55, 0.95)",
-    fontWeight: "800",
-    fontSize: 10,
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-    marginTop: 1,
-  },
-  runXpPoolHint: {
-    color: "rgba(255,255,255,0.72)",
-    fontWeight: "600",
-    fontSize: 10,
-    marginTop: 2,
-  },
-  emptyHost: {
-    flex: 1,
-    minHeight: 0,
+  emptyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 14,

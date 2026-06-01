@@ -35,6 +35,8 @@ type Props = {
   passDisabled: boolean;
   isPlayerTurn?: boolean;
   noValidPlays?: boolean;
+  /** Run / 10-rule on-top beat — pass ends the trick (already won). */
+  onTopTurn?: boolean;
   /** Hide play/pass during deal ceremony — leave stays visible. */
   leaveOnly?: boolean;
 };
@@ -48,6 +50,7 @@ export default function ActionBar({
   passDisabled,
   isPlayerTurn = false,
   noValidPlays = false,
+  onTopTurn = false,
   leaveOnly = false,
 }: Props) {
   const { colors, ui } = useAppTheme();
@@ -88,7 +91,14 @@ export default function ActionBar({
     : "Select Cards From Your Hand";
 
   const showPassFlash =
-    isPlayerTurn && noValidPlays && !passDisabled;
+    isPlayerTurn && noValidPlays && !passDisabled && !onTopTurn;
+
+  const passLabel = onTopTurn ? "Skip" : "Pass";
+  const passAccessibilityLabel = onTopTurn
+    ? "Skip on-top play — keep trick win"
+    : showPassFlash
+      ? "Pass Turn — No Valid Plays Available"
+      : "Pass Turn";
 
   const playReady = isPlayerTurn && !playDisabled && hasSelection;
 
@@ -220,14 +230,12 @@ export default function ActionBar({
           }}
           disabled={passDisabled}
           accessibilityRole="button"
-          accessibilityLabel={
-            showPassFlash ? "Pass Turn — No Valid Plays Available" : "Pass Turn"
-          }
+          accessibilityLabel={passAccessibilityLabel}
           accessibilityState={{ disabled: passDisabled }}
         >
           {showPassFlash ? (
             <Animated.Text style={[styles.passText, { color: passTextColor }]}>
-              Pass
+              {passLabel}
             </Animated.Text>
           ) : (
             <Text
@@ -237,7 +245,7 @@ export default function ActionBar({
                 passDisabled && styles.textMuted,
               ]}
             >
-              Pass
+              {passLabel}
             </Text>
           )}
           {showPassFlash && (

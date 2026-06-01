@@ -61,6 +61,38 @@ const MAX_TABLE_SCALE = Platform.OS === "web" ? 1.62 : 1.54;
 
 export const STACK_CENTER_Y = 0.5;
 
+/** Fixed chrome slots inside the gameplay stage — never derived from pile bounds. */
+export const STAGE_PLAY_TYPE_BADGE_GAP = 16;
+export const STAGE_PLAY_TYPE_BADGE_HEIGHT = 30;
+export const STAGE_TURN_HINT_GAP = 8;
+
+export function stageCardRowCenterY(zoneHeight: number): number {
+  return zoneHeight * STACK_CENTER_Y;
+}
+
+/** Play-type pills ("Singles", "Runs!", …) — anchored below the card row anchor. */
+export function stagePlayTypeBadgeTop(
+  zoneHeight: number,
+  cardHeight: number,
+): number {
+  const centerY = stageCardRowCenterY(zoneHeight);
+  const refCardH = cardHeight > 0 ? cardHeight : BASE_CARD_H;
+  return centerY + refCardH / 2 + STAGE_PLAY_TYPE_BADGE_GAP;
+}
+
+/** Turn status pill — fixed slot below play-type pills (or card row when pills hidden). */
+export function stageTurnHintTop(
+  zoneHeight: number,
+  cardHeight: number,
+  hasPlayTypePills: boolean,
+): number {
+  const badgeTop = stagePlayTypeBadgeTop(zoneHeight, cardHeight);
+  if (hasPlayTypePills) {
+    return badgeTop + STAGE_PLAY_TYPE_BADGE_HEIGHT + STAGE_TURN_HINT_GAP;
+  }
+  return badgeTop;
+}
+
 /** Oldest singles beyond this count stack tightly at the left of the row. */
 export const MAX_VISIBLE_SINGLES = 4;
 /** Oldest doubles / triples / quads / runs beyond this count stack tightly. */
@@ -703,7 +735,7 @@ export function computePlayStackLayout(options: {
   frozenFillScale?: number;
   /** In-flight plays — layout only includes landed cards in the display fan. */
   hiddenPlayKeys?: ReadonlySet<string>;
-  /** Reserve space at the top of the card zone (e.g. run XP pool badge). */
+  /** Reserve space at the top of the card zone (legacy — prefer fixed chrome overlays). */
   topInset?: number;
 }): PlayStackLayout {
   const {

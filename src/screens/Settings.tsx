@@ -573,7 +573,7 @@ export default function Settings({
               <Text style={[styles.tintHint, styles.settingHint]}>
                 {onlineGuest
                   ? "Controlled by the host in online games."
-                  : "Jump straight to your hand — no shuffle or dealing animation."}
+                  : "Skip the shuffle and deal — President/Asshole trades still play out."}
               </Text>
             </View>
           </BlurPanel>

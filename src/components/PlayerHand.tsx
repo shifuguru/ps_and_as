@@ -16,6 +16,7 @@ import {
   Platform,
   TouchableOpacity,
   Text,
+  Easing,
   type ViewStyle,
 } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
@@ -46,11 +47,10 @@ const SELECT_LIFT = 12;
 const CENTER_GUTTER = 10;
 
 const PAN_ACTIVATION_PX = 8;
-const SCROLL_HINT_EDGE = 12;
 const SCROLL_HINT_FIN_WIDTH = 72;
 const SCROLL_HINT_TOUCH_LANE = 72;
-/** Min visible card width (px) before we treat it as off-screen. */
-const SCROLL_HINT_MIN_VISIBLE = 0.5;
+/** Playable must be at least this many slots from the centred card to show a hint. */
+const SCROLL_HINT_MIN_INDEX_DISTANCE = 5;
 
 type CarouselSlot = {
   left: number;
@@ -62,76 +62,40 @@ type CarouselSlot = {
   compact: boolean;
 };
 
-function cardViewportSpan(
-  slotLeft: number,
-  scrollOffset: number,
-  cardWidth: number,
-): { left: number; right: number; center: number } {
-  const left = slotLeft - scrollOffset;
-  return { left, right: left + cardWidth, center: left + cardWidth / 2 };
-}
-
-function isPlayableClippedOnSide(
-  direction: "left" | "right",
-  span: { left: number; right: number },
-  containerWidth: number,
-  cardWidth: number,
-): boolean {
-  const margin = SCROLL_HINT_EDGE;
-  const minVisible = cardWidth * SCROLL_HINT_MIN_VISIBLE;
-  if (direction === "left") {
-    return span.right - margin < minVisible;
-  }
-  return containerWidth - margin - span.left < minVisible;
-}
-
-function findHiddenPlayableOnSide(
-  direction: "left" | "right",
-  slots: CarouselSlot[],
+/** Leftmost playable index strictly before focus (lowest available card on the left). */
+function findLowestPlayableLeft(
   playableIndices: boolean[],
-  containerWidth: number,
-  scrollOffset: number,
-  cardWidth: number,
+  focusIndex: number,
 ): number | null {
-  if (direction === "left") {
-    let best: number | null = null;
-    for (let i = 0; i < slots.length; i += 1) {
-      if (!playableIndices[i]) continue;
-      const span = cardViewportSpan(slots[i].left, scrollOffset, cardWidth);
-      if (isPlayableClippedOnSide("left", span, containerWidth, cardWidth)) {
-        best = i;
-      }
-    }
-    return best;
-  }
-  for (let i = 0; i < slots.length; i += 1) {
-    if (!playableIndices[i]) continue;
-    const span = cardViewportSpan(slots[i].left, scrollOffset, cardWidth);
-    if (isPlayableClippedOnSide("right", span, containerWidth, cardWidth)) {
-      return i;
-    }
+  for (let i = 0; i < focusIndex; i += 1) {
+    if (playableIndices[i]) return i;
   }
   return null;
 }
 
-function hasHiddenPlayableOnSide(
-  direction: "left" | "right",
-  slots: CarouselSlot[],
+/** Leftmost playable index strictly after focus (lowest available card on the right). */
+function findLowestPlayableRight(
   playableIndices: boolean[],
-  containerWidth: number,
-  scrollOffset: number,
-  cardWidth: number,
+  focusIndex: number,
+): number | null {
+  for (let i = focusIndex + 1; i < playableIndices.length; i += 1) {
+    if (playableIndices[i]) return i;
+  }
+  return null;
+}
+
+function shouldShowScrollPlayHint(
+  direction: "left" | "right",
+  playableIndices: boolean[],
+  focusIndex: number,
+  minDistance: number,
 ): boolean {
-  return (
-    findHiddenPlayableOnSide(
-      direction,
-      slots,
-      playableIndices,
-      containerWidth,
-      scrollOffset,
-      cardWidth,
-    ) != null
-  );
+  const target =
+    direction === "left"
+      ? findLowestPlayableLeft(playableIndices, focusIndex)
+      : findLowestPlayableRight(playableIndices, focusIndex);
+  if (target == null) return false;
+  return Math.abs(target - focusIndex) >= minDistance;
 }
 
 /** Max rotation (deg) for cards away from the hand-area centre */
@@ -439,14 +403,47 @@ function ScrollPlayHint({
   blur: BlurPreset;
   onPress: () => void;
 }) {
+  const flashAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(flashAnim, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,
+        }),
+        Animated.timing(flashAnim, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [flashAnim]);
+
+  const chevronFlashColor = flashAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [chevronColor, "#111111"],
+  });
+
+  const finFlashOverlay = flashAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.38],
+  });
+
   const isLeft = direction === "left";
   const finRadius = 16;
   const chevronSize = Math.round(
     Math.min(zoneHeight * 0.42, 76, SCROLL_HINT_FIN_WIDTH * 0.92),
   );
   const label = isLeft
-    ? "Scroll hand left — playable card hidden"
-    : "Scroll hand right — playable card hidden";
+    ? "Scroll hand left to lowest playable card"
+    : "Scroll hand right to lowest playable card";
 
   const finRadii = isLeft
     ? {
@@ -506,6 +503,16 @@ function ScrollPlayHint({
               scrimRgb={scrimRgb}
               edgeOpacity={edgeOpacity}
             />
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                StyleSheet.absoluteFillObject,
+                {
+                  backgroundColor: "#ffffff",
+                  opacity: finFlashOverlay,
+                },
+              ]}
+            />
             <View
               style={[
                 styles.scrollHintFinInner,
@@ -515,18 +522,18 @@ function ScrollPlayHint({
                 },
               ]}
             >
-              <Text
+              <Animated.Text
                 style={[
                   styles.scrollHintChevron,
                   buttonLabel(chevronSize, {
-                    color: chevronColor,
                     fontWeight: "300",
                     lineHeight: chevronSize,
                   }),
+                  { color: chevronFlashColor as unknown as string },
                 ]}
               >
                 {isLeft ? "‹" : "›"}
-              </Text>
+              </Animated.Text>
             </View>
           </View>
         </BlurPanel>
@@ -635,48 +642,34 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
 
   const showLeftPlayableHint = useMemo(() => {
     if (disabled || !hasPlayableCards || cards.length <= 1) return false;
-    if (scrollOffset <= bounds.min + 1) return false;
-    return hasHiddenPlayableOnSide(
+    return shouldShowScrollPlayHint(
       "left",
-      slots,
       playableIndices,
-      layoutWidth,
-      scrollOffset,
-      cardWidth,
+      displayFocusIndex,
+      SCROLL_HINT_MIN_INDEX_DISTANCE,
     );
   }, [
     disabled,
     hasPlayableCards,
     cards.length,
-    scrollOffset,
-    bounds.min,
-    slots,
     playableIndices,
-    layoutWidth,
-    cardWidth,
+    displayFocusIndex,
   ]);
 
   const showRightPlayableHint = useMemo(() => {
     if (disabled || !hasPlayableCards || cards.length <= 1) return false;
-    if (scrollOffset >= bounds.max - 1) return false;
-    return hasHiddenPlayableOnSide(
+    return shouldShowScrollPlayHint(
       "right",
-      slots,
       playableIndices,
-      layoutWidth,
-      scrollOffset,
-      cardWidth,
+      displayFocusIndex,
+      SCROLL_HINT_MIN_INDEX_DISTANCE,
     );
   }, [
     disabled,
     hasPlayableCards,
     cards.length,
-    scrollOffset,
-    bounds.max,
-    slots,
     playableIndices,
-    layoutWidth,
-    cardWidth,
+    displayFocusIndex,
   ]);
 
   useEffect(() => {
@@ -868,15 +861,11 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     setPendingFocusIndex(target);
   };
 
-  const scrollToHiddenPlayable = (direction: "left" | "right") => {
-    const target = findHiddenPlayableOnSide(
-      direction,
-      slots,
-      playableIndices,
-      layoutWidth,
-      scrollOffset,
-      cardWidth,
-    );
+  const scrollToLowestPlayable = (direction: "left" | "right") => {
+    const target =
+      direction === "left"
+        ? findLowestPlayableLeft(playableIndices, displayFocusIndex)
+        : findLowestPlayableRight(playableIndices, displayFocusIndex);
     if (target != null) scrollToIndex(target);
   };
 
@@ -954,7 +943,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
           edgeOpacity={hintEdgeOpacity}
           chevronColor={colors.textPrimary}
           blur={blur.chrome}
-          onPress={() => scrollToHiddenPlayable("left")}
+          onPress={() => scrollToLowestPlayable("left")}
         />
       ) : null}
       {showRightPlayableHint ? (
@@ -965,7 +954,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
           edgeOpacity={hintEdgeOpacity}
           chevronColor={colors.textPrimary}
           blur={blur.chrome}
-          onPress={() => scrollToHiddenPlayable("right")}
+          onPress={() => scrollToLowestPlayable("right")}
         />
       ) : null}
       <Animated.View

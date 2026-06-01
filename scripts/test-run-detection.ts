@@ -12,6 +12,7 @@ import {
   playCards,
   passTurn,
   runContextLengthFromState,
+  runCardCountFromState,
   runBonusStepsFromLength,
   runTrickBonusXpAmount,
   activeRunXpPoolInfo,
@@ -1090,7 +1091,7 @@ function minimalRunTrick(opts: {
     winnerName: players[2].name,
     runLength:
       opts.runLength ??
-      runContextLengthFromState({
+      runCardCountFromState({
         pile: opts.pile,
         pileHistory: opts.history,
         pileOwners: opts.owners,
@@ -1103,26 +1104,27 @@ function minimalRunTrick(opts: {
 
 {
   if (
-    runBonusStepsFromLength(3) === 0 &&
-    runBonusStepsFromLength(4) === 1 &&
-    runBonusStepsFromLength(6) === 3
+    runBonusStepsFromLength(3, 1) === 3 &&
+    runBonusStepsFromLength(4, 1) === 4 &&
+    runBonusStepsFromLength(3, 2) === 6 &&
+    runBonusStepsFromLength(4, 2) === 8
   ) {
     passed++;
-    console.log("PASS  run bonus pool: steps = run length minus 3");
+    console.log("PASS  run bonus pool: counts every card in the run (incl. doubles)");
   } else {
     failed++;
-    console.log("FAIL  run bonus pool step math");
+    console.log("FAIL  run bonus pool card count");
   }
 }
 
 {
-  const xp = runTrickBonusXpAmount(5, 15);
-  if (xp === 30) {
+  const xp = runTrickBonusXpAmount(5, 5);
+  if (xp === 25) {
     passed++;
-    console.log("PASS  run bonus pool: 5-card run awards 30 XP");
+    console.log("PASS  run bonus pool: 5-card run awards 25 XP");
   } else {
     failed++;
-    console.log(`FAIL  run bonus pool amount: expected 30 got ${xp}`);
+    console.log(`FAIL  run bonus pool amount: expected 25 got ${xp}`);
   }
 }
 
@@ -1141,13 +1143,13 @@ function minimalRunTrick(opts: {
 
   if (
     runLengthFromCompletedTrick(trick, players) === 3 &&
-    runTrickBonusXpAmount(trick.runLength ?? 0, 15) === 0
+    runTrickBonusXpAmount(trick.runLength ?? 0, 5) === 15
   ) {
     passed++;
-    console.log("PASS  run bonus pool: 3-card run pays no bonus XP");
+    console.log("PASS  run bonus pool: 3-card run pays 15 XP");
   } else {
     failed++;
-    console.log("FAIL  run bonus pool: 3-card run should pay 0");
+    console.log("FAIL  run bonus pool: 3-card run should pay 15");
   }
 }
 
@@ -1167,15 +1169,15 @@ function minimalRunTrick(opts: {
 
   if (
     runLengthFromCompletedTrick(trick, players) === 4 &&
-    runTrickBonusXpAmount(trick.runLength ?? 0, 15) === 15
+    runTrickBonusXpAmount(trick.runLength ?? 0, 5) === 20
   ) {
     passed++;
-    console.log("PASS  run bonus pool: 4-card run pays one step (15 XP)");
+    console.log("PASS  run bonus pool: 4-card run pays 20 XP");
   } else {
     failed++;
     console.log("FAIL  run bonus pool: 4-card run");
     console.log(
-      `      len=${runLengthFromCompletedTrick(trick, players)} xp=${runTrickBonusXpAmount(trick.runLength ?? 0, 15)}`,
+      `      len=${runLengthFromCompletedTrick(trick, players)} xp=${runTrickBonusXpAmount(trick.runLength ?? 0, 5)}`,
     );
   }
 }
@@ -1218,15 +1220,76 @@ function minimalRunTrick(opts: {
     finishedOrder: [] as string[],
     lastPlayPlayerIndex: 3,
   };
-  const pool = activeRunXpPoolInfo(state as GameState, 15);
+  const pool = activeRunXpPoolInfo(state as GameState, 5);
 
-  if (pool.poolXp === 15 && pool.pileLeaderId === players[3].id) {
+  if (pool.poolXp === 20 && pool.pileLeaderId === players[3].id) {
     passed++;
-    console.log("PASS  active run pool: 4-card run shows 15 XP for pile leader");
+    console.log("PASS  active run pool: 4-card run shows 20 XP for pile leader");
   } else {
     failed++;
     console.log("FAIL  active run pool");
     console.log(`      pool=${pool.poolXp} leader=${pool.pileLeaderId}`);
+  }
+}
+
+{
+  const actions = [
+    makeAction("play", 0, [card(3)]),
+    makeAction("play", 1, [card(4)]),
+    makeAction("play", 2, [card(5)]),
+    makeAction("play", 3, [card(6)]),
+    makeAction("play", 0, [card(7)]),
+  ];
+  const state = {
+    pile: [card(7)],
+    pileHistory: [[card(3)], [card(4)], [card(5)], [card(6)]],
+    pileOwners: [players[0].id, players[1].id, players[2].id, players[3].id],
+    currentTrick: { trickNumber: 1, actions },
+    players: players.map((p) => ({ ...p, hand: [card(9)] })),
+    finishedOrder: [] as string[],
+    lastPlayPlayerIndex: 0,
+  };
+  const pool = activeRunXpPoolInfo(state as GameState, 5);
+  if (pool.poolXp === 25 && pool.runLength === 5) {
+    passed++;
+    console.log("PASS  active run pool: 5-card run shows 25 XP");
+  } else {
+    failed++;
+    console.log(`FAIL  active run pool 5-card: pool=${pool.poolXp} len=${pool.runLength}`);
+  }
+}
+
+{
+  const actions = [
+    makeAction("play", 0, [card(3)]),
+    makeAction("play", 1, [card(4)]),
+    makeAction("play", 2, [card(5)]),
+    makeAction("play", 3, [card(6)]),
+    makeAction("play", 0, [card(7)]),
+    makeAction("play", 1, [card(8)]),
+  ];
+  const state = {
+    pile: [card(8)],
+    pileHistory: [[card(3)], [card(4)], [card(5)], [card(6)], [card(7)]],
+    pileOwners: [
+      players[0].id,
+      players[1].id,
+      players[2].id,
+      players[3].id,
+      players[0].id,
+    ],
+    currentTrick: { trickNumber: 1, actions },
+    players: players.map((p) => ({ ...p, hand: [card(9)] })),
+    finishedOrder: [] as string[],
+    lastPlayPlayerIndex: 1,
+  };
+  const pool = activeRunXpPoolInfo(state as GameState, 5);
+  if (pool.poolXp === 30 && pool.runLength === 6) {
+    passed++;
+    console.log("PASS  active run pool: 6-card run shows 30 XP");
+  } else {
+    failed++;
+    console.log(`FAIL  active run pool 6-card: pool=${pool.poolXp} len=${pool.runLength}`);
   }
 }
 
@@ -1293,6 +1356,178 @@ console.log("\n=== Skip-over step-back: J-Q-J-K keeps Runs! context ===\n");
     console.log("FAIL  J-Q-J-K skip-over run");
     console.log(
       `      beforeInRun=${ctxBeforeK.inRunContext} kingValid=${kingAsRun} afterInRun=${ctxAfterK.inRunContext} runSeq=${ctxAfterK.runSeq.map((c) => c.value)}`,
+    );
+  }
+
+  const poolAfterK = activeRunXpPoolInfo(
+    {
+      pile: pileAfterK,
+      pileHistory: historyAfterK,
+      pileOwners: [players[0].id, players[1].id, players[2].id],
+      currentTrick: trickAfterK,
+      players,
+      finishedOrder: [],
+      lastPlayPlayerIndex: 3,
+    } as GameState,
+    5,
+  );
+  if (poolAfterK.poolXp === 15 && poolAfterK.runLength === 3) {
+    passed++;
+    console.log("PASS  J-Q-J-K: active run pool shows 15 XP (3 singles)");
+  } else {
+    failed++;
+    console.log(
+      `FAIL  J-Q-J-K run pool: pool=${poolAfterK.poolXp} len=${poolAfterK.runLength}`,
+    );
+  }
+}
+
+{
+  const actions = [
+    makeAction("play", 0, [card(3), card(3)]),
+    makeAction("play", 1, [card(4), card(4)]),
+    makeAction("play", 2, [card(5), card(5)]),
+    makeAction("play", 3, [card(6), card(6)]),
+  ];
+  const state = {
+    pile: [card(6), card(6)],
+    pileHistory: [
+      [card(3), card(3)],
+      [card(4), card(4)],
+      [card(5), card(5)],
+    ],
+    pileOwners: [players[0].id, players[1].id, players[2].id],
+    currentTrick: { trickNumber: 1, actions },
+    players: players.map((p) => ({ ...p, hand: [card(9)] })),
+    finishedOrder: [] as string[],
+    lastPlayPlayerIndex: 3,
+  };
+  const pool = activeRunXpPoolInfo(state as GameState, 5);
+  if (pool.poolXp === 40 && pool.runLength === 8) {
+    passed++;
+    console.log("PASS  active run pool: 4-rank doubles run shows 40 XP (8 cards)");
+  } else {
+    failed++;
+    console.log(
+      `FAIL  doubles run pool: pool=${pool.poolXp} cards=${pool.runLength}`,
+    );
+  }
+}
+
+{
+  const actions = [
+    makeAction("play", 0, [card(3), card(3)]),
+    makeAction("play", 1, [card(4), card(4)]),
+    makeAction("play", 2, [card(5), card(5)]),
+  ];
+  const trick = minimalRunTrick({
+    pile: [card(5), card(5)],
+    history: [[card(3), card(3)], [card(4), card(4)]],
+    owners: [players[0].id, players[1].id],
+    actions,
+  });
+  if (
+    runLengthFromCompletedTrick(trick, players) === 6 &&
+    runTrickBonusXpAmount(trick.runLength ?? 0, 5) === 30
+  ) {
+    passed++;
+    console.log("PASS  run bonus pool: 3-rank doubles run pays 30 XP");
+  } else {
+    failed++;
+    console.log(
+      `FAIL  doubles run XP: cards=${runLengthFromCompletedTrick(trick, players)} xp=${runTrickBonusXpAmount(trick.runLength ?? 0, 5)}`,
+    );
+  }
+}
+
+console.log("\n=== Run XP high-water: step-back does not reduce pool ===\n");
+{
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(8)]),
+      makeAction("play", 1, [card(9)]),
+      makeAction("play", 2, [card(10)]),
+      makeAction("play", 3, [card(9)]),
+      makeAction("play", 0, [card(8)]),
+    ],
+  };
+  const stateAtPeak = {
+    pile: [card(10)],
+    pileHistory: [[card(8)], [card(9)]],
+    pileOwners: [players[0].id, players[1].id],
+    currentTrick: {
+      trickNumber: 1,
+      actions: trick.actions.slice(0, 3),
+    },
+    players: players.map((p) => ({ ...p, hand: [card(3)] })),
+    finishedOrder: [] as string[],
+    lastPlayPlayerIndex: 2,
+  };
+  const stateStepBack = {
+    pile: [card(8)],
+    pileHistory: [[card(8)], [card(9)], [card(10)], [card(9)]],
+    pileOwners: [
+      players[0].id,
+      players[1].id,
+      players[2].id,
+      players[3].id,
+    ],
+    currentTrick: trick,
+    players: players.map((p) => ({ ...p, hand: [card(3)] })),
+    finishedOrder: [] as string[],
+    lastPlayPlayerIndex: 0,
+  };
+  const poolPeak = activeRunXpPoolInfo(stateAtPeak as GameState, 5);
+  const poolFinal = activeRunXpPoolInfo(stateStepBack as GameState, 5);
+  if (
+    poolPeak.poolXp === 15 &&
+    poolFinal.poolXp === 25 &&
+    poolFinal.runLength === 5
+  ) {
+    passed++;
+    console.log("PASS  8-9-10-9-8: pool stays 25 XP after step-back (not 15)");
+  } else {
+    failed++;
+    console.log(
+      `FAIL  8-9-10-9-8 XP: peak=${poolPeak.poolXp} final=${poolFinal.poolXp} cards=${poolFinal.runLength}`,
+    );
+  }
+}
+
+{
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(4)]),
+      makeAction("play", 1, [card(5)]),
+      makeAction("play", 2, [card(6)]),
+      makeAction("play", 3, [card(5)]),
+      makeAction("play", 0, [card(6)]),
+    ],
+  };
+  const state = {
+    pile: [card(6)],
+    pileHistory: [[card(4)], [card(5)], [card(6)], [card(5)]],
+    pileOwners: [
+      players[0].id,
+      players[1].id,
+      players[2].id,
+      players[3].id,
+    ],
+    currentTrick: trick,
+    players: players.map((p) => ({ ...p, hand: [card(3)] })),
+    finishedOrder: [] as string[],
+    lastPlayPlayerIndex: 0,
+  };
+  const pool = activeRunXpPoolInfo(state as GameState, 5);
+  if (pool.poolXp === 25 && pool.runLength === 5) {
+    passed++;
+    console.log("PASS  4-5-6-5-6: oscillating step-back awards 25 XP");
+  } else {
+    failed++;
+    console.log(
+      `FAIL  4-5-6-5-6 XP: pool=${pool.poolXp} cards=${pool.runLength}`,
     );
   }
 }

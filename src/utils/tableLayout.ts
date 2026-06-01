@@ -205,8 +205,9 @@ function maxSafeRingRadius(
 }
 
 /**
- * Layout the card zone inside a seat ring that expands outward from the table
- * on roomier screens, always capped so the top opponent stays visible.
+ * Layout the fixed gameplay stage (card zone) inside the opponent ring.
+ * The stage size is independent of pile content; pills and cards position
+ * within it without shifting the ring or local seat.
  */
 export function computePlayAreaLayout(
   width: number,
