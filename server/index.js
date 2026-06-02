@@ -133,30 +133,67 @@ function livingPlayerCount(gameState) {
   return (gameState?.players || []).filter(isLivingPlayer).length;
 }
 
+/** Finish order for role trades — newcomers join at the end (Asshole) when the roster changes. */
+function finishOrderForNextRound(room, promoted, prevState) {
+  const lobbyIds = room.players
+    .filter((p) => !p.disconnectedAt && !p.isSpectator)
+    .map((p) => p.id);
+  const prevOrder = livingFinishOrder(
+    prevState,
+    prevState?.lastRoundOrder?.slice() ?? prevState?.finishedOrder ?? [],
+  );
+  const kept = prevOrder.filter((id) => lobbyIds.includes(id));
+
+  if (!promoted?.length) {
+    return kept.length >= 2 ? kept : prevOrder.filter((id) => lobbyIds.includes(id));
+  }
+
+  let order = kept.slice();
+  for (const p of promoted) {
+    if (!order.includes(p.id)) order.push(p.id);
+  }
+  for (const id of lobbyIds) {
+    if (!order.includes(id)) order.push(id);
+  }
+  return order.length >= 2 ? order : lobbyIds;
+}
+
 function startNextRound(roomId) {
   const room = rooms[roomId];
   if (!room) return;
+  const prevState = room.gameState;
   const promoted = room.isBotHosted
     ? botHosted.promoteReadySpectators(room)
     : [promoteReadySpectator(room)].filter(Boolean);
+  const rosterChanged = promoted.length > 0;
   const dealSeed = Math.floor(Math.random() * 2147483647);
-  const lastOrder = livingFinishOrder(
-    room.gameState,
-    room.gameState?.lastRoundOrder?.slice() ?? [],
-  );
+  const lastOrder = finishOrderForNextRound(room, promoted, prevState);
 
-  const streakAfterRound = advanceAssholeStreakAfterRound(
-    {
-      consecutiveAssholeId: room.gameState?.consecutiveAssholeId ?? null,
-      consecutiveAssholeCount: room.gameState?.consecutiveAssholeCount ?? 0,
-      freshRound: !!room.gameState?.freshRound,
-    },
-    lastOrder,
-    room.gameState?.players ?? [],
-  );
-  const skipPresidentTrade = shouldSkipPresidentAssholeTrade(streakAfterRound);
+  let streakAfterRound;
+  let skipPresidentTrade;
+  if (rosterChanged) {
+    streakAfterRound = {
+      consecutiveAssholeId: null,
+      consecutiveAssholeCount: 0,
+      freshRound: false,
+    };
+    skipPresidentTrade = false;
+  } else {
+    streakAfterRound = advanceAssholeStreakAfterRound(
+      {
+        consecutiveAssholeId: prevState?.consecutiveAssholeId ?? null,
+        consecutiveAssholeCount: prevState?.consecutiveAssholeCount ?? 0,
+        freshRound: !!prevState?.freshRound,
+      },
+      lastOrder,
+      prevState?.players ?? [],
+    );
+    skipPresidentTrade = shouldSkipPresidentAssholeTrade(streakAfterRound);
+  }
 
-  beginAuthoritativeRound(room, dealSeed, { lastRoundOrder: lastOrder });
+  beginAuthoritativeRound(room, dealSeed, {
+    lastRoundOrder: lastOrder.length >= 2 ? lastOrder : undefined,
+  });
 
   room.gameState.consecutiveAssholeId = streakAfterRound.consecutiveAssholeId;
   room.gameState.consecutiveAssholeCount = streakAfterRound.consecutiveAssholeCount;
@@ -182,16 +219,32 @@ function startNextRound(roomId) {
     room.gameState.pendingTrades = {};
   }
 
+  if (
+    room.isBotHosted &&
+    Object.keys(room.gameState.pendingTrades || {}).length > 0
+  ) {
+    const playerHands =
+      room.gameState.playerHands || snapshotPlayerHands(room.gameState);
+    room.gameState.playerHands = playerHands;
+    finalizePendingTrades(room.gameState, playerHands);
+    for (const p of room.gameState.players) {
+      p.hand = playerHands[p.id] || p.hand;
+    }
+    syncOpeningPlayerAfterTrades(room.gameState, room.host);
+  }
+
   room.gameState.readyForNextRound = {};
   broadcastGameState(io, room);
   io.to(roomId).emit('nextRoundStarting', {
     dealSeed,
     promotedPlayerId: promoted[0]?.id ?? null,
     promotedPlayerIds: promoted.map((p) => p.id),
+    rosterChanged,
   });
   emitTradesCompleteIfReady(io, roomId, room.gameState, room.host);
   if (room.isBotHosted) {
-    botHosted.scheduleBotTurns(roomId, getBotContext());
+    advancePastInactiveSeats(room);
+    botHosted.kickBotTurnLoop(roomId, getBotContext());
   }
 }
 
@@ -465,15 +518,27 @@ function snapshotPlayerHands(gameState) {
 
 /** After role trades finish, opener is whoever holds 3♣ (not dealer's left). */
 function syncOpeningPlayerAfterTrades(gameState, hostId) {
+  const pending = gameState.pendingTrades || {};
+  const hasRoles =
+    !!gameState.roles &&
+    Object.values(gameState.roles).some((r) => r === 'president' || r === 'asshole');
   const lastRoundOrder = gameState.lastRoundOrder;
-  if (!lastRoundOrder || lastRoundOrder.length < 2) return;
+  if (
+    (!lastRoundOrder || lastRoundOrder.length < 2) &&
+    !(hasRoles && Object.keys(pending).length > 0)
+  ) {
+    return;
+  }
 
   const playerHands = gameState.playerHands || {};
   for (const p of gameState.players || []) {
     if (playerHands[p.id]) p.hand = [...playerHands[p.id]];
   }
 
-  const dealerContext = { hostId: hostId ?? null, lastRoundOrder };
+  const dealerContext = {
+    hostId: hostId ?? null,
+    lastRoundOrder: lastRoundOrder ?? [],
+  };
   let idx = resolveLeadPlayerIndexAfterTrades(gameState.players, dealerContext);
   if (idx < 0) {
     idx = resolveOpeningPlayerIndex(gameState.players, dealerContext);

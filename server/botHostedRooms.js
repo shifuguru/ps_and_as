@@ -308,6 +308,28 @@ function isHumanGamePlayer(player, state, room) {
   return isPlayerStillIn(state, player.id);
 }
 
+function shouldBotCpuAct(room) {
+  const gs = room?.gameState;
+  const current = gs?.players?.[gs.currentPlayerIndex];
+  return (
+    !!current &&
+    isBotPlayerId(current.id) &&
+    !isDeadHandPlayer(current) &&
+    !isHumanGamePlayer(current, gs, room)
+  );
+}
+
+function tradesBlockingBots(room, ctx) {
+  const pending = room.gameState?.pendingTrades || {};
+  if (Object.keys(pending).length === 0) return false;
+  if (ctx.allTradesComplete(room.gameState)) return false;
+  if (resolveBotPendingTrades(room, ctx)) {
+    ctx.emitTradesCompleteIfReady(ctx.io, ctx.roomId, room.gameState, room.host);
+    ctx.broadcastGameState(ctx.io, room);
+  }
+  return !ctx.allTradesComplete(room.gameState);
+}
+
 /** Skip dead-hand / out seats so bot turns don't stall mid-trick (common during runs). */
 function advanceUntilBotTurnOrHuman(room, ctx) {
   if (!room.gameState?.players?.length) return false;
@@ -505,6 +527,8 @@ function processBotTurnStep(room, ctx) {
 
   if (tryCompleteBotRound(room, ctx)) return true;
 
+  if (tradesBlockingBots(room, ctx)) return false;
+
   if (resolveBotPendingTrades(room, ctx)) {
     ctx.emitTradesCompleteIfReady(ctx.io, ctx.roomId, room.gameState, room.host);
   }
@@ -526,21 +550,18 @@ function processBotTurnStep(room, ctx) {
 
   if (advanceUntilBotTurnOrHuman(room, ctx)) {
     ctx.broadcastGameState(ctx.io, room);
-    const current = room.gameState.players[room.gameState.currentPlayerIndex];
-    if (!current || !isBotPlayerId(current.id) || isDeadHandPlayer(current)) {
+    if (!shouldBotCpuAct(room)) {
       tryCompleteBotRound(room, ctx);
-      return true;
+      return false;
     }
+  }
+
+  if (!shouldBotCpuAct(room)) {
+    return false;
   }
 
   const gs = room.gameState;
   const current = gs.players[gs.currentPlayerIndex];
-  if (!current || !isBotPlayerId(current.id) || isDeadHandPlayer(current)) {
-    return false;
-  }
-  if (isHumanGamePlayer(current, gs, room)) {
-    return false;
-  }
 
   const before = ctx.cloneGameState(gs);
   let next = applyCpuTurn(before, current.id);
@@ -579,6 +600,17 @@ function scheduleBotTurns(roomId, ctx) {
   }, BOT_TURN_DELAY_MS);
 }
 
+/** Clear a stuck timer and re-run the loop (e.g. after a new deal / trades). */
+function kickBotTurnLoop(roomId, ctx) {
+  const room = ctx.rooms[roomId];
+  if (!room?.isBotHosted || !room.inGame) return;
+  if (room._botTurnTimer) {
+    clearTimeout(room._botTurnTimer);
+    room._botTurnTimer = null;
+  }
+  scheduleBotTurns(roomId, ctx);
+}
+
 function runBotTurnLoop(roomId, ctx) {
   const room = ctx.rooms[roomId];
   if (!room?.isBotHosted || !room.inGame || !room.gameState) return;
@@ -610,17 +642,13 @@ function runBotTurnLoop(roomId, ctx) {
     // Stalled on dead hand / passive seat — retry after advancing once more
     if (advanceUntilBotTurnOrHuman(live, ctx)) {
       ctx.broadcastGameState(ctx.io, live);
-      live._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS);
+      if (shouldBotCpuAct(live) && !ctx.isRoundComplete(live.gameState)) {
+        live._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS);
+      }
       return;
     }
 
-    const cur = live.gameState?.players?.[live.gameState.currentPlayerIndex];
-    if (
-      cur &&
-      isBotPlayerId(cur.id) &&
-      !isDeadHandPlayer(cur) &&
-      !ctx.isRoundComplete(live.gameState)
-    ) {
+    if (shouldBotCpuAct(live) && !ctx.isRoundComplete(live.gameState)) {
       live._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS);
     }
   };
@@ -832,6 +860,7 @@ module.exports = {
   gameHasDeadHandSlot,
   isBotRoomStalled,
   scheduleBotTurns,
+  kickBotTurnLoop,
   onBotRoomRoundFinished,
   afterBotRoomPlayerLeft,
   roomListingExtras,

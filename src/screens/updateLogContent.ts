@@ -32,6 +32,14 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-02T18:14"),
+    title: "Bot table join & opening lead",
+    items: [
+      "Open Bot Table — when you take the dead hand seat, the next round runs President↔Asshole trades for the new lineup instead of skipping them",
+      "Open Bot Table — bots play the opening lead after you join instead of the table hanging on “waiting for bot”",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-02T16:51"),
     title: "Bot table dead hand & skip",
     items: [

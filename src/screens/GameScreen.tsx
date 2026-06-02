@@ -847,11 +847,20 @@ function GameScreen({
       pendingTradesCompleteRef.current = null;
       clearLastHandReveal();
       clearTradeReturnReveal();
-      const next = buildFreshRoundState(baseState, merged, {
-        hostId: resolvedHostId,
-        lastRoundOrder: baseState.lastRoundOrder,
-        finishedOrder: ceremonyPrepRef.current?.finishOrder,
-      });
+      const useServerOpener =
+        onlineMultiplayer &&
+        baseState.currentPlayerIndex >= 0 &&
+        baseState.currentPlayerIndex < merged.length;
+      const next = buildFreshRoundState(
+        baseState,
+        merged,
+        {
+          hostId: resolvedHostId,
+          lastRoundOrder: baseState.lastRoundOrder,
+          finishedOrder: ceremonyPrepRef.current?.finishOrder,
+        },
+        useServerOpener ? baseState.currentPlayerIndex : undefined,
+      );
       setState(next);
       setRoundOver(false);
       roundStatsRecordedRef.current = false;
@@ -868,7 +877,12 @@ function GameScreen({
       xpCommittedForRoundRef.current = false;
       ceremonyDoneForRoundRef.current = roundCeremonyKey(next);
     },
-    [resolvedHostId, clearLastHandReveal, clearTradeReturnReveal],
+    [
+      resolvedHostId,
+      clearLastHandReveal,
+      clearTradeReturnReveal,
+      onlineMultiplayer,
+    ],
   );
 
   const beginTradePhase = useCallback(
@@ -1773,6 +1787,27 @@ function GameScreen({
         return;
       }
 
+      const botOpenSkipCeremony =
+        onlineMultiplayer &&
+        effectiveRoomId?.trim().toUpperCase() === "BOTOPN" &&
+        shouldSkipDealAnimations();
+
+      if (botOpenSkipCeremony && !shouldSkipDealCeremony(parsed)) {
+        ceremonyStartedForRoundRef.current = roundKey;
+        ceremonyDoneForRoundRef.current = roundKey;
+        awaitingDealCeremonyRef.current = false;
+        setCeremonyPrep(null);
+        setTradePhase(null);
+        setActiveTrade(null);
+        setTradeReturnPick([]);
+        setGameplayLocked(false);
+        setRoundOver(false);
+        setPlayerReadyStates({});
+        setState(parsed);
+        finishSpectator();
+        return;
+      }
+
       if (onlineMultiplayer && !shouldSkipDealCeremony(parsed)) {
         const needsCeremony =
           awaitingDealCeremonyRef.current ||
@@ -2217,7 +2252,13 @@ function GameScreen({
         if (hands) {
           pendingTradesCompleteRef.current = hands;
         }
-        if (ceremonyPrepRef.current) {
+        const prep = ceremonyPrepRef.current;
+        if (prep) {
+          finalizeCeremonyRoundRef.current(
+            prep.players,
+            prep.baseState,
+            hands ?? pendingTradesCompleteRef.current,
+          );
           return;
         }
         const tp = tradePhaseRef.current;
