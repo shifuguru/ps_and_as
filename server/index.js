@@ -1135,6 +1135,42 @@ function handleRoundFinished(roomId, finishOrder, hands) {
   if (room.isPublic) broadcastAvailableRooms();
 }
 
+/** Spectators who sync late still get last-hand + scoreboard (missed live roundEnded). */
+function emitBetweenRoundsSnapshot(socket, room) {
+  const gs = room?.gameState;
+  if (!gs || !isRoundComplete(gs) || gs.tenRulePending) return;
+
+  const finishOrder = gs.finishedOrder?.slice() ?? [];
+  const hands = {};
+  for (const p of gs.players || []) {
+    hands[p.id] = p.hand;
+  }
+  const livingOrder = livingFinishOrder(gs, finishOrder);
+  const lastPlayerId = livingOrder.length ? livingOrder[livingOrder.length - 1] : null;
+  const lastCards =
+    lastPlayerId && hands[lastPlayerId] ? hands[lastPlayerId] : [];
+  const lastPlayer = lastPlayerId
+    ? gs.players.find((p) => p.id === lastPlayerId)
+    : null;
+  const lastPlayerHand =
+    lastPlayerId && lastCards.length > 0
+      ? {
+          playerId: lastPlayerId,
+          playerName: lastPlayer?.name || 'Player',
+          cards: lastCards,
+        }
+      : null;
+
+  socket.emit('roundEnded', {
+    finishOrder,
+    roles: gs.roles,
+    lastPlayerHand,
+  });
+  socket.emit('playerReadyUpdate', {
+    readyForNextRound: gs.readyForNextRound || {},
+  });
+}
+
 function getBotContext() {
   return {
     rooms,
@@ -1178,7 +1214,9 @@ io.on('connection', (socket) => {
 
   // Send available rooms when client requests discovery
   socket.on('discoverRooms', () => {
-    botHosted.ensureBotHostedRooms(getBotContext());
+    const botCtx = getBotContext();
+    botHosted.repairBotHostedRoomIfNeeded(botCtx);
+    botHosted.ensureBotHostedRooms(botCtx);
     const availableRooms = Object.entries(rooms)
       .filter(([_, room]) => botHosted.discoverRoomFilter(
         rooms,
@@ -1428,6 +1466,9 @@ io.on('connection', (socket) => {
           skipDealAnimations: !!room.skipDealAnimations,
           spectator,
         });
+        if (joined.isSpectator) {
+          emitBetweenRoundsSnapshot(socket, room);
+        }
       }
     }
     
@@ -1697,6 +1738,14 @@ io.on('connection', (socket) => {
       handleRoundFinished(roomId, finishOrder, handSnapshot);
     } else if (room.isBotHosted) {
       botHosted.scheduleBotTurns(roomId, getBotContext());
+    }
+  });
+
+  socket.on('refreshBotTable', ({ roomId }) => {
+    const code = normalizeRoomCode(roomId);
+    const result = botHosted.refreshBotHostedRoom(code, getBotContext());
+    if (!result.ok) {
+      socket.emit('error', { message: result.message || 'Could not refresh bot table.' });
     }
   });
 

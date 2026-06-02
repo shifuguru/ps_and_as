@@ -57,6 +57,7 @@ interface AvailableRoom {
   deadHandSeatOpen?: boolean;
   spectatorCount?: number;
   isBotHosted?: boolean;
+  botTableStalled?: boolean;
 }
 
 function formatTimeAgo(timestamp: number) {
@@ -233,6 +234,16 @@ export default function FindGame({
     triggerHaptic("medium");
     setError(null);
     onSpectateRoom(roomId, playerName.trim());
+  };
+
+  const handleRefreshBotTable = (roomId: string) => {
+    if (connectionStatus !== "connected") {
+      setError("Connect to the server first.");
+      return;
+    }
+    triggerHaptic("light");
+    setError(null);
+    socket.refreshBotTable(roomId);
   };
 
   const handleJoinWithCode = () => {
@@ -452,6 +463,7 @@ export default function FindGame({
                 const betweenRounds = !!room.inGame && !room.roundInProgress;
                 const seatOpen = !!room.deadHandSeatOpen;
                 const isBotTable = !!room.isBotHosted;
+                const botStalled = !!room.botTableStalled;
                 const full =
                   !inPlay && !isBotTable && room.playerCount >= room.maxPlayers;
                 const showSpectate =
@@ -489,7 +501,19 @@ export default function FindGame({
                           <Text style={styles.roomMetaText}>
                             {room.playerCount}/{room.maxPlayers} players
                           </Text>
-                          {inPlay ? (
+                          {botStalled ? (
+                            <>
+                              <Text style={styles.roomMetaDot}>·</Text>
+                              <Text
+                                style={[
+                                  styles.roomMetaText,
+                                  styles.roomMetaStalled,
+                                ]}
+                              >
+                                Stalled — tap Restart bots
+                              </Text>
+                            </>
+                          ) : inPlay ? (
                             <>
                               <Text style={styles.roomMetaDot}>·</Text>
                               <Text
@@ -522,30 +546,46 @@ export default function FindGame({
                           )}
                         </View>
                       </View>
-                      <TouchableOpacity
-                        style={[
-                          showSpectate ? ui.btnSecondary : ui.btnGold,
-                          { paddingVertical: 10, paddingHorizontal: 18 },
-                          actionDisabled && styles.joinBtnDisabled,
-                        ]}
-                        onPress={() =>
-                          showSpectate
-                            ? handleSpectateRoom(room.roomId)
-                            : handleJoinRoom(room.roomId)
-                        }
-                        disabled={actionDisabled}
-                      >
-                        <Text
+                      <View style={styles.roomActions}>
+                        {isBotTable ? (
+                          <TouchableOpacity
+                            style={[
+                              ui.btnSecondary,
+                              styles.botRestartBtn,
+                              connectionStatus !== "connected" &&
+                                styles.joinBtnDisabled,
+                            ]}
+                            onPress={() => handleRefreshBotTable(room.roomId)}
+                            disabled={connectionStatus !== "connected"}
+                          >
+                            <Text style={ui.btnSecondaryText}>Restart bots</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                        <TouchableOpacity
                           style={[
-                            showSpectate
-                              ? ui.btnSecondaryText
-                              : styles.joinBtnText,
-                            actionDisabled && styles.joinBtnTextDisabled,
+                            showSpectate ? ui.btnSecondary : ui.btnGold,
+                            styles.roomPrimaryBtn,
+                            actionDisabled && styles.joinBtnDisabled,
                           ]}
+                          onPress={() =>
+                            showSpectate
+                              ? handleSpectateRoom(room.roomId)
+                              : handleJoinRoom(room.roomId)
+                          }
+                          disabled={actionDisabled}
                         >
-                          {actionLabel}
-                        </Text>
-                      </TouchableOpacity>
+                          <Text
+                            style={[
+                              showSpectate
+                                ? ui.btnSecondaryText
+                                : styles.joinBtnText,
+                              actionDisabled && styles.joinBtnTextDisabled,
+                            ]}
+                          >
+                            {actionLabel}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </BlurPanel>
                 );
@@ -774,6 +814,24 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   roomMetaInPlay: {
     color: colors.gold,
     fontWeight: "700",
+  },
+  roomMetaStalled: {
+    color: "#e8a87c",
+    fontWeight: "700",
+  },
+  roomActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
+  },
+  botRestartBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  roomPrimaryBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
   },
   roomMetaDot: {
     color: colors.textMuted,

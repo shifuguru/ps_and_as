@@ -414,6 +414,19 @@ export class SocketAdapter implements NetworkAdapter {
       );
     });
 
+    this.socket.on("botTableRefreshed", (data: any) => {
+      this.handlers.forEach((h) =>
+        h({
+          type: "state",
+          state: {
+            type: "botTableRefreshed",
+            roomId: data?.roomId,
+            message: data?.message,
+          },
+        }),
+      );
+    });
+
     this.socket.on("hostMigrated", (data: any) => {
       console.log("[SocketAdapter] Host migrated to:", data.newHostName);
       this.handlers.forEach((h) =>
@@ -774,6 +787,16 @@ export class SocketAdapter implements NetworkAdapter {
     }
     console.log("[SocketAdapter] Requesting game state for room:", roomId);
     this.socket.emit("requestGameState", { roomId });
+  }
+
+  refreshBotTable(roomId: string) {
+    if (!this.socket?.connected) {
+      console.warn("[SocketAdapter] refreshBotTable: socket not connected");
+      return;
+    }
+    const code = roomId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!code) return;
+    this.socket.emit("refreshBotTable", { roomId: code });
   }
 
   playerReadyForNextRound(roomId: string) {

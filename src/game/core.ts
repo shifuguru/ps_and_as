@@ -2228,6 +2228,11 @@ export function applyCpuTurn(state: GameState, playerId: string): GameState {
     !!state.runOnTop?.active && state.runOnTop.playerIndex === pIndex;
   const effectiveTenRule = resolveEffectiveTenRule(state);
 
+  // Acknowledgment passes (joker / cross-turn rank close) — never try to beat the pile.
+  if (canAcknowledgmentPass(state, playerId)) {
+    return passTurn(state, playerId);
+  }
+
   if (!isCurrentTurn) {
     return passTurn(state, playerId);
   }

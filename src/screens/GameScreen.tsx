@@ -532,6 +532,8 @@ function GameScreen({
   const lastHandRevealTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const lastHandRevealRef = useRef<LastHandRevealPayload | null>(null);
+  lastHandRevealRef.current = lastHandReveal;
   const stateSyncedRef = useRef(false);
   const syncRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stateRef = useRef(state);
@@ -580,6 +582,8 @@ function GameScreen({
     return skipDealAnimationsRef.current || getSkipDealAnimationsSync();
   }, [onlineMultiplayer, networkAdapter]);
   const readOnlyOnline = onlineMultiplayer && spectatorMode;
+  const isBotOpenTable =
+    effectiveRoomId?.trim().toUpperCase() === "BOTOPN";
   const seatedPlayerIds = useMemo(() => {
     if (!state?.players) return new Set<string>();
     return new Set(
@@ -747,6 +751,10 @@ function GameScreen({
 
   const startLastHandReveal = useCallback(
     (payload: LastHandRevealPayload) => {
+      if (!payload.cards?.length) {
+        clearLastHandReveal();
+        return;
+      }
       clearLastHandReveal();
       setLastHandReveal(payload);
       lastHandRevealTimerRef.current = setTimeout(() => {
@@ -756,6 +764,15 @@ function GameScreen({
     },
     [clearLastHandReveal],
   );
+
+  /** Fallback — web timers can stall; scoreboard must not stay behind the reveal overlay. */
+  useEffect(() => {
+    if (!roundOver || !lastHandReveal) return;
+    const timer = setTimeout(() => {
+      setLastHandReveal(null);
+    }, LAST_HAND_REVEAL_MS);
+    return () => clearTimeout(timer);
+  }, [roundOver, lastHandReveal]);
 
   const clearTradeReturnReveal = useCallback(() => {
     if (tradeReturnTimerRef.current) {
@@ -1137,6 +1154,41 @@ function GameScreen({
       roomNoticeTimerRef.current = null;
     }, 4500);
   }
+
+  const resetForBotTableRefresh = useCallback(() => {
+    clearLastHandReveal();
+    clearTradeReturnReveal();
+    pendingTradesCompleteRef.current = null;
+    pendingDealSeedRef.current = undefined;
+    setCeremonyPrep(null);
+    setTradePhase(null);
+    setActiveTrade(null);
+    setTradeReturnPick([]);
+    setGameplayLocked(false);
+    setRoundOver(false);
+    setPlayerReadyStates({});
+    setTrickPauseActive(false);
+    setTrickPauseSnapshot(null);
+    setShowWinnerBanner(false);
+    setStackCollecting(false);
+    roundStatsRecordedRef.current = false;
+    xpCommittedForRoundRef.current = false;
+    setForfeitedXpPlayerIds(new Set());
+    setState(null);
+    setSyncError(null);
+    stateSyncedRef.current = false;
+    awaitingDealCeremonyRef.current = true;
+    ceremonyStartedForRoundRef.current = null;
+    ceremonyDoneForRoundRef.current = null;
+    lastTrickLenRef.current = 0;
+  }, [clearLastHandReveal, clearTradeReturnReveal]);
+
+  const handleRefreshBotTable = useCallback(() => {
+    if (!isSocketAdapter(networkAdapter) || !effectiveRoomId) return;
+    resetForBotTableRefresh();
+    networkAdapter.refreshBotTable(effectiveRoomId);
+    showRoomNotice("Restarting bot table…");
+  }, [networkAdapter, effectiveRoomId, resetForBotTableRefresh]);
 
   const triggerNudgeHighlight = useCallback((targetPlayerId: string) => {
     if (!targetPlayerId) return;
@@ -1783,6 +1835,23 @@ function GameScreen({
         awaitingDealCeremonyRef.current = false;
       }
 
+      const roundCompleteOnServer =
+        isRoundCompleteForLiving(parsed) && !parsed.tenRulePending;
+      if (onlineMultiplayer && roundCompleteOnServer && !roundOverRef.current) {
+        setRoundOver(true);
+      }
+      if (
+        onlineMultiplayer &&
+        roundOverRef.current &&
+        !roundCompleteOnServer &&
+        !ceremonyPrepRef.current &&
+        !tradePhaseRef.current &&
+        !awaitingDealCeremonyRef.current
+      ) {
+        clearLastHandReveal();
+        setRoundOver(false);
+      }
+
       setState(parsed);
       finishSpectator();
     };
@@ -2045,14 +2114,37 @@ function GameScreen({
         if (readyMap && typeof readyMap === "object") {
           setPlayerReadyStates({ ...readyMap });
         }
+      } else if (ev.type === "state" && ev.state?.type === "botTableRefreshed") {
+        resetForBotTableRefresh();
+        const note =
+          typeof ev.state.message === "string"
+            ? ev.state.message
+            : "Bot table restarted.";
+        showRoomNotice(note);
+        if (onlineMultiplayer && isSocketAdapter(networkAdapter) && effectiveRoomId) {
+          networkAdapter.requestGameState(effectiveRoomId);
+        }
       } else if (ev.type === "state" && ev.state?.type === "roundEnded") {
+        const finishOrder = ev.state.finishOrder as string[] | undefined;
+        if (finishOrder?.length) {
+          setState((current) =>
+            current ? { ...current, finishedOrder: finishOrder } : current,
+          );
+        }
         const lph = ev.state.lastPlayerHand as LastHandRevealPayload | null | undefined;
         if (lph?.playerId && lph.cards?.length) {
-          startLastHandReveal({
-            playerId: lph.playerId,
-            playerName: lph.playerName || "Player",
-            cards: lph.cards,
-          });
+          const sameReveal =
+            lastHandRevealRef.current?.playerId === lph.playerId &&
+            (lastHandRevealRef.current?.cards?.length ?? 0) === lph.cards.length;
+          if (!sameReveal) {
+            startLastHandReveal({
+              playerId: lph.playerId,
+              playerName: lph.playerName || "Player",
+              cards: lph.cards,
+            });
+          }
+        } else {
+          clearLastHandReveal();
         }
         setRoundOver(true);
       } else if (ev.type === "state" && ev.state?.type === "nextRoundStarting") {
@@ -2190,11 +2282,14 @@ function GameScreen({
     preferencesLoaded,
     startLastHandReveal,
     clearLastHandReveal,
+    resetForBotTableRefresh,
     forfeitPlayerXp,
     triggerNudgeHighlight,
     resolvedHostId,
     launchCeremonyFromDeal,
     seedFromProps,
+    effectiveRoomId,
+    onlineMultiplayer,
   ]);
 
   useEffect(() => {
@@ -2732,6 +2827,8 @@ function GameScreen({
         lastTrickLenRef,
         localAvatarBorder,
         openSeatAvailable,
+        isBotOpenTable,
+        handleRefreshBotTable,
       }}
     >
       <GameScreenBoard />
@@ -2830,6 +2927,8 @@ function GameScreenBoard() {
     lastTrickLenRef,
     localAvatarBorder,
     openSeatAvailable,
+    isBotOpenTable,
+    handleRefreshBotTable,
   } = useContext(GameScreenRuntimeContext)! as {
     state: GameState;
     setState: React.Dispatch<React.SetStateAction<GameState | null>>;
@@ -2955,6 +3054,8 @@ function GameScreenBoard() {
     lastTrickLenRef: React.MutableRefObject<number>;
     localAvatarBorder: AvatarBorderDesign | null;
     openSeatAvailable: boolean;
+    isBotOpenTable: boolean;
+    handleRefreshBotTable: () => void;
   };
 
   const [ceremonyDealCounts, setCeremonyDealCounts] = useState<
@@ -4136,9 +4237,25 @@ function GameScreenBoard() {
                   Spectating — you can play the next round
                 </Text>
               </View>
-              {onBack ? (
-                <BottomBarLeave live onPress={requestLeaveGame} label="Leave" />
-              ) : null}
+              <View style={local.spectatorActionRow}>
+                {isBotOpenTable ? (
+                  <TouchableOpacity
+                    style={[ui.btnSecondary, local.spectatorSecondaryBtn]}
+                    onPress={handleRefreshBotTable}
+                    accessibilityRole="button"
+                    accessibilityLabel="Restart bot table"
+                  >
+                    <Text style={ui.btnSecondaryText}>Restart bots</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {onBack ? (
+                  <BottomBarLeave
+                    live
+                    onPress={requestLeaveGame}
+                    label="Leave"
+                  />
+                ) : null}
+              </View>
             </>
           ) : awaitingDealerReshuffle ? (
             <View style={[local.waitingPill, local.waitingPillCollapsed]}>
@@ -4595,6 +4712,18 @@ const local = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.85)",
     fontSize: 12,
     fontWeight: "600",
+  },
+  spectatorActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    flexWrap: "wrap",
+    marginTop: 4,
+  },
+  spectatorSecondaryBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
   },
   debugRow: {
     flexDirection: "row",

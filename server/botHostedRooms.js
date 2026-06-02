@@ -21,6 +21,13 @@ const BOT_ROOM_CODE = 'BOTOPN';
 const BOT_TURN_DELAY_MS = 900;
 const BOT_NAMES = ['Amy', 'Ben'];
 const MAX_SEATED = 8;
+/** No bot progress while a round is active — table is probably stuck. */
+const BOT_NO_TIMER_STALL_MS = 18_000;
+/** No progress at all (including between rounds with nobody watching). */
+const BOT_PROGRESS_STALL_MS = 90_000;
+/** Nobody connected and between rounds — stale empty table. */
+const BOT_EMPTY_BETWEEN_ROUNDS_MS = 45_000;
+const BOT_REFRESH_COOLDOWN_MS = 8_000;
 
 const CPU_ID_RE = /^cpu-\d+$/i;
 
@@ -215,25 +222,37 @@ function applyBotTenRuleIfNeeded(room, ctx) {
   return true;
 }
 
-function applyBotAckPasses(room, ctx) {
-  const gs = room.gameState;
-  if (!gs) return false;
-
-  let working = ctx.cloneGameState(gs);
-  let changed = false;
-
-  for (const p of working.players) {
-    if (!isBotPlayerId(p.id) || isDeadHandPlayer(p)) continue;
-    if (!canAcknowledgmentPass(working, p.id)) continue;
-    const next = passTurn(working, p.id);
-    if (next !== working) {
-      working = next;
-      changed = true;
-    }
+/**
+ * Drain acknowledgment passes until the trick resolves or no bot can act.
+ * One pass per loop iteration so passTurn turn order stays correct.
+ */
+function drainBotAcknowledgment(room, ctx) {
+  if (!room?.gameState || !isTrickAcknowledgmentPassPhase(room.gameState)) {
+    return false;
   }
 
-  if (changed) {
-    room.gameState = ctx.cloneGameState(working);
+  let changed = false;
+  let safety = room.gameState.players.length * 3 + 4;
+
+  while (safety-- > 0 && isTrickAcknowledgmentPassPhase(room.gameState)) {
+    if (tryResolveAcknowledgmentPhase(room, ctx)) {
+      return true;
+    }
+
+    let progressed = false;
+    const gs = room.gameState;
+    for (const p of gs.players) {
+      if (!isBotPlayerId(p.id) || isDeadHandPlayer(p)) continue;
+      if (!canAcknowledgmentPass(gs, p.id)) continue;
+      const next = passTurn(ctx.cloneGameState(gs), p.id);
+      if (next === gs) continue;
+      room.gameState = ctx.cloneGameState(next);
+      progressed = true;
+      changed = true;
+      break;
+    }
+
+    if (!progressed) break;
   }
 
   if (tryResolveAcknowledgmentPhase(room, ctx)) {
@@ -291,6 +310,22 @@ function advanceUntilBotTurnOrHuman(room, ctx) {
     if (
       isBotPlayerId(current.id) &&
       !isDeadHandPlayer(current) &&
+      canAck
+    ) {
+      const acked = passTurn(ctx.cloneGameState(gs), current.id);
+      if (acked !== gs) {
+        room.gameState = ctx.cloneGameState(acked);
+        changed = true;
+        if (tryResolveAcknowledgmentPhase(room, ctx)) {
+          return true;
+        }
+        continue;
+      }
+    }
+
+    if (
+      isBotPlayerId(current.id) &&
+      !isDeadHandPlayer(current) &&
       !ackLeaderWait &&
       !canAck
     ) {
@@ -320,6 +355,93 @@ function advanceUntilBotTurnOrHuman(room, ctx) {
   }
 
   return changed;
+}
+
+function markBotProgress(room) {
+  if (!room?.isBotHosted) return;
+  room._botLastProgressAt = Date.now();
+}
+
+function livingRoundInProgress(gameState) {
+  if (!gameState?.players?.length) return false;
+  const living = gameState.players.filter((p) => !isDeadHandPlayer(p));
+  if (living.length === 0) return false;
+  const finished = gameState.finishedOrder || [];
+  return !living.every((p) => finished.includes(p.id));
+}
+
+function connectedLobbyCount(room) {
+  return room.players.filter((p) => !p.disconnectedAt && p.socketId).length;
+}
+
+function isBotRoomStalled(room) {
+  if (!room?.isBotHosted || !room.inGame) return false;
+  const now = Date.now();
+  const last = room._botLastProgressAt ?? room.createdAt ?? now;
+
+  if (!room.gameState?.players?.length) return true;
+
+  const roundActive = livingRoundInProgress(room.gameState);
+  if (!roundActive) {
+    if (
+      connectedLobbyCount(room) === 0 &&
+      now - last > BOT_EMPTY_BETWEEN_ROUNDS_MS
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  if (!room._botTurnTimer && now - last > BOT_NO_TIMER_STALL_MS) {
+    return true;
+  }
+  if (now - last > BOT_PROGRESS_STALL_MS) {
+    return true;
+  }
+  return false;
+}
+
+/** Tear down a stuck or empty bot game and deal a fresh round (spectators stay in the room). */
+function resetBotHostedRoom(roomId, ctx, message) {
+  const room = ctx.rooms[roomId];
+  if (!room?.isBotHosted) return false;
+
+  if (room._botTurnTimer) {
+    clearTimeout(room._botTurnTimer);
+    room._botTurnTimer = null;
+  }
+
+  room.inGame = false;
+  room.gameState = null;
+  room._botLastProgressAt = Date.now();
+  room._lastBotRefreshAt = Date.now();
+
+  const note = message || 'Bot table restarted.';
+  console.log(`[Server] Resetting bot room ${roomId}: ${note}`);
+  ctx.io.to(roomId).emit('botTableRefreshed', { roomId, message: note });
+
+  startBotHostedGame(roomId, ctx);
+  if (room.isPublic) ctx.broadcastAvailableRooms();
+  return true;
+}
+
+function repairBotHostedRoomIfNeeded(ctx) {
+  const room = ctx.rooms[BOT_ROOM_CODE];
+  if (!room?.isBotHosted) return false;
+
+  if (room.inGame && !room.gameState) {
+    return resetBotHostedRoom(BOT_ROOM_CODE, ctx, 'Restarting empty bot table…');
+  }
+
+  if (isBotRoomStalled(room)) {
+    return resetBotHostedRoom(
+      BOT_ROOM_CODE,
+      ctx,
+      'Restarting stalled bot table…',
+    );
+  }
+
+  return false;
 }
 
 function finishBotRoundIfComplete(room, ctx) {
@@ -369,7 +491,8 @@ function processBotTurnStep(room, ctx) {
     return true;
   }
 
-  if (applyBotAckPasses(room, ctx)) {
+  if (drainBotAcknowledgment(room, ctx)) {
+    markBotProgress(room);
     advanceUntilBotTurnOrHuman(room, ctx);
     ctx.broadcastGameState(ctx.io, room);
     if (tryCompleteBotRound(room, ctx)) return true;
@@ -412,6 +535,7 @@ function processBotTurnStep(room, ctx) {
 
   room.gameState = ctx.cloneGameState(next);
   room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
+  markBotProgress(room);
   advanceUntilBotTurnOrHuman(room, ctx);
   ctx.broadcastGameState(ctx.io, room);
 
@@ -449,6 +573,15 @@ function runBotTurnLoop(roomId, ctx) {
 
     if (tryCompleteBotRound(live, ctx)) return;
 
+    if (
+      isTrickAcknowledgmentPassPhase(live.gameState) &&
+      drainBotAcknowledgment(live, ctx)
+    ) {
+      ctx.broadcastGameState(ctx.io, live);
+      live._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS);
+      return;
+    }
+
     // Stalled on dead hand / passive seat — retry after advancing once more
     if (advanceUntilBotTurnOrHuman(live, ctx)) {
       ctx.broadcastGameState(ctx.io, live);
@@ -472,7 +605,13 @@ function runBotTurnLoop(roomId, ctx) {
 
 function startBotHostedGame(roomId, ctx) {
   const room = ctx.rooms[roomId];
-  if (!room?.isBotHosted || room.inGame) return;
+  if (!room?.isBotHosted) return;
+  if (room.inGame && room.gameState) return;
+
+  if (room.inGame && !room.gameState) {
+    room.inGame = false;
+  }
+  if (room.inGame) return;
 
   try {
     const dealSeed = Math.floor(Math.random() * 2147483647);
@@ -488,6 +627,7 @@ function startBotHostedGame(roomId, ctx) {
       skipDealAnimations: !!room.skipDealAnimations,
     });
     ctx.emitTradesCompleteIfReady(ctx.io, roomId, room.gameState, room.host);
+    markBotProgress(room);
     scheduleBotTurns(roomId, ctx);
     if (room.isPublic) ctx.broadcastAvailableRooms();
     console.log(`[Server] Bot-hosted game started in ${roomId}`);
@@ -504,18 +644,37 @@ function ensureBotHostedRooms(ctx) {
     return null;
   }
 
+  repairBotHostedRoomIfNeeded(ctx);
+
   let room = rooms[BOT_ROOM_CODE];
   if (!room) {
     room = createBotHostedRoom(rooms);
   }
 
-  if (!room.inGame) {
+  if (!room.inGame || !room.gameState) {
     startBotHostedGame(BOT_ROOM_CODE, ctx);
   } else if (!room._botTurnTimer) {
     scheduleBotTurns(BOT_ROOM_CODE, ctx);
   }
 
   return room;
+}
+
+function refreshBotHostedRoom(roomId, ctx) {
+  const code = String(roomId || '').trim().toUpperCase();
+  const room = ctx.rooms[code];
+  if (!room?.isBotHosted) return { ok: false, message: 'Not a bot table.' };
+
+  const now = Date.now();
+  if (
+    room._lastBotRefreshAt &&
+    now - room._lastBotRefreshAt < BOT_REFRESH_COOLDOWN_MS
+  ) {
+    return { ok: false, message: 'Please wait a few seconds before refreshing again.' };
+  }
+
+  resetBotHostedRoom(code, ctx, 'Bot table refreshed.');
+  return { ok: true };
 }
 
 function onBotRoomRoundFinished(room, roomId, ctx) {
@@ -545,7 +704,10 @@ function afterBotRoomPlayerLeft(room, roomId, ctx) {
 
 function roomListingExtras(room) {
   if (!room?.isBotHosted) return {};
-  return { isBotHosted: true };
+  return {
+    isBotHosted: true,
+    botTableStalled: isBotRoomStalled(room),
+  };
 }
 
 module.exports = {
@@ -558,6 +720,10 @@ module.exports = {
   shouldListBotRoom,
   discoverRoomFilter,
   ensureBotHostedRooms,
+  repairBotHostedRoomIfNeeded,
+  resetBotHostedRoom,
+  refreshBotHostedRoom,
+  isBotRoomStalled,
   scheduleBotTurns,
   onBotRoomRoundFinished,
   afterBotRoomPlayerLeft,
