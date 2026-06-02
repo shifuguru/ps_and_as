@@ -86,6 +86,7 @@ function gameHasDeadHandSlot(room) {
 
 function deadHandSeatOpen(room) {
   if (!room) return false;
+  if (room.isBotHosted) return botHosted.openSeatsAvailable(room);
   if (!room.inGame) return activePlayerCount(room) === 2;
   return gameHasDeadHandSlot(room) && activePlayerCount(room) === 2;
 }
@@ -97,6 +98,7 @@ function spectatorCount(room) {
 
 function shouldJoinAsSpectator(room) {
   if (!room?.inGame) return false;
+  if (room.isBotHosted) return botHosted.shouldJoinBotRoomAsSpectator(room);
   const seated = activePlayerCount(room);
   if (seated >= 3) return false;
   return seated >= 2;
@@ -132,7 +134,9 @@ function livingPlayerCount(gameState) {
 function startNextRound(roomId) {
   const room = rooms[roomId];
   if (!room) return;
-  const promoted = promoteReadySpectator(room);
+  const promoted = room.isBotHosted
+    ? botHosted.promoteReadySpectators(room)
+    : [promoteReadySpectator(room)].filter(Boolean);
   const dealSeed = Math.floor(Math.random() * 2147483647);
   const lastOrder = livingFinishOrder(
     room.gameState,
@@ -180,7 +184,8 @@ function startNextRound(roomId) {
   broadcastGameState(io, room);
   io.to(roomId).emit('nextRoundStarting', {
     dealSeed,
-    promotedPlayerId: promoted?.id ?? null,
+    promotedPlayerId: promoted[0]?.id ?? null,
+    promotedPlayerIds: promoted.map((p) => p.id),
   });
   emitTradesCompleteIfReady(io, roomId, room.gameState, room.host);
   if (room.isBotHosted) {
@@ -537,8 +542,9 @@ function initReadyForNextRound(room) {
   for (const id of activeRoundPlayerIds(room)) {
     room.gameState.readyForNextRound[id] = false;
   }
-  if (gameHasDeadHandSlot(room)) {
-    for (const s of room.players.filter((p) => p.isSpectator && !p.disconnectedAt)) {
+  const spectators = room.players.filter((p) => p.isSpectator && !p.disconnectedAt);
+  if (room.isBotHosted || gameHasDeadHandSlot(room)) {
+    for (const s of spectators) {
       room.gameState.readyForNextRound[s.id] = false;
     }
   }
@@ -549,11 +555,12 @@ function allPlayersReadyForNextRound(room) {
   const ids = activeRoundPlayerIds(room);
   const seatedReady = ids.length > 0 && ids.every((id) => readyMap[id] === true);
   if (!seatedReady) return false;
-  if (room.isBotHosted && gameHasDeadHandSlot(room)) {
+  if (room.isBotHosted) {
     const spectators = room.players.filter((p) => p.isSpectator && !p.disconnectedAt);
     if (spectators.length > 0) {
       return spectators.some((s) => readyMap[s.id] === true);
     }
+    return true;
   }
   return true;
 }
@@ -1326,7 +1333,11 @@ io.on('connection', (socket) => {
         socket.emit('error', { message: 'Room is full' });
         return;
       }
-      if (room.inGame && seated >= 3) {
+      if (room.isBotHosted && room.inGame && !botHosted.canJoinBotRoomInProgress(room)) {
+        socket.emit('error', { message: 'Game is full' });
+        return;
+      }
+      if (!room.isBotHosted && room.inGame && seated >= 3) {
         socket.emit('error', { message: 'Game is full' });
         return;
       }
@@ -1342,7 +1353,10 @@ io.on('connection', (socket) => {
         feltTint: resolveFeltTint(feltTint),
       });
       if (joinAsSpectator) {
-        console.log(`[Server] ${nameCheck.value} joined room ${code} as spectator (dead hand seat open)`);
+        const note = room.isBotHosted
+          ? `${nameCheck.value} joined bot table ${code} as spectator`
+          : `${nameCheck.value} joined room ${code} as spectator (dead hand seat open)`;
+        console.log(`[Server] ${note}`);
       }
     }
 
@@ -1714,7 +1728,9 @@ io.on('connection', (socket) => {
     const player = room.players.find(p => p.socketId === socket.id);
     if (!player) return;
     const inRound = activeRoundPlayerIds(room).includes(player.id);
-    const canSpectatorReady = player.isSpectator && gameHasDeadHandSlot(room);
+    const canSpectatorReady =
+      player.isSpectator &&
+      (room.isBotHosted || gameHasDeadHandSlot(room));
     if (!inRound && !canSpectatorReady) return;
     room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
     room.gameState.readyForNextRound[player.id] = true;
@@ -1793,6 +1809,16 @@ io.on('connection', (socket) => {
       
       if (player) {
         console.log(`[Server] Player ${player.name} disconnected from room ${roomId}`);
+        if (player.isSpectator) {
+          room.players = room.players.filter((p) => p.id !== player.id);
+          io.to(roomId).emit('playerRemoved', {
+            playerId: player.id,
+            playerName: player.name,
+            reason: 'disconnected',
+          });
+          afterPlayerLeftRoom(roomId);
+          continue;
+        }
         player.socketId = null;
         markPlayerAway(roomId, player, 'disconnected');
       }

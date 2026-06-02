@@ -34,7 +34,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.0.31": "Your Turn, Apparently",
   "1.0.32": "Card Shark Week",
   "1.0.33": "Shuffle Or Scramble",
-  "1.0.34": "Trump Card Tantrum",
+  "1.0.34": "No Pass Zone",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {

@@ -32,6 +32,14 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-02T12:08"),
+    title: "Bot tables & spectators",
+    items: [
+      "Open Bot Table — all spectators can tap Ready to join the next round (up to 8 players); bots step out as humans fill the table",
+      "Leaving as a spectator no longer pauses the game for seated players",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-02T11:44"),
     title: "Bot tables & round end",
     items: [

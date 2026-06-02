@@ -603,6 +603,11 @@ export class SocketAdapter implements NetworkAdapter {
             gameState: data.gameState,
             dealSeed: data.dealSeed,
             promotedPlayerId: data.promotedPlayerId ?? null,
+            promotedPlayerIds: Array.isArray(data.promotedPlayerIds)
+              ? data.promotedPlayerIds
+              : data.promotedPlayerId
+                ? [data.promotedPlayerId]
+                : [],
           },
         }),
       );

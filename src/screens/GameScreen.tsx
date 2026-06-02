@@ -442,6 +442,7 @@ function GameScreen({
     string | null
   >(null);
   const [awayPlayers, setAwayPlayers] = useState<Record<string, AwayPlayer>>({});
+  const [openSeatAvailable, setOpenSeatAvailable] = useState(false);
   const [playerFeltTints, setPlayerFeltTints] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     initialLobbyPlayers?.forEach((member) => {
@@ -562,8 +563,15 @@ function GameScreen({
     return skipDealAnimationsRef.current || getSkipDealAnimationsSync();
   }, [onlineMultiplayer, networkAdapter]);
   const readOnlyOnline = onlineMultiplayer && spectatorMode;
+  const seatedPlayerIds = useMemo(() => {
+    if (!state?.players) return new Set<string>();
+    return new Set(
+      state.players.filter((p) => !isDeadHandPlayer(p)).map((p) => p.id),
+    );
+  }, [state?.players]);
   const gamePausedForAway =
-    onlineMultiplayer && Object.keys(awayPlayers).length > 0;
+    onlineMultiplayer &&
+    Object.keys(awayPlayers).some((id) => seatedPlayerIds.has(id));
   const readOnlyGame = gameplayLocked || readOnlyOnline || gamePausedForAway;
 
   const insets = useLayoutInsets();
@@ -1711,6 +1719,7 @@ function GameScreen({
         const reconnectUntil =
           ev.state.reconnectUntil ?? Date.now() + grace;
         const playerId = ev.state.playerId as string | undefined;
+        if (!playerId || (state && !seatedPlayerIds.has(playerId))) return;
         if (playerId && ev.state.reason === "left") {
           forfeitPlayerXp(playerId);
         }
@@ -1738,13 +1747,17 @@ function GameScreen({
           networkAdapter.requestGameState(roomId);
         }
       } else if (ev.type === "state" && ev.state?.type === "lobby") {
+        if (typeof ev.state.deadHandSeatOpen === "boolean") {
+          setOpenSeatAvailable(ev.state.deadHandSeatOpen);
+        }
         const members = ev.state.players;
         if (Array.isArray(members)) {
           if (onlineMultiplayer) {
             setAwayPlayers((prev) => {
               const next: Record<string, AwayPlayer> = {};
               for (const member of members as LobbyMember[]) {
-                if (!member.disconnected) continue;
+                if (!member.disconnected || member.isSpectator) continue;
+                if (state && !seatedPlayerIds.has(member.id)) continue;
                 if (member.awayReason === "left") {
                   forfeitPlayerXp(member.id);
                 }
@@ -1792,6 +1805,12 @@ function GameScreen({
         const removedId = ev.state.playerId as string | undefined;
         if (removedId) {
           forfeitPlayerXp(removedId);
+          setAwayPlayers((prev) => {
+            if (!prev[removedId]) return prev;
+            const next = { ...prev };
+            delete next[removedId];
+            return next;
+          });
         }
         const notice = roomEventMessage(
           ev.state.playerName,
@@ -1914,13 +1933,17 @@ function GameScreen({
           xpCommittedForRoundRef.current = false;
           setForfeitedXpPlayerIds(new Set());
           setPlayerReadyStates({});
-          const promotedId = ev.state.promotedPlayerId as string | null | undefined;
+          const promotedIds = Array.isArray(ev.state.promotedPlayerIds)
+            ? (ev.state.promotedPlayerIds as string[])
+            : ev.state.promotedPlayerId
+              ? [ev.state.promotedPlayerId as string]
+              : [];
           const localId =
             localPlayerId ??
             (isSocketAdapter(networkAdapter)
               ? networkAdapter.getProfileId()
               : null);
-          if (promotedId && localId && promotedId === localId) {
+          if (localId && promotedIds.includes(localId)) {
             setSpectatorMode(false);
           }
           awaitingDealCeremonyRef.current = true;
@@ -1997,7 +2020,7 @@ function GameScreen({
         void fallbackAdapterRef.current?.disconnect();
       }
     };
-  }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId, preferencesLoaded, startLastHandReveal, clearLastHandReveal, forfeitPlayerXp, triggerNudgeHighlight]);
+  }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId, preferencesLoaded, startLastHandReveal, clearLastHandReveal, forfeitPlayerXp, triggerNudgeHighlight, seatedPlayerIds, state]);
 
   useEffect(() => {
     if (!roundOver) {
@@ -4115,7 +4138,9 @@ function GameScreenBoard() {
         xpAnimationReady={xpAnimationReady}
         localPlayerId={myPlayerId ?? undefined}
         spectatorMode={spectatorMode}
-        deadHandSeatOpen={state.players.some(isDeadHandPlayer)}
+        deadHandSeatOpen={
+          state.players.some(isDeadHandPlayer) || openSeatAvailable
+        }
         onQuit={requestLeaveGame}
         onToggleReady={() => {
           const id = myPlayerId;

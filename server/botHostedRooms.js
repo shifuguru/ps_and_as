@@ -15,6 +15,7 @@ const {
 const BOT_ROOM_CODE = 'BOTOPN';
 const BOT_TURN_DELAY_MS = 900;
 const BOT_NAMES = ['Amy', 'Ben'];
+const MAX_SEATED = 8;
 
 const CPU_ID_RE = /^cpu-\d+$/i;
 
@@ -49,6 +50,77 @@ function discoverRoomFilter(rooms, room, isRoomListedPublic, activePlayerCount, 
   if (!isRoomListedPublic(room)) return false;
   if (room.inGame && isRoundInProgress(room)) return true;
   return activePlayerCount(room) < 8;
+}
+
+function countHumansSeated(room) {
+  return room.players.filter(
+    (p) => !p.disconnectedAt && !p.isSpectator && !isBotMember(p),
+  ).length;
+}
+
+function openSeatsForHumans(room) {
+  return Math.max(0, MAX_SEATED - countHumansSeated(room));
+}
+
+/** True when spectators can still claim a seat at this bot table. */
+function openSeatsAvailable(room) {
+  if (!room?.isBotHosted) return false;
+  return countHumansSeated(room) < MAX_SEATED;
+}
+
+function canJoinBotRoomInProgress(room) {
+  if (!room?.isBotHosted || !room.inGame) return true;
+  return countHumansSeated(room) < MAX_SEATED;
+}
+
+function shouldJoinBotRoomAsSpectator(room) {
+  return !!room?.isBotHosted && !!room.inGame;
+}
+
+function ensureHumanHost(room) {
+  if (!room?.isBotHosted) return;
+  const hostPlayer = room.players.find((p) => p.id === room.host);
+  if (hostPlayer && !isBotMember(hostPlayer) && !hostPlayer.disconnectedAt) return;
+  const human = room.players.find(
+    (p) =>
+      !isBotMember(p) &&
+      !p.disconnectedAt &&
+      !p.isSpectator,
+  );
+  if (human) {
+    room.host = human.id;
+    room.hostName = human.name;
+  }
+}
+
+/** Promote every ready spectator (up to open seats) and remove replaced bots. */
+function promoteReadySpectators(room) {
+  const readyMap = room.gameState?.readyForNextRound || {};
+  const readySpectators = room.players.filter(
+    (p) => p.isSpectator && !p.disconnectedAt && readyMap[p.id] === true,
+  );
+  if (readySpectators.length === 0) return [];
+
+  const slots = openSeatsForHumans(room);
+  const toPromote = readySpectators.slice(0, slots);
+
+  for (const spectator of toPromote) {
+    spectator.isSpectator = false;
+    console.log(`[Server] ${spectator.name} is joining the bot table next round`);
+  }
+
+  let bots = room.players.filter((p) => isBotMember(p) && !p.isSpectator);
+  for (let i = 0; i < toPromote.length && bots.length > 0; i++) {
+    const bot = bots.pop();
+    room.players = room.players.filter((p) => p.id !== bot.id);
+  }
+
+  if (countHumansSeated(room) >= 2) {
+    room.players = room.players.filter((p) => !isBotMember(p));
+  }
+
+  ensureHumanHost(room);
+  return toPromote;
 }
 
 function createBotMembers() {
@@ -286,24 +358,10 @@ function ensureBotHostedRooms(ctx) {
 function onBotRoomRoundFinished(room, roomId, ctx) {
   autoReadyBotsForNextRound(room);
   ctx.tryStartNextRoundIfReady(roomId);
-  scheduleBotTurns(roomId, ctx);
-}
-
-function allPlayersReadyForBotRoom(room, baseCheck) {
-  if (!room?.isBotHosted) return baseCheck(room);
-
-  const readyMap = room.gameState?.readyForNextRound || {};
-  const ids = baseCheck.activeRoundPlayerIds(room);
-  const botsReady = ids.length > 0 && ids.every((id) => readyMap[id] === true);
-  if (!botsReady) return false;
-
-  if (baseCheck.gameHasDeadHandSlot(room)) {
-    const spectators = room.players.filter((p) => p.isSpectator && !p.disconnectedAt);
-    if (spectators.length > 0) {
-      return spectators.some((s) => readyMap[s.id] === true);
-    }
+  if (!room.inGame || !room.gameState) return;
+  if (!ctx.isRoundComplete(room.gameState) || room.gameState.tenRulePending) {
+    scheduleBotTurns(roomId, ctx);
   }
-  return true;
 }
 
 function afterBotRoomPlayerLeft(room, ctx) {
@@ -328,6 +386,7 @@ function roomListingExtras(room) {
 
 module.exports = {
   BOT_ROOM_CODE,
+  MAX_SEATED,
   isBotPlayerId,
   isBotMember,
   isHumanMember,
@@ -339,4 +398,9 @@ module.exports = {
   onBotRoomRoundFinished,
   afterBotRoomPlayerLeft,
   roomListingExtras,
+  openSeatsAvailable,
+  canJoinBotRoomInProgress,
+  shouldJoinBotRoomAsSpectator,
+  promoteReadySpectators,
+  countHumansSeated,
 };
