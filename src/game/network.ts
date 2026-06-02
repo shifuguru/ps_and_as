@@ -13,6 +13,7 @@ export interface NetworkAdapter {
   disconnect(): Promise<void>;
   send(event: NetworkEvent): void;
   on(event: "message", cb: (ev: NetworkEvent) => void): void;
+  off?(event: "message", cb: (ev: NetworkEvent) => void): void;
 }
 
 export type LobbyMember = {
@@ -126,6 +127,12 @@ export class MockAdapter implements NetworkAdapter {
 
   on(event: "message", cb: (ev: NetworkEvent) => void) {
     if (event === "message") this.handlers.push(cb);
+  }
+
+  off(event: "message", cb: (ev: NetworkEvent) => void) {
+    if (event === "message") {
+      this.handlers = this.handlers.filter((h) => h !== cb);
+    }
   }
 
   // For tests and mock flows: allow emitting arbitrary events that mimic server

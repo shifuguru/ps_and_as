@@ -13,6 +13,8 @@ const {
   passTurn,
   isDeadHandPlayer,
   isPlayerStillIn,
+  syncFinishedFromEmptyHands,
+  isRoundCompleteForLiving,
 } = require('./gameBridge');
 
 const BOT_ROOM_CODE = 'BOTOPN';
@@ -329,11 +331,32 @@ function finishBotRoundIfComplete(room, ctx) {
   return true;
 }
 
+/** Sync empty-hand / lone-asshole finish order — bot tables can stall without this. */
+function refreshFinishSync(room, ctx) {
+  if (!room?.gameState) return false;
+  const synced = ctx.cloneGameState(room.gameState);
+  syncFinishedFromEmptyHands(synced);
+  const prevLen = room.gameState.finishedOrder?.length ?? 0;
+  if (
+    synced.finishedOrder.length !== prevLen ||
+    isRoundCompleteForLiving(synced) !== isRoundCompleteForLiving(room.gameState)
+  ) {
+    room.gameState = ctx.cloneGameState(synced);
+    return true;
+  }
+  return false;
+}
+
+function tryCompleteBotRound(room, ctx) {
+  refreshFinishSync(room, ctx);
+  return finishBotRoundIfComplete(room, ctx);
+}
+
 function processBotTurnStep(room, ctx) {
   if (!room?.isBotHosted || !room.inGame || !room.gameState) return false;
   if (ctx.isGamePausedForAway(room)) return false;
 
-  if (finishBotRoundIfComplete(room, ctx)) return true;
+  if (tryCompleteBotRound(room, ctx)) return true;
 
   if (resolveBotPendingTrades(room, ctx)) {
     ctx.emitTradesCompleteIfReady(ctx.io, ctx.roomId, room.gameState, room.host);
@@ -342,14 +365,14 @@ function processBotTurnStep(room, ctx) {
   if (applyBotTenRuleIfNeeded(room, ctx)) {
     advanceUntilBotTurnOrHuman(room, ctx);
     ctx.broadcastGameState(ctx.io, room);
-    finishBotRoundIfComplete(room, ctx);
+    tryCompleteBotRound(room, ctx);
     return true;
   }
 
   if (applyBotAckPasses(room, ctx)) {
     advanceUntilBotTurnOrHuman(room, ctx);
     ctx.broadcastGameState(ctx.io, room);
-    if (finishBotRoundIfComplete(room, ctx)) return true;
+    if (tryCompleteBotRound(room, ctx)) return true;
     return true;
   }
 
@@ -357,7 +380,7 @@ function processBotTurnStep(room, ctx) {
     ctx.broadcastGameState(ctx.io, room);
     const current = room.gameState.players[room.gameState.currentPlayerIndex];
     if (!current || !isBotPlayerId(current.id) || isDeadHandPlayer(current)) {
-      finishBotRoundIfComplete(room, ctx);
+      tryCompleteBotRound(room, ctx);
       return true;
     }
   }
@@ -380,9 +403,10 @@ function processBotTurnStep(room, ctx) {
     if (tryResolveAcknowledgmentPhase(room, ctx)) {
       advanceUntilBotTurnOrHuman(room, ctx);
       ctx.broadcastGameState(ctx.io, room);
-      if (finishBotRoundIfComplete(room, ctx)) return true;
+      if (tryCompleteBotRound(room, ctx)) return true;
       return true;
     }
+    if (tryCompleteBotRound(room, ctx)) return true;
     return false;
   }
 
@@ -391,7 +415,7 @@ function processBotTurnStep(room, ctx) {
   advanceUntilBotTurnOrHuman(room, ctx);
   ctx.broadcastGameState(ctx.io, room);
 
-  finishBotRoundIfComplete(room, ctx);
+  tryCompleteBotRound(room, ctx);
   return true;
 }
 
@@ -422,6 +446,8 @@ function runBotTurnLoop(roomId, ctx) {
       live._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS);
       return;
     }
+
+    if (tryCompleteBotRound(live, ctx)) return;
 
     // Stalled on dead hand / passive seat — retry after advancing once more
     if (advanceUntilBotTurnOrHuman(live, ctx)) {

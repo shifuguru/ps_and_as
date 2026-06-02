@@ -122,16 +122,3 @@ export function assignRoles(players: Player[]): void {
     }
   });
 }
-
-// Example usage
-const deck = shuffleDeck(createDeck());
-const players: Player[] = [
-  { id: "1", name: "Alice", hand: [], role: "Neutral" },
-  { id: "2", name: "Bob", hand: [], role: "Neutral" },
-  { id: "3", name: "Charlie", hand: [], role: "Neutral" },
-  { id: "4", name: "Dana", hand: [], role: "Neutral" },
-];
-
-dealCards(deck, players);
-assignRoles(players);
-console.log("Roles after assignment:", players);

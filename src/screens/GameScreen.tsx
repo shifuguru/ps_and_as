@@ -65,7 +65,7 @@ import {
 import { DEFAULT_FELT_COLOR, normalizeHexColor } from "../services/wallpaper";
 import Card from "../components/Card";
 import { ScrollView } from "react-native";
-import { MockAdapter, type NetworkAdapter } from "../game/network";
+import { MockAdapter, type NetworkAdapter, type NetworkEvent } from "../game/network";
 import { isSocketAdapter, SocketAdapter } from "../game/socketAdapter";
 import type { LobbyMember } from "../game/network";
 import {
@@ -1574,15 +1574,35 @@ function GameScreen({
   const offlineInitRef = useRef(false);
 
   useEffect(() => {
-    if (!onlineMultiplayer) {
-      if (!preferencesLoaded) return;
-      if (offlineInitRef.current) return;
-      offlineInitRef.current = true;
+    if (onlineMultiplayer || !preferencesLoaded) return;
+    if (offlineInitRef.current) return;
+    offlineInitRef.current = true;
+    try {
       const g = initialLobbyPlayers?.length
         ? createGameFromLobby(initialLobbyPlayers, seedFromProps)
         : createGame(normalizeLobbyNames(initialPlayers, localPlayerName));
       startRoundCeremony(g, []);
-    } else if (isSocketAdapter(networkAdapter)) {
+    } catch (err) {
+      offlineInitRef.current = false;
+      console.error("[GameScreen] Offline game init failed", err);
+      setSyncError(
+        err instanceof Error
+          ? err.message
+          : "Could not start the game. Try again from the menu.",
+      );
+    }
+  }, [
+    onlineMultiplayer,
+    preferencesLoaded,
+    initialLobbyPlayers,
+    initialPlayers,
+    localPlayerName,
+    seedFromProps,
+    startRoundCeremony,
+  ]);
+
+  useEffect(() => {
+    if (isSocketAdapter(networkAdapter)) {
       const cachedSeed = networkAdapter.getCachedDealSeed();
       if (seedFromProps != null) {
         pendingDealSeedRef.current = seedFromProps;
@@ -1800,7 +1820,15 @@ function GameScreen({
       }
     });
 
-    adapter.on("message", (ev) => {
+    const seatedIds = () => {
+      const live = stateRef.current;
+      if (!live?.players) return new Set<string>();
+      return new Set(
+        live.players.filter((p) => !isDeadHandPlayer(p)).map((p) => p.id),
+      );
+    };
+
+    const onMessage = (ev: NetworkEvent) => {
       // structured log for incoming adapter events
       emitDebug("adapter:event", {
         evType: ev.type,
@@ -1821,7 +1849,7 @@ function GameScreen({
         const reconnectUntil =
           ev.state.reconnectUntil ?? Date.now() + grace;
         const playerId = ev.state.playerId as string | undefined;
-        if (!playerId || (state && !seatedPlayerIds.has(playerId))) return;
+        if (!playerId || (stateRef.current && !seatedIds().has(playerId))) return;
         if (playerId && ev.state.reason === "left") {
           forfeitPlayerXp(playerId);
         }
@@ -1859,7 +1887,7 @@ function GameScreen({
               const next: Record<string, AwayPlayer> = {};
               for (const member of members as LobbyMember[]) {
                 if (!member.disconnected || member.isSpectator) continue;
-                if (state && !seatedPlayerIds.has(member.id)) continue;
+                if (stateRef.current && !seatedIds().has(member.id)) continue;
                 if (member.awayReason === "left") {
                   forfeitPlayerXp(member.id);
                 }
@@ -2138,9 +2166,14 @@ function GameScreen({
         });
         setState(ev.state);
       }
-    });
+    };
+
+    adapter.on("message", onMessage);
 
     return () => {
+      if (typeof adapter.off === "function") {
+        adapter.off("message", onMessage);
+      }
       if (syncRetryTimerRef.current) {
         clearInterval(syncRetryTimerRef.current);
         syncRetryTimerRef.current = null;
@@ -2149,7 +2182,20 @@ function GameScreen({
         void fallbackAdapterRef.current?.disconnect();
       }
     };
-  }, [onlineMultiplayer, roomId, networkAdapter, localPlayerId, preferencesLoaded, startLastHandReveal, clearLastHandReveal, forfeitPlayerXp, triggerNudgeHighlight, seatedPlayerIds, state]);
+  }, [
+    onlineMultiplayer,
+    roomId,
+    networkAdapter,
+    localPlayerId,
+    preferencesLoaded,
+    startLastHandReveal,
+    clearLastHandReveal,
+    forfeitPlayerXp,
+    triggerNudgeHighlight,
+    resolvedHostId,
+    launchCeremonyFromDeal,
+    seedFromProps,
+  ]);
 
   useEffect(() => {
     if (!roundOver) {
@@ -2327,6 +2373,7 @@ function GameScreen({
     }
 
     const current = state.players[state.currentPlayerIndex];
+    if (!current) return;
 
     // If current player is out or has no cards, skip their turn.
     if (state.finishedOrder.includes(current.id) || current.hand.length === 0 || isDeadHandPlayer(current)) {
@@ -2684,6 +2731,7 @@ function GameScreen({
         maybeStartNextOfflineRound,
         lastTrickLenRef,
         localAvatarBorder,
+        openSeatAvailable,
       }}
     >
       <GameScreenBoard />
@@ -2781,6 +2829,7 @@ function GameScreenBoard() {
     maybeStartNextOfflineRound,
     lastTrickLenRef,
     localAvatarBorder,
+    openSeatAvailable,
   } = useContext(GameScreenRuntimeContext)! as {
     state: GameState;
     setState: React.Dispatch<React.SetStateAction<GameState | null>>;
@@ -2905,6 +2954,7 @@ function GameScreenBoard() {
     maybeStartNextOfflineRound: (readyMap: Record<string, boolean>) => void;
     lastTrickLenRef: React.MutableRefObject<number>;
     localAvatarBorder: AvatarBorderDesign | null;
+    openSeatAvailable: boolean;
   };
 
   const [ceremonyDealCounts, setCeremonyDealCounts] = useState<

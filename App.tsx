@@ -209,6 +209,7 @@ function AppContent() {
   }, [splashVisible, menuOpacity, splashOpacity]);
 
   const startRandomGame = async () => {
+    disconnectRoom();
     const playerInfo = await getOrCreatePlayerId();
     const hostName = playerInfo.displayName || "Player";
     const savedTint = (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;

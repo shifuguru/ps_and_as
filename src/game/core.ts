@@ -366,11 +366,8 @@ function buildInitialGameState(
     if (openerIdx >= 0) break;
   }
   if (openerIdx < 0) {
-    throw new Error(
-      "Could not deal a valid round-1 opening after " +
-        MAX_FIRST_ROUND_DEAL_ATTEMPTS +
-        " attempts",
-    );
+    const fallback = players.findIndex((p) => !isDeadHandPlayer(p));
+    openerIdx = fallback >= 0 ? fallback : 0;
   }
   return {
     id: "game-" + Date.now(),
@@ -2209,6 +2206,9 @@ export function applyCpuTurn(state: GameState, playerId: string): GameState {
   const pIndex = state.players.findIndex((p) => p.id === playerId);
   if (pIndex === -1) return state;
 
+  syncFinishedFromEmptyHands(state);
+  if (isRoundCompleteForLiving(state)) return state;
+
   const isCurrentTurn = state.currentPlayerIndex === pIndex;
   const ackPass = canAcknowledgmentPass(state, playerId);
   if (!isCurrentTurn && !ackPass) return state;
@@ -2472,6 +2472,11 @@ export function passTurn(state: GameState, playerId: string): GameState {
     return state;
   }
 
+  syncFinishedFromEmptyHands(state);
+  if (isRoundCompleteForLiving(state)) {
+    return { ...state };
+  }
+
   if (!isPlayerStillIn(state, playerId)) {
     syncFinishedFromEmptyHands(state);
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
@@ -2483,8 +2488,12 @@ export function passTurn(state: GameState, playerId: string): GameState {
     if (state.currentTrick) console.log(`[core] currentTrick.actions.length=${state.currentTrick.actions.length}`);
   } catch (e) {}
 
-  // Trick / round opener with mustPlay cannot pass on an empty pile.
+  // Trick / round opener with mustPlay cannot pass on an empty pile — unless the round is over.
   if (state.mustPlay && isTrickOpeningLead(state)) {
+    syncFinishedFromEmptyHands(state);
+    if (isRoundCompleteForLiving(state)) {
+      return { ...state };
+    }
     return state;
   }
 

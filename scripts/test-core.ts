@@ -1530,6 +1530,31 @@ console.log("Dead hand round-1 opening tests passed");
   );
 }
 
+{
+  const g = createGame(["A", "B"]);
+  g.players[0].hand = [];
+  g.finishedOrder = ["1"];
+  g.players[1].hand = [
+    { suit: "hearts", value: 9 },
+    { suit: "diamonds", value: 10 },
+  ];
+  g.currentPlayerIndex = 1;
+  g.pile = [];
+  g.mustPlay = true;
+  g.currentTrick = { trickNumber: 2, actions: [] };
+  g.trickHistory = [{ trickNumber: 1, actions: [], winnerId: "1" }];
+  syncFinishedFromEmptyHands(g);
+  assert.ok(
+    isRoundCompleteForLiving(g),
+    "Lone remaining player with cards should be auto-placed so the round can end",
+  );
+  const afterPass = passTurn(g, g.players[1].id);
+  assert.ok(
+    isRoundCompleteForLiving(afterPass),
+    "passTurn must not block round completion when the lone asshole must open",
+  );
+}
+
 console.log("CPU round-1 opening tests passed");
 
 // --- Server role-trade sync helpers ---

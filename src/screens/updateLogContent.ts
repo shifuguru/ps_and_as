@@ -32,6 +32,15 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-02T15:37"),
+    title: "Quick Game & bot round end",
+    items: [
+      "Quick Game — starting from the menu no longer crashes to the readme page",
+      "Open Bot Table — when one bot is left with cards at the end of a round, the game finishes and shows their hand instead of hanging",
+      "Offline and bot games — finish order stays in sync so auto-placed last players do not stall the table",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-02T15:15"),
     title: "Trades, bot lobby & hand scroll",
     items: [
