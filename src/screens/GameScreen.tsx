@@ -1183,12 +1183,11 @@ function GameScreen({
     lastTrickLenRef.current = 0;
   }, [clearLastHandReveal, clearTradeReturnReveal]);
 
-  const handleRefreshBotTable = useCallback(() => {
+  const handleSkipBotTable = useCallback(() => {
     if (!isSocketAdapter(networkAdapter) || !effectiveRoomId) return;
-    resetForBotTableRefresh();
-    networkAdapter.refreshBotTable(effectiveRoomId);
-    showRoomNotice("Restarting bot table…");
-  }, [networkAdapter, effectiveRoomId, resetForBotTableRefresh]);
+    networkAdapter.skipBotTable(effectiveRoomId);
+    showRoomNotice("Skipping to round results…");
+  }, [networkAdapter, effectiveRoomId]);
 
   const triggerNudgeHighlight = useCallback((targetPlayerId: string) => {
     if (!targetPlayerId) return;
@@ -2114,12 +2113,14 @@ function GameScreen({
         if (readyMap && typeof readyMap === "object") {
           setPlayerReadyStates({ ...readyMap });
         }
-      } else if (ev.type === "state" && ev.state?.type === "botTableRefreshed") {
-        resetForBotTableRefresh();
+      } else if (ev.type === "state" && ev.state?.type === "botTableSkipped") {
         const note =
           typeof ev.state.message === "string"
             ? ev.state.message
-            : "Bot table restarted.";
+            : "Skipped bot game.";
+        if (/restart/i.test(note)) {
+          resetForBotTableRefresh();
+        }
         showRoomNotice(note);
         if (onlineMultiplayer && isSocketAdapter(networkAdapter) && effectiveRoomId) {
           networkAdapter.requestGameState(effectiveRoomId);
@@ -2828,7 +2829,7 @@ function GameScreen({
         localAvatarBorder,
         openSeatAvailable,
         isBotOpenTable,
-        handleRefreshBotTable,
+        handleSkipBotTable,
       }}
     >
       <GameScreenBoard />
@@ -2928,7 +2929,7 @@ function GameScreenBoard() {
     localAvatarBorder,
     openSeatAvailable,
     isBotOpenTable,
-    handleRefreshBotTable,
+    handleSkipBotTable,
   } = useContext(GameScreenRuntimeContext)! as {
     state: GameState;
     setState: React.Dispatch<React.SetStateAction<GameState | null>>;
@@ -3055,7 +3056,7 @@ function GameScreenBoard() {
     localAvatarBorder: AvatarBorderDesign | null;
     openSeatAvailable: boolean;
     isBotOpenTable: boolean;
-    handleRefreshBotTable: () => void;
+    handleSkipBotTable: () => void;
   };
 
   const [ceremonyDealCounts, setCeremonyDealCounts] = useState<
@@ -4241,11 +4242,11 @@ function GameScreenBoard() {
                 {isBotOpenTable ? (
                   <TouchableOpacity
                     style={[ui.btnSecondary, local.spectatorSecondaryBtn]}
-                    onPress={handleRefreshBotTable}
+                    onPress={handleSkipBotTable}
                     accessibilityRole="button"
-                    accessibilityLabel="Restart bot table"
+                    accessibilityLabel="Skip bot game"
                   >
-                    <Text style={ui.btnSecondaryText}>Restart bots</Text>
+                    <Text style={ui.btnSecondaryText}>Skip game</Text>
                   </TouchableOpacity>
                 ) : null}
                 {onBack ? (

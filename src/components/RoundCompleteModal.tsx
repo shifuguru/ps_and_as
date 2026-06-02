@@ -275,7 +275,7 @@ export default function RoundCompleteModal({
 
           <Text style={styles.readyCount}>
             {readyCount} / {readyDenominator}{" "}
-            {canClaimSeat ? "Ready (incl. open seat)" : "Players Ready"}
+            {canClaimSeat ? "Ready (incl. dead hand seat)" : "Players Ready"}
           </Text>
 
           {canClaimSeat ? (
@@ -316,8 +316,8 @@ export default function RoundCompleteModal({
               accessibilityLabel={
                 canClaimSeat
                   ? isReady
-                    ? "Give up open seat"
-                    : "Take open seat next round"
+                    ? "Give up dead hand seat"
+                    : "Take dead hand seat next round"
                   : isReady
                     ? "Mark Unready For Next Round"
                     : "Ready For Next Round"
@@ -332,7 +332,7 @@ export default function RoundCompleteModal({
                 {canClaimSeat
                   ? isReady
                     ? "Give Up Seat"
-                    : "Take Open Seat"
+                    : "Take Dead Hand Seat"
                   : isReady
                     ? "Not Ready"
                     : "Next Round"}

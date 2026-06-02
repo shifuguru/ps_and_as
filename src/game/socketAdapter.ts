@@ -414,12 +414,12 @@ export class SocketAdapter implements NetworkAdapter {
       );
     });
 
-    this.socket.on("botTableRefreshed", (data: any) => {
+    this.socket.on("botTableSkipped", (data: any) => {
       this.handlers.forEach((h) =>
         h({
           type: "state",
           state: {
-            type: "botTableRefreshed",
+            type: "botTableSkipped",
             roomId: data?.roomId,
             message: data?.message,
           },
@@ -789,14 +789,14 @@ export class SocketAdapter implements NetworkAdapter {
     this.socket.emit("requestGameState", { roomId });
   }
 
-  refreshBotTable(roomId: string) {
+  skipBotTable(roomId: string) {
     if (!this.socket?.connected) {
-      console.warn("[SocketAdapter] refreshBotTable: socket not connected");
+      console.warn("[SocketAdapter] skipBotTable: socket not connected");
       return;
     }
     const code = roomId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!code) return;
-    this.socket.emit("refreshBotTable", { roomId: code });
+    this.socket.emit("skipBotTable", { roomId: code });
   }
 
   playerReadyForNextRound(roomId: string) {

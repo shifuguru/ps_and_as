@@ -27,7 +27,7 @@ const BOT_NO_TIMER_STALL_MS = 18_000;
 const BOT_PROGRESS_STALL_MS = 90_000;
 /** Nobody connected and between rounds — stale empty table. */
 const BOT_EMPTY_BETWEEN_ROUNDS_MS = 45_000;
-const BOT_REFRESH_COOLDOWN_MS = 8_000;
+const BOT_SKIP_COOLDOWN_MS = 8_000;
 
 const CPU_ID_RE = /^cpu-\d+$/i;
 
@@ -105,13 +105,38 @@ function ensureHumanHost(room) {
   }
 }
 
-/** Promote every ready spectator (up to open seats) and remove replaced bots. */
+function gameHasDeadHandSlot(room) {
+  return !!(
+    room?.deadHand ||
+    room?.gameState?.players?.some(
+      (p) => p.isDeadHand || p.id === '__dead_hand__',
+    )
+  );
+}
+
+/** Promote ready spectators — dead-hand claim keeps bots; extra humans replace bots. */
 function promoteReadySpectators(room) {
   const readyMap = room.gameState?.readyForNextRound || {};
   const readySpectators = room.players.filter(
     (p) => p.isSpectator && !p.disconnectedAt && readyMap[p.id] === true,
   );
   if (readySpectators.length === 0) return [];
+
+  const humansSeated = countHumansSeated(room);
+  const deadHandClaim =
+    gameHasDeadHandSlot(room) && humansSeated < 2 && readySpectators.length > 0;
+
+  if (deadHandClaim) {
+    const toPromote = readySpectators.slice(0, 1);
+    for (const spectator of toPromote) {
+      spectator.isSpectator = false;
+      console.log(
+        `[Server] ${spectator.name} is replacing the dead hand next round`,
+      );
+    }
+    ensureHumanHost(room);
+    return toPromote;
+  }
 
   const slots = openSeatsForHumans(room);
   const toPromote = readySpectators.slice(0, slots);
@@ -414,11 +439,11 @@ function resetBotHostedRoom(roomId, ctx, message) {
   room.inGame = false;
   room.gameState = null;
   room._botLastProgressAt = Date.now();
-  room._lastBotRefreshAt = Date.now();
+  room._lastBotSkipAt = Date.now();
 
   const note = message || 'Bot table restarted.';
   console.log(`[Server] Resetting bot room ${roomId}: ${note}`);
-  ctx.io.to(roomId).emit('botTableRefreshed', { roomId, message: note });
+  ctx.io.to(roomId).emit('botTableSkipped', { roomId, message: note });
 
   startBotHostedGame(roomId, ctx);
   if (room.isPublic) ctx.broadcastAvailableRooms();
@@ -660,20 +685,101 @@ function ensureBotHostedRooms(ctx) {
   return room;
 }
 
-function refreshBotHostedRoom(roomId, ctx) {
+function forceFinishBotRound(room, ctx) {
+  const gs = room.gameState;
+  if (!gs?.players?.length) return false;
+
+  let next = ctx.cloneGameState(gs);
+  const living = next.players.filter((p) => !isDeadHandPlayer(p));
+  next.finishedOrder = next.finishedOrder || [];
+  for (const p of living) {
+    if (!next.finishedOrder.includes(p.id)) {
+      next.finishedOrder.push(p.id);
+      p.hand = [];
+    }
+  }
+  syncFinishedFromEmptyHands(next);
+  room.gameState = ctx.cloneGameState(next);
+  ctx.broadcastGameState(ctx.io, room);
+  if (ctx.isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
+    ctx.onRoundComplete(ctx.roomId, room);
+    return true;
+  }
+  return false;
+}
+
+/** End a stuck trick or jump to round results / next deal (spectators stay). */
+function skipBotHostedGame(roomId, ctx) {
   const code = String(roomId || '').trim().toUpperCase();
   const room = ctx.rooms[code];
   if (!room?.isBotHosted) return { ok: false, message: 'Not a bot table.' };
 
   const now = Date.now();
-  if (
-    room._lastBotRefreshAt &&
-    now - room._lastBotRefreshAt < BOT_REFRESH_COOLDOWN_MS
-  ) {
-    return { ok: false, message: 'Please wait a few seconds before refreshing again.' };
+  if (room._lastBotSkipAt && now - room._lastBotSkipAt < BOT_SKIP_COOLDOWN_MS) {
+    return {
+      ok: false,
+      message: 'Please wait a few seconds before skipping again.',
+    };
   }
 
-  resetBotHostedRoom(code, ctx, 'Bot table refreshed.');
+  if (room._botTurnTimer) {
+    clearTimeout(room._botTurnTimer);
+    room._botTurnTimer = null;
+  }
+
+  room._lastBotSkipAt = now;
+  markBotProgress(room);
+
+  if (!room.inGame || !room.gameState?.players?.length) {
+    startBotHostedGame(code, ctx);
+    ctx.io.to(code).emit('botTableSkipped', {
+      roomId: code,
+      message: 'Starting a fresh deal…',
+    });
+    return { ok: true };
+  }
+
+  if (resolveBotPendingTrades(room, ctx)) {
+    ctx.emitTradesCompleteIfReady(ctx.io, code, room.gameState, room.host);
+  }
+  const gs = room.gameState;
+
+  if (ctx.isRoundComplete(gs) && !gs.tenRulePending) {
+    autoReadyBotsForNextRound(room);
+    const readyMap = gs.readyForNextRound || {};
+    for (const p of room.players) {
+      if (!p.disconnectedAt) readyMap[p.id] = true;
+    }
+    gs.readyForNextRound = readyMap;
+    ctx.io.to(code).emit('playerReadyUpdate', {
+      readyForNextRound: readyMap,
+    });
+    ctx.tryStartNextRoundIfReady(code);
+    if (ctx.isRoundComplete(room.gameState)) {
+      ctx.forceStartNextRound(code);
+    }
+    ctx.io.to(code).emit('botTableSkipped', {
+      roomId: code,
+      message: 'Skipped to the next round.',
+    });
+    if (room.isPublic) ctx.broadcastAvailableRooms();
+    return { ok: true };
+  }
+
+  if (forceFinishBotRound(room, ctx)) {
+    ctx.io.to(code).emit('botTableSkipped', {
+      roomId: code,
+      message: 'Skipped to round results.',
+    });
+    if (room.isPublic) ctx.broadcastAvailableRooms();
+    return { ok: true };
+  }
+
+  resetBotHostedRoom(code, ctx, 'Could not skip — restarted bot table.');
+  ctx.io.to(code).emit('botTableSkipped', {
+    roomId: code,
+    message: 'Restarted bot table.',
+  });
   return { ok: true };
 }
 
@@ -722,7 +828,8 @@ module.exports = {
   ensureBotHostedRooms,
   repairBotHostedRoomIfNeeded,
   resetBotHostedRoom,
-  refreshBotHostedRoom,
+  skipBotHostedGame,
+  gameHasDeadHandSlot,
   isBotRoomStalled,
   scheduleBotTurns,
   onBotRoomRoundFinished,

@@ -32,6 +32,14 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-02T16:51"),
+    title: "Bot table dead hand & skip",
+    items: [
+      "Open Bot Table — spectating and tapping Take Dead Hand Seat puts you in the dead hand spot next round (bots stay at the table)",
+      "Open Bot Table — Skip game on Find Game or while watching jumps to round results or the next deal instead of restarting the whole table",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-02T16:27"),
     title: "Bot table tricks & refresh",
     items: [

@@ -236,14 +236,14 @@ export default function FindGame({
     onSpectateRoom(roomId, playerName.trim());
   };
 
-  const handleRefreshBotTable = (roomId: string) => {
+  const handleSkipBotTable = (roomId: string) => {
     if (connectionStatus !== "connected") {
       setError("Connect to the server first.");
       return;
     }
     triggerHaptic("light");
     setError(null);
-    socket.refreshBotTable(roomId);
+    socket.skipBotTable(roomId);
   };
 
   const handleJoinWithCode = () => {
@@ -494,7 +494,7 @@ export default function FindGame({
                         </Text>
                         <Text style={styles.roomHost} numberOfLines={1}>
                           {isBotTable
-                            ? "Bots · seat open for you next round"
+                            ? "Bots · dead hand seat open next round"
                             : `Host · ${room.hostName}`}
                         </Text>
                         <View style={styles.roomMeta}>
@@ -510,7 +510,7 @@ export default function FindGame({
                                   styles.roomMetaStalled,
                                 ]}
                               >
-                                Stalled — tap Restart bots
+                                Stalled — tap Skip game
                               </Text>
                             </>
                           ) : inPlay ? (
@@ -555,10 +555,10 @@ export default function FindGame({
                               connectionStatus !== "connected" &&
                                 styles.joinBtnDisabled,
                             ]}
-                            onPress={() => handleRefreshBotTable(room.roomId)}
+                            onPress={() => handleSkipBotTable(room.roomId)}
                             disabled={connectionStatus !== "connected"}
                           >
-                            <Text style={ui.btnSecondaryText}>Restart bots</Text>
+                            <Text style={ui.btnSecondaryText}>Skip game</Text>
                           </TouchableOpacity>
                         ) : null}
                         <TouchableOpacity

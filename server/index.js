@@ -86,7 +86,9 @@ function gameHasDeadHandSlot(room) {
 
 function deadHandSeatOpen(room) {
   if (!room) return false;
-  if (room.isBotHosted) return botHosted.openSeatsAvailable(room);
+  if (room.isBotHosted) {
+    return botHosted.countHumansSeated(room) < 2;
+  }
   if (!room.inGame) return activePlayerCount(room) === 2;
   return gameHasDeadHandSlot(room) && activePlayerCount(room) === 2;
 }
@@ -1188,6 +1190,8 @@ function getBotContext() {
     isGamePausedForAway,
     isRoomListedPublic,
     tryStartNextRoundIfReady,
+    forceStartNextRound: (roomId) => startNextRound(roomId),
+    activeRoundPlayerIds,
     broadcastAvailableRooms,
     onRoundComplete: (roomId, room) => {
       const finishOrder = room.gameState.finishedOrder.slice();
@@ -1741,11 +1745,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('refreshBotTable', ({ roomId }) => {
+  socket.on('skipBotTable', ({ roomId }) => {
     const code = normalizeRoomCode(roomId);
-    const result = botHosted.refreshBotHostedRoom(code, getBotContext());
+    const result = botHosted.skipBotHostedGame(code, getBotContext());
     if (!result.ok) {
-      socket.emit('error', { message: result.message || 'Could not refresh bot table.' });
+      socket.emit('error', { message: result.message || 'Could not skip bot game.' });
     }
   });
 
