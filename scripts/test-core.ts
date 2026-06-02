@@ -31,6 +31,7 @@ import {
   isOnTopEligiblePile,
   canAcknowledgmentPass,
   isTrickAcknowledgmentPassPhase,
+  hasPassedInCurrentTrick,
   findCPUPlay,
   applyCpuTurn,
   isTrickOpeningLead,
@@ -332,7 +333,7 @@ function makeEmptyGame(names: string[]): GameState {
   const sixH: Card = { suit: "hearts", value: 6 };
   const sevenH: Card = { suit: "hearts", value: 7 };
   const joker: Card = { suit: "joker", value: 16 };
-  g.players[0].hand = [fiveH];
+  g.players[0].hand = [fiveH, { suit: "clubs", value: 4 }];
   g.players[1].hand = [sixH];
   g.players[2].hand = [sevenH];
   g.players[3].hand = [joker];
@@ -366,6 +367,7 @@ function makeEmptyGame(names: string[]): GameState {
   const jokerA: Card = { suit: "joker", value: 16 };
   const jokerB: Card = { suit: "joker", value: 16 };
   g.players[0].hand = [jokerA, jokerB];
+  g.players[1].hand = [{ suit: "clubs", value: 3 }];
   g.currentPlayerIndex = 0;
 
   const s = playCards(g, g.players[0].id, [jokerA]);
@@ -737,6 +739,48 @@ function makeEmptyGame(names: string[]): GameState {
   s = passTurn(s, g.players[0].id);
   assert.strictEqual(s.pile.length, 0, "Trick clears once all others acknowledge");
   assert.strictEqual(s.players[s.currentPlayerIndex].id, g.players[3].id);
+}
+
+// Joker as last card — finalize when every other living player already passed
+{
+  const g = makeEmptyGame(["P1", "P2", "P3"]);
+  const fiveH: Card = { suit: "hearts", value: 5 };
+  const joker: Card = { suit: "joker", value: 16 };
+  g.players[0].hand = [fiveH];
+  g.players[1].hand = [{ suit: "spades", value: 3 }];
+  g.players[2].hand = [joker];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, g.players[0].id, [fiveH]);
+  s = passTurn(s, g.players[1].id);
+  assert.ok(hasPassedInCurrentTrick(s, g.players[1].id));
+  s = playCards(s, g.players[2].id, [joker]);
+  assert.strictEqual(s.players[2].hand.length, 0);
+  assert.strictEqual(s.pile.length, 0, "Trick clears when only living opponent already passed");
+  assert.strictEqual(s.trickHistory?.length, 2);
+  assert.strictEqual(s.players[s.currentPlayerIndex].id, g.players[2].id);
+}
+
+// Joker does not land turn on a prior passer
+{
+  const g = makeEmptyGame(["P1", "P2", "P3"]);
+  const fiveH: Card = { suit: "hearts", value: 5 };
+  const joker: Card = { suit: "joker", value: 16 };
+  g.players[0].hand = [fiveH, { suit: "clubs", value: 4 }];
+  g.players[1].hand = [{ suit: "spades", value: 3 }, { suit: "hearts", value: 7 }];
+  g.players[2].hand = [joker];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, g.players[0].id, [fiveH]);
+  s = passTurn(s, g.players[1].id);
+  s = playCards(s, g.players[2].id, [joker]);
+  assert.ok(isTrickAcknowledgmentPassPhase(s));
+  assert.strictEqual(
+    s.players[s.currentPlayerIndex].id,
+    g.players[0].id,
+    "Turn should skip P2 who already passed",
+  );
+  assert.ok(!hasPassedInCurrentTrick(s, g.players[0].id));
 }
 
 // Concurrent acknowledgment passes after cross-turn rank close

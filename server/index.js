@@ -23,6 +23,8 @@ const {
   canAcknowledgmentPass,
   isTrickAcknowledgmentPassPhase,
   nextActivePlayerIndex,
+  nextAcknowledgmentPlayerIndex,
+  resolveCompletedAcknowledgmentTrick,
   isTrickOpeningLead,
 } = require('./gameBridge');
 const { viewForPlayer, viewForMember, broadcastGameState } = require('./gameStateView');
@@ -716,6 +718,32 @@ function advancePastInactiveSeats(room) {
     if (ackLeaderWait) {
       working.currentPlayerIndex = nextActivePlayerIndex(working, working.currentPlayerIndex);
       continue;
+    }
+    if (
+      hasPassedInCurrentTrick(working, current.id) &&
+      isTrickAcknowledgmentPassPhase(working) &&
+      !runOnTopTurn
+    ) {
+      const pileUp = working.pile.length > 0;
+      let resolved = resolveCompletedAcknowledgmentTrick(working);
+      if (pileUp && resolved.pile.length === 0) {
+        working = resolved;
+        continue;
+      }
+      const nextIdx = nextAcknowledgmentPlayerIndex(
+        working,
+        working.currentPlayerIndex,
+      );
+      if (nextIdx !== working.currentPlayerIndex) {
+        working.currentPlayerIndex = nextIdx;
+        continue;
+      }
+      resolved = resolveCompletedAcknowledgmentTrick(working);
+      if (pileUp && resolved.pile.length === 0) {
+        working = resolved;
+        continue;
+      }
+      break;
     }
     const next = passTurn(working, current.id);
     if (next === working) break;

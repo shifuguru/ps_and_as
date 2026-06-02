@@ -1,7 +1,22 @@
 const assert = require('assert');
 import { createGame } from "../src/game/core";
 import { createDeck } from "../src/game/ruleset";
-import { playCards, passTurn, findCPUPlay, isValidPlay, isSingleJoker, isFourOfAKind, containsTen, hasPassedInCurrentTrick, isPlayerStillIn, nextActivePlayerIndex } from "../src/game/core";
+import {
+  playCards,
+  passTurn,
+  findCPUPlay,
+  isValidPlay,
+  isSingleJoker,
+  isFourOfAKind,
+  containsTen,
+  hasPassedInCurrentTrick,
+  isPlayerStillIn,
+  nextActivePlayerIndex,
+  isTrickAcknowledgmentPassPhase,
+  isTrickOpeningLead,
+  resolveCompletedAcknowledgmentTrick,
+  nextAcknowledgmentPlayerIndex,
+} from "../src/game/core";
 import { isDeadHandPlayer } from "../src/game/deadHand";
 import { Card } from "../src/game/ruleset";
 
@@ -89,19 +104,52 @@ function advancePastInactiveSeats(state: ReturnType<typeof createGame>) {
   while (safety-- > 0) {
     const current = working.players[working.currentPlayerIndex];
     if (!current) break;
-    const quadWait =
-      working.fourOfAKindChallenge?.active &&
-      working.fourOfAKindChallenge.completedAcrossTurns &&
+    const ackLeaderWait =
+      isTrickAcknowledgmentPassPhase(working) &&
       working.lastPlayPlayerIndex === working.currentPlayerIndex;
+    const runOnTopTurn =
+      working.runOnTop?.active &&
+      working.runOnTop.playerIndex === working.currentPlayerIndex;
+    const mustOpenTrick =
+      working.mustPlay && isTrickOpeningLead(working);
     const inactive =
       isDeadHandPlayer(current) ||
       !isPlayerStillIn(working, current.id) ||
-      hasPassedInCurrentTrick(working, current.id) ||
-      quadWait;
-    if (!inactive) break;
-    if (quadWait) {
-      working.currentPlayerIndex = nextActivePlayerIndex(working, working.currentPlayerIndex);
+      (hasPassedInCurrentTrick(working, current.id) && !runOnTopTurn) ||
+      ackLeaderWait;
+    if (!inactive || mustOpenTrick) break;
+    if (ackLeaderWait) {
+      working.currentPlayerIndex = nextActivePlayerIndex(
+        working,
+        working.currentPlayerIndex,
+      );
       continue;
+    }
+    if (
+      hasPassedInCurrentTrick(working, current.id) &&
+      isTrickAcknowledgmentPassPhase(working) &&
+      !runOnTopTurn
+    ) {
+      const pileUp = working.pile.length > 0;
+      let resolved = resolveCompletedAcknowledgmentTrick(working);
+      if (pileUp && resolved.pile.length === 0) {
+        working = resolved;
+        continue;
+      }
+      const nextIdx = nextAcknowledgmentPlayerIndex(
+        working,
+        working.currentPlayerIndex,
+      );
+      if (nextIdx !== working.currentPlayerIndex) {
+        working.currentPlayerIndex = nextIdx;
+        continue;
+      }
+      resolved = resolveCompletedAcknowledgmentTrick(working);
+      if (pileUp && resolved.pile.length === 0) {
+        working = resolved;
+        continue;
+      }
+      break;
     }
     const next = passTurn(working, current.id);
     if (next === working) break;

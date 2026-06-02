@@ -667,9 +667,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
       starterIndex: pIndex,
       completedAcrossTurns: false,
     };
-    // Advance to next player
-    state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
-    state.mustPlay = false;
+    return advanceTurnAfterClearPlay(state, pIndex);
   } else if (
     // Closing to quads across turns: combine pile + cards to form 4-of-a-kind
     state.pile.length > 0 &&
@@ -696,8 +694,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
       completedAcrossTurns: true,
     };
     state.lastClear = { type: "four", value: cards[0].value, playerIndex: pIndex };
-    state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
-    state.mustPlay = false;
+    return advanceTurnAfterClearPlay(state, pIndex);
   } else if (isSingleJoker(cards)) {
     // Single Joker: highest card, but still requires others to pass
     state.lastClear = { type: "joker", value: 15, playerIndex: pIndex };
@@ -711,9 +708,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     if (state.fourOfAKindChallenge && state.fourOfAKindChallenge.active) {
       state.fourOfAKindChallenge = undefined;
     }
-    // Advance to next active player so others can pass
-    state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
-    state.mustPlay = false;
+    return advanceTurnAfterClearPlay(state, pIndex);
   } else {
     // normal play replaces the pile
     state.pile = cards;
@@ -2331,6 +2326,30 @@ export function resolveCompletedAcknowledgmentTrick(state: GameState): GameState
   return finalizeTrickWin(state, leaderIndex);
 }
 
+/** After joker / rank-close / quad bomb — skip prior passers; finalize if everyone else already passed. */
+export function advanceTurnAfterClearPlay(
+  state: GameState,
+  fromIndex: number,
+): GameState {
+  syncFinishedFromEmptyHands(state);
+  state.mustPlay = false;
+  if (!isTrickAcknowledgmentPassPhase(state)) {
+    state.currentPlayerIndex = nextActivePlayerIndex(state, fromIndex);
+    return { ...state };
+  }
+  const pileUp = state.pile.length > 0;
+  let resolved = resolveCompletedAcknowledgmentTrick(state);
+  if (pileUp && resolved.pile.length === 0) {
+    return resolved;
+  }
+  state.currentPlayerIndex = nextAcknowledgmentPlayerIndex(state, fromIndex);
+  resolved = resolveCompletedAcknowledgmentTrick(state);
+  if (pileUp && resolved.pile.length === 0) {
+    return resolved;
+  }
+  return { ...state };
+}
+
 /** Non-leader who has not passed yet may pass during acknowledgment phase (any order). */
 export function canAcknowledgmentPass(state: GameState, playerId: string): boolean {
   if (!isTrickAcknowledgmentPassPhase(state)) return false;
@@ -2478,6 +2497,20 @@ export function passTurn(state: GameState, playerId: string): GameState {
   }
 
   syncFinishedFromEmptyHands(state);
+
+  if (
+    isCurrentTurn &&
+    hasPassedInCurrentTrick(state, playerId) &&
+    isTrickAcknowledgmentPassPhase(state)
+  ) {
+    const pileUp = state.pile.length > 0;
+    state.currentPlayerIndex = nextAcknowledgmentPlayerIndex(state, pIndex);
+    let resolved = resolveCompletedAcknowledgmentTrick(state);
+    if (pileUp && resolved.pile.length === 0) {
+      return resolved;
+    }
+    return { ...state };
+  }
   if (isRoundCompleteForLiving(state)) {
     return { ...state };
   }

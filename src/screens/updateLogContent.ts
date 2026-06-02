@@ -32,6 +32,14 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-02T23:27"),
+    title: "Joker & quad acknowledgment",
+    items: [
+      "Bot tables — finishing on a joker no longer passes turn to someone who already passed this trick",
+      "Jokers and unbeatable four-of-a-kind closes — the trick clears when everyone else has passed instead of the table freezing",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-02T18:46"),
     title: "Deal ceremony fix",
     items: [
