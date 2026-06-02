@@ -8,6 +8,8 @@ const {
   setTenRuleDirection,
   tenRuleChooserIndex,
   canAcknowledgmentPass,
+  isTrickAcknowledgmentPassPhase,
+  resolveCompletedAcknowledgmentTrick,
   passTurn,
   isDeadHandPlayer,
   isPlayerStillIn,
@@ -231,7 +233,24 @@ function applyBotAckPasses(room, ctx) {
   if (changed) {
     room.gameState = ctx.cloneGameState(working);
   }
+
+  if (tryResolveAcknowledgmentPhase(room, ctx)) {
+    return true;
+  }
+
   return changed;
+}
+
+function tryResolveAcknowledgmentPhase(room, ctx) {
+  const gs = room.gameState;
+  if (!gs || !isTrickAcknowledgmentPassPhase(gs)) return false;
+
+  const before = ctx.cloneGameState(gs);
+  const resolved = resolveCompletedAcknowledgmentTrick(before);
+  if (resolved === before) return false;
+
+  room.gameState = ctx.cloneGameState(resolved);
+  return true;
 }
 
 function isHumanGamePlayer(player, state) {
@@ -251,10 +270,28 @@ function advanceUntilBotTurnOrHuman(room, ctx) {
   let safety = room.gameState.players.length + 4;
 
   while (safety-- > 0) {
+    if (tryResolveAcknowledgmentPhase(room, ctx)) {
+      return true;
+    }
+
     const gs = room.gameState;
     const current = gs.players[gs.currentPlayerIndex];
     if (!current) break;
-    if (isBotPlayerId(current.id) && !isDeadHandPlayer(current)) {
+
+    const ackLeaderWait =
+      isTrickAcknowledgmentPassPhase(gs) &&
+      gs.lastPlayPlayerIndex === gs.currentPlayerIndex;
+    const canAck =
+      isTrickAcknowledgmentPassPhase(gs) &&
+      isBotPlayerId(current.id) &&
+      canAcknowledgmentPass(gs, current.id);
+
+    if (
+      isBotPlayerId(current.id) &&
+      !isDeadHandPlayer(current) &&
+      !ackLeaderWait &&
+      !canAck
+    ) {
       return changed;
     }
     if (isHumanGamePlayer(current, gs)) {
@@ -332,6 +369,14 @@ function processBotTurnStep(room, ctx) {
     next = passTurn(before, current.id);
   }
   if (next === before) {
+    if (tryResolveAcknowledgmentPhase(room, ctx)) {
+      advanceUntilBotTurnOrHuman(room, ctx);
+      ctx.broadcastGameState(ctx.io, room);
+      if (ctx.isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
+        ctx.onRoundComplete(ctx.roomId, room);
+      }
+      return true;
+    }
     return false;
   }
 

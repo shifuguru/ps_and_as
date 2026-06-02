@@ -32,9 +32,10 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-06-02T12:30"),
+    publishedAt: nzst("2026-06-02T12:46"),
     title: "Bot table fix",
     items: [
+      "Open Bot Table — games no longer freeze after Rank Closed or when a bot must lead with only jokers",
       "Open Bot Table — games no longer freeze mid-run while you're spectating",
     ],
   },

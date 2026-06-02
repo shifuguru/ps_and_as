@@ -1948,6 +1948,31 @@ function cpuPlayIsValid(hand: Card[], cards: Card[] | null, ctx: CpuPlayContext)
   );
 }
 
+/** Empty-pile lead candidates — try 1..4 cards per rank (not the whole group at once). */
+function emptyPilePlayCandidates(
+  hand: Card[],
+  grouped: Record<number, Card[]>,
+): Card[][] {
+  const candidates: Card[][] = [];
+  const threeOfClubs = hand.find((c) => c.value === 3 && c.suit === "clubs");
+  if (threeOfClubs) {
+    const threes = grouped[3] ?? [threeOfClubs];
+    for (let take = 1; take <= Math.min(4, threes.length); take++) {
+      candidates.push(threes.slice(0, take));
+    }
+  }
+  const values = Object.keys(grouped)
+    .map(Number)
+    .sort((a, b) => rankIndex(a) - rankIndex(b));
+  for (const v of values) {
+    const cards = grouped[v];
+    for (let take = 1; take <= Math.min(4, cards.length); take++) {
+      candidates.push(cards.slice(0, take));
+    }
+  }
+  return candidates;
+}
+
 /** Brute-force any legal play when heuristics miss (prevents CPU deadlocks). */
 function enumerateValidCpuPlay(hand: Card[], ctx: CpuPlayContext): Card[] | null {
   if (!hand.length) return null;
@@ -1961,12 +1986,7 @@ function enumerateValidCpuPlay(hand: Card[], ctx: CpuPlayContext): Card[] | null
   const candidates: Card[][] = [];
 
   if (pileCount === 0) {
-    const threeOfClubs = hand.find((c) => c.value === 3 && c.suit === "clubs");
-    if (threeOfClubs) candidates.push(grouped[3] ?? [threeOfClubs]);
-    const values = Object.keys(grouped)
-      .map(Number)
-      .sort((a, b) => rankIndex(a) - rankIndex(b));
-    for (const v of values) candidates.push(grouped[v]);
+    candidates.push(...emptyPilePlayCandidates(hand, grouped));
   } else {
     const joker = hand.find((c) => isJoker(c));
     if (joker) candidates.push([joker]);
@@ -2027,15 +2047,9 @@ export function findCPUPlay(
     grouped[card.value].push(card);
   });
 
-  // If pile is empty, prefer 3♣ if present; else play the lowest rank index set (single-rank-per-turn)
+  // If pile is empty, prefer 3♣ if present; else play the lowest valid rank set.
   if (pileCount === 0) {
-    const threeOfClubs = hand.find((c) => c.value === 3 && c.suit === "clubs");
-    const emptyCandidates: Card[][] = [];
-    if (threeOfClubs) emptyCandidates.push(grouped[3] || [threeOfClubs]);
-    const values = Object.keys(grouped)
-      .map(Number)
-      .sort((a, b) => rankIndex(a) - rankIndex(b));
-    for (const v of values) emptyCandidates.push(grouped[v]);
+    const emptyCandidates = emptyPilePlayCandidates(hand, grouped);
     for (const candidate of emptyCandidates) {
       if (cpuPlayIsValid(hand, candidate, ctx)) return candidate;
     }
@@ -2216,6 +2230,42 @@ export function isTrickAcknowledgmentPassPhase(state: GameState): boolean {
     state.fourOfAKindChallenge?.active &&
     state.fourOfAKindChallenge.completedAcrossTurns
   );
+}
+
+/** Award the trick when acknowledgment is complete but the pile is still up. */
+export function resolveCompletedAcknowledgmentTrick(state: GameState): GameState {
+  if (!isTrickAcknowledgmentPassPhase(state)) return state;
+
+  const activePlayerIds = state.players
+    .filter((p) => isPlayerStillIn(state, p.id))
+    .map((p) => p.id);
+  const leaderIndex = resolveTrickLeaderIndex(state);
+  if (leaderIndex === null || leaderIndex < 0) return state;
+
+  const leaderId = state.players[leaderIndex].id;
+  const passedIds = new Set(
+    (state.currentTrick?.actions ?? [])
+      .filter((a) => a.type === "pass")
+      .map((a) => a.playerId),
+  );
+  const others = activePlayerIds.filter((id) => id !== leaderId);
+  const allOthersPassed =
+    others.length === 0 || others.every((id) => passedIds.has(id));
+  if (!allOthersPassed) return state;
+
+  const onTopEligible = isOnTopEligiblePile(
+    state.pile,
+    state.pileHistory,
+    state.currentTrick,
+    state.players,
+    state.finishedOrder || [],
+    state.tenRule,
+  );
+  if (onTopEligible && !state.runOnTop?.active) {
+    return grantRunOnTopBeat(state, leaderIndex);
+  }
+  syncFinishedFromEmptyHands(state);
+  return finalizeTrickWin(state, leaderIndex);
 }
 
 /** Non-leader who has not passed yet may pass during acknowledgment phase (any order). */
