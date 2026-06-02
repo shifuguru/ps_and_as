@@ -37,6 +37,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.0.34": "No Pass Zone",
   "1.0.35": "Dealer's Remorse",
   "1.0.36": "Felt Table Fever",
+  "1.0.37": "Trump Card Tantrum",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
