@@ -10,6 +10,7 @@ const {
   canAcknowledgmentPass,
   passTurn,
   isDeadHandPlayer,
+  isPlayerStillIn,
 } = require('./gameBridge');
 
 const BOT_ROOM_CODE = 'BOTOPN';
@@ -233,6 +234,55 @@ function applyBotAckPasses(room, ctx) {
   return changed;
 }
 
+function isHumanGamePlayer(player, state) {
+  return (
+    player &&
+    !isBotPlayerId(player.id) &&
+    !isDeadHandPlayer(player) &&
+    isPlayerStillIn(state, player.id)
+  );
+}
+
+/** Skip dead-hand / out seats so bot turns don't stall mid-trick (common during runs). */
+function advanceUntilBotTurnOrHuman(room, ctx) {
+  if (!room.gameState?.players?.length) return false;
+
+  let changed = false;
+  let safety = room.gameState.players.length + 4;
+
+  while (safety-- > 0) {
+    const gs = room.gameState;
+    const current = gs.players[gs.currentPlayerIndex];
+    if (!current) break;
+    if (isBotPlayerId(current.id) && !isDeadHandPlayer(current)) {
+      return changed;
+    }
+    if (isHumanGamePlayer(current, gs)) {
+      return changed;
+    }
+
+    const beforeIdx = gs.currentPlayerIndex;
+    ctx.advancePastInactiveSeats(room);
+
+    if (room.gameState.currentPlayerIndex !== beforeIdx) {
+      changed = true;
+      continue;
+    }
+
+    if (isDeadHandPlayer(current) || !isPlayerStillIn(gs, current.id)) {
+      const passed = passTurn(ctx.cloneGameState(gs), current.id);
+      if (passed !== gs) {
+        room.gameState = ctx.cloneGameState(passed);
+        changed = true;
+        continue;
+      }
+    }
+    break;
+  }
+
+  return changed;
+}
+
 function processBotTurnStep(room, ctx) {
   if (!room?.isBotHosted || !room.inGame || !room.gameState) return false;
   if (ctx.isGamePausedForAway(room)) return false;
@@ -242,7 +292,7 @@ function processBotTurnStep(room, ctx) {
   }
 
   if (applyBotTenRuleIfNeeded(room, ctx)) {
-    ctx.advancePastInactiveSeats(room);
+    advanceUntilBotTurnOrHuman(room, ctx);
     ctx.broadcastGameState(ctx.io, room);
     if (ctx.isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
       ctx.onRoundComplete(ctx.roomId, room);
@@ -251,9 +301,20 @@ function processBotTurnStep(room, ctx) {
   }
 
   if (applyBotAckPasses(room, ctx)) {
-    ctx.advancePastInactiveSeats(room);
+    advanceUntilBotTurnOrHuman(room, ctx);
     ctx.broadcastGameState(ctx.io, room);
     return true;
+  }
+
+  if (advanceUntilBotTurnOrHuman(room, ctx)) {
+    ctx.broadcastGameState(ctx.io, room);
+    const current = room.gameState.players[room.gameState.currentPlayerIndex];
+    if (!current || !isBotPlayerId(current.id) || isDeadHandPlayer(current)) {
+      if (ctx.isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
+        ctx.onRoundComplete(ctx.roomId, room);
+      }
+      return true;
+    }
   }
 
   const gs = room.gameState;
@@ -261,14 +322,22 @@ function processBotTurnStep(room, ctx) {
   if (!current || !isBotPlayerId(current.id) || isDeadHandPlayer(current)) {
     return false;
   }
+  if (isHumanGamePlayer(current, gs)) {
+    return false;
+  }
 
   const before = ctx.cloneGameState(gs);
   let next = applyCpuTurn(before, current.id);
-  if (next === before) return false;
+  if (next === before) {
+    next = passTurn(before, current.id);
+  }
+  if (next === before) {
+    return false;
+  }
 
   room.gameState = ctx.cloneGameState(next);
   room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
-  ctx.advancePastInactiveSeats(room);
+  advanceUntilBotTurnOrHuman(room, ctx);
   ctx.broadcastGameState(ctx.io, room);
 
   if (ctx.isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
@@ -293,15 +362,34 @@ function runBotTurnLoop(roomId, ctx) {
   if (!room?.isBotHosted || !room.inGame || !room.gameState) return;
   if (ctx.isGamePausedForAway(room)) return;
 
-  let safety = 40;
+  let safety = 80;
   const step = () => {
     if (safety-- <= 0) return;
-    if (!ctx.rooms[roomId]?.inGame) return;
+    const live = ctx.rooms[roomId];
+    if (!live?.inGame || !live.gameState) return;
 
-    const acted = processBotTurnStep(room, ctx);
-    if (!acted) return;
+    const acted = processBotTurnStep(live, ctx);
+    if (acted) {
+      live._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS);
+      return;
+    }
 
-    room._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS);
+    // Stalled on dead hand / passive seat — retry after advancing once more
+    if (advanceUntilBotTurnOrHuman(live, ctx)) {
+      ctx.broadcastGameState(ctx.io, live);
+      live._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS);
+      return;
+    }
+
+    const cur = live.gameState?.players?.[live.gameState.currentPlayerIndex];
+    if (
+      cur &&
+      isBotPlayerId(cur.id) &&
+      !isDeadHandPlayer(cur) &&
+      !ctx.isRoundComplete(live.gameState)
+    ) {
+      live._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS);
+    }
   };
 
   step();

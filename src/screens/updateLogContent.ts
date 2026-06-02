@@ -32,6 +32,13 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-02T12:30"),
+    title: "Bot table fix",
+    items: [
+      "Open Bot Table — games no longer freeze mid-run while you're spectating",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-02T12:08"),
     title: "Bot tables & spectators",
     items: [
