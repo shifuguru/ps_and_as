@@ -606,7 +606,21 @@ function awayPlayersInGame(room) {
 }
 
 function isGamePausedForAway(room) {
+  // Bot tables keep advancing on the server when humans disconnect or leave.
+  if (room?.isBotHosted) return false;
   return awayPlayersInGame(room).length > 0;
+}
+
+/** In-game human left the bot table — drop from the round, keep table running. */
+function demoteBotTablePlayerToSpectator(room, roomId, player) {
+  if (!room?.isBotHosted || !room.gameState || !player || player.isSpectator) {
+    return;
+  }
+  player.isSpectator = true;
+  removePlayerFromActiveGame(room, player.id);
+  advancePastInactiveSeats(room);
+  broadcastGameState(io, room);
+  botHosted.scheduleBotTurns(roomId, getBotContext());
 }
 
 /** Skip seats that cannot act (out, dead hand, already passed this trick). */
@@ -653,6 +667,17 @@ function finalizeAwayPlayerRemoval(roomId, playerId) {
   console.log(`[Server] Grace period expired for ${player.name}, removing from room ${roomId}`);
 
   if (room.inGame && !player.isSpectator) {
+    if (room.isBotHosted) {
+      demoteBotTablePlayerToSpectator(room, roomId, player);
+      room.players = room.players.filter((p) => p.id !== playerId);
+      io.to(roomId).emit('playerRemoved', {
+        playerId,
+        playerName: player.name,
+        reason: player.awayReason || 'disconnected',
+      });
+      afterPlayerLeftRoom(roomId);
+      return;
+    }
     room.players = room.players.filter((p) => p.id !== playerId);
     const msg =
       player.awayReason === 'left'
@@ -701,14 +726,25 @@ function markPlayerAway(roomId, player, reason = 'disconnected') {
   player.reconnectUntil = Date.now() + graceMs;
 
   if (room.inGame && !player.isSpectator && room.gameState) {
-    broadcastGameState(io, room);
-    io.to(roomId).emit('playerDisconnected', {
-      playerId: player.id,
-      playerName: player.name,
-      gracePeriod: graceMs,
-      reason,
-      reconnectUntil: player.reconnectUntil,
-    });
+    if (room.isBotHosted) {
+      demoteBotTablePlayerToSpectator(room, roomId, player);
+      io.to(roomId).emit('playerDisconnected', {
+        playerId: player.id,
+        playerName: player.name,
+        gracePeriod: graceMs,
+        reason,
+        reconnectUntil: player.reconnectUntil,
+      });
+    } else {
+      broadcastGameState(io, room);
+      io.to(roomId).emit('playerDisconnected', {
+        playerId: player.id,
+        playerName: player.name,
+        gracePeriod: graceMs,
+        reason,
+        reconnectUntil: player.reconnectUntil,
+      });
+    }
   }
 
   io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
@@ -841,7 +877,7 @@ function buildLobbyUpdate(room) {
 function afterPlayerLeftRoom(roomId) {
   const room = rooms[roomId];
   if (!room) return;
-  if (room.isBotHosted && botHosted.afterBotRoomPlayerLeft(room, getBotContext())) {
+  if (room.isBotHosted && botHosted.afterBotRoomPlayerLeft(room, roomId, getBotContext())) {
     io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
     if (room.isPublic) broadcastAvailableRooms();
     return;
@@ -1459,13 +1495,20 @@ io.on('connection', (socket) => {
       console.log('[Server] Room not found:', roomId);
       return;
     }
+    const room = rooms[roomId];
+    if (room.isBotHosted) {
+      socket.emit('error', {
+        message:
+          'Open Bot Table is run on the server. Join to spectate or tap Ready for the next round.',
+      });
+      return;
+    }
     // only host may start
     if (!isRoomHost(rooms[roomId], socket.id)) {
       console.log('[Server] Not host, cannot start. Host:', rooms[roomId].host, 'Requester:', socket.id);
       return;
     }
     // require at least 2 players
-    const room = rooms[roomId];
     const seated = activePlayerCount(room);
     if (seated < 2) {
       console.log('[Server] Not enough players to start:', seated);
@@ -1763,6 +1806,19 @@ io.on('connection', (socket) => {
     const kickedSocketId = playerToKick.socketId;
 
     if (room.inGame && !playerToKick.isSpectator) {
+      if (room.isBotHosted) {
+        demoteBotTablePlayerToSpectator(room, roomId, playerToKick);
+        room.players = room.players.filter((p) => p.name !== playerName);
+        const kickedSocket = io.sockets.sockets.get(kickedSocketId);
+        if (kickedSocket) {
+          kickedSocket.leave(roomId);
+        }
+        io.to(kickedSocketId).emit('kicked', {
+          message: 'You have been removed from the game',
+        });
+        afterPlayerLeftRoom(roomId);
+        return;
+      }
       room.players = room.players.filter(p => p.name !== playerName);
       const kickedSocket = io.sockets.sockets.get(kickedSocketId);
       if (kickedSocket) {

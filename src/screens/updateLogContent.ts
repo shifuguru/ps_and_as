@@ -32,6 +32,16 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-02T15:15"),
+    title: "Trades, bot lobby & hand scroll",
+    items: [
+      "Role trades at the start of later rounds — deal ceremony and President↔Asshole trades stay in sync online",
+      "Open Bot Table — joining the lobby no longer throws you into a broken game; spectate live from Find Game, tap Ready here for the next round",
+      "Open Bot Table — the server keeps the game running when someone leaves; bots do not freeze and the table is not reset",
+      "Your hand keeps its scroll position after you play instead of jumping back to the middle every time",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-02T12:46"),
     title: "Bot table fix",
     items: [

@@ -253,13 +253,13 @@ function tryResolveAcknowledgmentPhase(room, ctx) {
   return true;
 }
 
-function isHumanGamePlayer(player, state) {
-  return (
-    player &&
-    !isBotPlayerId(player.id) &&
-    !isDeadHandPlayer(player) &&
-    isPlayerStillIn(state, player.id)
-  );
+function isHumanGamePlayer(player, state, room) {
+  if (!player || isBotPlayerId(player.id) || isDeadHandPlayer(player)) {
+    return false;
+  }
+  const lobby = room?.players?.find((p) => p.id === player.id);
+  if (lobby?.isSpectator || lobby?.disconnectedAt) return false;
+  return isPlayerStillIn(state, player.id);
 }
 
 /** Skip dead-hand / out seats so bot turns don't stall mid-trick (common during runs). */
@@ -294,7 +294,7 @@ function advanceUntilBotTurnOrHuman(room, ctx) {
     ) {
       return changed;
     }
-    if (isHumanGamePlayer(current, gs)) {
+    if (isHumanGamePlayer(current, gs, room)) {
       return changed;
     }
 
@@ -320,9 +320,20 @@ function advanceUntilBotTurnOrHuman(room, ctx) {
   return changed;
 }
 
+function finishBotRoundIfComplete(room, ctx) {
+  if (!room?.gameState) return false;
+  if (!ctx.isRoundComplete(room.gameState) || room.gameState.tenRulePending) {
+    return false;
+  }
+  ctx.onRoundComplete(ctx.roomId, room);
+  return true;
+}
+
 function processBotTurnStep(room, ctx) {
   if (!room?.isBotHosted || !room.inGame || !room.gameState) return false;
   if (ctx.isGamePausedForAway(room)) return false;
+
+  if (finishBotRoundIfComplete(room, ctx)) return true;
 
   if (resolveBotPendingTrades(room, ctx)) {
     ctx.emitTradesCompleteIfReady(ctx.io, ctx.roomId, room.gameState, room.host);
@@ -331,15 +342,14 @@ function processBotTurnStep(room, ctx) {
   if (applyBotTenRuleIfNeeded(room, ctx)) {
     advanceUntilBotTurnOrHuman(room, ctx);
     ctx.broadcastGameState(ctx.io, room);
-    if (ctx.isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
-      ctx.onRoundComplete(ctx.roomId, room);
-    }
+    finishBotRoundIfComplete(room, ctx);
     return true;
   }
 
   if (applyBotAckPasses(room, ctx)) {
     advanceUntilBotTurnOrHuman(room, ctx);
     ctx.broadcastGameState(ctx.io, room);
+    if (finishBotRoundIfComplete(room, ctx)) return true;
     return true;
   }
 
@@ -347,9 +357,7 @@ function processBotTurnStep(room, ctx) {
     ctx.broadcastGameState(ctx.io, room);
     const current = room.gameState.players[room.gameState.currentPlayerIndex];
     if (!current || !isBotPlayerId(current.id) || isDeadHandPlayer(current)) {
-      if (ctx.isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
-        ctx.onRoundComplete(ctx.roomId, room);
-      }
+      finishBotRoundIfComplete(room, ctx);
       return true;
     }
   }
@@ -359,7 +367,7 @@ function processBotTurnStep(room, ctx) {
   if (!current || !isBotPlayerId(current.id) || isDeadHandPlayer(current)) {
     return false;
   }
-  if (isHumanGamePlayer(current, gs)) {
+  if (isHumanGamePlayer(current, gs, room)) {
     return false;
   }
 
@@ -372,9 +380,7 @@ function processBotTurnStep(room, ctx) {
     if (tryResolveAcknowledgmentPhase(room, ctx)) {
       advanceUntilBotTurnOrHuman(room, ctx);
       ctx.broadcastGameState(ctx.io, room);
-      if (ctx.isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
-        ctx.onRoundComplete(ctx.roomId, room);
-      }
+      if (finishBotRoundIfComplete(room, ctx)) return true;
       return true;
     }
     return false;
@@ -385,9 +391,7 @@ function processBotTurnStep(room, ctx) {
   advanceUntilBotTurnOrHuman(room, ctx);
   ctx.broadcastGameState(ctx.io, room);
 
-  if (ctx.isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
-    ctx.onRoundComplete(ctx.roomId, room);
-  }
+  finishBotRoundIfComplete(room, ctx);
   return true;
 }
 
@@ -497,16 +501,17 @@ function onBotRoomRoundFinished(room, roomId, ctx) {
   }
 }
 
-function afterBotRoomPlayerLeft(room, ctx) {
+function afterBotRoomPlayerLeft(room, roomId, ctx) {
   if (!room?.isBotHosted) return false;
 
   room.players = room.players.filter(
     (p) => isBotMember(p) || (!p.disconnectedAt && !p.isSpectator),
   );
+  ensureHumanHost(room);
 
   if (room.inGame && room.gameState) {
-    ctx.tryStartNextRoundIfReady(ctx.roomId);
-    scheduleBotTurns(ctx.roomId, ctx);
+    ctx.tryStartNextRoundIfReady(roomId);
+    scheduleBotTurns(roomId, ctx);
   }
 
   return true;

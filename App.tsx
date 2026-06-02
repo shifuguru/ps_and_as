@@ -515,7 +515,31 @@ function AppContent() {
       };
     }) => {
       if (ev.type !== "state" || ev.state?.type !== "startGame") return;
-      if (screenRef.current === "game") return;
+
+      const roomId = activeRoomIdRef.current ?? joinedRoomIdRef.current;
+
+      // In-progress bot-table join replays startGame — spectators stay in lobby to Ready.
+      if (screenRef.current === "create") {
+        if (typeof ev.state.spectator === "boolean") {
+          setIsSpectator(ev.state.spectator);
+        }
+        if (typeof ev.state.dealSeed === "number") {
+          setDealSeed(ev.state.dealSeed);
+        }
+        if (ev.state.spectator) {
+          return;
+        }
+      }
+
+      if (screenRef.current === "game") {
+        if (typeof ev.state.spectator === "boolean") {
+          setIsSpectator(ev.state.spectator);
+        }
+        if (roomId) {
+          roomAdapter.requestGameState(roomId);
+        }
+        return;
+      }
 
       if (typeof ev.state.dealSeed === "number") {
         setDealSeed(ev.state.dealSeed);
@@ -537,7 +561,6 @@ function AppContent() {
             ? lobbyMembersRef.current
             : [];
 
-      const roomId = activeRoomIdRef.current ?? joinedRoomIdRef.current;
       const displayName = localPlayerNameRef.current ?? "Player";
       const profileId = roomAdapter.getProfileId();
       const localId =

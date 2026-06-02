@@ -436,6 +436,7 @@ export default function CreateGame({
   const playersNeeded = Math.max(0, MIN_PLAYERS - seatCount);
   const lobbyFullEnough = seatCount >= MIN_PLAYERS;
   const localMember = seatMembers.find((m) => m.id === localId);
+  const localIsSpectator = !!localMember?.isSpectator;
   const isLocalReady = !!localMember?.ready;
   const guestMembers = seatMembers.filter((m) => m.id !== hostId);
   const guestsReadyCount = guestMembers.filter((m) => m.ready).length;
@@ -1008,6 +1009,13 @@ export default function CreateGame({
                     />
                   </>
                 ) : null}
+                {onlineLobby && localIsSpectator ? (
+                  <Text style={[local.deadHandInfo, local.fieldLabelAfterCode]}>
+                    You joined as a spectator — tap Ready to take a seat next
+                    round (up to 8 players). Use Spectate on Find Game to watch
+                    the current round live.
+                  </Text>
+                ) : null}
                 {onlineLobby && seatCount === MIN_PLAYERS ? (
                   <>
                     <Text
@@ -1041,7 +1049,9 @@ export default function CreateGame({
                 >
                   <Text style={local.tableHint}>
                     {onlineLobby
-                      ? seatCount < MIN_PLAYERS
+                      ? localIsSpectator
+                        ? "Spectating this round — Ready to play next round"
+                        : seatCount < MIN_PLAYERS
                         ? "Share the room code — waiting for players"
                         : showDeadHandSeat
                           ? "Dead hand active — third player can spectate & join next round"

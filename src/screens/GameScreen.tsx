@@ -52,6 +52,10 @@ import {
   completeWinnerReturn,
   executeCeremonyDeal,
   resolveCeremonyTrades,
+  buildTradePhaseFromServerState,
+  mergeTradesFromServerPending,
+  shouldSyncMidTradeFromServer,
+  serverPendingTradesComplete,
   type ClientPendingTrade,
   type ServerPendingTrades,
 } from "../game/roundPrep";
@@ -185,6 +189,19 @@ function lastPlayerHandFromState(state: GameState): LastHandRevealPayload | null
   const cards = visibleHandCards(lastPlayer.hand);
   if (cards.length === 0) return null;
   return { playerId: lastId, playerName: lastPlayer.name, cards };
+}
+
+type ServerAugmentedState = GameState & {
+  pendingTrades?: ServerPendingTrades;
+  roles?: Record<string, string>;
+  playerHands?: Record<string, CardType[]>;
+};
+
+function serverStateHasPendingTrades(
+  state: ServerAugmentedState,
+): boolean {
+  const pending = state.pendingTrades;
+  return !!pending && Object.keys(pending).length > 0;
 }
 
 /** Mid-game rejoin should apply server state directly — no deal animation. */
@@ -1583,94 +1600,171 @@ function GameScreen({
     }
 
     const applyServerSync = (raw: unknown, spectator?: boolean) => {
-      const parsed = parseServerGameState(raw);
+      const parsed = parseServerGameState(raw) as ServerAugmentedState | null;
       if (!parsed) {
         console.warn("[GameScreen] Ignored invalid gameStateSync payload", raw);
         return;
       }
 
+      const roundKey = roundCeremonyKey(parsed);
+      const localCeremonyUi =
+        !!ceremonyPrepRef.current ||
+        !!tradePhaseRef.current ||
+        gameplayLockedRef.current;
+
+      const finishSpectator = () => {
+        stateSyncedRef.current = true;
+        if (typeof spectator === "boolean") {
+          setSpectatorMode(spectator);
+        } else if (
+          localPlayerId &&
+          parsed.players.some((p) => p.id === localPlayerId)
+        ) {
+          setSpectatorMode(false);
+        }
+      };
+
+      // Mid-trade sync for the current deal only — not a fresh round before ceremony runs.
       if (
-        onlineMultiplayer &&
-        !shouldSkipDealCeremony(parsed)
+        shouldSyncMidTradeFromServer({
+          onlineMultiplayer,
+          hasPendingTrades: serverStateHasPendingTrades(parsed),
+          awaitingDealCeremony: awaitingDealCeremonyRef.current,
+          roundOver: roundOverRef.current,
+          roundKey,
+          ceremonyStartedForRound: ceremonyStartedForRoundRef.current,
+          ceremonyDoneForRound: ceremonyDoneForRoundRef.current,
+          hasLocalTradePhase: !!tradePhaseRef.current,
+        })
       ) {
-        const roundKey = roundCeremonyKey(parsed);
+        const serverHands = parsed.playerHands ?? null;
+        if (serverPendingTradesComplete(parsed.pendingTrades)) {
+          if (serverHands) {
+            pendingTradesCompleteRef.current = serverHands;
+          }
+          const built = buildTradePhaseFromServerState(parsed, {
+            pendingTrades: parsed.pendingTrades,
+            roles: parsed.roles,
+            playerHands: serverHands,
+          });
+          const players =
+            built?.players ??
+            (serverHands
+              ? applyServerPlayerHands(parsed.players, serverHands)
+              : parsed.players);
+          setCeremonyPrep(null);
+          setTradePhase(null);
+          setActiveTrade(null);
+          finalizeCeremonyRound(players, parsed, serverHands);
+          ceremonyDoneForRoundRef.current = roundKey;
+          ceremonyStartedForRoundRef.current = roundKey;
+          finishSpectator();
+          return;
+        }
+
+        const built = buildTradePhaseFromServerState(parsed, {
+          pendingTrades: parsed.pendingTrades,
+          roles: parsed.roles,
+          playerHands: serverHands,
+        });
+        if (built) {
+          setCeremonyPrep(null);
+          setTradePhase(built);
+          setActiveTrade(built.trades.find((t) => !t.completed) ?? null);
+          setGameplayLocked(true);
+          setRoundOver(false);
+          setState(parsed);
+          ceremonyStartedForRoundRef.current = roundKey;
+          finishSpectator();
+          return;
+        }
+      }
+
+      // While local deal/trade animation runs, stash server progress — do not apply live play state.
+      if (onlineMultiplayer && localCeremonyUi) {
+        if (
+          serverPendingTradesComplete(parsed.pendingTrades) &&
+          parsed.playerHands
+        ) {
+          pendingTradesCompleteRef.current = parsed.playerHands;
+        }
+        const prep = ceremonyPrepRef.current;
+        if (prep && parsed.pendingTrades) {
+          const merged = mergeTradesFromServerPending(
+            prep.trades,
+            parsed.pendingTrades,
+          );
+          if (merged.some((t, i) => t.completed !== prep.trades[i]?.completed)) {
+            setCeremonyPrep({ ...prep, trades: merged });
+          }
+        }
+        finishSpectator();
+        return;
+      }
+
+      if (onlineMultiplayer && !shouldSkipDealCeremony(parsed)) {
         const needsCeremony =
           awaitingDealCeremonyRef.current ||
           (ceremonyDoneForRoundRef.current !== roundKey &&
             ceremonyStartedForRoundRef.current !== roundKey);
 
         if (needsCeremony) {
-        ceremonyStartedForRoundRef.current = roundKey;
-        awaitingDealCeremonyRef.current = false;
-        const serverPending = (
-          parsed as GameState & { pendingTrades?: ServerPendingTrades }
-        ).pendingTrades;
-        const serverRoles = (parsed as GameState & { roles?: Record<string, string> }).roles;
-        const serverPlayerHands = (
-          parsed as GameState & { playerHands?: Record<string, CardType[]> }
-        ).playerHands;
-        const roundDealSeed =
-          (parsed as GameState & { dealSeed?: number }).dealSeed ??
-          pendingDealSeedRef.current ??
-          seedFromProps;
-        pendingDealSeedRef.current = undefined;
+          ceremonyStartedForRoundRef.current = roundKey;
+          awaitingDealCeremonyRef.current = false;
+          const serverPending = parsed.pendingTrades;
+          const serverRoles = parsed.roles;
+          const serverPlayerHands = parsed.playerHands;
+          const roundDealSeed =
+            (parsed as GameStateWithDealSeed).dealSeed ??
+            pendingDealSeedRef.current ??
+            seedFromProps;
+          pendingDealSeedRef.current = undefined;
 
-        const finishOrder = livingFinishedOrder(
-          parsed.players,
-          parsed.lastRoundOrder ?? [],
-        );
-        const deal = executeCeremonyDeal(parsed, finishOrder, {
-          dealSeed: roundDealSeed,
-          hostId: resolvedHostId,
-        });
-        const ceremonyPlayers = serverPlayerHands
-          ? applyServerPlayerHands(deal.players, serverPlayerHands)
-          : deal.players;
-        const trades = resolveCeremonyTrades(
-          deal.trades,
-          serverPending,
-          serverRoles,
-          ceremonyPlayers,
-        );
+          const finishOrder = livingFinishedOrder(
+            parsed.players,
+            parsed.lastRoundOrder ?? [],
+          );
+          const deal = executeCeremonyDeal(parsed, finishOrder, {
+            dealSeed: roundDealSeed,
+            hostId: resolvedHostId,
+          });
+          const ceremonyPlayers = serverPlayerHands
+            ? applyServerPlayerHands(deal.players, serverPlayerHands)
+            : deal.players;
+          const trades = resolveCeremonyTrades(
+            deal.trades,
+            serverPending,
+            serverRoles,
+            ceremonyPlayers,
+          );
 
-        setRoundOver(false);
-        setPlayerReadyStates({});
-        setAwaitingDealerReshuffle(false);
-        const prep: CeremonyPrepPayload = {
-          baseState: parsed,
-          players: ceremonyPlayers,
-          trades,
-          dealSeed: roundDealSeed,
-          finishOrder,
-          needsDealerReshuffle: deal.needsDealerReshuffle,
-          dealAttempt: 0,
-        };
-        launchCeremonyFromDeal(
-          prep,
-          deal.dealerContext,
-          deal.openingPlayerIndex,
-        );
-        stateSyncedRef.current = true;
-        if (typeof spectator === "boolean") {
-          setSpectatorMode(spectator);
-        }
-        return;
+          setRoundOver(false);
+          setPlayerReadyStates({});
+          setAwaitingDealerReshuffle(false);
+          const prep: CeremonyPrepPayload = {
+            baseState: parsed,
+            players: ceremonyPlayers,
+            trades,
+            dealSeed: roundDealSeed,
+            finishOrder,
+            needsDealerReshuffle: deal.needsDealerReshuffle,
+            dealAttempt: 0,
+          };
+          launchCeremonyFromDeal(
+            prep,
+            deal.dealerContext,
+            deal.openingPlayerIndex,
+          );
+          finishSpectator();
+          return;
         }
       } else if (onlineMultiplayer && shouldSkipDealCeremony(parsed)) {
-        ceremonyDoneForRoundRef.current = roundCeremonyKey(parsed);
+        ceremonyDoneForRoundRef.current = roundKey;
         awaitingDealCeremonyRef.current = false;
       }
 
-      stateSyncedRef.current = true;
       setState(parsed);
-      if (typeof spectator === "boolean") {
-        setSpectatorMode(spectator);
-      } else if (
-        localPlayerId &&
-        parsed.players.some((p) => p.id === localPlayerId)
-      ) {
-        setSpectatorMode(false);
-      }
+      finishSpectator();
     };
 
     const requestSync = () => {
@@ -1682,6 +1776,14 @@ function GameScreen({
 
     void adapter.connect().then(() => {
       requestSync();
+      const cachedOnConnect = parseServerGameState(
+        isSocketAdapter(networkAdapter)
+          ? networkAdapter.getCachedGameState()
+          : null,
+      );
+      if (cachedOnConnect) {
+        applyServerSync(cachedOnConnect);
+      }
       if (onlineMultiplayer && !stateSyncedRef.current) {
         let attempts = 0;
         syncRetryTimerRef.current = setInterval(() => {
@@ -1928,6 +2030,12 @@ function GameScreen({
       } else if (ev.type === "state" && ev.state?.type === "nextRoundStarting") {
         clearLastHandReveal();
         if (onlineMultiplayer) {
+          pendingTradesCompleteRef.current = null;
+          setCeremonyPrep(null);
+          setTradePhase(null);
+          setActiveTrade(null);
+          setTradeReturnPick([]);
+          setGameplayLocked(false);
           setRoundOver(false);
           roundStatsRecordedRef.current = false;
           xpCommittedForRoundRef.current = false;
@@ -1959,6 +2067,27 @@ function GameScreen({
           const seed =
             typeof ev.state.dealSeed === "number" ? ev.state.dealSeed : undefined;
           startNextRoundRef.current(seed);
+        }
+      } else if (ev.type === "state" && ev.state?.type === "playerHandsUpdate") {
+        const hands = ev.state.playerHands as
+          | Record<string, CardType[]>
+          | undefined;
+        if (!hands) return;
+        const tp = tradePhaseRef.current;
+        if (tp) {
+          const players = applyServerPlayerHands(tp.players, hands);
+          const gs = stateRef.current as ServerAugmentedState | null;
+          const trades = gs?.pendingTrades
+            ? mergeTradesFromServerPending(tp.trades, gs.pendingTrades)
+            : tp.trades;
+          setTradePhase({ ...tp, players, trades });
+          setActiveTrade(trades.find((t) => !t.completed) ?? null);
+        }
+        if (stateRef.current) {
+          setState({
+            ...stateRef.current,
+            players: applyServerPlayerHands(stateRef.current.players, hands),
+          });
         }
       } else if (ev.type === "state" && ev.state?.type === "tradesComplete") {
         const hands = ev.state.playerHands as
@@ -4053,14 +4182,14 @@ function GameScreenBoard() {
         playAreaOffsetLeft={12}
         cardsPerPlayer={
           ceremonyPrep
-            ? Math.max(
-                ...ceremonyPrep.players.map((p) =>
+            ? (() => {
+                const counts = ceremonyPrep.players.map((p) =>
                   isDeadHandPlayer(p)
                     ? (p.sidelinedHand?.length ?? p.hand.length)
                     : p.hand.length,
-                ),
-                1,
-              )
+                );
+                return counts.length > 0 ? Math.max(...counts, 1) : 13;
+              })()
             : 13
         }
         totalCards={

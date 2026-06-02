@@ -8,6 +8,7 @@ import {
   isRoundCompleteForLiving,
   livingPlayerHasRank,
   livingPlayerIds,
+  needsRoundOneDealerReshuffle,
 } from "./deadHand";
 import {
   type DealerContext,
@@ -226,8 +227,41 @@ function syncPassCountFromTrick(state: GameState): void {
   state.passCount = passedIds.size;
 }
 
+/** True when the sole remaining player still owes a play/pass on the current pile. */
+function lastPlayerMustRespondToCurrentTrick(
+  state: GameState,
+  lastPlayerId: string,
+): boolean {
+  if (!state.pile?.length) return false;
+
+  const leaderIndex = resolveTrickLeaderIndex(state);
+  if (leaderIndex === null || leaderIndex < 0) return false;
+  const leaderId = state.players[leaderIndex]?.id;
+  if (!leaderId || leaderId === lastPlayerId) return false;
+
+  const actions = state.currentTrick?.actions ?? [];
+  let leaderLastPlayIdx = -1;
+  for (let i = actions.length - 1; i >= 0; i--) {
+    const action = actions[i];
+    if (action.type === "play" && action.playerId === leaderId) {
+      leaderLastPlayIdx = i;
+      break;
+    }
+  }
+  if (leaderLastPlayIdx < 0) return false;
+
+  const afterLeader = actions.slice(leaderLastPlayIdx + 1);
+  return !afterLeader.some(
+    (a) =>
+      (a.type === "play" || a.type === "pass") && a.playerId === lastPlayerId,
+  );
+}
+
 /** When every other living player has gone out, place the last one (asshole). */
-function finalizeLoneRemainingPlayer(state: GameState): void {
+function finalizeLoneRemainingPlayer(
+  state: GameState,
+  deferAfterOutPlayBy?: string,
+): void {
   const living = livingPlayerIds(state.players)
     .map((id) => state.players.find((p) => p.id === id))
     .filter((p): p is Player => !!p && !isDeadHandPlayer(p));
@@ -238,6 +272,8 @@ function finalizeLoneRemainingPlayer(state: GameState): void {
     .filter((p) => p.id !== last.id)
     .every((p) => state.finishedOrder.includes(p.id));
   if (!allOthersPlaced) return;
+  if (deferAfterOutPlayBy && deferAfterOutPlayBy !== last.id) return;
+  if (lastPlayerMustRespondToCurrentTrick(state, last.id)) return;
   // Last remaining player is auto-asshole — may still hold cards (shown at round end).
   state.finishedOrder.push(last.id);
 }
@@ -245,7 +281,7 @@ function finalizeLoneRemainingPlayer(state: GameState): void {
 /** Sync finish order from empty hands and auto-place the last remaining player. */
 export function syncFinishedFromEmptyHands(
   state: GameState,
-  options?: { skipLoneFinalize?: boolean },
+  options?: { skipLoneFinalize?: boolean; deferLoneAfterOutPlayBy?: string },
 ): void {
   const livingIds = new Set(livingPlayerIds(state.players));
   state.finishedOrder = state.finishedOrder.filter((id) => livingIds.has(id));
@@ -257,12 +293,8 @@ export function syncFinishedFromEmptyHands(
     }
   }
 
-  if (
-    !options?.skipLoneFinalize &&
-    !state.tenRulePending &&
-    !state.tenRule?.active
-  ) {
-    finalizeLoneRemainingPlayer(state);
+  if (!options?.skipLoneFinalize && !state.tenRulePending) {
+    finalizeLoneRemainingPlayer(state, options?.deferLoneAfterOutPlayBy);
   }
   applyFinishOrderRoles(state.players, state.finishedOrder);
 }
@@ -296,7 +328,7 @@ function buildInitialGameState(
   dealerOptions?: DealerContext,
 ): GameState {
   const hasDeadHand = players.some(isDeadHandPlayer);
-  const maxAttempts = hasDeadHand ? 1 : MAX_FIRST_ROUND_DEAL_ATTEMPTS;
+  const maxAttempts = MAX_FIRST_ROUND_DEAL_ATTEMPTS;
   let openerIdx = -1;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     for (const p of players) {
@@ -323,19 +355,22 @@ function buildInitialGameState(
         dealerOptions ?? {},
       );
     }
+    if (
+      hasDeadHand &&
+      needsRoundOneDealerReshuffle(players, dealerOptions ?? {})
+    ) {
+      openerIdx = -1;
+      continue;
+    }
     openerIdx = resolveOpeningPlayerIndex(players, dealerOptions ?? {});
     if (openerIdx >= 0) break;
   }
-  if (openerIdx < 0 && !hasDeadHand) {
+  if (openerIdx < 0) {
     throw new Error(
       "Could not deal a valid round-1 opening after " +
         MAX_FIRST_ROUND_DEAL_ATTEMPTS +
         " attempts",
     );
-  }
-  if (openerIdx < 0) {
-    openerIdx = players.findIndex((p) => !isDeadHandPlayer(p));
-    if (openerIdx < 0) openerIdx = 0;
   }
   return {
     id: "game-" + Date.now(),
@@ -546,12 +581,14 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
 
   // remove cards from player's hand
   player.hand = removeCardsFromHand(player.hand, cards);
+  const wentOutOnThisPlay = player.hand.length === 0;
   const wasRunOnTop = isRunOnTopTurn;
   if (wasRunOnTop) {
     state.runOnTop = undefined;
   }
   syncFinishedFromEmptyHands(state, {
     skipLoneFinalize: activatingTenRule,
+    deferLoneAfterOutPlayBy: wentOutOnThisPlay ? player.id : undefined,
   });
   // record who played last
   state.lastPlayPlayerIndex = pIndex;
@@ -1948,27 +1985,39 @@ function cpuPlayIsValid(hand: Card[], cards: Card[] | null, ctx: CpuPlayContext)
   );
 }
 
-/** Empty-pile lead candidates — try 1..4 cards per rank (not the whole group at once). */
+/** All size-k combinations from `items` (order preserved from hand). */
+function combinationsOfSize<T>(items: T[], k: number): T[][] {
+  if (k <= 0) return k === 0 ? [[]] : [];
+  if (items.length < k) return [];
+  if (k === 1) return items.map((item) => [item]);
+  const [first, ...rest] = items;
+  return [
+    ...combinationsOfSize(rest, k - 1).map((combo) => [first, ...combo]),
+    ...combinationsOfSize(rest, k),
+  ];
+}
+
+/** Every legal same-rank subset of size 1..min(4, n) — not just hand-order prefixes. */
+function rankGroupPlayCombinations(cards: Card[]): Card[][] {
+  const limit = Math.min(4, cards.length);
+  const out: Card[][] = [];
+  for (let take = 1; take <= limit; take++) {
+    out.push(...combinationsOfSize(cards, take));
+  }
+  return out;
+}
+
+/** Empty-pile lead candidates — all 1..4 card combos per rank (lowest rank first). */
 function emptyPilePlayCandidates(
   hand: Card[],
   grouped: Record<number, Card[]>,
 ): Card[][] {
   const candidates: Card[][] = [];
-  const threeOfClubs = hand.find((c) => c.value === 3 && c.suit === "clubs");
-  if (threeOfClubs) {
-    const threes = grouped[3] ?? [threeOfClubs];
-    for (let take = 1; take <= Math.min(4, threes.length); take++) {
-      candidates.push(threes.slice(0, take));
-    }
-  }
   const values = Object.keys(grouped)
     .map(Number)
     .sort((a, b) => rankIndex(a) - rankIndex(b));
   for (const v of values) {
-    const cards = grouped[v];
-    for (let take = 1; take <= Math.min(4, cards.length); take++) {
-      candidates.push(cards.slice(0, take));
-    }
+    candidates.push(...rankGroupPlayCombinations(grouped[v]));
   }
   return candidates;
 }
@@ -2163,6 +2212,15 @@ export function applyCpuTurn(state: GameState, playerId: string): GameState {
   const isCurrentTurn = state.currentPlayerIndex === pIndex;
   const ackPass = canAcknowledgmentPass(state, playerId);
   if (!isCurrentTurn && !ackPass) return state;
+
+  // Auto-placed asshole may still hold cards and must open after winning a trick.
+  if (!isActiveInRound(state, playerId)) {
+    const mustOpenTrick =
+      state.mustPlay &&
+      isTrickOpeningLead(state) &&
+      isPlayerStillIn(state, playerId);
+    if (!mustOpenTrick) return state;
+  }
 
   const player = state.players[pIndex];
 

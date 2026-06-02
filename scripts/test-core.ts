@@ -31,6 +31,9 @@ import {
   isOnTopEligiblePile,
   canAcknowledgmentPass,
   isTrickAcknowledgmentPassPhase,
+  findCPUPlay,
+  applyCpuTurn,
+  isTrickOpeningLead,
 } from "../src/game/core";
 import {
   applyMandatoryTrades,
@@ -43,6 +46,10 @@ import {
   pickHighestCards,
   resolveCeremonyTrades,
   buildTradesFromServerPending,
+  serverPendingTradesComplete,
+  buildTradePhaseFromServerState,
+  mergeTradesFromServerPending,
+  shouldSyncMidTradeFromServer,
 } from "../src/game/roundPrep";
 import { applyFinishOrderRoles, roleForPlacement, supportsViceRoles } from "../src/utils/roundRoles";
 import {
@@ -522,27 +529,29 @@ function makeEmptyGame(names: string[]): GameState {
   );
 }
 
-// Four 10s + ten-rule response: trick winner must be last beat play, not stuck
+// Lone remaining player auto-finished when opponent goes out (cards kept for reveal)
 {
   const g = makeEmptyGame(["A", "B"]);
-  const fourTens: Card[] = [
-    { suit: "hearts", value: 10 },
-    { suit: "diamonds", value: 10 },
-    { suit: "clubs", value: 10 },
-    { suit: "spades", value: 10 },
-  ];
-  const fourNines: Card[] = [
-    { suit: "hearts", value: 9 },
+  g.players[0].hand = [{ suit: "hearts", value: 5 }];
+  g.players[1].hand = [
+    { suit: "spades", value: 8 },
     { suit: "diamonds", value: 9 },
-    { suit: "clubs", value: 9 },
-    { suit: "spades", value: 9 },
+    { suit: "clubs", value: 7 },
   ];
-  g.players[0].hand = [...fourTens, { suit: "hearts", value: 5 }];
-  g.players[1].hand = [...fourNines];
   g.currentPlayerIndex = 0;
+  g.pile = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
 
-  let s = playCards(g, g.players[0].id, fourTens);
-  s = setTenRuleDirection(s, "lower");
+  let s = playCards(g, g.players[0].id, [{ suit: "hearts", value: 5 }]);
+  assert.ok(
+    s.finishedOrder.includes(g.players[0].id),
+    "Opponent should be marked out on their last card",
+  );
+  assert.ok(
+    !isRoundCompleteForLiving(s),
+    "Last player acknowledges the trick before the round ends",
+  );
+  s = passTurn(s, g.players[1].id);
   assert.ok(
     s.finishedOrder.includes(g.players[1].id),
     "Last player should be auto-finished with cards when opponent goes out",
@@ -551,7 +560,11 @@ function makeEmptyGame(names: string[]): GameState {
     isRoundCompleteForLiving(s),
     "Round should end once only one player remains",
   );
-  assert.strictEqual(s.players[1].hand.length, 4, "Remaining cards stay in hand for reveal");
+  assert.strictEqual(
+    s.players[1].hand.length,
+    3,
+    "Remaining cards stay in hand for reveal",
+  );
 }
 
 // Single-play four 10s: closer wins when everyone else passes under ten rule
@@ -1415,6 +1428,223 @@ function makeTwoPlayerDeadHandGame(
 }
 
 console.log("Dead hand round-1 opening tests passed");
+
+// --- CPU round-1 opening (double 3s / combo leads) ---
+
+{
+  const hand: Card[] = [
+    { suit: "hearts", value: 3 },
+    { suit: "diamonds", value: 3 },
+    { suit: "clubs", value: 3 },
+    { suit: "spades", value: 5 },
+  ];
+  const play = findCPUPlay(
+    hand,
+    [],
+    undefined,
+    [],
+    undefined,
+    { trickNumber: 1, actions: [] },
+    [{ id: "cpu-1", name: "B", hand, role: "Neutral" }],
+    [],
+    [],
+    undefined,
+    "cpu-1",
+    false,
+  );
+  assert.ok(play && play.length > 0, "CPU should find a round-1 opening lead");
+  assert.ok(
+    play.every((c) => c.value === 3),
+    "Round-1 opening must lead 3s",
+  );
+  assert.ok(
+    play.some((c) => c.suit === "clubs"),
+    "Opener holding 3♣ must include it — even when 3♣ is not a hand-order prefix",
+  );
+}
+
+{
+  const hand: Card[] = [
+    { suit: "spades", value: 3 },
+    { suit: "hearts", value: 3 },
+  ];
+  const players = makeTwoPlayerDeadHandGame(
+    {
+      host: [{ suit: "diamonds", value: 5 }],
+      guest: hand,
+      [DEAD_HAND_ID]: [],
+    },
+    [{ suit: "clubs", value: 3 }],
+  );
+  const play = findCPUPlay(
+    hand,
+    [],
+    undefined,
+    [],
+    undefined,
+    { trickNumber: 1, actions: [] },
+    players,
+    [],
+    [],
+    undefined,
+    "guest",
+    false,
+  );
+  assert.ok(
+    play && play.length >= 1 && play.every((c) => c.value === 3),
+    "CPU should open with 3s when dead hand holds 3♣ (single or double)",
+  );
+}
+
+{
+  const hand: Card[] = [
+    { suit: "hearts", value: 3 },
+    { suit: "clubs", value: 3 },
+    { suit: "spades", value: 7 },
+  ];
+  const gs: GameState = {
+    id: "t-asshole-open",
+    players: [{ id: "cpu-1", name: "B", hand, role: "Asshole" }],
+    currentPlayerIndex: 0,
+    pile: [],
+    passCount: 0,
+    finishedOrder: ["cpu-1"],
+    started: true,
+    lastPlayPlayerIndex: null,
+    mustPlay: true,
+    pileHistory: [],
+    pileOwners: [],
+    tableStacks: [],
+    tableStackOwners: [],
+    trickHistory: [{ trickNumber: 1, actions: [], winnerId: "cpu-1" }],
+    currentTrick: { trickNumber: 2, actions: [] },
+    tenRule: { active: false, direction: null },
+  };
+  assert.ok(isTrickOpeningLead(gs), "Auto-asshole should still open the next trick");
+  const before = JSON.stringify(gs);
+  const next = applyCpuTurn(JSON.parse(before), "cpu-1");
+  assert.notStrictEqual(
+    JSON.stringify(next),
+    before,
+    "Auto-placed asshole with cards must still play when they must open a trick",
+  );
+}
+
+console.log("CPU round-1 opening tests passed");
+
+// --- Server role-trade sync helpers ---
+{
+  assert.strictEqual(
+    serverPendingTradesComplete({ president: { fromId: "a", count: 1, incoming: [], selected: null } }),
+    false,
+    "Incomplete president trade",
+  );
+  assert.strictEqual(
+    serverPendingTradesComplete({ president: { fromId: "a", count: 1, incoming: [], selected: [{ suit: "hearts", value: 5 }] } }),
+    true,
+    "Completed president trade",
+  );
+  const localTrades = [
+    {
+      key: "president" as const,
+      winnerId: "pres",
+      loserId: "ass",
+      winnerName: "P",
+      loserName: "A",
+      incoming: [{ suit: "spades", value: 14 }],
+      returnCount: 1,
+      completed: false,
+    },
+  ];
+  const merged = mergeTradesFromServerPending(localTrades, {
+    president: {
+      fromId: "ass",
+      count: 1,
+      incoming: [{ suit: "spades", value: 14 }],
+      selected: [{ suit: "hearts", value: 4 }],
+    },
+  });
+  assert.strictEqual(merged[0].completed, true, "mergeTradesFromServerPending marks completed");
+  const gs = {
+    id: "g",
+    players: [
+      { id: "pres", name: "P", hand: [{ suit: "hearts", value: 4 }, { suit: "diamonds", value: 5 }], role: "President" },
+      { id: "ass", name: "A", hand: [{ suit: "spades", value: 14 }], role: "Asshole" },
+    ],
+    currentPlayerIndex: 0,
+    pile: [],
+    passCount: 0,
+    finishedOrder: [],
+    started: true,
+    lastPlayPlayerIndex: null,
+    mustPlay: true,
+    pileHistory: [],
+    trickHistory: [],
+    currentTrick: { trickNumber: 1, actions: [] },
+    tenRule: { active: false, direction: null },
+  } as GameState;
+  const built = buildTradePhaseFromServerState(gs, {
+    pendingTrades: {
+      president: {
+        fromId: "ass",
+        count: 1,
+        incoming: [{ suit: "spades", value: 14 }],
+        selected: null,
+      },
+    },
+    roles: { pres: "president", ass: "asshole" },
+    playerHands: {
+      pres: [{ suit: "hearts", value: 4 }, { suit: "diamonds", value: 5 }],
+      ass: [{ suit: "spades", value: 14 }],
+    },
+  });
+  assert.ok(built && built.trades.length === 1, "buildTradePhaseFromServerState");
+  assert.strictEqual(built?.trades[0].completed, false, "pending trade not completed");
+  assert.strictEqual(
+    shouldSyncMidTradeFromServer({
+      onlineMultiplayer: true,
+      hasPendingTrades: true,
+      awaitingDealCeremony: false,
+      roundOver: true,
+      roundKey: "g:99",
+      ceremonyStartedForRound: null,
+      ceremonyDoneForRound: "g:88",
+      hasLocalTradePhase: false,
+    }),
+    false,
+    "Between rounds: do not mid-trade sync before ceremony",
+  );
+  assert.strictEqual(
+    shouldSyncMidTradeFromServer({
+      onlineMultiplayer: true,
+      hasPendingTrades: true,
+      awaitingDealCeremony: true,
+      roundOver: false,
+      roundKey: "g:99",
+      ceremonyStartedForRound: null,
+      ceremonyDoneForRound: "g:88",
+      hasLocalTradePhase: false,
+    }),
+    false,
+    "Awaiting deal ceremony: use full ceremony path",
+  );
+  assert.strictEqual(
+    shouldSyncMidTradeFromServer({
+      onlineMultiplayer: true,
+      hasPendingTrades: true,
+      awaitingDealCeremony: false,
+      roundOver: false,
+      roundKey: "g:99",
+      ceremonyStartedForRound: "g:99",
+      ceremonyDoneForRound: null,
+      hasLocalTradePhase: false,
+    }),
+    true,
+    "Mid-trade sync when ceremony already started for this deal",
+  );
+}
+
+console.log("Server role-trade sync tests passed");
 
 // Dead hand must never pollute finish order or receive placement roles.
 {

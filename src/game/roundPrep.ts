@@ -277,6 +277,94 @@ export function buildTradesFromServerPending(
   return trades;
 }
 
+/**
+ * Online: apply server pending-trade snapshot without restarting deal ceremony.
+ * Only while this deal's ceremony is already in progress — not between rounds
+ * (gameStateSync can arrive before nextRoundStarting).
+ */
+export function shouldSyncMidTradeFromServer(options: {
+  onlineMultiplayer: boolean;
+  hasPendingTrades: boolean;
+  awaitingDealCeremony: boolean;
+  roundOver: boolean;
+  roundKey: string;
+  ceremonyStartedForRound: string | null;
+  ceremonyDoneForRound: string | null;
+  hasLocalTradePhase: boolean;
+}): boolean {
+  if (!options.onlineMultiplayer || !options.hasPendingTrades) return false;
+  if (options.awaitingDealCeremony || options.roundOver) return false;
+  if (options.ceremonyDoneForRound === options.roundKey) return false;
+  return (
+    options.ceremonyStartedForRound === options.roundKey ||
+    options.hasLocalTradePhase
+  );
+}
+
+/** True when the server has no outstanding mandatory trade picks. */
+export function serverPendingTradesComplete(
+  pending: ServerPendingTrades | null | undefined,
+): boolean {
+  if (!pending) return true;
+  const keys = Object.keys(pending);
+  if (keys.length === 0) return true;
+  return keys.every((k) => !!pending[k as keyof ServerPendingTrades]?.selected);
+}
+
+/** Merge server trade completion flags into local ceremony trades (bot auto-picks, etc.). */
+export function mergeTradesFromServerPending(
+  trades: ClientPendingTrade[],
+  serverPending: ServerPendingTrades | null | undefined,
+): ClientPendingTrade[] {
+  if (!serverPending) return trades;
+  return trades.map((t) => {
+    const serv = serverPending[t.key];
+    if (!serv?.selected || t.completed) return t;
+    return {
+      ...t,
+      completed: true,
+      returnedCards: [...(serv.selected ?? [])],
+    };
+  });
+}
+
+export type TradePhaseFromServer = {
+  baseState: GameState;
+  players: Player[];
+  trades: ClientPendingTrade[];
+};
+
+/** Rejoin or mid-trade sync — rebuild trade UI from authoritative server state. */
+export function buildTradePhaseFromServerState(
+  parsed: GameState,
+  options?: {
+    pendingTrades?: ServerPendingTrades | null;
+    roles?: Record<string, string> | null;
+    playerHands?: Record<string, Card[]> | null;
+  },
+): TradePhaseFromServer | null {
+  const pending = options?.pendingTrades ?? null;
+  const roles = options?.roles ?? null;
+  if (!pending || Object.keys(pending).length === 0 || !roles) return null;
+
+  const roleValues = Object.values(roles);
+  if (!roleValues.includes("president") || !roleValues.includes("asshole")) {
+    return null;
+  }
+
+  let players = clonePlayersForRound(parsed.players);
+  const playerHands = options?.playerHands;
+  if (playerHands) {
+    players = applyServerPlayerHands(players, playerHands);
+  }
+  applyServerRolesToPlayers(players, roles);
+
+  const trades = buildTradesFromServerPending(players, roles, pending);
+  if (trades.length === 0) return null;
+
+  return { baseState: parsed, players, trades };
+}
+
 /** Prefer server pending trades when roles are assigned — avoids duplicating local mandatory trades. */
 export function resolveCeremonyTrades(
   localTrades: ClientPendingTrade[],

@@ -144,26 +144,6 @@ function carouselStep(
   return Math.round(Math.max(26, Math.min(32, fitStep)));
 }
 
-/** After a card is played, pick the index that keeps the carousel in the same rank area */
-function indexAfterPlay(
-  cards: CardType[],
-  anchorRank: number | null,
-  anchorIndex: number,
-): number {
-  if (cards.length === 0) return 0;
-  if (anchorRank == null) {
-    return Math.min(Math.max(0, anchorIndex), cards.length - 1);
-  }
-
-  const sameRank = cards.findIndex((c) => c.value === anchorRank);
-  if (sameRank >= 0) return sameRank;
-
-  const nextHigher = cards.findIndex((c) => c.value > anchorRank);
-  if (nextHigher >= 0) return nextHigher;
-
-  return cards.length - 1;
-}
-
 function cardLeft(
   index: number,
   focusedIndex: number,
@@ -730,36 +710,49 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
 
     const w = layoutWidthRef.current;
     const cw = cardWidthRef.current;
+    const oldStep = stepRef.current;
     const s = carouselStep(next, w, cw);
     stepRef.current = s;
     const b = scrollBounds(next, w, s, cw);
     boundsRef.current = b;
 
-    if (prev < 0 || next > prev) {
+    let preserved = scrollRef.current;
+    if (prev > 0 && next < prev && oldStep > 0 && s !== oldStep) {
+      preserved *= s / oldStep;
+    }
+
+    if (prev < 0 && next > 0) {
       const middle = Math.floor((next - 1) / 2);
-      const targetScroll = scrollToCenterCard(middle, w, s, cw);
-      applyScroll(clampScroll(targetScroll, b.min, b.max));
-      anchorRankRef.current = cards[middle]?.value ?? cards[0]?.value ?? null;
+      preserved = scrollToCenterCard(middle, w, s, cw);
       anchorIndexRef.current = middle;
+      anchorRankRef.current = cards[middle]?.value ?? cards[0]?.value ?? null;
     } else {
-      const target = indexAfterPlay(
-        cards,
-        anchorRankRef.current,
-        anchorIndexRef.current,
-      );
-      const targetScroll = scrollToCenterCard(target, w, s, cw);
-      applyScroll(clampScroll(targetScroll, b.min, b.max));
-      anchorRankRef.current = cards[target]?.value ?? null;
-      anchorIndexRef.current = target;
+      const focused = focusedCardIndex(next, w, preserved, s, cw);
+      anchorIndexRef.current = focused;
+      anchorRankRef.current = cards[focused]?.value ?? null;
+    }
+
+    applyScroll(clampScroll(preserved, b.min, b.max));
+
+    if (pendingFocusIndex != null && pendingFocusIndex >= next) {
+      setPendingFocusIndex(null);
     }
 
     cardCountRef.current = next;
-  }, [cards.length, scrollX]);
+  }, [cards.length, pendingFocusIndex, scrollX]);
 
   useEffect(() => {
     if (isDraggingRef.current) return;
-    applyScroll(scrollRef.current);
-  }, [layoutWidth, bounds.min, bounds.max, step]);
+    if (cardCountRef.current < 0) return;
+    const w = layoutWidthRef.current;
+    const cw = cardWidthRef.current;
+    const n = cardsLengthRef.current;
+    const s = carouselStep(n, w, cw);
+    const b = scrollBounds(n, w, s, cw);
+    stepRef.current = s;
+    boundsRef.current = b;
+    applyScroll(clampScroll(scrollRef.current, b.min, b.max));
+  }, [layoutWidth, cardWidth]);
 
   const panResponder = useMemo(
     () =>

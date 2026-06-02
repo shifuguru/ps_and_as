@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Modal,
   View,
@@ -39,11 +39,18 @@ export default function RoleTradeModal({
   const cardWidth = Math.min(width - 48, 440);
   const [selected, setSelected] = useState<number[]>([]);
 
-  if (!trade) return null;
-
-  const sortedHand = [...hand].sort(
+  const visibleHand = hand.filter((c) => !c.hidden && c.value !== 0);
+  const sortedHand = [...visibleHand].sort(
     (a, b) => a.value - b.value || a.suit.localeCompare(b.suit),
   );
+
+  useEffect(() => {
+    if (!trade) return;
+    setSelected([]);
+    onSelectionChange?.([]);
+  }, [trade?.key, trade?.winnerId, sortedHand.length, onSelectionChange]);
+
+  if (!trade) return null;
 
   const toggle = (index: number) => {
     triggerHaptic("light");
