@@ -42,6 +42,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.0.39": "Run It Back",
   "1.0.40": "Flush With Hubris",
   "1.0.41": "Grand Slam Gamble",
+  "1.0.42": "Asshole Ascendant",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
