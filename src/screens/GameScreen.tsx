@@ -216,6 +216,23 @@ function shouldSkipDealCeremony(state: GameState): boolean {
   return livingFinished.length > 0;
 }
 
+/** Deal animation always shows a full deck — not post-trade hand sizes from the server. */
+function ceremonyCardsPerSeat(players: GameState["players"]): number {
+  const seats = Math.max(players.length, 1);
+  return Math.ceil(FULL_DECK_SIZE / seats);
+}
+
+function ceremonyPlayersForDealAnimation(
+  dealt: GameState["players"],
+): GameState["players"] {
+  return dealt.map((p) => {
+    if (isDeadHandPlayer(p)) {
+      return { ...p, hand: [], sidelinedHand: undefined };
+    }
+    return { ...p, hand: [] };
+  });
+}
+
 // Helper: pick `take` same-rank indices including the card the player tapped
 function selectSameRankNearTap(
   sameAll: number[],
@@ -351,6 +368,20 @@ type TrickPauseSnapshot = {
   runBonusXp: number;
 };
 
+type CeremonyPrepPayload = {
+  baseState: GameState;
+  players: GameState["players"];
+  trades: ClientPendingTrade[];
+  dealSeed?: number;
+  finishOrder: string[];
+  needsDealerReshuffle?: boolean;
+  dealAttempt?: number;
+  /** Skip shuffle/deal animation only — role trades still run. */
+  skipDealPhases?: boolean;
+  /** Authoritative post-trade hands — applied after deal/trade UI, not during deal. */
+  serverPlayerHands?: Record<string, CardType[]> | null;
+};
+
 /** Render-only board — separate component so hook count never changes when state loads. */
 const GameScreenRuntimeContext = createContext<Record<string, unknown> | null>(
   null,
@@ -391,16 +422,9 @@ function GameScreen({
     width: number;
     height: number;
   } | null>(null);
-  const [ceremonyPrep, setCeremonyPrep] = useState<{
-    baseState: GameState;
-    players: GameState["players"];
-    trades: ClientPendingTrade[];
-    dealSeed?: number;
-    finishOrder: string[];
-    needsDealerReshuffle?: boolean;
-    dealAttempt?: number;
-    skipDealPhases?: boolean;
-  } | null>(null);
+  const [ceremonyPrep, setCeremonyPrep] = useState<CeremonyPrepPayload | null>(
+    null,
+  );
   const [awaitingDealerReshuffle, setAwaitingDealerReshuffle] = useState(false);
   const { skipDealAnimations, loaded: preferencesLoaded } = useGamePreferences();
   const skipDealAnimationsRef = useRef(skipDealAnimations);
@@ -939,18 +963,6 @@ function GameScreen({
     [finalizeCeremonyRound, onlineMultiplayer, scheduleTradeReturnReveal],
   );
 
-  type CeremonyPrepPayload = {
-    baseState: GameState;
-    players: GameState["players"];
-    trades: ClientPendingTrade[];
-    dealSeed?: number;
-    finishOrder: string[];
-    needsDealerReshuffle?: boolean;
-    dealAttempt?: number;
-    /** Skip shuffle/deal animation only — role trades still run. */
-    skipDealPhases?: boolean;
-  };
-
   const launchRoundAfterDeal = useCallback(
     (prep: CeremonyPrepPayload, hiddenState: GameState) => {
       clearLastHandReveal();
@@ -969,11 +981,11 @@ function GameScreen({
           setAwaitingDealerReshuffle(true);
           return;
         }
-        if (pendingTradesCompleteRef.current) {
+        if (pendingTradesCompleteRef.current || prep.serverPlayerHands) {
           finalizeCeremonyRound(
             prep.players,
             prep.baseState,
-            pendingTradesCompleteRef.current,
+            pendingTradesCompleteRef.current ?? prep.serverPlayerHands,
           );
           return;
         }
@@ -1022,11 +1034,11 @@ function GameScreen({
       return;
     }
     if (prep) {
-      if (pendingTradesCompleteRef.current) {
+      if (pendingTradesCompleteRef.current || prep.serverPlayerHands) {
         finalizeCeremonyRound(
           prep.players,
           prep.baseState,
-          pendingTradesCompleteRef.current,
+          pendingTradesCompleteRef.current ?? prep.serverPlayerHands,
         );
         return;
       }
@@ -1276,8 +1288,9 @@ function GameScreen({
             ? prep.finishOrder
             : prep.baseState.lastRoundOrder,
       },
-      players: deal.players,
+      players: ceremonyPlayersForDealAnimation(deal.players),
       trades: deal.trades,
+      serverPlayerHands: prep.serverPlayerHands ?? null,
       dealSeed: newSeed,
       finishOrder: prep.finishOrder,
       needsDealerReshuffle: deal.needsDealerReshuffle,
@@ -1834,15 +1847,13 @@ function GameScreen({
             dealSeed: roundDealSeed,
             hostId: resolvedHostId,
           });
-          const ceremonyPlayers = serverPlayerHands
-            ? applyServerPlayerHands(deal.players, serverPlayerHands)
-            : deal.players;
           const trades = resolveCeremonyTrades(
             deal.trades,
             serverPending,
             serverRoles,
-            ceremonyPlayers,
+            deal.players,
           );
+          const ceremonyPlayers = ceremonyPlayersForDealAnimation(deal.players);
 
           setRoundOver(false);
           setPlayerReadyStates({});
@@ -1855,6 +1866,7 @@ function GameScreen({
             finishOrder,
             needsDealerReshuffle: deal.needsDealerReshuffle,
             dealAttempt: 0,
+            serverPlayerHands: serverPlayerHands ?? null,
           };
           launchCeremonyFromDeal(
             prep,
@@ -3276,17 +3288,7 @@ function GameScreenBoard() {
     ceremonyDealerContext,
   );
   const isCeremonyDealer = !!(myPlayerId && ceremonyDealerId === myPlayerId);
-  const ceremonyTotalCards = useMemo(() => {
-    if (!ceremonyPrep) return FULL_DECK_SIZE;
-    return ceremonyPrep.players.reduce(
-      (sum, p) =>
-        sum +
-        (isDeadHandPlayer(p)
-          ? (p.sidelinedHand?.length ?? p.hand.length)
-          : p.hand.length),
-      0,
-    );
-  }, [ceremonyPrep]);
+  const ceremonyTotalCards = FULL_DECK_SIZE;
   const showLocalDealerHandZone =
     !!ceremonyPrep &&
     isCeremonyDealer &&
@@ -4391,28 +4393,10 @@ function GameScreenBoard() {
         playAreaOffsetLeft={12}
         cardsPerPlayer={
           ceremonyPrep
-            ? (() => {
-                const counts = ceremonyPrep.players.map((p) =>
-                  isDeadHandPlayer(p)
-                    ? (p.sidelinedHand?.length ?? p.hand.length)
-                    : p.hand.length,
-                );
-                return counts.length > 0 ? Math.max(...counts, 1) : 13;
-              })()
-            : 13
+            ? ceremonyCardsPerSeat(ceremonyPrep.players)
+            : ceremonyCardsPerSeat(state.players)
         }
-        totalCards={
-          ceremonyPrep
-            ? ceremonyPrep.players.reduce(
-                (sum, p) =>
-                  sum +
-                  (isDeadHandPlayer(p)
-                    ? (p.sidelinedHand?.length ?? p.hand.length)
-                    : p.hand.length),
-                0,
-              )
-            : FULL_DECK_SIZE
-        }
+        totalCards={FULL_DECK_SIZE}
         pendingTrades={ceremonyPrep?.trades.filter((t) => !t.completed) ?? []}
         freshRound={!!ceremonyPrep?.baseState.freshRound}
         skipDealPhases={!!ceremonyPrep?.skipDealPhases}

@@ -32,6 +32,14 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-02T18:46"),
+    title: "Deal ceremony fix",
+    items: [
+      "Later rounds — the deal animation counts a full deck again instead of showing “dealing” past trade cards you already hold",
+      "Online games — President↔Asshole trades apply after the deal animation, not while cards are still being dealt",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-02T18:14"),
     title: "Bot table join & opening lead",
     items: [
