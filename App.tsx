@@ -859,6 +859,7 @@ function AppContent() {
                 void (async () => {
                   const profile = await getOrCreatePlayerId();
                   setLocalPlayerName(playerName);
+                  setLocalPlayerId(profile.id);
                   setIsSpectator(true);
                   setLobbyMembers([]);
                   const adapter = new SocketAdapter(

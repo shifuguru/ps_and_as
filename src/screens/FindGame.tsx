@@ -236,16 +236,6 @@ export default function FindGame({
     onSpectateRoom(roomId, playerName.trim());
   };
 
-  const handleSkipBotTable = (roomId: string) => {
-    if (connectionStatus !== "connected") {
-      setError("Connect to the server first.");
-      return;
-    }
-    triggerHaptic("light");
-    setError(null);
-    socket.skipBotTable(roomId);
-  };
-
   const handleJoinWithCode = () => {
     const code = normalizeRoomCodeInput(roomCode);
     if (!code) {
@@ -510,7 +500,7 @@ export default function FindGame({
                                   styles.roomMetaStalled,
                                 ]}
                               >
-                                Stalled — tap Skip game
+                                Stalled
                               </Text>
                             </>
                           ) : inPlay ? (
@@ -547,20 +537,6 @@ export default function FindGame({
                         </View>
                       </View>
                       <View style={styles.roomActions}>
-                        {isBotTable ? (
-                          <TouchableOpacity
-                            style={[
-                              ui.btnSecondary,
-                              styles.botRestartBtn,
-                              connectionStatus !== "connected" &&
-                                styles.joinBtnDisabled,
-                            ]}
-                            onPress={() => handleSkipBotTable(room.roomId)}
-                            disabled={connectionStatus !== "connected"}
-                          >
-                            <Text style={ui.btnSecondaryText}>Skip game</Text>
-                          </TouchableOpacity>
-                        ) : null}
                         <TouchableOpacity
                           style={[
                             showSpectate ? ui.btnSecondary : ui.btnGold,
@@ -824,10 +800,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     alignItems: "center",
     gap: 8,
     flexShrink: 0,
-  },
-  botRestartBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
   },
   roomPrimaryBtn: {
     paddingVertical: 10,

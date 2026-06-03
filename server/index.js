@@ -27,8 +27,16 @@ const {
   resolveCompletedAcknowledgmentTrick,
   isTrickOpeningLead,
 } = require('./gameBridge');
-const { viewForPlayer, viewForMember, broadcastGameState } = require('./gameStateView');
+const {
+  viewForPlayer,
+  viewForMember,
+  broadcastGameState,
+  syncPayloadForMember,
+} = require('./gameStateView');
 const botHosted = require('./botHostedRooms');
+const tableRoster = require('./tableRoster');
+const gameSync = require('./gameSync');
+const { advancePastInactiveSeats } = require('./turnAdvance');
 const {
   validateDisplayText,
   normalizeRoomCode,
@@ -63,11 +71,34 @@ function isRoundComplete(state) {
   return living.every((p) => state.finishedOrder.includes(p.id));
 }
 
+const isCpuLobbyId = tableRoster.isCpuLobbyId;
+
+function reconcileCurrentPlayerIndex(room) {
+  const gs = room?.gameState;
+  if (!gs?.players?.length) return;
+
+  const atIdx = gs.players[gs.currentPlayerIndex];
+  if (atIdx?.id) {
+    const byId = gs.players.findIndex((p) => p.id === atIdx.id);
+    if (byId >= 0) {
+      gs.currentPlayerIndex = byId;
+      return;
+    }
+  }
+
+  for (let i = 0; i < gs.players.length; i++) {
+    const p = gs.players[i];
+    if (!isDeadHandPlayer(p) && isPlayerStillIn(gs, p.id)) {
+      gs.currentPlayerIndex = i;
+      return;
+    }
+  }
+  gs.currentPlayerIndex = 0;
+}
+
 function beginAuthoritativeRound(room, dealSeed, options = {}) {
-  const lobbyPlayers = room.players
-    .filter((p) => !p.disconnectedAt && !p.isSpectator)
-    .map((p) => ({ id: p.id, name: p.name }));
-  const useDeadHand = lobbyPlayers.length === 2;
+  const lobbyPlayers = tableRoster.buildLobbyPlayersForAuthoritativeRound(room);
+  const useDeadHand = tableRoster.shouldUseDeadHandForDeal(room);
   const lastRoundOrder = options.lastRoundOrder ?? room.gameState?.lastRoundOrder ?? [];
   const nextState = createGameFromLobby(lobbyPlayers, dealSeed, {
     deadHand: useDeadHand,
@@ -78,12 +109,11 @@ function beginAuthoritativeRound(room, dealSeed, options = {}) {
   nextState.dealSeed = dealSeed;
   room.gameState = nextState;
   room.deadHand = useDeadHand;
+  reconcileCurrentPlayerIndex(room);
 }
 
 function gameHasDeadHandSlot(room) {
-  return !!room?.gameState?.players?.some(
-    (p) => p.isDeadHand || p.id === '__dead_hand__',
-  );
+  return tableRoster.gameHasDeadHandSlot(room);
 }
 
 function deadHandSeatOpen(room) {
@@ -109,15 +139,7 @@ function shouldJoinAsSpectator(room) {
 }
 
 function promoteReadySpectator(room) {
-  const readyMap = room.gameState?.readyForNextRound || {};
-  const spectator = room.players.find(
-    (p) => p.isSpectator && !p.disconnectedAt && readyMap[p.id] === true,
-  );
-  if (spectator) {
-    spectator.isSpectator = false;
-    console.log(`[Server] ${spectator.name} is replacing the dead hand next round`);
-  }
-  return spectator;
+  return tableRoster.claimDeadHandForReadySpectator(room);
 }
 
 function isLivingPlayer(player) {
@@ -236,6 +258,7 @@ function startNextRound(roomId) {
   }
 
   room.gameState.readyForNextRound = {};
+  gameSync.bumpStateVersion(room);
   broadcastGameState(io, room);
   io.to(roomId).emit('nextRoundStarting', {
     dealSeed,
@@ -245,7 +268,7 @@ function startNextRound(roomId) {
   });
   emitTradesCompleteIfReady(io, roomId, room.gameState, room.host);
   if (room.isBotHosted) {
-    advancePastInactiveSeats(room);
+    advancePastInactiveSeats(room, cloneGameState);
     botHosted.kickBotTurnLoop(roomId, getBotContext());
   }
 }
@@ -625,10 +648,8 @@ function allPlayersReadyForNextRound(room) {
   const seatedReady = ids.length > 0 && ids.every((id) => readyMap[id] === true);
   if (!seatedReady) return false;
   if (room.isBotHosted) {
-    const spectators = room.players.filter((p) => p.isSpectator && !p.disconnectedAt);
-    if (spectators.length > 0) {
-      return spectators.some((s) => readyMap[s.id] === true);
-    }
+    // Seated bots can deal the next round on their own. Spectator "Ready" is only
+    // for claiming the dead-hand seat (promoteReadySpectators), not for advancing.
     return true;
   }
   return true;
@@ -687,69 +708,10 @@ function demoteBotTablePlayerToSpectator(room, roomId, player) {
   }
   player.isSpectator = true;
   removePlayerFromActiveGame(room, player.id);
-  advancePastInactiveSeats(room);
+  advancePastInactiveSeats(room, cloneGameState);
+  gameSync.bumpStateVersion(room);
   broadcastGameState(io, room);
   botHosted.scheduleBotTurns(roomId, getBotContext());
-}
-
-/** Skip seats that cannot act (out, dead hand, already passed this trick). */
-function advancePastInactiveSeats(room) {
-  const gs = room?.gameState;
-  if (!gs?.players) return;
-  let working = cloneGameState(gs);
-  let safety = gs.players.length + 4;
-  while (safety-- > 0) {
-    const current = working.players[working.currentPlayerIndex];
-    if (!current) break;
-    const ackLeaderWait =
-      isTrickAcknowledgmentPassPhase(working) &&
-      working.lastPlayPlayerIndex === working.currentPlayerIndex;
-    const runOnTopTurn =
-      working.runOnTop?.active &&
-      working.runOnTop.playerIndex === working.currentPlayerIndex;
-    const mustOpenTrick =
-      working.mustPlay && isTrickOpeningLead(working);
-    const inactive =
-      isDeadHandPlayer(current) ||
-      !isPlayerStillIn(working, current.id) ||
-      (hasPassedInCurrentTrick(working, current.id) && !runOnTopTurn) ||
-      ackLeaderWait;
-    if (!inactive || mustOpenTrick) break;
-    if (ackLeaderWait) {
-      working.currentPlayerIndex = nextActivePlayerIndex(working, working.currentPlayerIndex);
-      continue;
-    }
-    if (
-      hasPassedInCurrentTrick(working, current.id) &&
-      isTrickAcknowledgmentPassPhase(working) &&
-      !runOnTopTurn
-    ) {
-      const pileUp = working.pile.length > 0;
-      let resolved = resolveCompletedAcknowledgmentTrick(working);
-      if (pileUp && resolved.pile.length === 0) {
-        working = resolved;
-        continue;
-      }
-      const nextIdx = nextAcknowledgmentPlayerIndex(
-        working,
-        working.currentPlayerIndex,
-      );
-      if (nextIdx !== working.currentPlayerIndex) {
-        working.currentPlayerIndex = nextIdx;
-        continue;
-      }
-      resolved = resolveCompletedAcknowledgmentTrick(working);
-      if (pileUp && resolved.pile.length === 0) {
-        working = resolved;
-        continue;
-      }
-      break;
-    }
-    const next = passTurn(working, current.id);
-    if (next === working) break;
-    working = next;
-  }
-  room.gameState = cloneGameState(working);
 }
 
 function finalizeAwayPlayerRemoval(roomId, playerId) {
@@ -910,10 +872,12 @@ function removePlayerFromActiveGame(room, playerId) {
   }
 
   if (wasCurrent) {
-    gs.currentPlayerIndex = gs.currentPlayerIndex % gs.players.length;
+    const anchor = Math.max(0, Math.min(idx, gs.players.length) - 1);
+    gs.currentPlayerIndex = nextActivePlayerIndex(gs, anchor);
   } else if (idx < gs.currentPlayerIndex) {
     gs.currentPlayerIndex = Math.max(0, gs.currentPlayerIndex - 1);
   }
+  reconcileCurrentPlayerIndex(room);
 }
 
 function clearEmptyRoomTimer(roomId) {
@@ -1201,6 +1165,9 @@ function handleRoundFinished(roomId, finishOrder, hands) {
   );
 
   initReadyForNextRound(room);
+  if (room.isBotHosted) {
+    botHosted.autoReadyBotsForNextRound(room);
+  }
   room.gameState.roles = roles;
 
   const livingOrder = livingFinishOrder(room.gameState, finishOrder || []);
@@ -1273,7 +1240,7 @@ function getBotContext() {
     roomId: botHosted.BOT_ROOM_CODE,
     beginAuthoritativeRound,
     cloneGameState,
-    advancePastInactiveSeats,
+    advancePastInactiveSeats: (r) => advancePastInactiveSeats(r, cloneGameState),
     broadcastGameState,
     emitTradesCompleteIfReady,
     finalizePendingTrades,
@@ -1551,8 +1518,10 @@ io.on('connection', (socket) => {
     
     if (room.inGame && room.gameState?.players) {
       if (joined) {
-        const { gameState, spectator } = viewForMember(room.gameState, joined);
-        socket.emit('gameStateSync', { gameState, spectator });
+        const sync = syncPayloadForMember(room, joined);
+        if (sync) {
+          socket.emit('gameStateSync', sync);
+        }
         socket.emit('startGame', {
           players: room.gameState.players.map((p) => ({
             id: p.id,
@@ -1561,7 +1530,7 @@ io.on('connection', (socket) => {
           dealSeed: room.gameState.dealSeed,
           hostId: room.host,
           skipDealAnimations: !!room.skipDealAnimations,
-          spectator,
+          spectator: sync?.spectator ?? !!joined.isSpectator,
         });
         if (joined.isSpectator) {
           emitBetweenRoundsSnapshot(socket, room);
@@ -1782,6 +1751,17 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'Reconnect to continue playing' });
       return;
     }
+    if (player.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot play — claim a seat first' });
+      return;
+    }
+    const seatedInRound = room.gameState.players.some(
+      (p) => p.id === player.id && !isDeadHandPlayer(p),
+    );
+    if (!seatedInRound) {
+      socket.emit('error', { message: 'You are not seated in this round yet' });
+      return;
+    }
 
     const working = cloneGameState(room.gameState);
     const currentId = working.players[working.currentPlayerIndex]?.id;
@@ -1823,7 +1803,10 @@ io.on('connection', (socket) => {
 
     room.gameState = cloneGameState(next);
     room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
-    advancePastInactiveSeats(room);
+    reconcileCurrentPlayerIndex(room);
+    advancePastInactiveSeats(room, cloneGameState);
+    reconcileCurrentPlayerIndex(room);
+    gameSync.bumpStateVersion(room);
     broadcastGameState(io, room);
 
     if (isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
@@ -1864,8 +1847,10 @@ io.on('connection', (socket) => {
       console.warn('[Server] requestGameState: socket not in room', roomId, socket.id);
       return;
     }
-    const { gameState, spectator } = viewForMember(room.gameState, player);
-    socket.emit('gameStateSync', { gameState, spectator });
+    const sync = syncPayloadForMember(room, player);
+    if (sync) {
+      socket.emit('gameStateSync', sync);
+    }
   });
 
   socket.on('roundFinished', ({ roomId, finishOrder, hands }) => {
@@ -1912,7 +1897,8 @@ io.on('connection', (socket) => {
 
   // Player indicates they want to continue to next round
   socket.on('playerReadyForNextRound', ({ roomId }) => {
-    const room = rooms[roomId];
+    const code = normalizeRoomCode(roomId);
+    const room = rooms[code];
     if (!room || !room.gameState) return;
     const player = room.players.find(p => p.socketId === socket.id);
     if (!player) return;
@@ -1922,11 +1908,14 @@ io.on('connection', (socket) => {
       (room.isBotHosted || gameHasDeadHandSlot(room));
     if (!inRound && !canSpectatorReady) return;
     room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
+    if (room.isBotHosted) {
+      botHosted.autoReadyBotsForNextRound(room);
+    }
     room.gameState.readyForNextRound[player.id] = true;
 
-    io.to(roomId).emit('playerReadyUpdate', { readyForNextRound: room.gameState.readyForNextRound });
+    io.to(code).emit('playerReadyUpdate', { readyForNextRound: room.gameState.readyForNextRound });
 
-    tryStartNextRoundIfReady(roomId);
+    tryStartNextRoundIfReady(code);
   });
 
   socket.on('toggleReady', ({ roomId, ready }) => {

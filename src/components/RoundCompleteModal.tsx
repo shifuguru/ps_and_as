@@ -17,6 +17,14 @@ import AccentBorderButton from "./AccentBorderButton";
 import { roleEmoji, roleForPlacement } from "../utils/roundRoles";
 import { livingFinishedOrder } from "../game/deadHand";
 import { hexToRgba } from "../utils/colorTheory";
+import { isCpuPlayer } from "../utils/localPlayer";
+
+function rankXpAnimationReady(
+  player: { id: string; name: string },
+  globalReady: boolean,
+): boolean {
+  return isCpuPlayer(player) || globalReady;
+}
 
 type Player = { id: string; name: string; isDeadHand?: boolean };
 
@@ -33,6 +41,8 @@ type Props = {
   localPlayerId?: string;
   /** Watching in dead-hand mode — can claim the open seat between rounds. */
   spectatorMode?: boolean;
+  /** Bot-hosted table — seated bots are always ready for the next deal. */
+  botsAutoReady?: boolean;
   deadHandSeatOpen?: boolean;
   onQuit: () => void;
   onToggleReady: () => void;
@@ -64,7 +74,9 @@ function RankXpDisplay({
   styles: ReturnType<typeof createStyles>;
 }) {
   const progress = useRef(new Animated.Value(0)).current;
+  const absorbPlayedRef = useRef<string | null>(null);
   const startTotal = Math.max(0, finalTotal - roundEarned);
+  const absorbKey = `${finalTotal}:${roundEarned}:${rowDelay}`;
   const [displayTotal, setDisplayTotal] = useState(startTotal);
   const [displayRound, setDisplayRound] = useState(roundEarned);
   const [showRoundXp, setShowRoundXp] = useState(false);
@@ -79,18 +91,10 @@ function RankXpDisplay({
     if (!visible || !boardDisplayed) {
       progress.stopAnimation();
       progress.setValue(0);
+      absorbPlayedRef.current = null;
       setDisplayTotal(startTotal);
       setDisplayRound(roundEarned);
       setShowRoundXp(false);
-      return;
-    }
-
-    setDisplayTotal(startTotal);
-    setDisplayRound(roundEarned);
-
-    if (!animationReady) {
-      progress.setValue(0);
-      setShowRoundXp(roundEarned > 0);
       return;
     }
 
@@ -102,7 +106,25 @@ function RankXpDisplay({
       return;
     }
 
+    if (absorbPlayedRef.current === absorbKey) {
+      progress.setValue(1);
+      setDisplayTotal(finalTotal);
+      setDisplayRound(0);
+      setShowRoundXp(false);
+      return;
+    }
+
+    if (!animationReady) {
+      progress.setValue(0);
+      setDisplayTotal(startTotal);
+      setDisplayRound(roundEarned);
+      setShowRoundXp(roundEarned > 0);
+      return;
+    }
+
     progress.setValue(0);
+    setDisplayTotal(startTotal);
+    setDisplayRound(roundEarned);
     setShowRoundXp(true);
     const listener = progress.addListener(({ value }) => {
       setDisplayTotal(Math.round(startTotal + roundEarned * value));
@@ -118,8 +140,10 @@ function RankXpDisplay({
     });
     anim.start(({ finished }) => {
       if (finished) {
+        absorbPlayedRef.current = absorbKey;
         setDisplayRound(0);
         setShowRoundXp(false);
+        setDisplayTotal(finalTotal);
       }
     });
 
@@ -135,6 +159,7 @@ function RankXpDisplay({
     roundEarned,
     rowDelay,
     startTotal,
+    absorbKey,
     progress,
   ]);
 
@@ -164,6 +189,7 @@ export default function RoundCompleteModal({
   playerRoundXp = {},
   localPlayerId,
   spectatorMode = false,
+  botsAutoReady = false,
   deadHandSeatOpen = false,
   onQuit,
   onToggleReady,
@@ -174,12 +200,28 @@ export default function RoundCompleteModal({
   const feltGreen = palette.complementBright;
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(width - 48, 420);
-  const readyCount = Object.values(readyStates).filter(Boolean).length;
-  const isReady = localPlayerId ? !!readyStates[localPlayerId] : false;
   const canClaimSeat = spectatorMode && deadHandSeatOpen;
-  const readyDenominator = canClaimSeat
-    ? players.length + 1
-    : players.length;
+  const displayReadyStates = useMemo(() => {
+    if (!botsAutoReady) return readyStates;
+    const next = { ...readyStates };
+    for (const p of players) {
+      if (isCpuPlayer(p)) next[p.id] = true;
+    }
+    return next;
+  }, [readyStates, botsAutoReady, players]);
+  const isReady = localPlayerId ? !!displayReadyStates[localPlayerId] : false;
+  const readyDenominator =
+    botsAutoReady && canClaimSeat
+      ? 1
+      : canClaimSeat
+        ? players.length + 1
+        : players.length;
+  const readyCount =
+    botsAutoReady && canClaimSeat
+      ? isReady
+        ? 1
+        : 0
+      : Object.values(displayReadyStates).filter(Boolean).length;
   const rankedOrder = useMemo(
     () => livingFinishedOrder(players, finishedOrder),
     [players, finishedOrder],
@@ -220,7 +262,7 @@ export default function RoundCompleteModal({
 
               const role = roleForPlacement(index, livingCount || rankedOrder.length);
               const emoji = roleEmoji(role);
-              const ready = !!readyStates[playerId];
+              const ready = !!displayReadyStates[playerId];
               const isLocal = playerId === localPlayerId;
               const finalTotal = playerXp[playerId] ?? 0;
               const roundEarned = playerRoundXp[playerId] ?? 0;
@@ -247,7 +289,10 @@ export default function RoundCompleteModal({
                       </Text>
                       <RankXpDisplay
                         visible={visible}
-                        animationReady={xpAnimationReady}
+                        animationReady={rankXpAnimationReady(
+                          player,
+                          xpAnimationReady,
+                        )}
                         boardDisplayed={boardDisplayed}
                         rowDelay={index * ROW_STAGGER_MS}
                         finalTotal={finalTotal}
@@ -275,12 +320,18 @@ export default function RoundCompleteModal({
 
           <Text style={styles.readyCount}>
             {readyCount} / {readyDenominator}{" "}
-            {canClaimSeat ? "Ready (incl. dead hand seat)" : "Players Ready"}
+            {botsAutoReady && canClaimSeat
+              ? "Ready to claim seat"
+              : canClaimSeat
+                ? "Ready (incl. dead hand seat)"
+                : "Players Ready"}
           </Text>
 
           {canClaimSeat ? (
             <Text style={styles.spectatorHint}>
-              Tap below to take the dead hand&apos;s seat next round.
+              {botsAutoReady
+                ? "Bots are ready for the next deal. Tap below to take the dead hand\u2019s seat."
+                : "Tap below to take the dead hand\u2019s seat next round."}
             </Text>
           ) : null}
 

@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 import { getServerUrl } from "../config/server";
 import { CLIENT_BUILD_ID } from "../config/buildVersion";
 import { DEFAULT_FELT_COLOR } from "../services/wallpaper";
+import { normalizeRoomCode } from "../utils/roomCode";
 
 export function isSocketAdapter(adapter: unknown): adapter is SocketAdapter {
   return (
@@ -801,7 +802,9 @@ export class SocketAdapter implements NetworkAdapter {
 
   playerReadyForNextRound(roomId: string) {
     if (!this.socket) return;
-    this.socket.emit("playerReadyForNextRound", { roomId });
+    const code = normalizeRoomCode(roomId);
+    if (!code) return;
+    this.socket.emit("playerReadyForNextRound", { roomId: code });
   }
 
   submitTradeSelection(roomId: string, selectedCardObjects: unknown[]) {

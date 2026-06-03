@@ -32,6 +32,16 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-03T14:55"),
+    title: "Online sync & bot dead hand",
+    items: [
+      "Online games — your play and pass come from the server, so turns stay in sync for everyone at the table",
+      "Open Bot Table — Take Dead Hand Seat puts you in the dead hand chair next round; both bots stay seated",
+      "Open Bot Table — bots keep moving after rank closes and when they cannot play instead of freezing the table",
+      "Rankings — ready counts on the bot table scoreboard match who can actually claim a seat",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-02T23:27"),
     title: "Joker & quad acknowledgment",
     items: [

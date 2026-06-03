@@ -48,14 +48,29 @@ function viewForMember(state, member) {
   };
 }
 
+const { attachSyncMeta } = require("./gameSync");
+
 function broadcastGameState(io, room) {
   const state = room.gameState;
   if (!state || !Array.isArray(state.players)) return;
   for (const member of room.players) {
     if (!member.socketId || member.disconnectedAt) continue;
     const { gameState, spectator } = viewForMember(state, member);
-    io.to(member.socketId).emit("gameStateSync", { gameState, spectator });
+    io.to(member.socketId).emit("gameStateSync", {
+      gameState: attachSyncMeta(room, gameState),
+      spectator,
+    });
   }
+}
+
+function syncPayloadForMember(room, member) {
+  const state = room.gameState;
+  if (!state || !Array.isArray(state.players)) return null;
+  const { gameState, spectator } = viewForMember(state, member);
+  return {
+    gameState: attachSyncMeta(room, gameState),
+    spectator,
+  };
 }
 
 module.exports = {
@@ -63,4 +78,5 @@ module.exports = {
   viewForMember,
   memberInRound,
   broadcastGameState,
+  syncPayloadForMember,
 };

@@ -75,6 +75,10 @@ import {
   parseServerGameState,
   resolveLocalHumanPlayer,
 } from "../utils/localPlayer";
+import {
+  readStateVersion,
+  shouldApplyServerSnapshot,
+} from "../game/multiplayerSync";
 import { pickTrickShout } from "../rewards/trickShouts";
 import {
   resolveAvatarBorder,
@@ -166,6 +170,22 @@ function roundCeremonyKey(state: GameStateWithDealSeed): string {
   return `${state.id}:${seed}`;
 }
 
+function isBetweenRoundsState(state: GameState): boolean {
+  return isRoundCompleteForLiving(state) && !state.tenRulePending;
+}
+
+/** New deal in progress — ignore transient incomplete snapshots while between rounds. */
+function serverShowsNewRoundInProgress(state: GameState): boolean {
+  if (isBetweenRoundsState(state)) return false;
+  const living = state.players.filter((p) => !isDeadHandPlayer(p));
+  const hasHandCards = living.some((p) => (p.hand?.length ?? 0) > 0);
+  const hasPlay =
+    (state.pile?.length ?? 0) > 0 ||
+    (state.currentTrick?.actions?.length ?? 0) > 0 ||
+    (state.trickHistory?.length ?? 0) > 0;
+  return hasHandCards || hasPlay;
+}
+
 const LAST_HAND_REVEAL_MS = 4000;
 const TRADE_RETURN_FLIGHT_MS = 520;
 const TRADE_RETURN_HOLD_MS = 650;
@@ -195,6 +215,9 @@ type ServerAugmentedState = GameState & {
   pendingTrades?: ServerPendingTrades;
   roles?: Record<string, string>;
   playerHands?: Record<string, CardType[]>;
+  readyForNextRound?: Record<string, boolean>;
+  stateVersion?: number;
+  phase?: string;
 };
 
 function serverStateHasPendingTrades(
@@ -558,7 +581,12 @@ function GameScreen({
   );
   const lastHandRevealRef = useRef<LastHandRevealPayload | null>(null);
   lastHandRevealRef.current = lastHandReveal;
+  const betweenRoundsKeyRef = useRef<string | null>(null);
+  const lastHandRevealPlayedKeyRef = useRef<string | null>(null);
+  const scoreboardCareerFetchKeyRef = useRef<string | null>(null);
   const stateSyncedRef = useRef(false);
+  const lastAppliedStateVersionRef = useRef(0);
+  const [actionPending, setActionPending] = useState(false);
   const syncRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -617,7 +645,11 @@ function GameScreen({
   const gamePausedForAway =
     onlineMultiplayer &&
     Object.keys(awayPlayers).some((id) => seatedPlayerIds.has(id));
-  const readOnlyGame = gameplayLocked || readOnlyOnline || gamePausedForAway;
+  const readOnlyGame =
+    gameplayLocked ||
+    readOnlyOnline ||
+    gamePausedForAway ||
+    (onlineMultiplayer && actionPending);
 
   const insets = useLayoutInsets();
   const { height: shellHeight } = useVisualViewportSize();
@@ -631,11 +663,28 @@ function GameScreen({
         networkAdapter,
       )
     : null;
+  const socketProfileId = isSocketAdapter(networkAdapter)
+    ? networkAdapter.getProfileId()
+    : null;
+  // Spectators are not in state.players — profile id must win over a stale localPlayerId
+  // from a prior session or the dead-hand ready toggle keys the wrong seat.
   const myPlayerId =
     humanPlayer?.id ??
+    (onlineMultiplayer && socketProfileId ? socketProfileId : null) ??
     localPlayerId ??
-    (isSocketAdapter(networkAdapter) ? networkAdapter.getProfileId() : null);
+    socketProfileId;
   myPlayerIdRef.current = myPlayerId;
+
+  const scoreboardReadyStates = useMemo(() => {
+    const base = { ...playerReadyStates };
+    if (!isBotOpenTable || !state?.players) return base;
+    for (const p of state.players) {
+      if (!isDeadHandPlayer(p) && isCpuPlayer(p)) {
+        base[p.id] = true;
+      }
+    }
+    return base;
+  }, [playerReadyStates, isBotOpenTable, state?.players]);
 
   const resolveSeatFeltTint = useCallback(
     (player: { id: string; name: string }) => {
@@ -672,6 +721,11 @@ function GameScreen({
     setGameXpByPlayerId((prev) => ({ ...prev, [playerId]: 0 }));
   }, []);
 
+  const scoreboardRoundKey = useMemo(() => {
+    if (!roundOver || !state) return null;
+    return roundCeremonyKey(state as GameStateWithDealSeed);
+  }, [roundOver, state?.id, (state as GameStateWithDealSeed | null)?.dealSeed]);
+
   const scoreboardRoundXpByPlayerId = useMemo(() => {
     const out: Record<string, number> = {};
     const living =
@@ -696,15 +750,17 @@ function GameScreen({
         xp[player.id] = localCareerXp + roundEarned;
         continue;
       }
+      if (isCpuPlayer(player)) {
+        const base = getCpuCareerXp(player) ?? 0;
+        xp[player.id] = base + roundEarned;
+        continue;
+      }
       const careerBaseline = careerXpByPlayerId[player.id];
       if (careerBaseline != null) {
         xp[player.id] = careerBaseline + roundEarned;
         continue;
       }
-      if (!onlineMultiplayer && isCpuPlayer(player)) {
-        const base = getCpuCareerXp(player) ?? 0;
-        xp[player.id] = base + roundEarned;
-      } else if (roundEarned > 0) {
+      if (roundEarned > 0) {
         xp[player.id] = roundEarned;
       }
     }
@@ -715,7 +771,6 @@ function GameScreen({
     myPlayerId,
     localCareerXp,
     careerXpByPlayerId,
-    onlineMultiplayer,
   ]);
 
   const xpAnimationReady =
@@ -765,38 +820,89 @@ function GameScreen({
     onBack?.();
   }, [onBack, forfeitPlayerXp]);
 
-  const clearLastHandReveal = useCallback(() => {
+  const clearLastHandRevealTimer = useCallback(() => {
     if (lastHandRevealTimerRef.current) {
       clearTimeout(lastHandRevealTimerRef.current);
       lastHandRevealTimerRef.current = null;
     }
-    setLastHandReveal(null);
   }, []);
 
-  const startLastHandReveal = useCallback(
+  const clearLastHandReveal = useCallback(() => {
+    clearLastHandRevealTimer();
+    setLastHandReveal(null);
+  }, [clearLastHandRevealTimer]);
+
+  const resetBetweenRoundsUi = useCallback(() => {
+    betweenRoundsKeyRef.current = null;
+    lastHandRevealPlayedKeyRef.current = null;
+    clearLastHandReveal();
+  }, [clearLastHandReveal]);
+
+  const markBetweenRounds = useCallback((gameState: GameState) => {
+    if (isBetweenRoundsState(gameState)) {
+      betweenRoundsKeyRef.current = roundCeremonyKey(gameState);
+    }
+  }, []);
+
+  const finishLastHandReveal = useCallback(() => {
+    if (betweenRoundsKeyRef.current) {
+      lastHandRevealPlayedKeyRef.current = betweenRoundsKeyRef.current;
+    }
+    clearLastHandReveal();
+  }, [clearLastHandReveal]);
+
+  const maybeStartLastHandReveal = useCallback(
     (payload: LastHandRevealPayload) => {
-      if (!payload.cards?.length) {
-        clearLastHandReveal();
+      const key =
+        betweenRoundsKeyRef.current ??
+        (stateRef.current ? roundCeremonyKey(stateRef.current) : null);
+      if (key && lastHandRevealPlayedKeyRef.current === key) {
         return;
       }
-      clearLastHandReveal();
+      if (!payload.cards?.length) {
+        finishLastHandReveal();
+        return;
+      }
+      if (key) {
+        lastHandRevealPlayedKeyRef.current = key;
+      }
+      clearLastHandRevealTimer();
       setLastHandReveal(payload);
       lastHandRevealTimerRef.current = setTimeout(() => {
         lastHandRevealTimerRef.current = null;
-        setLastHandReveal(null);
+        finishLastHandReveal();
       }, LAST_HAND_REVEAL_MS);
     },
-    [clearLastHandReveal],
+    [clearLastHandRevealTimer, finishLastHandReveal],
   );
 
   /** Fallback — web timers can stall; scoreboard must not stay behind the reveal overlay. */
   useEffect(() => {
     if (!roundOver || !lastHandReveal) return;
     const timer = setTimeout(() => {
-      setLastHandReveal(null);
+      finishLastHandReveal();
     }, LAST_HAND_REVEAL_MS);
     return () => clearTimeout(timer);
-  }, [roundOver, lastHandReveal]);
+  }, [roundOver, lastHandReveal, finishLastHandReveal]);
+
+  /** Drop last-hand overlay only when leaving between-rounds (new deal), not on noisy sync. */
+  useEffect(() => {
+    if (!lastHandReveal) return;
+    if (!roundOver) {
+      clearLastHandReveal();
+      return;
+    }
+    if (state && onlineMultiplayer && serverShowsNewRoundInProgress(state)) {
+      resetBetweenRoundsUi();
+    }
+  }, [
+    lastHandReveal,
+    roundOver,
+    state,
+    onlineMultiplayer,
+    clearLastHandReveal,
+    resetBetweenRoundsUi,
+  ]);
 
   const clearTradeReturnReveal = useCallback(() => {
     if (tradeReturnTimerRef.current) {
@@ -869,7 +975,7 @@ function GameScreen({
         ? applyServerPlayerHands(players, handsSource)
         : players;
       pendingTradesCompleteRef.current = null;
-      clearLastHandReveal();
+      resetBetweenRoundsUi();
       clearTradeReturnReveal();
       const useServerOpener =
         onlineMultiplayer &&
@@ -903,7 +1009,7 @@ function GameScreen({
     },
     [
       resolvedHostId,
-      clearLastHandReveal,
+      resetBetweenRoundsUi,
       clearTradeReturnReveal,
       onlineMultiplayer,
     ],
@@ -1182,7 +1288,7 @@ function GameScreen({
   }
 
   const resetForBotTableRefresh = useCallback(() => {
-    clearLastHandReveal();
+    resetBetweenRoundsUi();
     clearTradeReturnReveal();
     pendingTradesCompleteRef.current = null;
     pendingDealSeedRef.current = undefined;
@@ -1207,7 +1313,7 @@ function GameScreen({
     ceremonyStartedForRoundRef.current = null;
     ceremonyDoneForRoundRef.current = null;
     lastTrickLenRef.current = 0;
-  }, [clearLastHandReveal, clearTradeReturnReveal]);
+  }, [resetBetweenRoundsUi, clearTradeReturnReveal]);
 
   const handleSkipBotTable = useCallback(() => {
     if (!isSocketAdapter(networkAdapter) || !effectiveRoomId) return;
@@ -1538,12 +1644,18 @@ function GameScreen({
     const allPlayersFinished =
       isRoundCompleteForLiving(state) && !state.tenRulePending;
     if (allPlayersFinished && !roundOver) {
-      const reveal = lastPlayerHandFromState(state);
-      if (reveal) {
-        startLastHandReveal(reveal);
+      if (!onlineMultiplayer) {
+        const reveal = lastPlayerHandFromState(state);
+        if (reveal) {
+          markBetweenRounds(state);
+          maybeStartLastHandReveal(reveal);
+        }
       }
 
       setRoundOver(true);
+      if (onlineMultiplayer && isBetweenRoundsState(state)) {
+        markBetweenRounds(state);
+      }
       if (!onlineMultiplayer && !roundStatsRecordedRef.current) {
         roundStatsRecordedRef.current = true;
         const human = resolveLocalHumanPlayer(
@@ -1582,7 +1694,8 @@ function GameScreen({
     localPlayerId,
     localPlayerName,
     onlineMultiplayer,
-    startLastHandReveal,
+    maybeStartLastHandReveal,
+    markBetweenRounds,
     networkAdapter,
     forfeitedXpPlayerIds,
   ]);
@@ -1704,6 +1817,21 @@ function GameScreen({
         return;
       }
 
+      const incomingVersion = readStateVersion(parsed);
+      if (
+        !shouldApplyServerSnapshot(
+          incomingVersion,
+          lastAppliedStateVersionRef.current,
+        )
+      ) {
+        return;
+      }
+      if (incomingVersion != null) {
+        lastAppliedStateVersionRef.current = incomingVersion;
+      }
+      setActionPending(false);
+      setSyncError(null);
+
       const roundKey = roundCeremonyKey(parsed);
       const localCeremonyUi =
         !!ceremonyPrepRef.current ||
@@ -1770,6 +1898,7 @@ function GameScreen({
           setTradePhase(built);
           setActiveTrade(built.trades.find((t) => !t.completed) ?? null);
           setGameplayLocked(true);
+          clearLastHandReveal();
           setRoundOver(false);
           setState(parsed);
           ceremonyStartedForRoundRef.current = roundKey;
@@ -1809,6 +1938,7 @@ function GameScreen({
         ceremonyStartedForRoundRef.current = roundKey;
         ceremonyDoneForRoundRef.current = roundKey;
         awaitingDealCeremonyRef.current = false;
+        clearLastHandReveal();
         setCeremonyPrep(null);
         setTradePhase(null);
         setActiveTrade(null);
@@ -1883,19 +2013,27 @@ function GameScreen({
 
       const roundCompleteOnServer =
         isRoundCompleteForLiving(parsed) && !parsed.tenRulePending;
-      if (onlineMultiplayer && roundCompleteOnServer && !roundOverRef.current) {
-        setRoundOver(true);
+      if (onlineMultiplayer && roundCompleteOnServer) {
+        markBetweenRounds(parsed);
+        if (!roundOverRef.current) {
+          setRoundOver(true);
+        }
       }
       if (
         onlineMultiplayer &&
         roundOverRef.current &&
-        !roundCompleteOnServer &&
+        serverShowsNewRoundInProgress(parsed) &&
         !ceremonyPrepRef.current &&
         !tradePhaseRef.current &&
         !awaitingDealCeremonyRef.current
       ) {
-        clearLastHandReveal();
+        resetBetweenRoundsUi();
         setRoundOver(false);
+      }
+
+      const serverReady = parsed.readyForNextRound;
+      if (serverReady && typeof serverReady === "object") {
+        setPlayerReadyStates((prev) => ({ ...prev, ...serverReady }));
       }
 
       setState(parsed);
@@ -2074,7 +2212,11 @@ function GameScreen({
           triggerNudgeHighlight(targetId);
         }
       } else if (ev.type === "state" && ev.state?.type === "error") {
+        setActionPending(false);
         setSyncError(ev.state.message ?? "Could not sync with server");
+        if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
+          networkAdapter.requestGameState(roomId);
+        }
       } else if (
         ev.type === "state" &&
         ev.state &&
@@ -2185,18 +2327,26 @@ function GameScreen({
             lastHandRevealRef.current?.playerId === lph.playerId &&
             (lastHandRevealRef.current?.cards?.length ?? 0) === lph.cards.length;
           if (!sameReveal) {
-            startLastHandReveal({
+            const gs = stateRef.current;
+            if (gs) {
+              markBetweenRounds(
+                finishOrder?.length
+                  ? { ...gs, finishedOrder: finishOrder }
+                  : gs,
+              );
+            }
+            maybeStartLastHandReveal({
               playerId: lph.playerId,
               playerName: lph.playerName || "Player",
               cards: lph.cards,
             });
           }
         } else {
-          clearLastHandReveal();
+          finishLastHandReveal();
         }
         setRoundOver(true);
       } else if (ev.type === "state" && ev.state?.type === "nextRoundStarting") {
-        clearLastHandReveal();
+        resetBetweenRoundsUi();
         if (onlineMultiplayer) {
           pendingTradesCompleteRef.current = null;
           setCeremonyPrep(null);
@@ -2334,7 +2484,10 @@ function GameScreen({
     networkAdapter,
     localPlayerId,
     preferencesLoaded,
-    startLastHandReveal,
+    maybeStartLastHandReveal,
+    finishLastHandReveal,
+    markBetweenRounds,
+    resetBetweenRoundsUi,
     clearLastHandReveal,
     resetForBotTableRefresh,
     forfeitPlayerXp,
@@ -2347,19 +2500,27 @@ function GameScreen({
   ]);
 
   useEffect(() => {
-    if (!roundOver) {
+    if (!scoreboardRoundKey) {
       setLocalCareerXp(null);
       setCareerXpByPlayerId({});
       setScoreboardCareerXpLoading(false);
+      scoreboardCareerFetchKeyRef.current = null;
       return;
     }
-    if (!state) return;
+
+    const fetchKey = scoreboardRoundKey;
+    if (scoreboardCareerFetchKeyRef.current === fetchKey) {
+      return;
+    }
+
+    const livingState = stateRef.current;
+    if (!livingState) return;
 
     let cancelled = false;
     setScoreboardCareerXpLoading(true);
 
     void (async () => {
-      const living = state.players.filter((p) => !isDeadHandPlayer(p));
+      const living = livingState.players.filter((p) => !isDeadHandPlayer(p));
       const baselines: Record<string, number> = {};
 
       const localStats = await getPlayerStats();
@@ -2381,13 +2542,14 @@ function GameScreen({
       if (!cancelled) {
         setCareerXpByPlayerId(baselines);
         setScoreboardCareerXpLoading(false);
+        scoreboardCareerFetchKeyRef.current = fetchKey;
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [roundOver, state, myPlayerId]);
+  }, [scoreboardRoundKey, myPlayerId]);
 
   /** Persist tallied round XP when the scoreboard opens (not during play). */
   useEffect(() => {
@@ -2810,12 +2972,14 @@ function GameScreen({
         roundOver,
         lastHandReveal,
         clearLastHandReveal,
+        finishLastHandReveal,
         trickPauseActive,
         trickPauseSnapshot,
         showWinnerBanner,
         stackCollecting,
         tableRenderKey,
         playerReadyStates,
+        scoreboardReadyStates,
         setPlayerReadyStates,
         leaveConfirmVisible,
         showDebugOverlay,
@@ -2883,6 +3047,7 @@ function GameScreen({
         openSeatAvailable,
         isBotOpenTable,
         handleSkipBotTable,
+        setActionPending,
       }}
     >
       <GameScreenBoard />
@@ -2910,12 +3075,14 @@ function GameScreenBoard() {
     roundOver,
     lastHandReveal,
     clearLastHandReveal,
+    finishLastHandReveal,
     trickPauseActive,
     trickPauseSnapshot,
     showWinnerBanner,
     stackCollecting,
     tableRenderKey,
     playerReadyStates,
+    scoreboardReadyStates,
     setPlayerReadyStates,
     leaveConfirmVisible,
     showDebugOverlay,
@@ -2983,6 +3150,7 @@ function GameScreenBoard() {
     openSeatAvailable,
     isBotOpenTable,
     handleSkipBotTable,
+    setActionPending,
   } = useContext(GameScreenRuntimeContext)! as {
     state: GameState;
     setState: React.Dispatch<React.SetStateAction<GameState | null>>;
@@ -3015,12 +3183,14 @@ function GameScreenBoard() {
     roundOver: boolean;
     lastHandReveal: LastHandRevealPayload | null;
     clearLastHandReveal: () => void;
+    finishLastHandReveal: () => void;
     trickPauseActive: boolean;
     trickPauseSnapshot: TrickPauseSnapshot | null;
     showWinnerBanner: boolean;
     stackCollecting: boolean;
     tableRenderKey: number;
     playerReadyStates: { [playerId: string]: boolean };
+    scoreboardReadyStates: { [playerId: string]: boolean };
     setPlayerReadyStates: React.Dispatch<
       React.SetStateAction<{ [playerId: string]: boolean }>
     >;
@@ -3110,6 +3280,7 @@ function GameScreenBoard() {
     openSeatAvailable: boolean;
     isBotOpenTable: boolean;
     handleSkipBotTable: () => void;
+    setActionPending: React.Dispatch<React.SetStateAction<boolean>>;
   };
 
   const [ceremonyDealCounts, setCeremonyDealCounts] = useState<
@@ -3550,6 +3721,24 @@ function GameScreenBoard() {
       })
       .join(", ");
     console.log(`You playing: ${cardStr}`);
+    if (onlineMultiplayer) {
+      if (!selectedCanPlay) {
+        emitDebug("action:play:human:failed", {
+          playerId: actor.id,
+          reason: "invalid play (local check)",
+        });
+        return;
+      }
+      setSelected([]);
+      setActionPending(true);
+      broadcastGameAction({
+        type: "play",
+        playerId: actor.id,
+        cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
+      });
+      return;
+    }
+
     const next = playCards(state, actor.id, cards);
     if (next === state) {
       emitDebug("action:play:human:failed", {
@@ -3568,20 +3757,12 @@ function GameScreenBoard() {
       });
       setSelected([]);
       setState(next);
-      if (onlineMultiplayer) {
-        broadcastGameAction({
-          type: "play",
-          playerId: actor.id,
-          cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
-        });
-      } else {
-        broadcastGameAction({
-          type: "play",
-          playerId: actor.id,
-          playerName: actor.name,
-          cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
-        });
-      }
+      broadcastGameAction({
+        type: "play",
+        playerId: actor.id,
+        playerName: actor.name,
+        cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
+      });
     }
   };
 
@@ -3601,6 +3782,15 @@ function GameScreenBoard() {
       playerName: actor.name,
       before: snapshotState(state),
     });
+    if (onlineMultiplayer) {
+      setActionPending(true);
+      broadcastGameAction({
+        type: "pass",
+        playerId: actor.id,
+      });
+      return;
+    }
+
     const next = passTurn(state, actor.id);
     if (next === state) {
       emitDebug("action:pass:human:failed", {
@@ -3616,18 +3806,11 @@ function GameScreenBoard() {
         after: snapshotState(next),
       });
       setState(next);
-      if (onlineMultiplayer) {
-        broadcastGameAction({
-          type: "pass",
-          playerId: actor.id,
-        });
-      } else {
-        broadcastGameAction({
-          type: "pass",
-          playerId: actor.id,
-          playerName: actor.name,
-        });
-      }
+      broadcastGameAction({
+        type: "pass",
+        playerId: actor.id,
+        playerName: actor.name,
+      });
     }
   };
 
@@ -4112,8 +4295,8 @@ function GameScreenBoard() {
         visible={isTenRuleChoice}
         onChoose={(direction) => {
           if (onlineMultiplayer) {
+            setActionPending(true);
             broadcastGameAction({ type: "tenRule", direction });
-            setState(setTenRuleDirection(state, direction));
             return;
           }
           setState(setTenRuleDirection(state, direction));
@@ -4443,7 +4626,7 @@ function GameScreenBoard() {
         visible={!!lastHandReveal}
         playerName={lastHandReveal?.playerName ?? ""}
         cards={lastHandReveal?.cards ?? []}
-        onDismiss={clearLastHandReveal}
+        onDismiss={finishLastHandReveal}
       />
 
       <RoundCompleteModal
@@ -4454,12 +4637,13 @@ function GameScreenBoard() {
           ),
         )}
         players={state.players.filter((p) => !isDeadHandPlayer(p))}
-        readyStates={playerReadyStates}
+        readyStates={scoreboardReadyStates}
         playerXp={scoreboardXpByPlayerId}
         playerRoundXp={scoreboardRoundXpByPlayerId}
         xpAnimationReady={xpAnimationReady}
         localPlayerId={myPlayerId ?? undefined}
         spectatorMode={spectatorMode}
+        botsAutoReady={isBotOpenTable}
         deadHandSeatOpen={
           state.players.some(isDeadHandPlayer) || openSeatAvailable
         }

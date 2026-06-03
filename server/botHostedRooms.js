@@ -29,7 +29,10 @@ const BOT_PROGRESS_STALL_MS = 90_000;
 const BOT_EMPTY_BETWEEN_ROUNDS_MS = 45_000;
 const BOT_SKIP_COOLDOWN_MS = 8_000;
 
+const tableRoster = require('./tableRoster');
+
 const CPU_ID_RE = /^cpu-\d+$/i;
+const DEAD_HAND_ID = tableRoster.DEAD_HAND_ID;
 
 function isBotPlayerId(id) {
   return !!(id && CPU_ID_RE.test(String(id).trim()));
@@ -105,14 +108,15 @@ function ensureHumanHost(room) {
   }
 }
 
-function gameHasDeadHandSlot(room) {
-  return !!(
-    room?.deadHand ||
-    room?.gameState?.players?.some(
-      (p) => p.isDeadHand || p.id === '__dead_hand__',
-    )
-  );
+const gameHasDeadHandSlot = tableRoster.gameHasDeadHandSlot;
+
+function isBotActiveAtTable(room, playerId) {
+  if (!isBotPlayerId(playerId)) return true;
+  const lobby = lobbyMemberForGamePlayer(room, playerId);
+  return !!(lobby && !lobby.isSpectator && !lobby.disconnectedAt);
 }
+
+const replaceDeadHandInGameState = tableRoster.replaceDeadHandInGameState;
 
 /** Promote ready spectators — dead-hand claim keeps bots; extra humans replace bots. */
 function promoteReadySpectators(room) {
@@ -122,11 +126,7 @@ function promoteReadySpectators(room) {
   );
   if (readySpectators.length === 0) return [];
 
-  const humansSeated = countHumansSeated(room);
-  const deadHandClaim =
-    gameHasDeadHandSlot(room) && humansSeated < 2 && readySpectators.length > 0;
-
-  if (deadHandClaim) {
+  if (tableRoster.shouldClaimDeadHandAtBotTable(room, readySpectators)) {
     const toPromote = readySpectators.slice(0, 1);
     for (const spectator of toPromote) {
       spectator.isSpectator = false;
@@ -134,6 +134,7 @@ function promoteReadySpectators(room) {
         `[Server] ${spectator.name} is replacing the dead hand next round`,
       );
     }
+    replaceDeadHandInGameState(room, toPromote[0]);
     ensureHumanHost(room);
     return toPromote;
   }
@@ -209,12 +210,30 @@ function createBotHostedRoom(rooms) {
 
 function autoReadyBotsForNextRound(room) {
   if (!room?.isBotHosted || !room.gameState) return;
-  room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
+  const readyMap = room.gameState.readyForNextRound || {};
+  room.gameState.readyForNextRound = readyMap;
   for (const p of room.players) {
     if (isBotMember(p) && !p.isSpectator && !p.disconnectedAt) {
-      room.gameState.readyForNextRound[p.id] = true;
+      readyMap[p.id] = true;
     }
   }
+  for (const p of room.gameState.players || []) {
+    if (
+      !p.isDeadHand &&
+      p.id !== '__dead_hand__' &&
+      isBotPlayerId(p.id)
+    ) {
+      readyMap[p.id] = true;
+    }
+  }
+}
+
+function broadcastReadyForNextRound(room, roomId, io) {
+  if (!room?.gameState || !io) return;
+  autoReadyBotsForNextRound(room);
+  io.to(roomId).emit('playerReadyUpdate', {
+    readyForNextRound: room.gameState.readyForNextRound,
+  });
 }
 
 function resolveBotPendingTrades(room, ctx) {
@@ -299,24 +318,37 @@ function tryResolveAcknowledgmentPhase(room, ctx) {
   return true;
 }
 
+function lobbyMemberForGamePlayer(room, playerId) {
+  return room?.players?.find((p) => p.id === playerId) ?? null;
+}
+
+/** Lobby + game-state agree this id is a seated living player (not spectator / dead hand). */
+function isSeatedInCurrentRound(playerId, state, room) {
+  if (!playerId || !state?.players || !room) return false;
+  if (isBotPlayerId(playerId) && !isBotActiveAtTable(room, playerId)) {
+    return false;
+  }
+  const lobby = lobbyMemberForGamePlayer(room, playerId);
+  if (!lobby || lobby.isSpectator || lobby.disconnectedAt) return false;
+  const seat = state.players.find((p) => p.id === playerId);
+  if (!seat || isDeadHandPlayer(seat)) return false;
+  return isPlayerStillIn(state, playerId);
+}
+
 function isHumanGamePlayer(player, state, room) {
   if (!player || isBotPlayerId(player.id) || isDeadHandPlayer(player)) {
     return false;
   }
-  const lobby = room?.players?.find((p) => p.id === player.id);
-  if (lobby?.isSpectator || lobby?.disconnectedAt) return false;
-  return isPlayerStillIn(state, player.id);
+  return isSeatedInCurrentRound(player.id, state, room);
 }
 
 function shouldBotCpuAct(room) {
   const gs = room?.gameState;
   const current = gs?.players?.[gs.currentPlayerIndex];
-  return (
-    !!current &&
-    isBotPlayerId(current.id) &&
-    !isDeadHandPlayer(current) &&
-    !isHumanGamePlayer(current, gs, room)
-  );
+  if (!current || isDeadHandPlayer(current)) return false;
+  if (!isBotPlayerId(current.id)) return false;
+  if (!isSeatedInCurrentRound(current.id, gs, room)) return false;
+  return !isHumanGamePlayer(current, gs, room);
 }
 
 function tradesBlockingBots(room, ctx) {
@@ -346,6 +378,20 @@ function advanceUntilBotTurnOrHuman(room, ctx) {
     const current = gs.players[gs.currentPlayerIndex];
     if (!current) break;
 
+    if (
+      isBotPlayerId(current.id) &&
+      !isDeadHandPlayer(current) &&
+      !isBotActiveAtTable(room, current.id)
+    ) {
+      const beforeIdx = gs.currentPlayerIndex;
+      ctx.advancePastInactiveSeats(room);
+      if (room.gameState.currentPlayerIndex !== beforeIdx) {
+        changed = true;
+        continue;
+      }
+      break;
+    }
+
     const ackLeaderWait =
       isTrickAcknowledgmentPassPhase(gs) &&
       gs.lastPlayPlayerIndex === gs.currentPlayerIndex;
@@ -370,14 +416,8 @@ function advanceUntilBotTurnOrHuman(room, ctx) {
       }
     }
 
-    if (
-      isBotPlayerId(current.id) &&
-      !isDeadHandPlayer(current) &&
-      !ackLeaderWait &&
-      !canAck
-    ) {
-      return changed;
-    }
+    // Do not return early when a bot already passed during rank-close/joker ack —
+    // advancePastInactiveSeats must skip to the next living opponent.
     if (isHumanGamePlayer(current, gs, room)) {
       return changed;
     }
@@ -456,6 +496,10 @@ function resetBotHostedRoom(roomId, ctx, message) {
   if (room._botTurnTimer) {
     clearTimeout(room._botTurnTimer);
     room._botTurnTimer = null;
+  }
+  if (room._botNextRoundTimer) {
+    clearTimeout(room._botNextRoundTimer);
+    room._botNextRoundTimer = null;
   }
 
   room.inGame = false;
@@ -574,6 +618,17 @@ function processBotTurnStep(room, ctx) {
       ctx.broadcastGameState(ctx.io, room);
       if (tryCompleteBotRound(room, ctx)) return true;
       return true;
+    }
+    if (isBotPlayerId(current.id)) {
+      const stuckIdx = gs.currentPlayerIndex;
+      ctx.advancePastInactiveSeats(room);
+      if (room.gameState.currentPlayerIndex !== stuckIdx) {
+        markBotProgress(room);
+        advanceUntilBotTurnOrHuman(room, ctx);
+        ctx.broadcastGameState(ctx.io, room);
+        if (tryCompleteBotRound(room, ctx)) return true;
+        return true;
+      }
     }
     if (tryCompleteBotRound(room, ctx)) return true;
     return false;
@@ -754,6 +809,10 @@ function skipBotHostedGame(roomId, ctx) {
     clearTimeout(room._botTurnTimer);
     room._botTurnTimer = null;
   }
+  if (room._botNextRoundTimer) {
+    clearTimeout(room._botNextRoundTimer);
+    room._botNextRoundTimer = null;
+  }
 
   room._lastBotSkipAt = now;
   markBotProgress(room);
@@ -811,9 +870,23 @@ function skipBotHostedGame(roomId, ctx) {
   return { ok: true };
 }
 
+const BOT_ROUND_END_DWELL_MS = 4500;
+
 function onBotRoomRoundFinished(room, roomId, ctx) {
-  autoReadyBotsForNextRound(room);
-  ctx.tryStartNextRoundIfReady(roomId);
+  broadcastReadyForNextRound(room, roomId, ctx.io);
+  if (room._botNextRoundTimer) {
+    clearTimeout(room._botNextRoundTimer);
+    room._botNextRoundTimer = null;
+  }
+  room._botNextRoundTimer = setTimeout(() => {
+    room._botNextRoundTimer = null;
+    const live = ctx.rooms[roomId];
+    if (!live?.inGame || !live.gameState) return;
+    if (!ctx.isRoundComplete(live.gameState) || live.gameState.tenRulePending) {
+      return;
+    }
+    ctx.tryStartNextRoundIfReady(roomId);
+  }, BOT_ROUND_END_DWELL_MS);
   if (!room.inGame || !room.gameState) return;
   if (!ctx.isRoundComplete(room.gameState) || room.gameState.tenRulePending) {
     scheduleBotTurns(roomId, ctx);
@@ -868,5 +941,8 @@ module.exports = {
   canJoinBotRoomInProgress,
   shouldJoinBotRoomAsSpectator,
   promoteReadySpectators,
+  replaceDeadHandInGameState,
   countHumansSeated,
+  autoReadyBotsForNextRound,
+  broadcastReadyForNextRound,
 };
