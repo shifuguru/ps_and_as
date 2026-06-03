@@ -44,7 +44,15 @@ function advancePastInactiveSeats(room, cloneGameState) {
       !isPlayerStillIn(working, current.id) ||
       (hasPassedInCurrentTrick(working, current.id) && !runOnTopTurn) ||
       ackLeaderWait;
-    if (!inactive || mustOpenTrick) break;
+    if (!inactive) break;
+    if (mustOpenTrick && isDeadHandPlayer(current)) {
+      working.currentPlayerIndex = nextActivePlayerIndex(
+        working,
+        working.currentPlayerIndex,
+      );
+      continue;
+    }
+    if (mustOpenTrick) break;
     if (ackLeaderWait) {
       working.currentPlayerIndex = nextActivePlayerIndex(
         working,

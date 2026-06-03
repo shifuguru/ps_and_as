@@ -277,7 +277,7 @@ async function testHumanSeatThenBotTurn() {
       me?.hand?.length > 0 &&
       !humanTurnPlayed
     ) {
-      const card = me.hand[0];
+      const card = me.hand.find((c) => c.value !== 10) ?? me.hand[0];
       human.socket.emit("gameAction", {
         roomId,
         action: {

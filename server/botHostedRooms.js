@@ -354,11 +354,6 @@ function shouldBotCpuAct(room) {
 function tradesBlockingBots(room, ctx) {
   const pending = room.gameState?.pendingTrades || {};
   if (Object.keys(pending).length === 0) return false;
-  if (ctx.allTradesComplete(room.gameState)) return false;
-  if (resolveBotPendingTrades(room, ctx)) {
-    ctx.emitTradesCompleteIfReady(ctx.io, ctx.roomId, room.gameState, room.host);
-    ctx.broadcastGameState(ctx.io, room);
-  }
   return !ctx.allTradesComplete(room.gameState);
 }
 
@@ -571,11 +566,13 @@ function processBotTurnStep(room, ctx) {
 
   if (tryCompleteBotRound(room, ctx)) return true;
 
-  if (tradesBlockingBots(room, ctx)) return false;
-
   if (resolveBotPendingTrades(room, ctx)) {
     ctx.emitTradesCompleteIfReady(ctx.io, ctx.roomId, room.gameState, room.host);
+    ctx.broadcastGameState(ctx.io, room);
+    markBotProgress(room);
   }
+
+  if (tradesBlockingBots(room, ctx)) return false;
 
   if (applyBotTenRuleIfNeeded(room, ctx)) {
     advanceUntilBotTurnOrHuman(room, ctx);
@@ -677,9 +674,25 @@ function runBotTurnLoop(roomId, ctx) {
     const live = ctx.rooms[roomId];
     if (!live?.inGame || !live.gameState) return;
 
+    if (resolveBotPendingTrades(live, ctx)) {
+      ctx.emitTradesCompleteIfReady(
+        ctx.io,
+        ctx.roomId,
+        live.gameState,
+        live.host,
+      );
+      ctx.broadcastGameState(ctx.io, live);
+      markBotProgress(live);
+    }
+
     const acted = processBotTurnStep(live, ctx);
     if (acted) {
       live._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS);
+      return;
+    }
+
+    if (tradesBlockingBots(live, ctx)) {
+      live._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS * 2);
       return;
     }
 

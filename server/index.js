@@ -243,18 +243,22 @@ function startNextRound(roomId) {
     room.gameState.pendingTrades = {};
   }
 
-  if (
-    room.isBotHosted &&
-    Object.keys(room.gameState.pendingTrades || {}).length > 0
-  ) {
-    const playerHands =
-      room.gameState.playerHands || snapshotPlayerHands(room.gameState);
-    room.gameState.playerHands = playerHands;
-    finalizePendingTrades(room.gameState, playerHands);
-    for (const p of room.gameState.players) {
-      p.hand = playerHands[p.id] || p.hand;
+  if (room.isBotHosted && lastOrder.length >= 2) {
+    const pendingKeys = Object.keys(room.gameState.pendingTrades || {});
+    if (pendingKeys.length > 0) {
+      const playerHands =
+        room.gameState.playerHands || snapshotPlayerHands(room.gameState);
+      room.gameState.playerHands = playerHands;
+      finalizePendingTrades(room.gameState, playerHands);
+      for (const p of room.gameState.players) {
+        p.hand = playerHands[p.id] || p.hand;
+      }
     }
     syncOpeningPlayerAfterTrades(room.gameState, room.host);
+    reconcileCurrentPlayerIndex(room);
+    if (allTradesComplete(room.gameState)) {
+      room.gameState.pendingTrades = {};
+    }
   }
 
   room.gameState.readyForNextRound = {};
@@ -647,19 +651,31 @@ function allPlayersReadyForNextRound(room) {
   const ids = activeRoundPlayerIds(room);
   const seatedReady = ids.length > 0 && ids.every((id) => readyMap[id] === true);
   if (!seatedReady) return false;
-  if (room.isBotHosted) {
-    // Seated bots can deal the next round on their own. Spectator "Ready" is only
-    // for claiming the dead-hand seat (promoteReadySpectators), not for advancing.
-    return true;
-  }
   return true;
+}
+
+/** Bot tables wait for spectators only when one has pressed Ready to claim a seat. */
+function botTableCanStartNextRound(room) {
+  if (!allPlayersReadyForNextRound(room)) return false;
+  const spectators = room.players.filter(
+    (p) => p.isSpectator && !p.disconnectedAt,
+  );
+  if (spectators.length === 0) return true;
+  const readyMap = room.gameState?.readyForNextRound || {};
+  const anySpectatorReady = spectators.some((s) => readyMap[s.id] === true);
+  if (!anySpectatorReady) return true;
+  return spectators.every((s) => readyMap[s.id] === true);
 }
 
 function tryStartNextRoundIfReady(roomId) {
   const room = rooms[roomId];
   if (!room?.gameState) return;
   if (isGamePausedForAway(room)) return;
-  if (!allPlayersReadyForNextRound(room)) return;
+  if (room.isBotHosted) {
+    if (!botTableCanStartNextRound(room)) return;
+  } else if (!allPlayersReadyForNextRound(room)) {
+    return;
+  }
   startNextRound(roomId);
 }
 
@@ -1817,7 +1833,7 @@ io.on('connection', (socket) => {
       }
       handleRoundFinished(roomId, finishOrder, handSnapshot);
     } else if (room.isBotHosted) {
-      botHosted.scheduleBotTurns(roomId, getBotContext());
+      botHosted.kickBotTurnLoop(roomId, getBotContext());
     }
   });
 
@@ -1890,7 +1906,7 @@ io.on('connection', (socket) => {
       syncOpeningPlayerAfterTrades(room.gameState, room.host);
       io.to(roomId).emit('tradesComplete', { playerHands });
       if (room.isBotHosted) {
-        botHosted.scheduleBotTurns(roomId, getBotContext());
+        botHosted.kickBotTurnLoop(roomId, getBotContext());
       }
     }
   });
