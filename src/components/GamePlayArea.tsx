@@ -36,6 +36,29 @@ type RingProps = Omit<
   | "sideAnchorMargin"
 >;
 
+/** Selected-hand position captured at Play — matched to the outgoing play by key. */
+export type LocalHandFlightCapture = {
+  playKey: string;
+  screenX: number;
+  screenY: number;
+  fromCardW: number;
+  fromCardH: number;
+};
+
+function measureViewInWindow(
+  node: { measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null,
+): Promise<{ x: number; y: number } | null> {
+  return new Promise((resolve) => {
+    if (!node?.measureInWindow) {
+      resolve(null);
+      return;
+    }
+    node.measureInWindow((x, y) => {
+      resolve({ x, y });
+    });
+  });
+}
+
 type Props = RingProps & {
   lastPlayPlayerId?: string | null;
   playCountLabel?: string | null;
@@ -70,6 +93,9 @@ type Props = RingProps & {
     width: number;
     height: number;
   }) => void;
+  /** Where the selected cards were when Play was pressed (window coords). */
+  localHandFlight?: LocalHandFlightCapture | null;
+  onLocalHandFlightConsumed?: (playKey: string) => void;
 };
 
 export default function GamePlayArea({
@@ -102,8 +128,11 @@ export default function GamePlayArea({
   dealtStackCounts,
   onPlayerPress,
   onPlayAreaMetrics,
+  localHandFlight = null,
+  onLocalHandFlightConsumed,
   children,
 }: Props & { children: React.ReactNode }) {
+  const rootRef = useRef<View>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const { height: shellHeight } = useVisualViewportSize();
   const [activeFlights, setActiveFlights] = useState<CardFlightSpec[]>([]);
@@ -206,11 +235,14 @@ export default function GamePlayArea({
 
     if (!flightsInitializedRef.current) {
       flightsInitializedRef.current = true;
-      prevPlayKeysRef.current = currentKeys;
-      if (currentKeys.size > 0) {
+      const pendingHandFlight =
+        !!localHandFlight &&
+        plays.some((p) => playDisplayKey(p) === localHandFlight.playKey);
+      if (currentKeys.size > 0 && !pendingHandFlight) {
+        prevPlayKeysRef.current = currentKeys;
         setLandedKeys(currentKeys);
+        return;
       }
-      return;
     }
 
     if (skipPlayFlights) {
@@ -240,64 +272,95 @@ export default function GamePlayArea({
     const scaleLimits = stackLayoutState.scaleLimits;
     const cardW = stackLayoutState.cardWidth;
     const cardH = stackLayoutState.cardHeight;
-    const flightsToStart: CardFlightSpec[] = [];
+    const playKeys = newPlays.map((p) => playDisplayKey(p));
+    let cancelled = false;
 
-    for (const play of newPlays) {
-      const key = playDisplayKey(play);
-      const playIndex = plays.findIndex((p) => playDisplayKey(p) === key);
-      if (playIndex < 0) {
-        setLandedKeys((prev) => new Set(prev).add(key));
-        continue;
+    void (async () => {
+      const playAreaWin = await measureViewInWindow(rootRef.current);
+      if (cancelled || !playAreaWin) {
+        for (const key of playKeys) {
+          setLandedKeys((prev) => new Set(prev).add(key));
+        }
+        return;
       }
 
-      const spot = stackSpotForPlay(
-        playIndex,
-        plays.length,
-        play,
-        layout.cardZoneWidth,
-        layout.cardZoneHeight,
-        layout.cardZoneWidth * MAX_SPREAD_WIDTH_RATIO * 0.55,
-        plays,
-        {
-          maxFillScale: scaleLimits.maxFillScale,
-          displayScale: scaleLimits.displayScale,
-        },
-      );
+      const flightsToStart: CardFlightSpec[] = [];
 
-      const origin = seatOriginInPlayArea(
-        layout,
-        size.height,
-        play.playerId,
-        seatIds,
-        localPlayerIds,
-        seatOptions,
-      );
-      if (!cardW || !cardH) {
-        setLandedKeys((prev) => new Set(prev).add(key));
-        continue;
+      for (const play of newPlays) {
+        const key = playDisplayKey(play);
+        const playIndex = plays.findIndex((p) => playDisplayKey(p) === key);
+        if (playIndex < 0) {
+          setLandedKeys((prev) => new Set(prev).add(key));
+          continue;
+        }
+
+        const spot = stackSpotForPlay(
+          playIndex,
+          plays.length,
+          play,
+          layout.cardZoneWidth,
+          layout.cardZoneHeight,
+          layout.cardZoneWidth * MAX_SPREAD_WIDTH_RATIO * 0.55,
+          plays,
+          {
+            maxFillScale: scaleLimits.maxFillScale,
+            displayScale: scaleLimits.displayScale,
+          },
+        );
+
+        let origin = seatOriginInPlayArea(
+          layout,
+          size.height,
+          play.playerId,
+          seatIds,
+          localPlayerIds,
+          seatOptions,
+        );
+        let fromCardW: number | undefined;
+        let fromCardH: number | undefined;
+        if (localHandFlight && key === localHandFlight.playKey) {
+          origin = {
+            x: localHandFlight.screenX - playAreaWin.x,
+            y: localHandFlight.screenY - playAreaWin.y,
+          };
+          fromCardW = localHandFlight.fromCardW;
+          fromCardH = localHandFlight.fromCardH;
+          onLocalHandFlightConsumed?.(key);
+        }
+        if (!cardW || !cardH) {
+          setLandedKeys((prev) => new Set(prev).add(key));
+          continue;
+        }
+        const target = playGroupTargetFromSpot(spot, play, layout, cardW, cardH);
+
+        if (!origin) {
+          setLandedKeys((prev) => new Set(prev).add(key));
+          continue;
+        }
+
+        flightsToStart.push({
+          id: key,
+          cards: play.cards,
+          fromX: origin.x,
+          fromY: origin.y,
+          toX: target.x,
+          toY: target.y,
+          cardW: target.cardW,
+          cardH: target.cardH,
+          fromCardW,
+          fromCardH,
+        });
       }
-      const target = playGroupTargetFromSpot(spot, play, layout, cardW, cardH);
 
-      if (!origin) {
-        setLandedKeys((prev) => new Set(prev).add(key));
-        continue;
+      if (cancelled) return;
+      if (flightsToStart.length > 0) {
+        setActiveFlights((prev) => [...prev, ...flightsToStart]);
       }
+    })();
 
-      flightsToStart.push({
-        id: key,
-        cards: play.cards,
-        fromX: origin.x,
-        fromY: origin.y,
-        toX: target.x,
-        toY: target.y,
-        cardW: target.cardW,
-        cardH: target.cardH,
-      });
-    }
-
-    if (flightsToStart.length > 0) {
-      setActiveFlights((prev) => [...prev, ...flightsToStart]);
-    }
+    return () => {
+      cancelled = true;
+    };
   }, [
     plays,
     layout,
@@ -307,6 +370,8 @@ export default function GamePlayArea({
     seatOptions,
     skipPlayFlights,
     stackLayoutState,
+    localHandFlight,
+    onLocalHandFlightConsumed,
   ]);
 
   const handleFlightComplete = useCallback((id: string) => {
@@ -356,6 +421,7 @@ export default function GamePlayArea({
 
   return (
     <View
+      ref={rootRef}
       style={styles.root}
       onLayout={onLayout}
     >

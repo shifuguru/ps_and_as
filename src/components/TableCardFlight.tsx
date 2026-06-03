@@ -102,9 +102,14 @@ export default function TableCardFlight({
     extrapolate: "clamp",
   });
 
+  const startScale =
+    flight.fromCardW && flight.cardW > 0
+      ? flight.fromCardW / flight.cardW
+      : 0.68;
+
   const scale = progress.interpolate({
     inputRange: [0, LAND_AT],
-    outputRange: [0.68, 1],
+    outputRange: [startScale, 1],
     extrapolate: "clamp",
   });
 

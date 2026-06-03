@@ -56,18 +56,8 @@ export default function Card({
   const faceColors = getCardFaceColors(darkModeCards, disabled);
   const anim = React.useRef(new Animated.Value(selected ? 1 : 0)).current;
   const glow = React.useRef(new Animated.Value(highlight)).current;
-  const float = React.useRef(new Animated.Value(6)).current;
+  const float = React.useRef(new Animated.Value(0)).current;
   const flashAnim = useRef(new Animated.Value(0)).current;
-
-  // Subtle vertical float on mount
-  React.useEffect(() => {
-    Animated.spring(float, {
-      toValue: 0,
-      useNativeDriver: false,
-      stiffness: 120,
-      damping: 10,
-    } as any).start();
-  }, []);
 
   React.useEffect(() => {
     Animated.spring(anim, {
@@ -109,10 +99,9 @@ export default function Card({
 
   const selectTranslateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
   const translateY = Animated.add(selectTranslateY, float);
-  const scale = Animated.add(
-    anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }),
-    glow.interpolate({ inputRange: [0, 1], outputRange: [0, 0.04] })
-  );
+  const selectScale = anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  /** Inverse of selection scale — keeps rank/suit size fixed when selected. */
+  const textScale = anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1 / 1.06] });
 
   const isTable = variant === "table";
 
@@ -290,72 +279,88 @@ export default function Card({
         local.card,
         local.cardHand,
         style,
-        {
-          transform: [{ translateY }, { scale }],
-          shadowRadius: elevation,
-          borderColor: cardBorder,
-          backgroundColor: cardBackground,
-        } as any,
-        disabled && local.cardDisabled,
+        { transform: [{ translateY }] },
         flash && local.cardFlash,
       ]}
     >
       <TouchableWithoutFeedback onPress={disabled ? undefined : onPress} accessibilityLabel={`card-${label}-${card.suit}`}>
         <View style={local.inner}>
-          {!faceDown && (
-            flash ? (
-              <Animated.View
-                style={[local.cardFace, { backgroundColor: cardBackground }]}
-                pointerEvents="none"
-              />
-            ) : (
-              <View style={[local.cardFace, local.cardFaceOpaque]} pointerEvents="none" />
-            )
-          )}
-          {faceDown ? (
-            <View style={local.backFace}>
-              <View style={local.backFaceFrame}>
-                <View style={local.backFaceInner}>
-                  <Text style={local.backFaceOrnament}>♠</Text>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              local.cardHandShell,
+              disabled && local.cardHandDisabled,
+              {
+                transform: [{ scale: selectScale }],
+                shadowRadius: elevation,
+                borderColor: cardBorder,
+                backgroundColor: cardBackground,
+              } as any,
+            ]}
+          >
+            {!faceDown &&
+              (flash ? (
+                <Animated.View
+                  style={[local.cardFace, { backgroundColor: cardBackground }]}
+                  pointerEvents="none"
+                />
+              ) : (
+                <View style={[local.cardFace, local.cardFaceOpaque]} pointerEvents="none" />
+              ))}
+            {faceDown ? (
+              <View style={local.backFace}>
+                <View style={local.backFaceFrame}>
+                  <View style={local.backFaceInner}>
+                    <Text style={local.backFaceOrnament}>♠</Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          ) : compact ? (
+            ) : null}
+            {disabled && !faceDown ? (
+              <View
+                style={[
+                  local.disabledWash,
+                  { backgroundColor: faceColors.disabledWash },
+                ]}
+                pointerEvents="none"
+              />
+            ) : null}
+          </Animated.View>
+          {!faceDown ? (
+          <Animated.View
+            style={[
+              local.handTextLayer,
+              { transform: [{ scale: textScale }] },
+              disabled && local.cardHandTextDisabled,
+            ]}
+            pointerEvents="none"
+          >
             <>
               <View style={local.cornerTopLeft} pointerEvents="none">
-                <AnimatedText style={[local.cornerTextCompact, { color: labelColor }]}>{label}</AnimatedText>
-                <AnimatedText style={[local.cornerSuitInline, { color: suitColor }]}>{suitSymbol}</AnimatedText>
+                <AnimatedText style={[local.cornerTextCompact, { color: labelColor }]}>
+                  {label}
+                </AnimatedText>
+                <AnimatedText style={[local.cornerSuitInline, { color: suitColor }]}>
+                  {suitSymbol}
+                </AnimatedText>
               </View>
               <View style={local.cornerBottomRight} pointerEvents="none">
-                <AnimatedText style={[local.cornerTextCompact, { color: labelColor }]}>{label}</AnimatedText>
-                <AnimatedText style={[local.cornerSuitInline, { color: suitColor }]}>{suitSymbol}</AnimatedText>
+                <AnimatedText style={[local.cornerTextCompact, { color: labelColor }]}>
+                  {label}
+                </AnimatedText>
+                <AnimatedText style={[local.cornerSuitInline, { color: suitColor }]}>
+                  {suitSymbol}
+                </AnimatedText>
               </View>
+              {!compact ? (
+                <>
+                  <AnimatedText style={[local.value, { color: labelColor }]}>{label}</AnimatedText>
+                  <AnimatedText style={[local.suit, { color: suitColor }]}>{suitSymbol}</AnimatedText>
+                </>
+              ) : null}
             </>
-          ) : (
-            <>
-              <View style={local.cornerTopLeft} pointerEvents="none">
-                <AnimatedText style={[local.cornerText, { color: labelColor }]}>{label}</AnimatedText>
-                <AnimatedText style={[local.cornerTextSmall, { color: suitColor }]}>{suitSymbol}</AnimatedText>
-              </View>
-
-              <AnimatedText style={[local.value, { color: labelColor }]}>{label}</AnimatedText>
-              <AnimatedText style={[local.suit, { color: suitColor }]}>{suitSymbol}</AnimatedText>
-
-              <View style={local.cornerBottomRight} pointerEvents="none">
-                <AnimatedText style={[local.cornerText, { color: labelColor }]}>{label}</AnimatedText>
-                <AnimatedText style={[local.cornerTextSmall, { color: suitColor }]}>{suitSymbol}</AnimatedText>
-              </View>
-            </>
-          )}
-          {disabled && !faceDown && (
-            <View
-              style={[
-                local.disabledWash,
-                { backgroundColor: faceColors.disabledWash },
-              ]}
-              pointerEvents="none"
-            />
-          )}
+          </Animated.View>
+          ) : null}
         </View>
       </TouchableWithoutFeedback>
     </Animated.View>
@@ -374,13 +379,33 @@ const local = StyleSheet.create({
     overflow: "hidden",
   },
   cardHand: {
+    overflow: "visible",
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  cardHandShell: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 14,
+    borderWidth: 1,
     borderColor: "rgba(0,0,0,0.1)",
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOpacity: 0.18,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
   },
   cardDisabled: {
+    opacity: 0.88,
+    ...Platform.select({
+      web: { filter: "saturate(0.35)" as any },
+      default: {},
+    }),
+  },
+  /** Dim unplayable hand cards on the scaled shell only (avoids ghost overlay). */
+  cardHandDisabled: {
     opacity: 0.88,
     ...Platform.select({
       web: { filter: "saturate(0.35)" as any },
@@ -415,10 +440,21 @@ const local = StyleSheet.create({
     }),
   },
   inner: {
+    position: "relative",
     alignItems: "center",
     width: "100%",
     height: "100%",
     justifyContent: "center",
+    overflow: "visible",
+  },
+  handTextLayer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+  },
+  cardHandTextDisabled: {
+    opacity: 0.88,
   },
   cardFace: {
     ...StyleSheet.absoluteFillObject,
@@ -429,6 +465,7 @@ const local = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderRadius: 13,
     backgroundColor: "rgba(168, 166, 158, 0.38)",
+    zIndex: 3,
   },
   value: {
     color: "#1a1a1a",

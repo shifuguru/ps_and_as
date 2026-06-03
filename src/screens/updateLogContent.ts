@@ -32,6 +32,16 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-03T18:34"),
+    title: "Hand & play animation",
+    items: [
+      "When you play cards, they fly from your hand to the table instead of from your seat",
+      "Your hand — rank and suit stay the same size as you scroll the fan and when cards are selected",
+      "Your hand — cards you cannot play dim cleanly without a faded ghost image behind them",
+      "Online games — round rankings wait for the last-hand reveal before they appear",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-03T15:33"),
     title: "Bot table join round",
     items: [

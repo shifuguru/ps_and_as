@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -102,10 +103,7 @@ function shouldShowScrollPlayHint(
 const MAX_ANGLE = 18;
 /** How high the centred card lifts above the baseline */
 const MAX_CENTER_LIFT = 14;
-/** Scale at the hand-area centre vs the edges */
-const FOCUS_SCALE = 1.1;
-const SIDE_SCALE_MIN = 0.9;
-/** Horizontal distance (px) at which fan reaches max tilt / min scale */
+/** Horizontal distance (px) at which fan reaches max tilt */
 function fanNormSpan(containerWidth: number, step: number): number {
   return Math.max(step * 2.4, containerWidth * 0.24);
 }
@@ -131,7 +129,27 @@ type Props = {
 
 export type PlayerHandHandle = {
   scrollToIndex: (index: number) => void;
+  /** Centroid of selected card centres in window coordinates (for play flights). */
+  measurePlayOrigin: (indices: number[]) => Promise<{ x: number; y: number } | null>;
 };
+
+/** Window position of a card centre from fan layout + hand container measure. */
+function cardCenterFromHandLayout(
+  index: number,
+  slot: CarouselSlot,
+  scroll: number,
+  handWindow: { x: number; y: number },
+  cardWidth: number,
+  cardHeight: number,
+  handZoneHeight: number,
+  selected: boolean,
+): { x: number; y: number } {
+  const lift = selected ? SELECT_LIFT : 0;
+  return {
+    x: handWindow.x + slot.left + cardWidth / 2 - scroll,
+    y: handWindow.y + handZoneHeight - slot.bottom - cardHeight / 2 - lift,
+  };
+}
 
 function carouselStep(
   count: number,
@@ -287,8 +305,8 @@ function computeCarouselSlots(
 
     const angle = norm * MAX_ANGLE;
     const bottom = maxCenterLift * (1 - absNorm * absNorm);
-    const scale =
-      SIDE_SCALE_MIN + (1 - absNorm) * (FOCUS_SCALE - SIDE_SCALE_MIN);
+    /** Fan scale is always 1 — size focus is lift/z-index only so label size stays constant. */
+    const scale = 1;
 
     const zIndex =
       1000 + Math.round((1 - absNorm) * 100) - Math.abs(i - focused) * 5 + i;
@@ -671,6 +689,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   const anchorIndexRef = useRef(0);
   const isDraggingRef = useRef(false);
   const handOuterRef = useRef<View>(null);
+  const cardSlotRefs = useRef<(View | null)[]>([]);
   const cardsLengthRef = useRef(cards.length);
   cardsLengthRef.current = cards.length;
 
@@ -871,7 +890,121 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     onCardPress(index);
   };
 
-  useImperativeHandle(ref, () => ({ scrollToIndex }), [cards]);
+  const measurePlayOrigin = useCallback(
+    (indices: number[]): Promise<{ x: number; y: number } | null> => {
+      const unique = [...new Set(indices)].filter(
+        (i) => i >= 0 && i < cards.length,
+      );
+      if (unique.length === 0) return Promise.resolve(null);
+
+      return new Promise((resolve) => {
+        const runMeasure = () => {
+          const outer = handOuterRef.current;
+          if (!outer || typeof outer.measureInWindow !== "function") {
+            resolve(null);
+            return;
+          }
+
+          const scroll = scrollRef.current;
+          const slotLayout = computeCarouselSlots(
+            cards.length,
+            layoutWidth,
+            scroll,
+            step,
+            cardWidth,
+            maxCenterLift,
+            displayFocusIndex,
+          );
+
+          outer.measureInWindow((hx, hy) => {
+            const handWindow = { x: hx, y: hy };
+            const layoutPoints = unique
+              .map((index) => {
+                const slot = slotLayout[index];
+                if (!slot) return null;
+                return cardCenterFromHandLayout(
+                  index,
+                  slot,
+                  scroll,
+                  handWindow,
+                  cardWidth,
+                  cardHeight,
+                  handZoneHeight,
+                  selectedIndices.includes(index),
+                );
+              })
+              .filter((p): p is { x: number; y: number } => p != null);
+
+            if (layoutPoints.length > 0) {
+              const sum = layoutPoints.reduce(
+                (acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }),
+                { x: 0, y: 0 },
+              );
+              resolve({
+                x: sum.x / layoutPoints.length,
+                y: sum.y / layoutPoints.length,
+              });
+              return;
+            }
+
+            const points: { x: number; y: number }[] = [];
+            let pending = unique.length;
+            const finishRefs = () => {
+              if (points.length === 0) {
+                resolve(null);
+                return;
+              }
+              const sum = points.reduce(
+                (acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }),
+                { x: 0, y: 0 },
+              );
+              resolve({
+                x: sum.x / points.length,
+                y: sum.y / points.length,
+              });
+            };
+
+            for (const index of unique) {
+              const node = cardSlotRefs.current[index];
+              if (!node || typeof node.measureInWindow !== "function") {
+                pending -= 1;
+                if (pending === 0) finishRefs();
+                continue;
+              }
+              node.measureInWindow((x, y, width, height) => {
+                points.push({ x: x + width / 2, y: y + height / 2 });
+                pending -= 1;
+                if (pending === 0) finishRefs();
+              });
+            }
+          });
+        };
+
+        if (Platform.OS === "web" && typeof requestAnimationFrame === "function") {
+          requestAnimationFrame(() => requestAnimationFrame(runMeasure));
+        } else {
+          setTimeout(runMeasure, 0);
+        }
+      });
+    },
+    [
+      cards.length,
+      layoutWidth,
+      step,
+      cardWidth,
+      cardHeight,
+      maxCenterLift,
+      displayFocusIndex,
+      selectedIndices,
+      handZoneHeight,
+    ],
+  );
+
+  useImperativeHandle(
+    ref,
+    () => ({ scrollToIndex, measurePlayOrigin }),
+    [scrollToIndex, measurePlayOrigin],
+  );
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -968,10 +1101,12 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
           const isPlayable = playableIndices[index] ?? true;
           const isFocused = index === displayFocusIndex;
           const isPressed = pressedIndex === index;
-
           return (
             <View
               key={`${card.suit}-${card.value}-${index}`}
+              ref={(node) => {
+                cardSlotRefs.current[index] = node;
+              }}
               style={[
                 styles.cardSlot,
                 {
@@ -989,7 +1124,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                     slot.angle,
                     cardWidth,
                     cardHeight,
-                    slot.scale,
+                    1,
                   ),
                 },
               ]}

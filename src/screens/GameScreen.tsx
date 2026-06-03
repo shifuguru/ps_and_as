@@ -123,7 +123,10 @@ import LastHandRevealOverlay from "../components/LastHandRevealOverlay";
 import LeaveGameConfirmModal from "../components/LeaveGameConfirmModal";
 import TenRuleModal from "../components/TenRuleModal";
 import GameTable from "../components/GameTable";
-import GamePlayArea from "../components/GamePlayArea";
+import GamePlayArea, {
+  type LocalHandFlightCapture,
+} from "../components/GamePlayArea";
+import { playDisplayKey } from "../utils/tablePlayFlight";
 import DealCeremonyOverlay, {
   DEAL_CEREMONY_SHUFFLE_MS,
 } from "../components/DealCeremonyOverlay";
@@ -189,6 +192,21 @@ function serverShowsNewRoundInProgress(state: GameState): boolean {
 const LAST_HAND_REVEAL_MS = 4000;
 const TRADE_RETURN_FLIGHT_MS = 520;
 const TRADE_RETURN_HOLD_MS = 650;
+
+/** Temporary — remove after Fix #1 manual tests (rankings vs last-hand ordering). */
+const ROUND_TRANSITION_LOG = false;
+
+function roundTransitionLog(
+  message: string,
+  detail?: Record<string, unknown>,
+): void {
+  if (!ROUND_TRANSITION_LOG) return;
+  if (detail && Object.keys(detail).length > 0) {
+    console.log(`[ROUND] ${message}`, detail);
+  } else {
+    console.log(`[ROUND] ${message}`);
+  }
+}
 
 type LastHandRevealPayload = {
   playerId: string;
@@ -594,6 +612,7 @@ function GameScreen({
   gameplayLockedRef.current = gameplayLocked;
   const roundOverRef = useRef(roundOver);
   roundOverRef.current = roundOver;
+  const rankingsVisiblePrevRef = useRef(false);
   const trickPauseActiveRef = useRef(trickPauseActive);
   trickPauseActiveRef.current = trickPauseActive;
   const startNextRoundRef = useRef<(seed?: number) => void>(() => {});
@@ -845,6 +864,7 @@ function GameScreen({
   }, []);
 
   const finishLastHandReveal = useCallback(() => {
+    roundTransitionLog("lastHandReveal finish");
     if (betweenRoundsKeyRef.current) {
       lastHandRevealPlayedKeyRef.current = betweenRoundsKeyRef.current;
     }
@@ -857,9 +877,13 @@ function GameScreen({
         betweenRoundsKeyRef.current ??
         (stateRef.current ? roundCeremonyKey(stateRef.current) : null);
       if (key && lastHandRevealPlayedKeyRef.current === key) {
+        roundTransitionLog("lastHandReveal skip (already played for round)", {
+          key,
+        });
         return;
       }
       if (!payload.cards?.length) {
+        roundTransitionLog("lastHandReveal skip (no cards)");
         finishLastHandReveal();
         return;
       }
@@ -867,6 +891,10 @@ function GameScreen({
         lastHandRevealPlayedKeyRef.current = key;
       }
       clearLastHandRevealTimer();
+      roundTransitionLog("lastHandReveal start", {
+        playerId: payload.playerId,
+        cardCount: payload.cards.length,
+      });
       setLastHandReveal(payload);
       lastHandRevealTimerRef.current = setTimeout(() => {
         lastHandRevealTimerRef.current = null;
@@ -902,6 +930,26 @@ function GameScreen({
     onlineMultiplayer,
     clearLastHandReveal,
     resetBetweenRoundsUi,
+  ]);
+
+  /** Temporary — log when RoundCompleteModal becomes visible (online). */
+  useEffect(() => {
+    if (!onlineMultiplayer) {
+      rankingsVisiblePrevRef.current = false;
+      return;
+    }
+    const visible =
+      roundOver && !lastHandReveal && !ceremonyPrep && !tradePhase;
+    if (visible && !rankingsVisiblePrevRef.current) {
+      roundTransitionLog("Rankings visible");
+    }
+    rankingsVisiblePrevRef.current = visible;
+  }, [
+    roundOver,
+    lastHandReveal,
+    ceremonyPrep,
+    tradePhase,
+    onlineMultiplayer,
   ]);
 
   const clearTradeReturnReveal = useCallback(() => {
@@ -1650,11 +1698,8 @@ function GameScreen({
           markBetweenRounds(state);
           maybeStartLastHandReveal(reveal);
         }
-      }
-
-      setRoundOver(true);
-      if (onlineMultiplayer && isBetweenRoundsState(state)) {
-        markBetweenRounds(state);
+        roundTransitionLog("setRoundOver(true)", { source: "offline-useEffect" });
+        setRoundOver(true);
       }
       if (!onlineMultiplayer && !roundStatsRecordedRef.current) {
         roundStatsRecordedRef.current = true;
@@ -2011,14 +2056,17 @@ function GameScreen({
         awaitingDealCeremonyRef.current = false;
       }
 
-      const roundCompleteOnServer =
-        isRoundCompleteForLiving(parsed) && !parsed.tenRulePending;
-      if (onlineMultiplayer && roundCompleteOnServer) {
-        markBetweenRounds(parsed);
-        if (!roundOverRef.current) {
-          setRoundOver(true);
-        }
+      if (
+        onlineMultiplayer &&
+        isRoundCompleteForLiving(parsed) &&
+        !parsed.tenRulePending
+      ) {
+        roundTransitionLog("gameStateSync round complete (roundOver unchanged)", {
+          stateVersion: parsed.stateVersion ?? null,
+          roundOver: roundOverRef.current,
+        });
       }
+
       if (
         onlineMultiplayer &&
         roundOverRef.current &&
@@ -2316,12 +2364,16 @@ function GameScreen({
         }
       } else if (ev.type === "state" && ev.state?.type === "roundEnded") {
         const finishOrder = ev.state.finishOrder as string[] | undefined;
+        const lph = ev.state.lastPlayerHand as LastHandRevealPayload | null | undefined;
+        roundTransitionLog("roundEnded received", {
+          finishOrderLen: finishOrder?.length ?? 0,
+          lastHandCards: lph?.cards?.length ?? 0,
+        });
         if (finishOrder?.length) {
           setState((current) =>
             current ? { ...current, finishedOrder: finishOrder } : current,
           );
         }
-        const lph = ev.state.lastPlayerHand as LastHandRevealPayload | null | undefined;
         if (lph?.playerId && lph.cards?.length) {
           const sameReveal =
             lastHandRevealRef.current?.playerId === lph.playerId &&
@@ -2344,8 +2396,12 @@ function GameScreen({
         } else {
           finishLastHandReveal();
         }
+        roundTransitionLog("setRoundOver(true)", { source: "roundEnded" });
         setRoundOver(true);
       } else if (ev.type === "state" && ev.state?.type === "nextRoundStarting") {
+        roundTransitionLog("nextRoundStarting received", {
+          dealSeed: ev.state.dealSeed ?? null,
+        });
         resetBetweenRoundsUi();
         if (onlineMultiplayer) {
           pendingTradesCompleteRef.current = null;
@@ -3305,6 +3361,11 @@ function GameScreenBoard() {
   );
   const { ui, blur } = useAppTheme();
   const playAreaHostRef = useRef<View>(null);
+  const [localHandFlight, setLocalHandFlight] =
+    useState<LocalHandFlightCapture | null>(null);
+  const handleLocalHandFlightConsumed = useCallback((playKey: string) => {
+    setLocalHandFlight((prev) => (prev?.playKey === playKey ? null : prev));
+  }, []);
   const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [remoteAvatarBordersByPlayerId, setRemoteAvatarBordersByPlayerId] =
@@ -3626,6 +3687,13 @@ function GameScreenBoard() {
     isHumanTurn &&
     !roundOver;
 
+  const { height: viewportHeight, width: shellWidth } = useVisualViewportSize();
+  const windowWidth = useWindowDimensions().width;
+  const handMetrics = useMemo(
+    () => resolveHandMetrics(viewportHeight),
+    [viewportHeight],
+  );
+
   const handleCardPress = (idx: number) => {
     if (trickPauseActive || roundOver || readOnlyGame) return;
     const card = hand[idx];
@@ -3681,7 +3749,7 @@ function GameScreenBoard() {
     }
   };
 
-  const handlePlayPress = () => {
+  const handlePlayPress = async () => {
     if (roundOver || !isHumanTurn || trickPauseActive || readOnlyGame) return;
     const actor = current;
     if (!actor) return;
@@ -3689,7 +3757,8 @@ function GameScreenBoard() {
       emitDebug("action:play:blocked", { playerId: actor.id, reason: "already passed" });
       return;
     }
-    const cards = selected.map((i) => hand[i]);
+    const playIndices = [...selected];
+    const cards = playIndices.map((i) => hand[i]);
     emitDebug("action:play:human:attempt", {
       playerId: actor.id,
       playerName: actor.name,
@@ -3721,14 +3790,33 @@ function GameScreenBoard() {
       })
       .join(", ");
     console.log(`You playing: ${cardStr}`);
+    if (onlineMultiplayer && !selectedCanPlay) {
+      emitDebug("action:play:human:failed", {
+        playerId: actor.id,
+        reason: "invalid play (local check)",
+      });
+      return;
+    }
+
+    const flightPlayerId = myPlayerId ?? actor.id;
+    const playFlightKey = playDisplayKey({
+      cards,
+      playerId: flightPlayerId,
+    });
+    const handOrigin = handRef.current
+      ? await handRef.current.measurePlayOrigin(playIndices)
+      : null;
+    if (handOrigin) {
+      setLocalHandFlight({
+        playKey: playFlightKey,
+        screenX: handOrigin.x,
+        screenY: handOrigin.y,
+        fromCardW: handMetrics.cardWidth,
+        fromCardH: handMetrics.cardHeight,
+      });
+    }
+
     if (onlineMultiplayer) {
-      if (!selectedCanPlay) {
-        emitDebug("action:play:human:failed", {
-          playerId: actor.id,
-          reason: "invalid play (local check)",
-        });
-        return;
-      }
       setSelected([]);
       setActionPending(true);
       broadcastGameAction({
@@ -3741,6 +3829,7 @@ function GameScreenBoard() {
 
     const next = playCards(state, actor.id, cards);
     if (next === state) {
+      setLocalHandFlight(null);
       emitDebug("action:play:human:failed", {
         playerId: actor.id,
         playerName: actor.name,
@@ -3822,12 +3911,6 @@ function GameScreenBoard() {
   /** Keep bottom chrome height stable when the local player is out (hand hidden). */
   const handReserveActive =
     handInBottomBar || localPlayerOut || showLocalDealerHandZone;
-  const { height: viewportHeight, width: shellWidth } = useVisualViewportSize();
-  const windowWidth = useWindowDimensions().width;
-  const handMetrics = useMemo(
-    () => resolveHandMetrics(viewportHeight),
-    [viewportHeight],
-  );
   const localHandDealTarget = useMemo(() => {
     if (!localCeremonyDeal || !isCeremonyDealer) return null;
     return localHandShuffleScreenCenter(
@@ -4352,6 +4435,8 @@ function GameScreenBoard() {
           dealtStackCounts={ceremonyPrep ? ceremonyDealCounts : undefined}
           onPlayerPress={handlePlayerProfilePress}
           onPlayAreaMetrics={setLivePlayAreaMetrics}
+          localHandFlight={localHandFlight}
+          onLocalHandFlightConsumed={handleLocalHandFlightConsumed}
         >
           <GameTable
             key={tableRenderKey}
