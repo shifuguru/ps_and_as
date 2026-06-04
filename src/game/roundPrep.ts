@@ -243,7 +243,8 @@ export function buildTradesFromServerPending(
   if (pending.president) {
     const presId = Object.keys(roles).find((k) => roles[k] === "president");
     const trade = pending.president;
-    if (presId) {
+    const loser = players.find((p) => p.id === trade.fromId);
+    if (presId && loser && !isDeadHandPlayer(loser)) {
       trades.push({
         key: "president",
         winnerId: presId,
@@ -260,7 +261,8 @@ export function buildTradesFromServerPending(
   if (pending.vicePresident) {
     const vpId = Object.keys(roles).find((k) => roles[k] === "vice_president");
     const trade = pending.vicePresident;
-    if (vpId) {
+    const loser = players.find((p) => p.id === trade.fromId);
+    if (vpId && loser && !isDeadHandPlayer(loser)) {
       trades.push({
         key: "vicePresident",
         winnerId: vpId,

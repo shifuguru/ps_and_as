@@ -77,6 +77,26 @@ assert(gameSync.resolveGamePhase(roomPhase) === "PLAYING", "playing phase");
 roomPhase.gameState.finishedOrder = ["a", "b"];
 assert(gameSync.resolveGamePhase(roomPhase) === "ROUND_COMPLETE", "round complete phase");
 
+const tradesBlocking = {
+  inGame: true,
+  gameState: {
+    players: [{ id: "a", hand: [1] }, { id: "b", hand: [] }],
+    finishedOrder: ["a", "b"],
+    pendingTrades: {
+      president: {
+        fromId: "b",
+        count: 1,
+        incoming: [{ suit: "spades", value: 14 }],
+        selected: null,
+      },
+    },
+  },
+};
+assert(
+  gameSync.resolveGamePhase(tradesBlocking) === "TRADES",
+  "incomplete trades beat round complete in phase",
+);
+
 roomPhase.stateVersion = 0;
 gameSync.bumpStateVersion(roomPhase);
 assert(roomPhase.stateVersion === 1, "version bump");

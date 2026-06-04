@@ -7,6 +7,7 @@ const {
   createGameFromLobby,
   playCards,
   passTurn,
+  repairStuckTurnPointer,
   setTenRuleDirection,
   resolveLeadPlayerIndexAfterTrades,
   resolveOpeningPlayerIndex,
@@ -34,6 +35,7 @@ const {
   syncPayloadForMember,
 } = require('./gameStateView');
 const botHosted = require('./botHostedRooms');
+const { computeRoundXpByPlayerId } = require('./roundXp');
 const tableRoster = require('./tableRoster');
 const gameSync = require('./gameSync');
 const { advancePastInactiveSeats } = require('./turnAdvance');
@@ -185,6 +187,9 @@ function finishOrderForNextRound(room, promoted, prevState) {
 function startNextRound(roomId) {
   const room = rooms[roomId];
   if (!room) return;
+  if (room.isBotHosted) {
+    botHosted.clearBotNextRoundSchedule(room, roomId, io);
+  }
   const prevState = room.gameState;
   const promoted = room.isBotHosted
     ? botHosted.promoteReadySpectators(room)
@@ -422,13 +427,15 @@ function broadcastOnlinePlayerCount() {
 function assignRolesFromFinishOrder(gameState, playersCount, finishOrder) {
   const order = livingFinishOrder(gameState, finishOrder ?? gameState.lastRoundOrder ?? []);
   const roles = {};
-  // Defaults: everyone neutral
-  for (const pid of (order.length ? order : [])) roles[pid] = 'neutral';
+  for (const p of gameState.players || []) {
+    if (isLivingPlayer(p)) roles[p.id] = 'neutral';
+  }
 
-  if (order.length === 0) return roles;
-  // First -> president
+  if (order.length === 0) {
+    gameState.roles = roles;
+    return roles;
+  }
   roles[order[0]] = 'president';
-  // Last -> asshole
   const lastIdx = order.length - 1;
   roles[order[lastIdx]] = 'asshole';
 
@@ -449,8 +456,12 @@ function prepareCardTrades(gameState, playerHands, options = {}) {
   const skipPresidentTrade = !!options.skipPresidentTrade;
 
   // President <-> Asshole
-  const presidentId = Object.keys(roles).find(k => roles[k] === 'president');
-  const assholeId = Object.keys(roles).find(k => roles[k] === 'asshole');
+  const presidentId = Object.keys(roles).find(
+    (k) => roles[k] === 'president' && isLivingPlayer({ id: k }),
+  );
+  const assholeId = Object.keys(roles).find(
+    (k) => roles[k] === 'asshole' && isLivingPlayer({ id: k }),
+  );
 
   const playerCount = livingPlayerCount(gameState);
 
@@ -472,8 +483,12 @@ function prepareCardTrades(gameState, playerHands, options = {}) {
   }
 
   // Vice roles for 5+ players
-  const vicePresId = Object.keys(roles).find(k => roles[k] === 'vice_president');
-  const viceAssId = Object.keys(roles).find(k => roles[k] === 'vice_asshole');
+  const vicePresId = Object.keys(roles).find(
+    (k) => roles[k] === 'vice_president' && isLivingPlayer({ id: k }),
+  );
+  const viceAssId = Object.keys(roles).find(
+    (k) => roles[k] === 'vice_asshole' && isLivingPlayer({ id: k }),
+  );
   if (vicePresId && viceAssId) {
     // Vice Asshole gives 1 best, Vice President chooses 1 to return
     const fromHand = playerHands[viceAssId] || [];
@@ -654,17 +669,9 @@ function allPlayersReadyForNextRound(room) {
   return true;
 }
 
-/** Bot tables wait for spectators only when one has pressed Ready to claim a seat. */
+/** Bot tables: seated players ready skips the rankings countdown (spectators ignored). */
 function botTableCanStartNextRound(room) {
-  if (!allPlayersReadyForNextRound(room)) return false;
-  const spectators = room.players.filter(
-    (p) => p.isSpectator && !p.disconnectedAt,
-  );
-  if (spectators.length === 0) return true;
-  const readyMap = room.gameState?.readyForNextRound || {};
-  const anySpectatorReady = spectators.some((s) => readyMap[s.id] === true);
-  if (!anySpectatorReady) return true;
-  return spectators.every((s) => readyMap[s.id] === true);
+  return allPlayersReadyForNextRound(room);
 }
 
 function tryStartNextRoundIfReady(roomId) {
@@ -673,6 +680,7 @@ function tryStartNextRoundIfReady(roomId) {
   if (isGamePausedForAway(room)) return;
   if (room.isBotHosted) {
     if (!botTableCanStartNextRound(room)) return;
+    botHosted.clearBotNextRoundSchedule(room, roomId, io);
   } else if (!allPlayersReadyForNextRound(room)) {
     return;
   }
@@ -1202,14 +1210,34 @@ function handleRoundFinished(roomId, finishOrder, hands) {
         }
       : null;
 
-  io.to(roomId).emit('roundEnded', { finishOrder, roles, lastPlayerHand });
-  io.to(roomId).emit('playerReadyUpdate', {
-    readyForNextRound: room.gameState.readyForNextRound,
-  });
+  const roundXpByPlayerId = computeRoundXpByPlayerId(room.gameState);
+  room.gameState.roundXpByPlayerId = roundXpByPlayerId;
+  room.gameState.roundXpAwardedAt = Date.now();
 
   if (room.isBotHosted) {
-    botHosted.onBotRoomRoundFinished(room, roomId, getBotContext());
+    botHosted.onBotRoomRoundFinished(
+      room,
+      roomId,
+      getBotContext(),
+      !!lastPlayerHand,
+    );
   }
+
+  const roundEndedPayload = {
+    finishOrder,
+    roles,
+    lastPlayerHand,
+    roundXpByPlayerId,
+    roundXpAwardedAt: room.gameState.roundXpAwardedAt,
+  };
+  if (room.isBotHosted) {
+    Object.assign(roundEndedPayload, botHosted.botNextRoundSyncFields(room));
+  }
+  io.to(roomId).emit('roundEnded', roundEndedPayload);
+  io.to(roomId).emit('playerReadyUpdate', {
+    readyForNextRound: room.gameState.readyForNextRound,
+    ...(room.isBotHosted ? botHosted.botNextRoundSyncFields(room) : {}),
+  });
   if (room.isPublic) broadcastAvailableRooms();
 }
 
@@ -1239,13 +1267,20 @@ function emitBetweenRoundsSnapshot(socket, room) {
         }
       : null;
 
-  socket.emit('roundEnded', {
+  const snapshotPayload = {
     finishOrder,
     roles: gs.roles,
     lastPlayerHand,
-  });
+    roundXpByPlayerId: gs.roundXpByPlayerId ?? computeRoundXpByPlayerId(gs),
+    roundXpAwardedAt: gs.roundXpAwardedAt ?? null,
+  };
+  if (room.isBotHosted) {
+    Object.assign(snapshotPayload, botHosted.botNextRoundSyncFields(room));
+  }
+  socket.emit('roundEnded', snapshotPayload);
   socket.emit('playerReadyUpdate', {
     readyForNextRound: gs.readyForNextRound || {},
+    ...(room.isBotHosted ? botHosted.botNextRoundSyncFields(room) : {}),
   });
 }
 
@@ -1821,6 +1856,7 @@ io.on('connection', (socket) => {
     room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
     reconcileCurrentPlayerIndex(room);
     advancePastInactiveSeats(room, cloneGameState);
+    room.gameState = cloneGameState(repairStuckTurnPointer(room.gameState));
     reconcileCurrentPlayerIndex(room);
     gameSync.bumpStateVersion(room);
     broadcastGameState(io, room);
@@ -1929,7 +1965,10 @@ io.on('connection', (socket) => {
     }
     room.gameState.readyForNextRound[player.id] = true;
 
-    io.to(code).emit('playerReadyUpdate', { readyForNextRound: room.gameState.readyForNextRound });
+    io.to(code).emit('playerReadyUpdate', {
+      readyForNextRound: room.gameState.readyForNextRound,
+      ...(room.isBotHosted ? botHosted.botNextRoundSyncFields(room) : {}),
+    });
 
     tryStartNextRoundIfReady(code);
   });
@@ -2040,5 +2079,12 @@ app.get('/api/online-players', (_req, res) => {
 
 server.listen(PORT, () => {
   console.log('Server listening on', PORT);
-  botHosted.ensureBotHostedRooms(getBotContext());
+  const botCtx = getBotContext();
+  botHosted.ensureBotHostedRooms(botCtx);
+  try {
+    const qaLeague = require('./qaLeagueRooms');
+    qaLeague.ensureQALeagueRoomIfEnabled(botCtx);
+  } catch (err) {
+    console.error('[Server] QA League room setup failed:', err);
+  }
 });

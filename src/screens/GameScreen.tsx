@@ -27,6 +27,10 @@ import {
   resolveRunContext,
   isAdjacentToPileTop,
   nextActivePlayerIndex,
+  advanceOffPriorPasser,
+  playerCanActInCurrentTrick,
+  resolveDisplayTurnPlayerIndex,
+  repairStuckTurnPointer,
   cardsNeededToPlay,
   TrickHistory,
   isJoker,
@@ -114,6 +118,7 @@ import BottomBar, {
   reservedBottomHeight,
 } from "../components/BottomBar";
 import PlayerHand, {
+  handCardIdentity,
   type PlayerHandHandle,
 } from "../components/PlayerHand";
 import ActionBar from "../components/ActionBar";
@@ -124,6 +129,7 @@ import LeaveGameConfirmModal from "../components/LeaveGameConfirmModal";
 import TenRuleModal from "../components/TenRuleModal";
 import GameTable from "../components/GameTable";
 import GamePlayArea, {
+  PLAY_CARD_FLIGHT_MS,
   type LocalHandFlightCapture,
 } from "../components/GamePlayArea";
 import { playDisplayKey } from "../utils/tablePlayFlight";
@@ -136,6 +142,7 @@ import DealerReshuffleButton from "../components/DealerReshuffleButton";
 import RoleTradeModal from "../components/RoleTradeModal";
 import RoleTradeStrip from "../components/RoleTradeStrip";
 import TableCardFlight, { type CardFlightSpec } from "../components/TableCardFlight";
+import ScreenFlightPortal from "../components/ScreenFlightPortal";
 import { seatOriginInPlayArea } from "../utils/tablePlayFlight";
 import { computePlayAreaLayout } from "../utils/tableLayout";
 import LobbyPlayerModal, {
@@ -234,6 +241,7 @@ type ServerAugmentedState = GameState & {
   roles?: Record<string, string>;
   playerHands?: Record<string, CardType[]>;
   readyForNextRound?: Record<string, boolean>;
+  roundXpByPlayerId?: Record<string, number>;
   stateVersion?: number;
   phase?: string;
 };
@@ -411,7 +419,10 @@ type TrickPauseSnapshot = {
 
 type CeremonyPrepPayload = {
   baseState: GameState;
+  /** Empty hands for deal animation only. */
   players: GameState["players"];
+  /** Post-deal hands for role trades (must not use animation `players`). */
+  dealtPlayers: GameState["players"];
   trades: ClientPendingTrade[];
   dealSeed?: number;
   finishOrder: string[];
@@ -502,6 +513,7 @@ function GameScreen({
   } | null>(null);
   const tradeReturnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [roundOver, setRoundOver] = useState(false);
+  const [botNextRoundAt, setBotNextRoundAt] = useState<number | null>(null);
   const [lastHandReveal, setLastHandReveal] = useState<LastHandRevealPayload | null>(
     null,
   );
@@ -655,6 +667,13 @@ function GameScreen({
   const readOnlyOnline = onlineMultiplayer && spectatorMode;
   const isBotOpenTable =
     effectiveRoomId?.trim().toUpperCase() === "BOTOPN";
+  const applyBotNextRoundDeadline = useCallback(
+    (deadline: unknown) => {
+      if (!isBotOpenTable) return;
+      setBotNextRoundAt(typeof deadline === "number" ? deadline : null);
+    },
+    [isBotOpenTable],
+  );
   const seatedPlayerIds = useMemo(() => {
     if (!state?.players) return new Set<string>();
     return new Set(
@@ -799,7 +818,9 @@ function GameScreen({
       localCareerXp != null) &&
       (!onlineMultiplayer || !scoreboardCareerXpLoading));
 
-  const turnPlayer = state?.players[state.currentPlayerIndex];
+  const turnPlayer = state
+    ? state.players[resolveDisplayTurnPlayerIndex(state)]
+    : undefined;
   const turnPlayerId = turnPlayer?.id ?? null;
   const turnPlayerIsCpu = isCpuPlayer(turnPlayer);
   const bellPaused =
@@ -1150,7 +1171,13 @@ function GameScreen({
           setState(hiddenState);
           return;
         }
-        beginTradePhase(prep.baseState, prep.players, prep.trades);
+        const tradePlayers = prep.serverPlayerHands
+          ? applyServerPlayerHands(
+              prep.dealtPlayers ?? prep.players,
+              prep.serverPlayerHands,
+            )
+          : prep.dealtPlayers ?? prep.players;
+        beginTradePhase(prep.baseState, tradePlayers, prep.trades);
         return;
       }
 
@@ -1196,7 +1223,13 @@ function GameScreen({
         );
         return;
       }
-      beginTradePhase(prep.baseState, prep.players, prep.trades);
+      const tradePlayers = prep.serverPlayerHands
+        ? applyServerPlayerHands(
+            prep.dealtPlayers ?? prep.players,
+            prep.serverPlayerHands,
+          )
+        : prep.dealtPlayers ?? prep.players;
+      beginTradePhase(prep.baseState, tradePlayers, prep.trades);
       return;
     }
     const pending = pendingTradesCompleteRef.current;
@@ -1235,7 +1268,8 @@ function GameScreen({
           lastRoundOrder:
             finishedOrder.length >= 2 ? finishedOrder : baseState.lastRoundOrder,
         },
-        players: deal.players,
+        players: ceremonyPlayersForDealAnimation(deal.players),
+        dealtPlayers: deal.players,
         trades: deal.trades,
         dealSeed: nextDealSeed,
         finishOrder: finishedOrder,
@@ -1336,6 +1370,7 @@ function GameScreen({
   }
 
   const resetForBotTableRefresh = useCallback(() => {
+    setBotNextRoundAt(null);
     resetBetweenRoundsUi();
     clearTradeReturnReveal();
     pendingTradesCompleteRef.current = null;
@@ -1443,6 +1478,7 @@ function GameScreen({
             : prep.baseState.lastRoundOrder,
       },
       players: ceremonyPlayersForDealAnimation(deal.players),
+      dealtPlayers: deal.players,
       trades: deal.trades,
       serverPlayerHands: prep.serverPlayerHands ?? null,
       dealSeed: newSeed,
@@ -1607,7 +1643,7 @@ function GameScreen({
       state.finishedOrder ?? [],
     );
     const runBonusXp = runTrickBonusXpAmount(runLength, RUN_CARD_XP);
-    if (winnerId) {
+    if (winnerId && !(onlineMultiplayer && isBotOpenTable)) {
       const trickXp = TRICK_WIN_XP + runBonusXp;
       setGameXpByPlayerId((prev) => ({
         ...prev,
@@ -1629,7 +1665,7 @@ function GameScreen({
     setShowWinnerBanner(false);
     setStackCollecting(false);
     setTrickPauseActive(true);
-  }, [state]);
+  }, [state, onlineMultiplayer, isBotOpenTable]);
 
   // Trick-end animation timers (collect → banner → resume).
   useEffect(() => {
@@ -1979,7 +2015,10 @@ function GameScreen({
         effectiveRoomId?.trim().toUpperCase() === "BOTOPN" &&
         shouldSkipDealAnimations();
 
-      if (botOpenSkipCeremony && !shouldSkipDealCeremony(parsed)) {
+      if (
+        botOpenSkipCeremony &&
+        (parsed.phase === "PLAYING" || !shouldSkipDealCeremony(parsed))
+      ) {
         ceremonyStartedForRoundRef.current = roundKey;
         ceremonyDoneForRoundRef.current = roundKey;
         awaitingDealCeremonyRef.current = false;
@@ -2036,6 +2075,7 @@ function GameScreen({
           const prep: CeremonyPrepPayload = {
             baseState: parsed,
             players: ceremonyPlayers,
+            dealtPlayers: deal.players,
             trades,
             dealSeed: roundDealSeed,
             finishOrder,
@@ -2084,7 +2124,17 @@ function GameScreen({
         setPlayerReadyStates((prev) => ({ ...prev, ...serverReady }));
       }
 
-      setState(parsed);
+      if (
+        isBotOpenTable &&
+        parsed.roundXpByPlayerId &&
+        isRoundCompleteForLiving(parsed) &&
+        !parsed.tenRulePending
+      ) {
+        setRoundXpByPlayerId(parsed.roundXpByPlayerId);
+        setGameXpByPlayerId(parsed.roundXpByPlayerId);
+      }
+
+      setState(repairStuckTurnPointer(parsed));
       finishSpectator();
     };
 
@@ -2142,6 +2192,14 @@ function GameScreen({
         ev.state?.type === "gameStateSync"
       ) {
         applyServerSync(ev.state.gameState, ev.state.spectator);
+        if (isBotOpenTable) {
+          applyBotNextRoundDeadline(ev.state.botNextRoundAt);
+        }
+      } else if (
+        ev.type === "state" &&
+        ev.state?.type === "botNextRoundAt"
+      ) {
+        applyBotNextRoundDeadline(ev.state.botNextRoundAt);
       } else if (
         ev.type === "state" &&
         ev.state?.type === "playerDisconnected"
@@ -2350,6 +2408,12 @@ function GameScreen({
         if (readyMap && typeof readyMap === "object") {
           setPlayerReadyStates({ ...readyMap });
         }
+        if (
+          isBotOpenTable &&
+          ev.state.botNextRoundAt !== undefined
+        ) {
+          applyBotNextRoundDeadline(ev.state.botNextRoundAt);
+        }
       } else if (ev.type === "state" && ev.state?.type === "botTableSkipped") {
         const note =
           typeof ev.state.message === "string"
@@ -2396,13 +2460,29 @@ function GameScreen({
         } else {
           finishLastHandReveal();
         }
+        if (
+          isBotOpenTable &&
+          ev.state.roundXpByPlayerId &&
+          typeof ev.state.roundXpByPlayerId === "object"
+        ) {
+          const serverRoundXp = ev.state.roundXpByPlayerId as Record<
+            string,
+            number
+          >;
+          setRoundXpByPlayerId(serverRoundXp);
+          setGameXpByPlayerId(serverRoundXp);
+        }
         roundTransitionLog("setRoundOver(true)", { source: "roundEnded" });
         setRoundOver(true);
+        if (isBotOpenTable) {
+          applyBotNextRoundDeadline(ev.state.botNextRoundAt);
+        }
       } else if (ev.type === "state" && ev.state?.type === "nextRoundStarting") {
         roundTransitionLog("nextRoundStarting received", {
           dealSeed: ev.state.dealSeed ?? null,
         });
         resetBetweenRoundsUi();
+        setBotNextRoundAt(null);
         if (onlineMultiplayer) {
           pendingTradesCompleteRef.current = null;
           setCeremonyPrep(null);
@@ -2552,6 +2632,8 @@ function GameScreen({
     launchCeremonyFromDeal,
     seedFromProps,
     effectiveRoomId,
+    isBotOpenTable,
+    applyBotNextRoundDeadline,
     onlineMultiplayer,
   ]);
 
@@ -2763,20 +2845,19 @@ function GameScreen({
     // If current player has already passed in this trick, auto-advance to next player
     // (never skip the run/10-rule on-top beat — that is a fresh must-play turn).
     if (hasPassedInCurrentTrick(state, current.id) && !isRunOnTopTurn) {
-      const nextState = passTurn(state, current.id);
+      const nextState = advanceOffPriorPasser(state);
       emitDebug("action:pass:auto:already-passed", {
         playerId: current.id,
         playerName: current.name,
-        reason: "auto-pass (player already passed earlier in trick)",
+        reason: "advance off prior passer (no duplicate pass)",
         before: snapshotState(state),
       });
-      if (nextState !== state) {
-        setState(nextState);
-      } else if (
+      if (
         nextState.currentPlayerIndex !== state.currentPlayerIndex ||
-        (nextState.trickHistory?.length ?? 0) !== (state.trickHistory?.length ?? 0)
+        (nextState.trickHistory?.length ?? 0) !== (state.trickHistory?.length ?? 0) ||
+        !!nextState.runOnTop?.active !== !!state.runOnTop?.active
       ) {
-        setState({ ...nextState });
+        setState(nextState);
       }
       return;
     }
@@ -3026,6 +3107,7 @@ function GameScreen({
         focused,
         setFocused,
         roundOver,
+        botNextRoundAt,
         lastHandReveal,
         clearLastHandReveal,
         finishLastHandReveal,
@@ -3129,6 +3211,7 @@ function GameScreenBoard() {
     focused,
     setFocused,
     roundOver,
+    botNextRoundAt,
     lastHandReveal,
     clearLastHandReveal,
     finishLastHandReveal,
@@ -3237,6 +3320,7 @@ function GameScreenBoard() {
     focused: number | null;
     setFocused: React.Dispatch<React.SetStateAction<number | null>>;
     roundOver: boolean;
+    botNextRoundAt: number | null;
     lastHandReveal: LastHandRevealPayload | null;
     clearLastHandReveal: () => void;
     finishLastHandReveal: () => void;
@@ -3361,11 +3445,47 @@ function GameScreenBoard() {
   );
   const { ui, blur } = useAppTheme();
   const playAreaHostRef = useRef<View>(null);
+  const [elevatedHandFlights, setElevatedHandFlights] = useState<
+    CardFlightSpec[]
+  >([]);
+  const elevatedFlightCompleteRef = useRef<((id: string) => void) | null>(null);
+  const localHandFlightRef = useRef<LocalHandFlightCapture | null>(null);
   const [localHandFlight, setLocalHandFlight] =
     useState<LocalHandFlightCapture | null>(null);
+  const pendingLocalPlayRef = useRef<GameState | null>(null);
+  const [handPlayInFlight, setHandPlayInFlight] = useState<{
+    playKey: string;
+    cardKeys: string[];
+    cards: CardType[];
+    playerId: string;
+    concealHand: boolean;
+  } | null>(null);
   const handleLocalHandFlightConsumed = useCallback((playKey: string) => {
+    if (localHandFlightRef.current?.playKey === playKey) {
+      localHandFlightRef.current = null;
+    }
     setLocalHandFlight((prev) => (prev?.playKey === playKey ? null : prev));
   }, []);
+  const completeHandPlayFlight = useCallback((playKey: string) => {
+    if (pendingLocalPlayRef.current) {
+      setState(pendingLocalPlayRef.current);
+      pendingLocalPlayRef.current = null;
+    }
+    setSelected([]);
+  }, [setState, setSelected]);
+  const handlePlayFlightStarted = useCallback((playKey: string) => {
+    setHandPlayInFlight((prev) =>
+      prev?.playKey === playKey ? { ...prev, concealHand: true } : prev,
+    );
+  }, []);
+  const handlePlayFlightLanded = useCallback(
+    (playKey: string) => {
+      if (handPlayInFlight?.playKey === playKey) {
+        completeHandPlayFlight(playKey);
+      }
+    },
+    [handPlayInFlight, completeHandPlayFlight],
+  );
   const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [remoteAvatarBordersByPlayerId, setRemoteAvatarBordersByPlayerId] =
@@ -3584,7 +3704,15 @@ function GameScreenBoard() {
       </ScreenContainer>
     );
   }
-  const turnHighlightPlayerId = revealTurnHighlight ? current.id : "";
+  const displayTurnIndex = resolveDisplayTurnPlayerIndex(state);
+  const displayTurnPlayer =
+    state.players[displayTurnIndex] ?? current;
+  const displaySeatCanAct = playerCanActInCurrentTrick(
+    state,
+    displayTurnIndex,
+  );
+  const turnHighlightPlayerId =
+    revealTurnHighlight && displaySeatCanAct ? displayTurnPlayer.id : "";
 
   const currentIsLocalHuman = !!myPlayerId && current.id === myPlayerId;
   const currentIsOut =
@@ -3597,12 +3725,25 @@ function GameScreenBoard() {
     !trickPauseActive &&
     !!myPlayerId &&
     tenRuleChooserId === myPlayerId;
+  const localHumanId = myPlayerId ?? humanPlayer?.id;
+  const runOnTopActive =
+    !!state.runOnTop?.active &&
+    state.runOnTop.playerIndex === state.currentPlayerIndex;
+  const humanRunOnTopTurn =
+    !!state.runOnTop?.active &&
+    !!myPlayerId &&
+    state.players[state.runOnTop.playerIndex]?.id === myPlayerId;
+  const localIsOut =
+    !!humanPlayer &&
+    (state.finishedOrder.includes(humanPlayer.id) ||
+      humanPlayer.hand.length === 0);
   const isHumanTurn =
     !!myPlayerId &&
-    current.id === myPlayerId &&
     !trickPauseActive &&
-    !currentIsOut &&
-    !state.tenRulePending;
+    !localIsOut &&
+    !state.tenRulePending &&
+    (humanRunOnTopTurn ||
+      (displayTurnPlayer.id === myPlayerId && displaySeatCanAct));
 
   const humanCanAckPass =
     !!myPlayerId &&
@@ -3611,21 +3752,29 @@ function GameScreenBoard() {
     !currentIsOut &&
     !state.tenRulePending;
   const isHumanPassEligible = isHumanTurn || humanCanAckPass;
-  const localHumanId = myPlayerId ?? humanPlayer?.id;
 
   let hand = [] as CardType[];
   const handPlayer =
     (myPlayerId && state.players.find((p) => p.id === myPlayerId)) ??
     humanPlayer;
   if (handPlayer) {
-    hand = [...handPlayer.hand].sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
+    hand = [...handPlayer.hand];
+    if (
+      handPlayInFlight &&
+      !handPlayInFlight.concealHand &&
+      handPlayInFlight.cards.length > 0
+    ) {
+      for (const card of handPlayInFlight.cards) {
+        const id = handCardIdentity(card);
+        if (!hand.some((h) => handCardIdentity(h) === id)) {
+          hand.push(card);
+        }
+      }
+    }
+    hand.sort((a, b) => rankIndex(a.value) - rankIndex(b.value));
   }
 
   const selectedCards = selected.map((index) => hand[index]).filter(Boolean);
-  const runOnTopActive =
-    !!state.runOnTop?.active &&
-    state.runOnTop.playerIndex === state.currentPlayerIndex;
-  const humanRunOnTopTurn = runOnTopActive && currentIsLocalHuman;
   const effectiveTenRule = resolveEffectiveTenRule(state);
 
   const selectedCanPlay =
@@ -3806,18 +3955,29 @@ function GameScreenBoard() {
     const handOrigin = handRef.current
       ? await handRef.current.measurePlayOrigin(playIndices)
       : null;
+    const cardKeys = cards.map((c) => handCardIdentity(c));
+    setSelected([]);
+    setHandPlayInFlight({
+      playKey: playFlightKey,
+      cardKeys,
+      cards,
+      playerId: flightPlayerId,
+      concealHand: false,
+    });
+
     if (handOrigin) {
-      setLocalHandFlight({
+      const capture: LocalHandFlightCapture = {
         playKey: playFlightKey,
         screenX: handOrigin.x,
         screenY: handOrigin.y,
         fromCardW: handMetrics.cardWidth,
         fromCardH: handMetrics.cardHeight,
-      });
+      };
+      localHandFlightRef.current = capture;
+      setLocalHandFlight(capture);
     }
 
     if (onlineMultiplayer) {
-      setSelected([]);
       setActionPending(true);
       broadcastGameAction({
         type: "play",
@@ -3829,7 +3989,9 @@ function GameScreenBoard() {
 
     const next = playCards(state, actor.id, cards);
     if (next === state) {
+      localHandFlightRef.current = null;
       setLocalHandFlight(null);
+      setHandPlayInFlight(null);
       emitDebug("action:play:human:failed", {
         playerId: actor.id,
         playerName: actor.name,
@@ -3844,8 +4006,7 @@ function GameScreenBoard() {
         cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
         after: snapshotState(next),
       });
-      setSelected([]);
-      setState(next);
+      pendingLocalPlayRef.current = next;
       broadcastGameAction({
         type: "play",
         playerId: actor.id,
@@ -3872,6 +4033,10 @@ function GameScreenBoard() {
       before: snapshotState(state),
     });
     if (onlineMultiplayer) {
+      const optimistic = passTurn(state, actor.id);
+      if (optimistic !== state) {
+        setState(optimistic);
+      }
       setActionPending(true);
       broadcastGameAction({
         type: "pass",
@@ -3945,12 +4110,54 @@ function GameScreenBoard() {
   const trickPlays = buildTrickPlayDisplays(state);
   const activeLastPlayId = lastPlayPlayerId(state);
 
-  const displayPlays: TrickPlayDisplay[] =
-    trickPauseActive && trickPauseSnapshot
-      ? trickPauseSnapshot.plays
-      : trickPlays;
+  const displayPlays: TrickPlayDisplay[] = useMemo(() => {
+    const base =
+      trickPauseActive && trickPauseSnapshot
+        ? trickPauseSnapshot.plays
+        : trickPlays;
+    if (!handPlayInFlight?.cards.length) return base;
+    const key = handPlayInFlight.playKey;
+    if (base.some((p) => playDisplayKey(p) === key)) return base;
+    return [
+      ...base,
+      {
+        cards: handPlayInFlight.cards,
+        playerId: handPlayInFlight.playerId,
+      },
+    ];
+  }, [
+    trickPauseActive,
+    trickPauseSnapshot,
+    trickPlays,
+    handPlayInFlight,
+  ]);
+
+  /** Drop optimistic hand flight only after the play is in authoritative trick state. */
+  useEffect(() => {
+    if (!handPlayInFlight) return;
+    const key = handPlayInFlight.playKey;
+    if (trickPlays.some((p) => playDisplayKey(p) === key)) {
+      setHandPlayInFlight(null);
+    }
+  }, [trickPlays, handPlayInFlight]);
 
   const trickPauseFrozen = trickPauseActive;
+  const handPlayReachedTableRef = useRef(false);
+  useEffect(() => {
+    if (!handPlayInFlight) {
+      handPlayReachedTableRef.current = false;
+      return;
+    }
+    const key = handPlayInFlight.playKey;
+    const onTable = displayPlays.some((p) => playDisplayKey(p) === key);
+    if (onTable) {
+      handPlayReachedTableRef.current = true;
+      return;
+    }
+    if (handPlayReachedTableRef.current) {
+      completeHandPlayFlight(key);
+    }
+  }, [displayPlays, handPlayInFlight, completeHandPlayFlight]);
 
   const opponentPlayers = state.players.map((p) => ({
     id: p.id,
@@ -4229,7 +4436,7 @@ function GameScreenBoard() {
             !roundOver
           ? isHumanTurn
             ? "Your turn"
-            : formatWaitingForTurnHint(current.name)
+            : formatWaitingForTurnHint(displayTurnPlayer.name)
           : null;
 
   const turnHintFlash = turnHintText === "Your turn";
@@ -4269,60 +4476,6 @@ function GameScreenBoard() {
           pointerEvents="none"
         >
           <Text style={local.roomNoticeText}>{bannerNotice}</Text>
-        </View>
-      ) : null}
-      {onNavigateToSettings || onNavigateToAchievements ? (
-        <View
-          style={[local.topHeaderRow, { top: contentTopPadding + 4 }]}
-          pointerEvents="box-none"
-        >
-          <View style={local.topHeaderSpacer} />
-          {onNavigateToSettings || onNavigateToAchievements ? (
-            <View style={local.topFabRow}>
-              {onNavigateToSettings ? (
-                <TouchableOpacity
-                  style={[
-                    local.statsFab,
-                    {
-                      backgroundColor:
-                        colors.mode === "light"
-                          ? "rgba(255,255,255,0.72)"
-                          : "rgba(255,255,255,0.1)",
-                      borderColor: colors.btnGoldBorder,
-                    },
-                  ]}
-                  onPress={onNavigateToSettings}
-                  accessibilityRole="button"
-                  accessibilityLabel="Settings"
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <MenuIcon name="gear" size={18} color={colors.gold} />
-                </TouchableOpacity>
-              ) : null}
-              {onNavigateToAchievements ? (
-                <TouchableOpacity
-                  style={[
-                    local.statsFab,
-                    {
-                      backgroundColor:
-                        colors.mode === "light"
-                          ? "rgba(255,255,255,0.72)"
-                          : "rgba(255,255,255,0.1)",
-                      borderColor: colors.btnGoldBorder,
-                    },
-                  ]}
-                  onPress={onNavigateToAchievements}
-                  accessibilityRole="button"
-                  accessibilityLabel="View player stats"
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <MenuIcon name="trophy" size={18} color={colors.gold} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          ) : (
-            <View style={local.topHeaderSpacer} />
-          )}
         </View>
       ) : null}
       {/* Toggleable structured debug overlay (doesn't block bottom hand) */}
@@ -4436,7 +4589,12 @@ function GameScreenBoard() {
           onPlayerPress={handlePlayerProfilePress}
           onPlayAreaMetrics={setLivePlayAreaMetrics}
           localHandFlight={localHandFlight}
+          localHandFlightRef={localHandFlightRef}
           onLocalHandFlightConsumed={handleLocalHandFlightConsumed}
+          onPlayFlightStarted={handlePlayFlightStarted}
+          onPlayFlightLanded={handlePlayFlightLanded}
+          onElevatedHandFlightsChange={setElevatedHandFlights}
+          elevatedFlightCompleteRef={elevatedFlightCompleteRef}
         >
           <GameTable
             key={tableRenderKey}
@@ -4479,9 +4637,13 @@ function GameScreenBoard() {
               ref={handRef}
               cards={hand}
               selectedIndices={selected}
+              pinnedSelectedCardKeys={handPlayInFlight?.cardKeys}
+              hiddenCardKeys={
+                handPlayInFlight?.concealHand ? handPlayInFlight.cardKeys : []
+              }
               playableIndices={playableIndices}
               startingCardIndex={startingCardIndex}
-              disabled={!isHumanTurn}
+              disabled={!isHumanTurn || !!handPlayInFlight}
               onCardPress={handleCardPress}
             />
           </BottomBarHand>
@@ -4567,6 +4729,50 @@ function GameScreenBoard() {
                     label="Leave"
                   />
                 ) : null}
+                {onNavigateToSettings || onNavigateToAchievements ? (
+                  <View style={local.bottomFabRow}>
+                    {onNavigateToSettings ? (
+                      <TouchableOpacity
+                        style={[
+                          local.statsFab,
+                          {
+                            backgroundColor:
+                              colors.mode === "light"
+                                ? "rgba(255,255,255,0.72)"
+                                : "rgba(255,255,255,0.1)",
+                            borderColor: colors.btnGoldBorder,
+                          },
+                        ]}
+                        onPress={onNavigateToSettings}
+                        accessibilityRole="button"
+                        accessibilityLabel="Settings"
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <MenuIcon name="gear" size={18} color={colors.gold} />
+                      </TouchableOpacity>
+                    ) : null}
+                    {onNavigateToAchievements ? (
+                      <TouchableOpacity
+                        style={[
+                          local.statsFab,
+                          {
+                            backgroundColor:
+                              colors.mode === "light"
+                                ? "rgba(255,255,255,0.72)"
+                                : "rgba(255,255,255,0.1)",
+                            borderColor: colors.btnGoldBorder,
+                          },
+                        ]}
+                        onPress={onNavigateToAchievements}
+                        accessibilityRole="button"
+                        accessibilityLabel="View player stats"
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <MenuIcon name="trophy" size={18} color={colors.gold} />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ) : null}
               </View>
             </>
           ) : awaitingDealerReshuffle ? (
@@ -4581,11 +4787,13 @@ function GameScreenBoard() {
           {!readOnlyOnline && !tradePhase ? (
           <ActionBar
             leaveOnly={gameplayLocked}
-            selectedCount={selected.length}
+            selectedCount={handPlayInFlight ? 0 : selected.length}
             onPlay={handlePlayPress}
             onPass={handlePassPress}
             onQuit={requestLeaveGame}
-            playDisabled={gameplayLocked || !isHumanTurn || roundOver || (hasPassedInCurrentTrick(state, current.id) && !humanRunOnTopTurn) || selected.length === 0 || !selectedCanPlay}
+            onNavigateToSettings={onNavigateToSettings}
+            onNavigateToAchievements={onNavigateToAchievements}
+            playDisabled={gameplayLocked || !!handPlayInFlight || !isHumanTurn || roundOver || (!!localHumanId && hasPassedInCurrentTrick(state, localHumanId) && !humanRunOnTopTurn) || selected.length === 0 || !selectedCanPlay}
             passDisabled={
               gameplayLocked ||
               !isHumanPassEligible ||
@@ -4697,6 +4905,19 @@ function GameScreenBoard() {
         onConfirm={handleTradeConfirm}
       />
 
+      {elevatedHandFlights.length > 0 ? (
+        <ScreenFlightPortal>
+          {elevatedHandFlights.map((flight) => (
+            <TableCardFlight
+              key={flight.id}
+              flight={flight}
+              durationMs={PLAY_CARD_FLIGHT_MS}
+              onComplete={(id) => elevatedFlightCompleteRef.current?.(id)}
+            />
+          ))}
+        </ScreenFlightPortal>
+      ) : null}
+
       {tradeReturnFlight ? (
         <View style={local.tradeReturnFlightLayer} pointerEvents="none">
           <TableCardFlight
@@ -4729,6 +4950,7 @@ function GameScreenBoard() {
         localPlayerId={myPlayerId ?? undefined}
         spectatorMode={spectatorMode}
         botsAutoReady={isBotOpenTable}
+        botNextRoundAt={isBotOpenTable ? botNextRoundAt : null}
         deadHandSeatOpen={
           state.players.some(isDeadHandPlayer) || openSeatAvailable
         }
@@ -4791,7 +5013,7 @@ const local = StyleSheet.create({
   topHeaderSpacer: {
     flex: 1,
   },
-  topFabRow: {
+  bottomFabRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,

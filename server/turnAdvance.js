@@ -12,6 +12,7 @@ const {
   nextActivePlayerIndex,
   nextAcknowledgmentPlayerIndex,
   resolveCompletedAcknowledgmentTrick,
+  advanceOffPriorPasser,
 } = require("./gameBridge");
 const { isCpuLobbyId } = require("./tableRoster");
 
@@ -82,6 +83,25 @@ function advancePastInactiveSeats(room, cloneGameState) {
       resolved = resolveCompletedAcknowledgmentTrick(working);
       if (pileUp && resolved.pile.length === 0) {
         working = resolved;
+        continue;
+      }
+      break;
+    }
+    if (hasPassedInCurrentTrick(working, current.id) && !runOnTopTurn) {
+      const prev = working.currentPlayerIndex;
+      const trickLenBefore = working.trickHistory?.length ?? 0;
+      const pileLenBefore = working.pile.length;
+      working = cloneGameState(advanceOffPriorPasser(working));
+      if (
+        working.currentPlayerIndex !== prev ||
+        (working.trickHistory?.length ?? 0) !== trickLenBefore ||
+        working.pile.length !== pileLenBefore
+      ) {
+        continue;
+      }
+      const forced = nextActivePlayerIndex(working, prev);
+      if (forced !== prev) {
+        working.currentPlayerIndex = forced;
         continue;
       }
       break;

@@ -36,6 +36,9 @@ yarn-error.*
 
 server/data/player-stats.json
 
+# QA League harness output
+reports/qa/
+
 
 # generated native folders
 /ios

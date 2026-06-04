@@ -43,6 +43,8 @@ type Props = {
   spectatorMode?: boolean;
   /** Bot-hosted table — seated bots are always ready for the next deal. */
   botsAutoReady?: boolean;
+  /** Server epoch ms when the next deal auto-starts (authoritative; do not compute client-side). */
+  botNextRoundAt?: number | null;
   deadHandSeatOpen?: boolean;
   onQuit: () => void;
   onToggleReady: () => void;
@@ -190,6 +192,7 @@ export default function RoundCompleteModal({
   localPlayerId,
   spectatorMode = false,
   botsAutoReady = false,
+  botNextRoundAt = null,
   deadHandSeatOpen = false,
   onQuit,
   onToggleReady,
@@ -210,28 +213,52 @@ export default function RoundCompleteModal({
     return next;
   }, [readyStates, botsAutoReady, players]);
   const isReady = localPlayerId ? !!displayReadyStates[localPlayerId] : false;
+  const seatedForReady = useMemo(
+    () =>
+      players.filter(
+        (p) => !p.isDeadHand && p.id !== "__dead_hand__" && !isCpuPlayer(p),
+      ),
+    [players],
+  );
   const readyDenominator =
     botsAutoReady && canClaimSeat
       ? 1
       : canClaimSeat
-        ? players.length + 1
-        : players.length;
+        ? seatedForReady.length + 1
+        : seatedForReady.length;
   const readyCount =
     botsAutoReady && canClaimSeat
       ? isReady
         ? 1
         : 0
-      : Object.values(displayReadyStates).filter(Boolean).length;
+      : seatedForReady.filter((p) => displayReadyStates[p.id]).length;
   const rankedOrder = useMemo(
     () => livingFinishedOrder(players, finishedOrder),
     [players, finishedOrder],
   );
   const livingCount = players.filter((p) => !p.isDeadHand && p.id !== "__dead_hand__").length;
   const [boardDisplayed, setBoardDisplayed] = useState(false);
+  const [botDealSecondsLeft, setBotDealSecondsLeft] = useState<number | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!visible) setBoardDisplayed(false);
   }, [visible]);
+
+  useEffect(() => {
+    if (!visible || !botsAutoReady || botNextRoundAt == null) {
+      setBotDealSecondsLeft(null);
+      return;
+    }
+    const tick = () => {
+      const msLeft = botNextRoundAt - Date.now();
+      setBotDealSecondsLeft(Math.max(0, Math.ceil(msLeft / 1000)));
+    };
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [visible, botsAutoReady, botNextRoundAt]);
 
   // Web / edge cases: onShow can lag behind visible — fall back once fade should be done.
   useEffect(() => {
@@ -326,6 +353,14 @@ export default function RoundCompleteModal({
                 ? "Ready (incl. dead hand seat)"
                 : "Players Ready"}
           </Text>
+
+          {botsAutoReady && botDealSecondsLeft != null ? (
+            <Text style={styles.botDealTimer}>
+              {botDealSecondsLeft > 0
+                ? `Next deal in ${botDealSecondsLeft}s — skips when all players are ready`
+                : "Starting next deal…"}
+            </Text>
+          ) : null}
 
           {canClaimSeat ? (
             <Text style={styles.spectatorHint}>
@@ -525,7 +560,16 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     fontWeight: "600",
     letterSpacing: 0.2,
     textAlign: "center",
+    marginBottom: 6,
+  },
+  botDealTimer: {
+    color: colors.gold,
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.25,
+    textAlign: "center",
     marginBottom: 14,
+    fontVariant: ["tabular-nums"],
   },
   spectatorHint: {
     color: colors.textMuted,

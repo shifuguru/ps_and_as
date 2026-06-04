@@ -542,6 +542,25 @@ export class SocketAdapter implements NetworkAdapter {
             type: "gameStateSync",
             gameState: data.gameState,
             spectator: !!data?.spectator,
+            botNextRoundAt:
+              typeof data?.botNextRoundAt === "number"
+                ? data.botNextRoundAt
+                : null,
+          },
+        }),
+      );
+    });
+
+    this.socket.on("botNextRoundAt", (data: any) => {
+      this.handlers.forEach((h) =>
+        h({
+          type: "state",
+          state: {
+            type: "botNextRoundAt",
+            botNextRoundAt:
+              typeof data?.botNextRoundAt === "number"
+                ? data.botNextRoundAt
+                : null,
           },
         }),
       );
@@ -557,6 +576,15 @@ export class SocketAdapter implements NetworkAdapter {
             roles: data.roles,
             stats: data.stats,
             lastPlayerHand: data.lastPlayerHand ?? null,
+            roundXpByPlayerId:
+              data.roundXpByPlayerId &&
+              typeof data.roundXpByPlayerId === "object"
+                ? data.roundXpByPlayerId
+                : undefined,
+            botNextRoundAt:
+              typeof data.botNextRoundAt === "number"
+                ? data.botNextRoundAt
+                : null,
           },
         }),
       );
@@ -599,6 +627,10 @@ export class SocketAdapter implements NetworkAdapter {
           state: {
             type: "playerReadyUpdate",
             readyForNextRound: data.readyForNextRound,
+            botNextRoundAt:
+              typeof data?.botNextRoundAt === "number"
+                ? data.botNextRoundAt
+                : undefined,
           },
         }),
       );

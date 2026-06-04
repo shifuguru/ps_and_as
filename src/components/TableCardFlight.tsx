@@ -17,6 +17,8 @@ export type CardFlightSpec = {
   /** Deal ceremony — size of the card on the deck before peel. */
   fromCardW?: number;
   fromCardH?: number;
+  /** Play flew from the local hand — parent may render in a screen-level overlay. */
+  fromLocalHand?: boolean;
 };
 
 type Props = {
@@ -27,11 +29,11 @@ type Props = {
 
 const FLIGHT_EASING = Easing.bezier(0.25, 0.85, 0.35, 1);
 /** Progress when the flying copy reaches the table slot — hand off to GameTable here. */
-const LAND_AT = 0.9;
+const LAND_AT = 1;
 
 export default function TableCardFlight({
   flight,
-  durationMs = 480,
+  durationMs = 640,
   onComplete,
 }: Props) {
   const progress = useRef(new Animated.Value(0)).current;
@@ -123,6 +125,8 @@ export default function TableCardFlight({
           top: flight.fromY,
           width: 0,
           height: 0,
+          zIndex: 10000,
+          elevation: 10000,
         },
       ]}
     >
@@ -154,6 +158,8 @@ export default function TableCardFlight({
             <Card
               card={card}
               selected={false}
+              highlight={0}
+              disabled={false}
               variant="table"
               faceDown={!!card.hidden}
               cornerRadius={flight.cornerRadius}
@@ -176,7 +182,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     top: 0,
-    overflow: "hidden",
+    overflow: "visible",
   },
   bundleCard: {
     position: "absolute",

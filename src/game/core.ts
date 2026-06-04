@@ -452,27 +452,14 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     state.runOnTop?.active && state.runOnTop.playerIndex === pIndex;
   const effectiveTenRule = resolveEffectiveTenRule(state);
 
-  // If the player already passed in the current trick, they have forfeited
-  // the rest of this trick and cannot play again until the pile is cleared
-  // and a new trick begins. We check currentTrick actions for a prior pass.
-  // The run/10-rule on-top beat is a fresh must-play turn for the leader.
+  // Prior passers cannot play again this trick (run on-top is a fresh beat for the leader).
   if (
     state.currentTrick &&
     !isRunOnTopTurn &&
-    state.currentTrick.actions.some(a => a.type === 'pass' && a.playerId === playerId)
+    hasPassedInCurrentTrick(state, playerId)
   ) {
-    // Player already passed this trick — instead of invoking full
-    // `passTurn` (which may finalize the trick immediately), record an
-    // additional pass action and advance the turn. This keeps the new pass
-    // visible in `currentTrick.actions` for callers/tests that expect it.
-    state.currentTrick.actions.push({
-      type: "pass",
-      playerId: player.id,
-      playerName: player.name,
-      timestamp: Date.now(),
-    });
-    syncPassCountFromTrick(state);
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+    ensureTurnNotOnPriorPasser(state);
     return { ...state };
   }
 
@@ -723,6 +710,7 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     }
     // advance from the player who just played
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+    ensureTurnNotOnPriorPasser(state);
     state.mustPlay = false;
   }
 
@@ -2335,6 +2323,7 @@ export function advanceTurnAfterClearPlay(
   state.mustPlay = false;
   if (!isTrickAcknowledgmentPassPhase(state)) {
     state.currentPlayerIndex = nextActivePlayerIndex(state, fromIndex);
+    ensureTurnNotOnPriorPasser(state);
     return { ...state };
   }
   const pileUp = state.pile.length > 0;
@@ -2515,6 +2504,19 @@ export function passTurn(state: GameState, playerId: string): GameState {
     return { ...state };
   }
 
+  if (
+    isCurrentTurn &&
+    hasPassedInCurrentTrick(state, playerId) &&
+    !ackPass &&
+    !(state.runOnTop?.active && state.runOnTop.playerIndex === pIndex)
+  ) {
+    ensureTurnNotOnPriorPasser(state);
+    const resolved = maybeResolveTrickAfterPasses(state);
+    if (resolved) return resolved;
+    syncFinishedFromEmptyHands(state);
+    return { ...state };
+  }
+
   if (!isPlayerStillIn(state, playerId)) {
     syncFinishedFromEmptyHands(state);
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
@@ -2592,57 +2594,74 @@ export function passTurn(state: GameState, playerId: string): GameState {
     state.currentPlayerIndex = nextAcknowledgmentPlayerIndex(state, pIndex);
   } else if (isCurrentTurn) {
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+    ensureTurnNotOnPriorPasser(state);
   }
 
-  // Determine active players for the trick (not finished)
-  const activePlayerIds = state.players.filter((p) => isPlayerStillIn(state, p.id)).map((p) => p.id);
+  const resolved = maybeResolveTrickAfterPasses(state);
+  if (resolved) return resolved;
 
+  ensureTurnNotOnPriorPasser(state);
+  syncFinishedFromEmptyHands(state);
+  return { ...state };
+}
+
+/** Whether this seat may play or pass on the current trick (run on-top is a fresh beat). */
+export function playerCanActInCurrentTrick(
+  state: GameState,
+  playerIndex: number,
+): boolean {
+  const p = state.players[playerIndex];
+  if (!p || !isPlayerStillIn(state, p.id)) return false;
+  const runOnTopTurn =
+    state.runOnTop?.active && state.runOnTop.playerIndex === playerIndex;
+  return !hasPassedInCurrentTrick(state, p.id) || runOnTopTurn;
+}
+
+/** Seat to show in UI (skips prior passers when the turn pointer is stale). */
+export function resolveDisplayTurnPlayerIndex(state: GameState): number {
+  const n = state.players.length;
+  if (n === 0) return 0;
+  for (let i = 0; i < n; i++) {
+    const idx = (state.currentPlayerIndex + i) % n;
+    if (playerCanActInCurrentTrick(state, idx)) return idx;
+  }
+  return state.currentPlayerIndex;
+}
+
+/** Fix authoritative snapshots where currentPlayerIndex still points at a prior passer. */
+export function repairStuckTurnPointer(state: GameState): GameState {
+  const idx = state.currentPlayerIndex;
+  const p = state.players[idx];
+  if (!p) return state;
+  const runOnTop =
+    state.runOnTop?.active && state.runOnTop.playerIndex === idx;
+  if (runOnTop || !hasPassedInCurrentTrick(state, p.id)) return state;
+  return advanceOffPriorPasser(state);
+}
+
+/** End the trick or grant on-top when everyone else has passed. Returns null if unchanged. */
+export function maybeResolveTrickAfterPasses(state: GameState): GameState | null {
+  if (!state.currentTrick?.actions?.length) return null;
+  const passedIds = new Set(
+    state.currentTrick.actions
+      .filter((a) => a.type === "pass")
+      .map((a) => a.playerId),
+  );
+  const activePlayerIds = state.players
+    .filter((p) => isPlayerStillIn(state, p.id))
+    .map((p) => p.id);
   const leaderIndex = resolveTrickLeaderIndex(state);
-  const leaderId =
-    leaderIndex !== null && leaderIndex >= 0
-      ? state.players[leaderIndex].id
-      : null;
-
-  // If all other active players (i.e., everyone except the leader) have passed,
-  // the trick ends: clear the pile, winner leads next trick, and record the trick.
-  if (leaderId !== null) {
-    const others = activePlayerIds.filter(id => id !== leaderId);
-    const allOthersPassed = others.length === 0 || others.every(id => passedIds.has(id));
-    // Debug: log pass/finalization decision
+  if (leaderIndex === null || leaderIndex < 0) return null;
+  const leaderId = state.players[leaderIndex].id;
+  const others = activePlayerIds.filter((id) => id !== leaderId);
+  const allOthersPassed =
+    others.length === 0 || others.every((id) => passedIds.has(id));
+  if (allOthersPassed) {
     try {
-      console.log(`[core] passTurn debug: leaderIndex=${leaderIndex}, leaderId=${leaderId}, active=${JSON.stringify(activePlayerIds)}, passed=${JSON.stringify(Array.from(passedIds))}, others=${JSON.stringify(others)}, allOthersPassed=${allOthersPassed}`);
-    } catch (e) {}
-    if (allOthersPassed) {
-      const onTopEligible = isOnTopEligiblePile(
-        state.pile,
-        state.pileHistory,
-        state.currentTrick,
-        state.players,
-        state.finishedOrder || [],
-        state.tenRule,
+      console.log(
+        `[core] maybeResolveTrickAfterPasses: leaderIndex=${leaderIndex}, passed=${JSON.stringify(Array.from(passedIds))}`,
       );
-      if (
-        onTopEligible &&
-        !state.runOnTop?.active &&
-        leaderIndex !== null &&
-        leaderIndex >= 0
-      ) {
-        return grantRunOnTopBeat(state, leaderIndex);
-      }
-      syncFinishedFromEmptyHands(state);
-      return finalizeTrickWin(state, leaderIndex);
-    }
-  }
-
-  // Safety net: every living player passed but the trick did not resolve above.
-  const allActivePassed =
-    activePlayerIds.length > 0 &&
-    activePlayerIds.every((id) => passedIds.has(id));
-  if (allActivePassed && leaderIndex !== null && leaderIndex >= 0) {
-    if (state.runOnTop?.active) {
-      syncFinishedFromEmptyHands(state);
-      return finalizeTrickWin(state, leaderIndex);
-    }
+    } catch (e) {}
     const onTopEligible = isOnTopEligiblePile(
       state.pile,
       state.pileHistory,
@@ -2651,15 +2670,68 @@ export function passTurn(state: GameState, playerId: string): GameState {
       state.finishedOrder || [],
       state.tenRule,
     );
-    if (onTopEligible) {
+    if (onTopEligible && !state.runOnTop?.active) {
       return grantRunOnTopBeat(state, leaderIndex);
     }
     syncFinishedFromEmptyHands(state);
     return finalizeTrickWin(state, leaderIndex);
   }
-
+  const allActivePassed =
+    activePlayerIds.length > 0 &&
+    activePlayerIds.every((id) => passedIds.has(id));
+  if (!allActivePassed) return null;
+  if (state.runOnTop?.active) {
+    syncFinishedFromEmptyHands(state);
+    return finalizeTrickWin(state, leaderIndex);
+  }
+  const onTopEligible = isOnTopEligiblePile(
+    state.pile,
+    state.pileHistory,
+    state.currentTrick,
+    state.players,
+    state.finishedOrder || [],
+    state.tenRule,
+  );
+  if (onTopEligible) {
+    return grantRunOnTopBeat(state, leaderIndex);
+  }
   syncFinishedFromEmptyHands(state);
-  return { ...state };
+  return finalizeTrickWin(state, leaderIndex);
+}
+
+/** Advance turn off prior passers; finalize the trick when everyone else has passed. */
+export function advanceOffPriorPasser(state: GameState): GameState {
+  const next = { ...state };
+  ensureTurnNotOnPriorPasser(next);
+  return maybeResolveTrickAfterPasses(next) ?? next;
+}
+
+/** Never leave the turn pointer on a player who already passed this trick (except run on-top). */
+export function ensureTurnNotOnPriorPasser(state: GameState): void {
+  const n = state.players.length;
+  if (n === 0) return;
+  let safety = n + 1;
+  while (safety-- > 0) {
+    const idx = state.currentPlayerIndex;
+    const p = state.players[idx];
+    if (!p) return;
+    if (!isPlayerStillIn(state, p.id)) {
+      const next = nextActivePlayerIndex(state, idx);
+      if (next === idx) return;
+      state.currentPlayerIndex = next;
+      continue;
+    }
+    if (playerCanActInCurrentTrick(state, idx)) return;
+    const next = nextActivePlayerIndex(state, idx);
+    if (next === idx) {
+      const resolved = maybeResolveTrickAfterPasses(state);
+      if (resolved) {
+        Object.assign(state, resolved);
+      }
+      return;
+    }
+    state.currentPlayerIndex = next;
+  }
 }
 
 // helper: check all cards have same value
@@ -2669,14 +2741,22 @@ export function allSameValue(cards: Card[]) {
   return cards.every((c) => c.value === v);
 }
 
-// helper: find next active player index skipping finished players
+// helper: find next active player index skipping finished players and prior passers this trick
 export function nextActivePlayerIndex(state: GameState, fromIndex: number) {
   const n = state.players.length;
   if (n === 0) return 0;
   for (let i = 1; i <= n; i++) {
     const idx = (fromIndex + i) % n;
-    const p = state.players[idx];
-    if (isPlayerStillIn(state, p.id)) return idx;
+    if (playerCanActInCurrentTrick(state, idx)) return idx;
+  }
+  if (playerCanActInCurrentTrick(state, fromIndex)) return fromIndex;
+  const leaderIndex = resolveTrickLeaderIndex(state);
+  if (
+    leaderIndex !== null &&
+    leaderIndex >= 0 &&
+    playerCanActInCurrentTrick(state, leaderIndex)
+  ) {
+    return leaderIndex;
   }
   return fromIndex;
 }

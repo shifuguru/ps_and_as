@@ -13,6 +13,8 @@ const {
   passTurn,
   isDeadHandPlayer,
   isPlayerStillIn,
+  hasPassedInCurrentTrick,
+  repairStuckTurnPointer,
   syncFinishedFromEmptyHands,
   isRoundCompleteForLiving,
 } = require('./gameBridge');
@@ -186,25 +188,62 @@ function createBotMembers() {
   ];
 }
 
-function createBotHostedRoom(rooms) {
-  if (rooms[BOT_ROOM_CODE]) return rooms[BOT_ROOM_CODE];
+/**
+ * @param {Record<string, object>} rooms
+ * @param {string} roomCode
+ * @param {{ isPublic?: boolean, roomName?: string, isQALeague?: boolean }} [options]
+ */
+function createBotHostedRoomAt(rooms, roomCode, options = {}) {
+  if (rooms[roomCode]) return rooms[roomCode];
 
   const room = {
     players: createBotMembers(),
     host: 'cpu-1',
     creatorId: 'cpu-1',
     hostName: BOT_NAMES[0],
-    roomName: 'Open Bot Table',
+    roomName: options.roomName ?? 'Open Bot Table',
     createdAt: Date.now(),
-    isPublic: true,
+    isPublic: options.isPublic !== false,
     isBotHosted: true,
+    isQALeague: !!options.isQALeague,
     deadHand: true,
     skipDealAnimations: true,
     gameState: null,
     inGame: false,
   };
-  rooms[BOT_ROOM_CODE] = room;
-  console.log(`[Server] Created bot-hosted room ${BOT_ROOM_CODE}`);
+  rooms[roomCode] = room;
+  console.log(`[Server] Created bot-hosted room ${roomCode}`);
+  return room;
+}
+
+function createBotHostedRoom(rooms) {
+  return createBotHostedRoomAt(rooms, BOT_ROOM_CODE, {
+    isPublic: true,
+    roomName: 'Open Bot Table',
+  });
+}
+
+/** Start or resume bot turn loop for any bot-hosted room id. */
+function ensureBotHostedRoomAt(ctx, roomCode, options = {}) {
+  const { rooms } = ctx;
+  if (
+    options.skipWhenHumanLobbies &&
+    hasHumanPublicLobbies(rooms, ctx.isRoomListedPublic)
+  ) {
+    return null;
+  }
+
+  let room = rooms[roomCode];
+  if (!room) {
+    room = createBotHostedRoomAt(rooms, roomCode, options);
+  }
+
+  if (!room.inGame || !room.gameState) {
+    startBotHostedGame(roomCode, ctx);
+  } else if (!room._botTurnTimer) {
+    scheduleBotTurns(roomCode, ctx);
+  }
+
   return room;
 }
 
@@ -228,11 +267,25 @@ function autoReadyBotsForNextRound(room) {
   }
 }
 
+function botNextRoundSyncFields(room) {
+  if (!room?.isBotHosted) return {};
+  return {
+    botNextRoundAt:
+      typeof room._botNextRoundAt === 'number' ? room._botNextRoundAt : null,
+  };
+}
+
+function broadcastBotNextRoundAt(room, roomId, io) {
+  if (!room?.isBotHosted || !io || !roomId) return;
+  io.to(roomId).emit('botNextRoundAt', botNextRoundSyncFields(room));
+}
+
 function broadcastReadyForNextRound(room, roomId, io) {
   if (!room?.gameState || !io) return;
   autoReadyBotsForNextRound(room);
   io.to(roomId).emit('playerReadyUpdate', {
     readyForNextRound: room.gameState.readyForNextRound,
+    ...botNextRoundSyncFields(room),
   });
 }
 
@@ -411,9 +464,34 @@ function advanceUntilBotTurnOrHuman(room, ctx) {
       }
     }
 
-    // Do not return early when a bot already passed during rank-close/joker ack —
-    // advancePastInactiveSeats must skip to the next living opponent.
+    // Human who still owes a play/pass — wait for their client action.
+    // Human who already passed (common after pass-on-run) must be skipped via
+    // advancePastInactiveSeats, not left as currentPlayerIndex (stalls bot loop).
     if (isHumanGamePlayer(current, gs, room)) {
+      const runOnTopTurn =
+        gs.runOnTop?.active && gs.runOnTop.playerIndex === gs.currentPlayerIndex;
+      const awaitingHumanPlay =
+        isPlayerStillIn(gs, current.id) &&
+        !isDeadHandPlayer(current) &&
+        (!hasPassedInCurrentTrick(gs, current.id) || runOnTopTurn);
+      if (awaitingHumanPlay) {
+        return changed;
+      }
+      const beforeIdx = gs.currentPlayerIndex;
+      const trickLenBefore = gs.trickHistory?.length ?? 0;
+      const pileLenBefore = gs.pile.length;
+      ctx.advancePastInactiveSeats(room);
+      room.gameState = ctx.cloneGameState(
+        repairStuckTurnPointer(room.gameState),
+      );
+      if (
+        room.gameState.currentPlayerIndex !== beforeIdx ||
+        (room.gameState.trickHistory?.length ?? 0) !== trickLenBefore ||
+        room.gameState.pile.length !== pileLenBefore
+      ) {
+        changed = true;
+        continue;
+      }
       return changed;
     }
 
@@ -492,10 +570,7 @@ function resetBotHostedRoom(roomId, ctx, message) {
     clearTimeout(room._botTurnTimer);
     room._botTurnTimer = null;
   }
-  if (room._botNextRoundTimer) {
-    clearTimeout(room._botNextRoundTimer);
-    room._botNextRoundTimer = null;
-  }
+  clearBotNextRoundSchedule(room, roomId, ctx.io);
 
   room.inGame = false;
   room.gameState = null;
@@ -591,13 +666,10 @@ function processBotTurnStep(room, ctx) {
 
   if (advanceUntilBotTurnOrHuman(room, ctx)) {
     ctx.broadcastGameState(ctx.io, room);
-    if (!shouldBotCpuAct(room)) {
-      tryCompleteBotRound(room, ctx);
-      return false;
-    }
   }
 
   if (!shouldBotCpuAct(room)) {
+    tryCompleteBotRound(room, ctx);
     return false;
   }
 
@@ -663,6 +735,15 @@ function kickBotTurnLoop(roomId, ctx) {
   scheduleBotTurns(roomId, ctx);
 }
 
+/** RC-H / RC-1: advance off passer, repair pointer, broadcast, reschedule bot step. */
+function repairTurnPointerAndReschedule(live, ctx, step) {
+  if (!live?.gameState || ctx.isRoundComplete(live.gameState)) return;
+  ctx.advancePastInactiveSeats(live);
+  live.gameState = ctx.cloneGameState(repairStuckTurnPointer(live.gameState));
+  ctx.broadcastGameState(ctx.io, live);
+  live._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS);
+}
+
 function runBotTurnLoop(roomId, ctx) {
   const room = ctx.rooms[roomId];
   if (!room?.isBotHosted || !room.inGame || !room.gameState) return;
@@ -712,12 +793,31 @@ function runBotTurnLoop(roomId, ctx) {
       ctx.broadcastGameState(ctx.io, live);
       if (shouldBotCpuAct(live) && !ctx.isRoundComplete(live.gameState)) {
         live._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS);
+      } else if (!ctx.isRoundComplete(live.gameState)) {
+        // RC-1: advance returned true but pointer still invalid — do not exit without timer
+        repairTurnPointerAndReschedule(live, ctx, step);
       }
       return;
     }
 
     if (shouldBotCpuAct(live) && !ctx.isRoundComplete(live.gameState)) {
       live._botTurnTimer = setTimeout(step, BOT_TURN_DELAY_MS);
+      return;
+    }
+
+    // RC-H: advance returned false — index still on a prior passer (pass during run)
+    const gs = live.gameState;
+    const idx = gs?.currentPlayerIndex;
+    const cur = idx != null ? gs.players[idx] : null;
+    const runOnTopTurn =
+      gs?.runOnTop?.active && gs.runOnTop.playerIndex === idx;
+    if (
+      cur &&
+      hasPassedInCurrentTrick(gs, cur.id) &&
+      !runOnTopTurn &&
+      !ctx.isRoundComplete(gs)
+    ) {
+      repairTurnPointerAndReschedule(live, ctx, step);
     }
   };
 
@@ -822,10 +922,7 @@ function skipBotHostedGame(roomId, ctx) {
     clearTimeout(room._botTurnTimer);
     room._botTurnTimer = null;
   }
-  if (room._botNextRoundTimer) {
-    clearTimeout(room._botNextRoundTimer);
-    room._botNextRoundTimer = null;
-  }
+  clearBotNextRoundSchedule(room, code, ctx.io);
 
   room._lastBotSkipAt = now;
   markBotProgress(room);
@@ -883,14 +980,39 @@ function skipBotHostedGame(roomId, ctx) {
   return { ok: true };
 }
 
-const BOT_ROUND_END_DWELL_MS = 4500;
+/** Last-hand overlay before rankings (GameScreen LAST_HAND_REVEAL_MS). */
+const BOT_LAST_HAND_REVEAL_MS = 4_000;
+/** Countdown on final rankings after server round XP is awarded. */
+const BOT_RANKINGS_COUNTDOWN_MS = 15_000;
+/** @deprecated use BOT_RANKINGS_COUNTDOWN_MS */
+const BOT_RANKINGS_DWELL_MS = BOT_RANKINGS_COUNTDOWN_MS;
+const BOT_ROUND_END_DWELL_MS = BOT_RANKINGS_COUNTDOWN_MS;
 
-function onBotRoomRoundFinished(room, roomId, ctx) {
-  broadcastReadyForNextRound(room, roomId, ctx.io);
+function botAutoStartDelayMs(hasLastHandReveal) {
+  return (
+    (hasLastHandReveal ? BOT_LAST_HAND_REVEAL_MS : 0) +
+    BOT_RANKINGS_COUNTDOWN_MS
+  );
+}
+
+function clearBotNextRoundSchedule(room, roomId, io) {
+  if (!room) return;
   if (room._botNextRoundTimer) {
     clearTimeout(room._botNextRoundTimer);
     room._botNextRoundTimer = null;
   }
+  room._botNextRoundAt = null;
+  if (room.isBotHosted && io && roomId) {
+    io.to(roomId).emit('botNextRoundAt', { botNextRoundAt: null });
+  }
+}
+
+function onBotRoomRoundFinished(room, roomId, ctx, hasLastHandReveal = false) {
+  broadcastReadyForNextRound(room, roomId, ctx.io);
+  clearBotNextRoundSchedule(room, roomId, ctx.io);
+  const delayMs = botAutoStartDelayMs(hasLastHandReveal);
+  room._botNextRoundAt = Date.now() + delayMs;
+  broadcastBotNextRoundAt(room, roomId, ctx.io);
   room._botNextRoundTimer = setTimeout(() => {
     room._botNextRoundTimer = null;
     const live = ctx.rooms[roomId];
@@ -899,7 +1021,7 @@ function onBotRoomRoundFinished(room, roomId, ctx) {
       return;
     }
     ctx.tryStartNextRoundIfReady(roomId);
-  }, BOT_ROUND_END_DWELL_MS);
+  }, delayMs);
   if (!room.inGame || !room.gameState) return;
   if (!ctx.isRoundComplete(room.gameState) || room.gameState.tenRulePending) {
     scheduleBotTurns(roomId, ctx);
@@ -930,8 +1052,23 @@ function roomListingExtras(room) {
   };
 }
 
+/** Investigation-only exports for scripts/test-cpu-stall-botopn.mjs */
+const __investigation = {
+  advanceUntilBotTurnOrHuman,
+  shouldBotCpuAct,
+  processBotTurnStep,
+  runBotTurnLoop,
+  repairTurnPointerAndReschedule,
+  scheduleBotTurns,
+  isHumanGamePlayer,
+};
+
 module.exports = {
   BOT_ROOM_CODE,
+  createBotHostedRoomAt,
+  ensureBotHostedRoomAt,
+  startBotHostedGame,
+  __investigation,
   MAX_SEATED,
   isBotPlayerId,
   isBotMember,
@@ -958,4 +1095,11 @@ module.exports = {
   countHumansSeated,
   autoReadyBotsForNextRound,
   broadcastReadyForNextRound,
+  BOT_RANKINGS_DWELL_MS,
+  BOT_RANKINGS_COUNTDOWN_MS,
+  BOT_ROUND_END_DWELL_MS,
+  botAutoStartDelayMs,
+  botNextRoundSyncFields,
+  broadcastBotNextRoundAt,
+  clearBotNextRoundSchedule,
 };

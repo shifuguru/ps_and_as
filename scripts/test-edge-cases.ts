@@ -16,6 +16,7 @@ import {
   isTrickOpeningLead,
   resolveCompletedAcknowledgmentTrick,
   nextAcknowledgmentPlayerIndex,
+  ensureTurnNotOnPriorPasser,
 } from "../src/game/core";
 import { isDeadHandPlayer } from "../src/game/deadHand";
 import { Card } from "../src/game/ruleset";
@@ -149,6 +150,12 @@ function advancePastInactiveSeats(state: ReturnType<typeof createGame>) {
         working = resolved;
         continue;
       }
+      break;
+    }
+    if (hasPassedInCurrentTrick(working, current.id) && !runOnTopTurn) {
+      const prev = working.currentPlayerIndex;
+      ensureTurnNotOnPriorPasser(working);
+      if (working.currentPlayerIndex !== prev) continue;
       break;
     }
     const next = passTurn(working, current.id);

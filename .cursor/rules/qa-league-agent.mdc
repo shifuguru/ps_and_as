@@ -1,0 +1,23 @@
+---
+description: After QA League runs, read the latest agent brief and fix reported issues.
+globs:
+  - reports/qa/latest/**
+  - scripts/qa/**
+---
+
+# QA League — agent iteration loop
+
+When the user asks to run QA bots, iterate from test results, or fix issues found by the league:
+
+1. **Run** (server must be up): `npm run qa-league` or `npm run qa-league:watch`
+2. **Read** `reports/qa/latest/AGENT_BRIEF.md` and `reports/qa/latest/agent-report.json`
+3. **Fix** action items in priority order (P0 → P1 → P2), using `likelyAreas` as hints
+4. **Re-run** `npm run qa-league` until status is `pass` or only acceptable warnings remain
+
+Do not treat CPU opponents (`cpu-*`, Amy/Ben) as QA League bots. League bots use `qa-*` profile ids and emoji display names.
+
+Do not mention the QA League in player-facing What's New unless the user explicitly ships the easter egg.
+
+Do not auto-commit from league reports. Human reviews the brief first.
+
+Prioritise `bot_cpu_stall` (high) on BOTOPN — maps to `server/botHostedRooms.js` / pass-on-run / CPU loop fixes.

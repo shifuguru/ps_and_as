@@ -15,6 +15,10 @@
     "test-runs": "tsx ./scripts/test-run-detection.ts",
     "bump-version": "node ./scripts/bump-version.js",
     "test-multiplayer": "node ./scripts/test-multiplayer.mjs",
+    "qa-chaos": "node ./scripts/qa/run-chaos.mjs",
+    "test-cpu-stall": "node ./scripts/test-cpu-stall-botopn.mjs",
+    "qa-league": "node ./scripts/qa/run-league.mjs",
+    "qa-league:watch": "node ./scripts/qa/run-league.mjs --watch 30 --minutes 10",
     "print-game-budget": "npx tsx ./scripts/print-game-budget.ts"
   },
   "dependencies": {

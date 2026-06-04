@@ -117,9 +117,18 @@ const BASE_FAN_HEADROOM = SELECT_LIFT + MAX_CENTER_LIFT + 24;
 export const HAND_FAN_HEIGHT =
   BASE_CARD_HEIGHT + BASE_FAN_HEADROOM + FAN_BOTTOM_PADDING;
 
+/** Stable identity for a hand card (matches play-flight concealment). */
+export function handCardIdentity(card: CardType): string {
+  return `${card.suit}-${card.value}`;
+}
+
 type Props = {
   cards: CardType[];
   selectedIndices: number[];
+  /** Keep selected lift while cards are hidden for a play flight. */
+  pinnedSelectedCardKeys?: string[];
+  /** Hide these cards in the fan until the play flight finishes. */
+  hiddenCardKeys?: string[];
   playableIndices: boolean[];
   /** Index of the 3♣ when it must be played to open — pulses like Pass flash */
   startingCardIndex?: number;
@@ -544,6 +553,8 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   {
     cards,
     selectedIndices,
+    pinnedSelectedCardKeys = [],
+    hiddenCardKeys = [],
     playableIndices,
     startingCardIndex = -1,
     disabled,
@@ -551,6 +562,11 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   },
   ref,
 ) {
+  const pinnedKeySet = useMemo(
+    () => new Set(pinnedSelectedCardKeys),
+    [pinnedSelectedCardKeys],
+  );
+  const hiddenKeySet = useMemo(() => new Set(hiddenCardKeys), [hiddenCardKeys]);
   const { colors, blur } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const { height: shellHeight } = useVisualViewportSize();
@@ -922,6 +938,9 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
               .map((index) => {
                 const slot = slotLayout[index];
                 if (!slot) return null;
+                const card = cards[index];
+                const pinned =
+                  !!card && pinnedKeySet.has(handCardIdentity(card));
                 return cardCenterFromHandLayout(
                   index,
                   slot,
@@ -930,7 +949,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                   cardWidth,
                   cardHeight,
                   handZoneHeight,
-                  selectedIndices.includes(index),
+                  selectedIndices.includes(index) || pinned,
                 );
               })
               .filter((p): p is { x: number; y: number } => p != null);
@@ -996,6 +1015,8 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
       maxCenterLift,
       displayFocusIndex,
       selectedIndices,
+      pinnedKeySet,
+      cards,
       handZoneHeight,
     ],
   );
@@ -1097,13 +1118,35 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
           const slot = slots[index];
           if (!slot) return null;
 
-          const isSelected = selectedIndices.includes(index);
+          const identity = handCardIdentity(card);
+          const concealed = hiddenKeySet.has(identity);
+          const inOutgoingPlay = pinnedKeySet.has(identity);
+          const isSelected =
+            selectedIndices.includes(index) || inOutgoingPlay;
           const isPlayable = playableIndices[index] ?? true;
           const isFocused = index === displayFocusIndex;
           const isPressed = pressedIndex === index;
+          if (concealed) {
+            return (
+              <View
+                key={`${identity}-${index}`}
+                pointerEvents="none"
+                style={[
+                  styles.cardSlot,
+                  {
+                    left: slot.left,
+                    bottom: slot.bottom,
+                    width: cardWidth,
+                    height: cardHeight,
+                    opacity: 0,
+                  },
+                ]}
+              />
+            );
+          }
           return (
             <View
-              key={`${card.suit}-${card.value}-${index}`}
+              key={`${identity}-${index}`}
               ref={(node) => {
                 cardSlotRefs.current[index] = node;
               }}
@@ -1136,10 +1179,21 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                 card={card}
                 selected={isSelected}
                 compact={slot.compact && !isSelected}
-                highlight={isPlayable ? (isSelected ? 1 : isFocused ? 0.65 : 0.2) : 0}
+                highlight={
+                  inOutgoingPlay || isSelected
+                    ? 1
+                    : isPlayable
+                      ? isFocused
+                        ? 0.65
+                        : 0.2
+                      : 0
+                }
                 flash={index === startingCardIndex}
-                disabled={disabled || !isPlayable}
-                onPress={() => handleCardPress(index)}
+                disabled={(disabled || !isPlayable) && !inOutgoingPlay}
+                onPress={() => {
+                  if (disabled) return;
+                  handleCardPress(index);
+                }}
                 style={{ width: cardWidth, height: cardHeight }}
               />
             </View>

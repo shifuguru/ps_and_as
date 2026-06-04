@@ -32,9 +32,13 @@ import {
   canAcknowledgmentPass,
   isTrickAcknowledgmentPassPhase,
   hasPassedInCurrentTrick,
+  advanceOffPriorPasser,
+  repairStuckTurnPointer,
+  resolveDisplayTurnPlayerIndex,
   findCPUPlay,
   applyCpuTurn,
   isTrickOpeningLead,
+  runFromCurrentTrick,
 } from "../src/game/core";
 import {
   applyMandatoryTrades,
@@ -356,9 +360,14 @@ function makeEmptyGame(names: string[]): GameState {
   s.currentPlayerIndex = 1;
   const beforeHandLen = s.players[1].hand.length;
   const s2 = playCards(s, g.players[1].id, [sixH]);
-  // The engine should convert this attempt into a pass (playCards -> passTurn) and not change hand
+  // Prior passers cannot play again — hand unchanged, no duplicate pass, turn moves on
   assert.strictEqual(s2.players[1].hand.length, beforeHandLen, "P2 hand should be unchanged when attempting to play after passing");
-  assert.ok(s2.currentTrick && s2.currentTrick.actions.filter((a:any)=>a.type==='pass' && a.playerId===g.players[1].id).length >= 2, "P2 should now have an additional pass recorded");
+  assert.strictEqual(
+    s2.currentTrick?.actions.filter((a: any) => a.type === "pass" && a.playerId === g.players[1].id).length,
+    1,
+    "P2 should not get a duplicate pass when play is rejected",
+  );
+  assert.notStrictEqual(s2.currentPlayerIndex, 1, "Turn should advance off P2 who already passed");
 }
 
 // 2) Playing one joker should remove only that joker when the player holds duplicates
@@ -759,6 +768,63 @@ function makeEmptyGame(names: string[]): GameState {
   assert.strictEqual(s.pile.length, 0, "Trick clears when only living opponent already passed");
   assert.strictEqual(s.trickHistory?.length, 2);
   assert.strictEqual(s.players[s.currentPlayerIndex].id, g.players[2].id);
+}
+
+// Pass during a run — turn must not return to a player who already passed
+{
+  const g = makeEmptyGame(["P1", "P2", "P3"]);
+  g.players[0].hand = [
+    { suit: "hearts", value: 3 },
+    { suit: "hearts", value: 9 },
+  ];
+  g.players[1].hand = [
+    { suit: "hearts", value: 4 },
+    { suit: "hearts", value: 10 },
+  ];
+  g.players[2].hand = [
+    { suit: "hearts", value: 5 },
+    { suit: "hearts", value: 11 },
+  ];
+  g.currentPlayerIndex = 0;
+  g.currentTrick = { trickNumber: 1, actions: [] };
+
+  let s = playCards(g, g.players[0].id, [{ suit: "hearts", value: 3 }]);
+  s = playCards(s, g.players[1].id, [{ suit: "hearts", value: 4 }]);
+  s = playCards(s, g.players[2].id, [{ suit: "hearts", value: 5 }]);
+  assert.ok(
+    runFromCurrentTrick(s.currentTrick, s.players, s.finishedOrder ?? [], s.pile)
+      .length >= 3,
+    "Trick should have a run context before pass",
+  );
+  assert.strictEqual(s.players[s.currentPlayerIndex].id, g.players[0].id);
+
+  s = passTurn(s, g.players[0].id);
+  assert.ok(hasPassedInCurrentTrick(s, g.players[0].id));
+  assert.strictEqual(
+    s.players[s.currentPlayerIndex].id,
+    g.players[1].id,
+    "After passing on a run, turn should skip back to the next player who has not passed",
+  );
+
+  // Stuck turn on prior passer — advanceOffPriorPasser must not leave P0 to act again
+  let stuck = { ...s, currentPlayerIndex: 0 };
+  stuck = advanceOffPriorPasser(stuck);
+  assert.strictEqual(
+    stuck.players[stuck.currentPlayerIndex].id,
+    g.players[1].id,
+    "advanceOffPriorPasser should move turn off a prior passer during a run",
+  );
+
+  const repaired = repairStuckTurnPointer(stuck);
+  assert.strictEqual(
+    resolveDisplayTurnPlayerIndex(repaired),
+    repaired.currentPlayerIndex,
+    "Display turn index should match repaired current player after pass on a run",
+  );
+  assert.notStrictEqual(
+    repaired.players[repaired.currentPlayerIndex].id,
+    g.players[0].id,
+  );
 }
 
 // Joker does not land turn on a prior passer

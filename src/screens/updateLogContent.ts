@@ -32,6 +32,17 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-05T11:02:56"),
+    title: "Bot table turn flow",
+    items: [
+      "Open Bot Table — pass during a run and the bots keep playing instead of the table freezing on “waiting for bot”",
+      "Open Bot Table — round rankings and the next-deal countdown use the same server timing for everyone at the table",
+      "Open Bot Table — pressing Ready while you are seated skips the rankings wait; spectators no longer hold up seated players",
+      "Round complete — XP totals come from the server so rankings match what you earned that round",
+      "Card flights from your hand render above dialogs and overlays instead of hiding underneath",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-03T18:34"),
     title: "Hand & play animation",
     items: [

@@ -10,6 +10,7 @@ import {
   Easing,
 } from "react-native";
 import { triggerHaptic } from "../utils/haptics";
+import MenuIcon from "./MenuIcon";
 import { useAppTheme } from "../context/ThemeContext";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import { hexToRgba } from "../utils/colorTheory";
@@ -39,6 +40,8 @@ type Props = {
   onTopTurn?: boolean;
   /** Hide play/pass during deal ceremony — leave stays visible. */
   leaveOnly?: boolean;
+  onNavigateToSettings?: () => void;
+  onNavigateToAchievements?: () => void;
 };
 
 export default function ActionBar({
@@ -52,6 +55,8 @@ export default function ActionBar({
   noValidPlays = false,
   onTopTurn = false,
   leaveOnly = false,
+  onNavigateToSettings,
+  onNavigateToAchievements,
 }: Props) {
   const { colors, ui } = useAppTheme();
   const isLight = colors.mode === "light";
@@ -325,15 +330,59 @@ export default function ActionBar({
       </View>
       ) : null}
 
-      <TouchableOpacity
-        style={ui.leaveButtonLive}
-        onPress={onQuit}
-        accessibilityRole="button"
-        accessibilityLabel="Leave Game"
-        hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
-      >
-        <Text style={ui.leaveButtonLiveText}>Leave Game</Text>
-      </TouchableOpacity>
+      <View style={styles.leaveRow}>
+        <TouchableOpacity
+          style={[ui.leaveButtonLive, styles.leaveButtonFlex]}
+          onPress={onQuit}
+          accessibilityRole="button"
+          accessibilityLabel="Leave Game"
+          hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
+        >
+          <Text style={ui.leaveButtonLiveText}>Leave Game</Text>
+        </TouchableOpacity>
+        {onNavigateToSettings || onNavigateToAchievements ? (
+          <View style={styles.leaveFabGroup}>
+            {onNavigateToSettings ? (
+              <TouchableOpacity
+                style={[
+                  styles.circleFab,
+                  {
+                    backgroundColor: isLight
+                      ? "rgba(255,255,255,0.72)"
+                      : "rgba(255,255,255,0.1)",
+                    borderColor: colors.btnGoldBorder,
+                  },
+                ]}
+                onPress={onNavigateToSettings}
+                accessibilityRole="button"
+                accessibilityLabel="Settings"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MenuIcon name="gear" size={18} color={gold} />
+              </TouchableOpacity>
+            ) : null}
+            {onNavigateToAchievements ? (
+              <TouchableOpacity
+                style={[
+                  styles.circleFab,
+                  {
+                    backgroundColor: isLight
+                      ? "rgba(255,255,255,0.72)"
+                      : "rgba(255,255,255,0.1)",
+                    borderColor: colors.btnGoldBorder,
+                  },
+                ]}
+                onPress={onNavigateToAchievements}
+                accessibilityRole="button"
+                accessibilityLabel="View player stats"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MenuIcon name="trophy" size={18} color={gold} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -342,6 +391,30 @@ const styles = StyleSheet.create({
   container: {
     alignSelf: "center",
     gap: 12,
+  },
+  leaveRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    width: "100%",
+  },
+  leaveButtonFlex: {
+    flexShrink: 1,
+  },
+  leaveFabGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
+  },
+  circleFab: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
   },
   actionTrack: {
     flexDirection: "row",

@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useRef,
   useState,
+  type MutableRefObject,
 } from "react";
 import { View, StyleSheet, LayoutChangeEvent } from "react-native";
 import OpponentRing from "./OpponentRing";
@@ -35,6 +36,9 @@ type RingProps = Omit<
   | "seatDimensions"
   | "sideAnchorMargin"
 >;
+
+/** Default duration for hand → pile play flights. */
+export const PLAY_CARD_FLIGHT_MS = 640;
 
 /** Selected-hand position captured at Play — matched to the outgoing play by key. */
 export type LocalHandFlightCapture = {
@@ -95,7 +99,17 @@ type Props = RingProps & {
   }) => void;
   /** Where the selected cards were when Play was pressed (window coords). */
   localHandFlight?: LocalHandFlightCapture | null;
+  /** Sync ref — set before state so the flight effect sees hand origin immediately. */
+  localHandFlightRef?: MutableRefObject<LocalHandFlightCapture | null>;
   onLocalHandFlightConsumed?: (playKey: string) => void;
+  /** Fired when the flying copy is on screen (hide matching hand cards). */
+  onPlayFlightStarted?: (playKey: string) => void;
+  /** Fired when a play flight reaches the pile (hand can drop selection / apply state). */
+  onPlayFlightLanded?: (playKey: string) => void;
+  /** Hand-origin flights (play-area coords) — render in a screen overlay above the bottom bar. */
+  onElevatedHandFlightsChange?: (flights: CardFlightSpec[]) => void;
+  /** Parent overlay calls this when an elevated hand flight completes. */
+  elevatedFlightCompleteRef?: MutableRefObject<((id: string) => void) | null>;
 };
 
 export default function GamePlayArea({
@@ -112,7 +126,7 @@ export default function GamePlayArea({
   turnHintFlash,
   plays = [],
   skipPlayFlights = false,
-  flightDurationMs = 480,
+  flightDurationMs = PLAY_CARD_FLIGHT_MS,
   trickWinnerPlayerId = null,
   trickWinnerXpAmount,
   trickWinnerShout = null,
@@ -129,7 +143,12 @@ export default function GamePlayArea({
   onPlayerPress,
   onPlayAreaMetrics,
   localHandFlight = null,
+  localHandFlightRef,
   onLocalHandFlightConsumed,
+  onPlayFlightStarted,
+  onPlayFlightLanded,
+  onElevatedHandFlightsChange,
+  elevatedFlightCompleteRef,
   children,
 }: Props & { children: React.ReactNode }) {
   const rootRef = useRef<View>(null);
@@ -139,6 +158,25 @@ export default function GamePlayArea({
   const [landedKeys, setLandedKeys] = useState<Set<string>>(() => new Set());
   const prevPlayKeysRef = useRef<Set<string>>(new Set());
   const flightsInitializedRef = useRef(false);
+
+  const resolveLocalHandCapture = useCallback(
+    (playKey: string): LocalHandFlightCapture | null => {
+      const fromRef = localHandFlightRef?.current;
+      if (fromRef?.playKey === playKey) return fromRef;
+      if (localHandFlight?.playKey === playKey) return localHandFlight;
+      return null;
+    },
+    [localHandFlight, localHandFlightRef],
+  );
+
+  const hasPendingHandFlight = useCallback(
+    () =>
+      plays.some((p) => {
+        const key = playDisplayKey(p);
+        return resolveLocalHandCapture(key) != null;
+      }),
+    [plays, resolveLocalHandCapture],
+  );
 
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -235,10 +273,14 @@ export default function GamePlayArea({
 
     if (!flightsInitializedRef.current) {
       flightsInitializedRef.current = true;
-      const pendingHandFlight =
-        !!localHandFlight &&
-        plays.some((p) => playDisplayKey(p) === localHandFlight.playKey);
-      if (currentKeys.size > 0 && !pendingHandFlight) {
+      const incoming = plays.filter(
+        (p) => !prevPlayKeysRef.current.has(playDisplayKey(p)),
+      );
+      const joinedFullTrick =
+        incoming.length === plays.length &&
+        plays.length > 1 &&
+        !hasPendingHandFlight();
+      if (joinedFullTrick) {
         prevPlayKeysRef.current = currentKeys;
         setLandedKeys(currentKeys);
         return;
@@ -280,6 +322,7 @@ export default function GamePlayArea({
       if (cancelled || !playAreaWin) {
         for (const key of playKeys) {
           setLandedKeys((prev) => new Set(prev).add(key));
+          onPlayFlightLanded?.(key);
         }
         return;
       }
@@ -291,6 +334,7 @@ export default function GamePlayArea({
         const playIndex = plays.findIndex((p) => playDisplayKey(p) === key);
         if (playIndex < 0) {
           setLandedKeys((prev) => new Set(prev).add(key));
+          onPlayFlightLanded?.(key);
           continue;
         }
 
@@ -318,23 +362,25 @@ export default function GamePlayArea({
         );
         let fromCardW: number | undefined;
         let fromCardH: number | undefined;
-        if (localHandFlight && key === localHandFlight.playKey) {
+        const handCapture = resolveLocalHandCapture(key);
+        if (handCapture) {
           origin = {
-            x: localHandFlight.screenX - playAreaWin.x,
-            y: localHandFlight.screenY - playAreaWin.y,
+            x: handCapture.screenX - playAreaWin.x,
+            y: handCapture.screenY - playAreaWin.y,
           };
-          fromCardW = localHandFlight.fromCardW;
-          fromCardH = localHandFlight.fromCardH;
-          onLocalHandFlightConsumed?.(key);
+          fromCardW = handCapture.fromCardW;
+          fromCardH = handCapture.fromCardH;
         }
         if (!cardW || !cardH) {
           setLandedKeys((prev) => new Set(prev).add(key));
+          onPlayFlightLanded?.(key);
           continue;
         }
         const target = playGroupTargetFromSpot(spot, play, layout, cardW, cardH);
 
         if (!origin) {
           setLandedKeys((prev) => new Set(prev).add(key));
+          onPlayFlightLanded?.(key);
           continue;
         }
 
@@ -349,12 +395,35 @@ export default function GamePlayArea({
           cardH: target.cardH,
           fromCardW,
           fromCardH,
+          fromLocalHand: !!handCapture,
         });
       }
 
       if (cancelled) return;
       if (flightsToStart.length > 0) {
+        const elevated = flightsToStart
+          .filter((f) => f.fromLocalHand)
+          .map((f) => ({
+            ...f,
+            fromX: playAreaWin.x + f.fromX,
+            fromY: playAreaWin.y + f.fromY,
+            toX: playAreaWin.x + f.toX,
+            toY: playAreaWin.y + f.toY,
+          }));
+        if (elevated.length > 0) {
+          onElevatedHandFlightsChange?.(elevated);
+        }
         setActiveFlights((prev) => [...prev, ...flightsToStart]);
+        for (const f of flightsToStart) {
+          onPlayFlightStarted?.(f.id);
+          if (resolveLocalHandCapture(f.id)) {
+            onLocalHandFlightConsumed?.(f.id);
+          }
+        }
+      } else {
+        for (const key of playKeys) {
+          onPlayFlightLanded?.(key);
+        }
       }
     })();
 
@@ -370,19 +439,166 @@ export default function GamePlayArea({
     seatOptions,
     skipPlayFlights,
     stackLayoutState,
-    localHandFlight,
+    resolveLocalHandCapture,
+    hasPendingHandFlight,
     onLocalHandFlightConsumed,
+    onPlayFlightStarted,
+    onPlayFlightLanded,
+    onElevatedHandFlightsChange,
   ]);
 
-  const handleFlightComplete = useCallback((id: string) => {
+  /** Hand capture can arrive after plays sync landed early — fly from the hand. */
+  useEffect(() => {
+    if (skipPlayFlights || !layout || size.height <= 0) return;
+    const cap = localHandFlight ?? localHandFlightRef?.current ?? null;
+    if (!cap) return;
+    const key = cap.playKey;
+    if (!plays.some((p) => playDisplayKey(p) === key)) return;
+    if (activeFlights.some((f) => f.id === key)) return;
+    if (!landedKeys.has(key)) return;
+
+    let cancelled = false;
+    const play = plays.find((p) => playDisplayKey(p) === key);
+    if (!play) return;
+
     setLandedKeys((prev) => {
-      if (prev.has(id)) return prev;
+      if (!prev.has(key)) return prev;
       const next = new Set(prev);
-      next.add(id);
+      next.delete(key);
       return next;
     });
-    setActiveFlights((prev) => prev.filter((f) => f.id !== id));
-  }, []);
+
+    const scaleLimits = stackLayoutState.scaleLimits;
+    const cardW = stackLayoutState.cardWidth;
+    const cardH = stackLayoutState.cardHeight;
+    const playIndex = plays.findIndex((p) => playDisplayKey(p) === key);
+
+    void (async () => {
+      const playAreaWin = await measureViewInWindow(rootRef.current);
+      if (cancelled || !playAreaWin || !cardW || !cardH || playIndex < 0) {
+        if (!cancelled) {
+          setLandedKeys((prev) => new Set(prev).add(key));
+        }
+        return;
+      }
+
+      const spot = stackSpotForPlay(
+        playIndex,
+        plays.length,
+        play,
+        layout.cardZoneWidth,
+        layout.cardZoneHeight,
+        layout.cardZoneWidth * MAX_SPREAD_WIDTH_RATIO * 0.55,
+        plays,
+        {
+          maxFillScale: scaleLimits.maxFillScale,
+          displayScale: scaleLimits.displayScale,
+        },
+      );
+      const target = playGroupTargetFromSpot(spot, play, layout, cardW, cardH);
+      const origin = {
+        x: cap.screenX - playAreaWin.x,
+        y: cap.screenY - playAreaWin.y,
+      };
+
+      if (cancelled) return;
+      const flightSpec = {
+        id: key,
+        cards: play.cards,
+        fromX: origin.x,
+        fromY: origin.y,
+        toX: target.x,
+        toY: target.y,
+        cardW: target.cardW,
+        cardH: target.cardH,
+        fromCardW: cap.fromCardW,
+        fromCardH: cap.fromCardH,
+        fromLocalHand: true,
+      };
+      onElevatedHandFlightsChange?.([
+        {
+          ...flightSpec,
+          fromX: playAreaWin.x + origin.x,
+          fromY: playAreaWin.y + origin.y,
+          toX: playAreaWin.x + target.x,
+          toY: playAreaWin.y + target.y,
+        },
+      ]);
+      setActiveFlights((prev) => {
+        if (prev.some((f) => f.id === key)) return prev;
+        return [...prev, flightSpec];
+      });
+      onPlayFlightStarted?.(key);
+      onLocalHandFlightConsumed?.(key);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    localHandFlight,
+    localHandFlightRef,
+    plays,
+    layout,
+    size.height,
+    skipPlayFlights,
+    stackLayoutState,
+    activeFlights,
+    landedKeys,
+    onLocalHandFlightConsumed,
+    onElevatedHandFlightsChange,
+  ]);
+
+  const handleFlightComplete = useCallback(
+    (id: string) => {
+      setLandedKeys((prev) => {
+        if (prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+      let clearElevated = false;
+      setActiveFlights((prev) => {
+        const completing = prev.find((f) => f.id === id);
+        const next = prev.filter((f) => f.id !== id);
+        clearElevated = !!(
+          completing?.fromLocalHand &&
+          !next.some((f) => f.fromLocalHand)
+        );
+        return next;
+      });
+      if (clearElevated) {
+        onElevatedHandFlightsChange?.([]);
+      }
+      onPlayFlightLanded?.(id);
+    },
+    [onPlayFlightLanded, onElevatedHandFlightsChange],
+  );
+
+  useEffect(() => {
+    if (elevatedFlightCompleteRef) {
+      elevatedFlightCompleteRef.current = handleFlightComplete;
+      return () => {
+        elevatedFlightCompleteRef.current = null;
+      };
+    }
+  }, [elevatedFlightCompleteRef, handleFlightComplete]);
+
+  const arenaFlights = useMemo(
+    () => activeFlights.filter((f) => !f.fromLocalHand),
+    [activeFlights],
+  );
+  const elevatedHandFlights = useMemo(
+    () => activeFlights.filter((f) => f.fromLocalHand),
+    [activeFlights],
+  );
+
+  useEffect(() => {
+    if (!onElevatedHandFlightsChange) return;
+    if (elevatedHandFlights.length === 0) {
+      onElevatedHandFlightsChange([]);
+    }
+  }, [elevatedHandFlights.length, onElevatedHandFlightsChange]);
 
   const hiddenPlayKeys = useMemo(() => {
     const hidden = new Set<string>();
@@ -445,13 +661,13 @@ export default function GamePlayArea({
       )}
 
       <View style={styles.flightLayer} pointerEvents="none">
-        {activeFlights.map((flight) => (
-            <TableCardFlight
-              key={flight.id}
-              flight={flight}
-              durationMs={flightDurationMs}
-              onComplete={handleFlightComplete}
-            />
+        {arenaFlights.map((flight) => (
+          <TableCardFlight
+            key={flight.id}
+            flight={flight}
+            durationMs={flightDurationMs}
+            onComplete={handleFlightComplete}
+          />
         ))}
       </View>
 
@@ -505,7 +721,7 @@ const styles = StyleSheet.create({
   },
   flightLayer: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 15,
+    zIndex: 22,
     overflow: "visible",
   },
   seatOverlay: {

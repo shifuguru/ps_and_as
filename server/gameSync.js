@@ -27,11 +27,11 @@ function isRoundCompleteState(state) {
 function resolveGamePhase(room) {
   if (!room?.inGame || !room.gameState) return "LOBBY";
   const gs = room.gameState;
-  if (isRoundCompleteState(gs) && !gs.tenRulePending) {
-    return "ROUND_COMPLETE";
-  }
   if (pendingTradesIncomplete(gs)) {
     return "TRADES";
+  }
+  if (isRoundCompleteState(gs) && !gs.tenRulePending) {
+    return "ROUND_COMPLETE";
   }
   const living = livingPlayers(gs);
   const anyHand = living.some((p) => (p.hand?.length ?? 0) > 0);
