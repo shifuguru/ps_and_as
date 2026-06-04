@@ -64,6 +64,10 @@ import {
   type ServerPendingTrades,
 } from "../game/roundPrep";
 import {
+  resolveCeremonyLaunchMode,
+  resolveSkipDealAnimations,
+} from "../game/dealCeremonyAnimation";
+import {
   openingLeadCardIndex,
 } from "../game/deadHand";
 import { DEFAULT_FELT_COLOR, normalizeHexColor } from "../services/wallpaper";
@@ -253,7 +257,23 @@ function serverStateHasPendingTrades(
   return !!pending && Object.keys(pending).length > 0;
 }
 
-/** Mid-game rejoin should apply server state directly — no deal animation. */
+function ceremonyTradesAlreadyComplete(trades: ClientPendingTrade[]): boolean {
+  return trades.length === 0 || trades.every((t) => t.completed);
+}
+
+/** Server always sends playerHands after deal; only skip trade UI when picks are done. */
+function shouldFinalizeCeremonyEarly(
+  prep: CeremonyPrepPayload,
+  pendingHands: Record<string, CardType[]> | null,
+): boolean {
+  if (pendingHands) return true;
+  return ceremonyTradesAlreadyComplete(prep.trades) && !!prep.serverPlayerHands;
+}
+
+/**
+ * Mid-game rejoin: apply server state directly (no ceremony at all).
+ * Not the same as skip-deal-animations (shuffle/deal flights only).
+ */
 function shouldSkipDealCeremony(state: GameState): boolean {
   if ((state.currentTrick?.actions?.length ?? 0) > 0) return true;
   if (state.pile.length > 0) return true;
@@ -430,7 +450,10 @@ type CeremonyPrepPayload = {
   dealAttempt?: number;
   /** Skip shuffle/deal animation only — role trades still run. */
   skipDealPhases?: boolean;
-  /** Authoritative post-trade hands — applied after deal/trade UI, not during deal. */
+  /**
+   * Server hand snapshot (deal + mandatory transfers). Used to sync trade UI;
+   * only applied when starting play after trades complete — not a skip-trades signal.
+   */
   serverPlayerHands?: Record<string, CardType[]> | null;
 };
 
@@ -660,10 +683,15 @@ function GameScreen({
     null;
 
   const shouldSkipDealAnimations = useCallback(() => {
-    if (onlineMultiplayer && isSocketAdapter(networkAdapter)) {
-      return networkAdapter.getSkipDealAnimations();
-    }
-    return skipDealAnimationsRef.current || getSkipDealAnimationsSync();
+    return resolveSkipDealAnimations({
+      onlineMultiplayer,
+      roomSkipDealAnimations:
+        onlineMultiplayer && isSocketAdapter(networkAdapter)
+          ? networkAdapter.getSkipDealAnimations()
+          : false,
+      localSkipDealAnimations:
+        skipDealAnimationsRef.current || getSkipDealAnimationsSync(),
+    });
   }, [onlineMultiplayer, networkAdapter]);
   const readOnlyOnline = onlineMultiplayer && spectatorMode;
   const isBotOpenTable =
@@ -1149,15 +1177,25 @@ function GameScreen({
       setForfeitedXpPlayerIds(new Set());
       setGameplayLocked(true);
 
-      if (shouldSkipDealAnimations()) {
+      const launchMode = resolveCeremonyLaunchMode({
+        needsDealerReshuffle: prep.needsDealerReshuffle,
+        trades: prep.trades,
+        skipDealAnimations: shouldSkipDealAnimations(),
+        shouldFinalizeEarly: shouldFinalizeCeremonyEarly(
+          prep,
+          pendingTradesCompleteRef.current,
+        ),
+      });
+
+      if (launchMode !== "animated") {
         ceremonyPrepRef.current = prep;
-        if (prep.needsDealerReshuffle) {
+        if (launchMode === "awaitReshuffle") {
           setCeremonyPrep(prep);
           setState(hiddenState);
           setAwaitingDealerReshuffle(true);
           return;
         }
-        if (pendingTradesCompleteRef.current || prep.serverPlayerHands) {
+        if (launchMode === "finalizeNow") {
           finalizeCeremonyRound(
             prep.players,
             prep.baseState,
@@ -1165,9 +1203,7 @@ function GameScreen({
           );
           return;
         }
-        const tradesPending =
-          prep.trades.length > 0 && !prep.trades.every((t) => t.completed);
-        if (tradesPending) {
+        if (launchMode === "skipDealPhases") {
           setCeremonyPrep({ ...prep, skipDealPhases: true });
           setState(hiddenState);
           return;
@@ -1216,7 +1252,9 @@ function GameScreen({
       return;
     }
     if (prep) {
-      if (pendingTradesCompleteRef.current || prep.serverPlayerHands) {
+      if (
+        shouldFinalizeCeremonyEarly(prep, pendingTradesCompleteRef.current)
+      ) {
         finalizeCeremonyRound(
           prep.players,
           prep.baseState,

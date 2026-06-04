@@ -56,6 +56,10 @@ import {
   mergeTradesFromServerPending,
   shouldSyncMidTradeFromServer,
 } from "../src/game/roundPrep";
+import {
+  resolveCeremonyLaunchMode,
+  resolveSkipDealAnimations,
+} from "../src/game/dealCeremonyAnimation";
 import { applyFinishOrderRoles, roleForPlacement, supportsViceRoles } from "../src/utils/roundRoles";
 import {
   resolveFirstRoundLeadPlayerIndex,
@@ -1780,6 +1784,66 @@ console.log("CPU round-1 opening tests passed");
 }
 
 console.log("Server role-trade sync tests passed");
+
+// --- Skip deal animations (flights only) ---
+{
+  assert.strictEqual(
+    resolveSkipDealAnimations({
+      onlineMultiplayer: true,
+      roomSkipDealAnimations: true,
+      localSkipDealAnimations: false,
+    }),
+    true,
+    "Online uses room skip-deal-animations flag",
+  );
+  assert.strictEqual(
+    resolveSkipDealAnimations({
+      onlineMultiplayer: false,
+      roomSkipDealAnimations: true,
+      localSkipDealAnimations: false,
+    }),
+    false,
+    "Offline ignores room flag",
+  );
+  const pendingTrade = {
+    key: "president" as const,
+    winnerId: "p",
+    loserId: "a",
+    winnerName: "P",
+    loserName: "A",
+    incoming: [],
+    returnCount: 1,
+    completed: false,
+  };
+  assert.strictEqual(
+    resolveCeremonyLaunchMode({
+      trades: [pendingTrade],
+      skipDealAnimations: true,
+      shouldFinalizeEarly: false,
+    }),
+    "skipDealPhases",
+    "Skip animations with pending trades keeps overlay for trade flights",
+  );
+  assert.strictEqual(
+    resolveCeremonyLaunchMode({
+      trades: [],
+      skipDealAnimations: true,
+      shouldFinalizeEarly: false,
+    }),
+    "tradeNow",
+    "Skip animations with no trades goes straight to trade/finalize path",
+  );
+  assert.strictEqual(
+    resolveCeremonyLaunchMode({
+      trades: [pendingTrade],
+      skipDealAnimations: false,
+      shouldFinalizeEarly: false,
+    }),
+    "animated",
+    "Full ceremony when animations enabled",
+  );
+}
+console.log("Deal ceremony animation policy tests passed");
 
 // Dead hand must never pollute finish order or receive placement roles.
 {

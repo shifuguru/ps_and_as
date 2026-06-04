@@ -99,9 +99,6 @@ export default function Card({
 
   const selectTranslateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
   const translateY = Animated.add(selectTranslateY, float);
-  const selectScale = anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
-  /** Inverse of selection scale — keeps rank/suit size fixed when selected. */
-  const textScale = anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1 / 1.06] });
 
   const isTable = variant === "table";
 
@@ -291,7 +288,6 @@ export default function Card({
               local.cardHandShell,
               disabled && local.cardHandDisabled,
               {
-                transform: [{ scale: selectScale }],
                 shadowRadius: elevation,
                 borderColor: cardBorder,
                 backgroundColor: cardBackground,
@@ -330,7 +326,6 @@ export default function Card({
           <Animated.View
             style={[
               local.handTextLayer,
-              { transform: [{ scale: textScale }] },
               disabled && local.cardHandTextDisabled,
             ]}
             pointerEvents="none"
