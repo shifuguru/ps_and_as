@@ -32,6 +32,14 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-05T11:16:07"),
+    title: "On top! trick win",
+    items: [
+      "Online games — after you win a trick with an on top! play, the table clears instead of leaving a lone card in the centre",
+      "Online games — the trick winner can open the next lead reliably, including two-player tables with a dead hand",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-05T11:02:56"),
     title: "Bot table turn flow",
     items: [

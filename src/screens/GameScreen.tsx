@@ -627,6 +627,7 @@ function GameScreen({
   const rankingsVisiblePrevRef = useRef(false);
   const trickPauseActiveRef = useRef(trickPauseActive);
   trickPauseActiveRef.current = trickPauseActive;
+  const clearHandPlayFlightRef = useRef<(() => void) | null>(null);
   const startNextRoundRef = useRef<(seed?: number) => void>(() => {});
   const finalizeCeremonyRoundRef = useRef<
     (
@@ -1662,6 +1663,7 @@ function GameScreen({
       trickIndex: len,
       runBonusXp,
     });
+    clearHandPlayFlightRef.current?.();
     setShowWinnerBanner(false);
     setStackCollecting(false);
     setTrickPauseActive(true);
@@ -1909,6 +1911,11 @@ function GameScreen({
       }
       if (incomingVersion != null) {
         lastAppliedStateVersionRef.current = incomingVersion;
+      }
+      const prevTrickLen = stateRef.current?.trickHistory?.length ?? 0;
+      const nextTrickLen = parsed.trickHistory?.length ?? 0;
+      if (nextTrickLen > prevTrickLen) {
+        clearHandPlayFlightRef.current?.();
       }
       setActionPending(false);
       setSyncError(null);
@@ -3186,6 +3193,7 @@ function GameScreen({
         isBotOpenTable,
         handleSkipBotTable,
         setActionPending,
+        clearHandPlayFlightRef,
       }}
     >
       <GameScreenBoard />
@@ -3290,6 +3298,7 @@ function GameScreenBoard() {
     isBotOpenTable,
     handleSkipBotTable,
     setActionPending,
+    clearHandPlayFlightRef,
   } = useContext(GameScreenRuntimeContext)! as {
     state: GameState;
     setState: React.Dispatch<React.SetStateAction<GameState | null>>;
@@ -3421,6 +3430,7 @@ function GameScreenBoard() {
     isBotOpenTable: boolean;
     handleSkipBotTable: () => void;
     setActionPending: React.Dispatch<React.SetStateAction<boolean>>;
+    clearHandPlayFlightRef: React.MutableRefObject<(() => void) | null>;
   };
 
   const [ceremonyDealCounts, setCeremonyDealCounts] = useState<
@@ -3460,6 +3470,16 @@ function GameScreenBoard() {
     playerId: string;
     concealHand: boolean;
   } | null>(null);
+  useEffect(() => {
+    if (!clearHandPlayFlightRef) return;
+    clearHandPlayFlightRef.current = () => {
+      setHandPlayInFlight(null);
+      pendingLocalPlayRef.current = null;
+    };
+    return () => {
+      clearHandPlayFlightRef.current = null;
+    };
+  }, [clearHandPlayFlightRef]);
   const handleLocalHandFlightConsumed = useCallback((playKey: string) => {
     if (localHandFlightRef.current?.playKey === playKey) {
       localHandFlightRef.current = null;
@@ -3728,7 +3748,7 @@ function GameScreenBoard() {
   const localHumanId = myPlayerId ?? humanPlayer?.id;
   const runOnTopActive =
     !!state.runOnTop?.active &&
-    state.runOnTop.playerIndex === state.currentPlayerIndex;
+    state.runOnTop.playerIndex === displayTurnIndex;
   const humanRunOnTopTurn =
     !!state.runOnTop?.active &&
     !!myPlayerId &&
@@ -3744,6 +3764,8 @@ function GameScreenBoard() {
     !state.tenRulePending &&
     (humanRunOnTopTurn ||
       (displayTurnPlayer.id === myPlayerId && displaySeatCanAct));
+  const actingPlayerId =
+    isHumanTurn && myPlayerId ? myPlayerId : displayTurnPlayer.id;
 
   const humanCanAckPass =
     !!myPlayerId &&
@@ -3790,7 +3812,7 @@ function GameScreenBoard() {
       state.players,
       state.finishedOrder,
       state.lastRoundOrder,
-      current.id,
+      actingPlayerId,
       runOnTopActive,
     );
 
@@ -3807,7 +3829,7 @@ function GameScreenBoard() {
       state.players,
       state.finishedOrder,
       state.lastRoundOrder,
-      current.id,
+      actingPlayerId,
       runOnTopActive,
     ),
   );
@@ -3900,7 +3922,9 @@ function GameScreenBoard() {
 
   const handlePlayPress = async () => {
     if (roundOver || !isHumanTurn || trickPauseActive || readOnlyGame) return;
-    const actor = current;
+    const actor =
+      (myPlayerId && state.players.find((p) => p.id === myPlayerId)) ??
+      displayTurnPlayer;
     if (!actor) return;
     if (hasPassedInCurrentTrick(state, actor.id)) {
       emitDebug("action:play:blocked", { playerId: actor.id, reason: "already passed" });
@@ -4132,14 +4156,22 @@ function GameScreenBoard() {
     handPlayInFlight,
   ]);
 
-  /** Drop optimistic hand flight only after the play is in authoritative trick state. */
+  /** Drop optimistic hand flight once the play is on the table or archived in trickHistory. */
   useEffect(() => {
     if (!handPlayInFlight) return;
     const key = handPlayInFlight.playKey;
     if (trickPlays.some((p) => playDisplayKey(p) === key)) {
       setHandPlayInFlight(null);
+      return;
     }
-  }, [trickPlays, handPlayInFlight]);
+    const lastTrick = state.trickHistory?.[state.trickHistory.length - 1];
+    if (
+      lastTrick &&
+      buildPlaysFromTrick(lastTrick).some((p) => playDisplayKey(p) === key)
+    ) {
+      setHandPlayInFlight(null);
+    }
+  }, [trickPlays, handPlayInFlight, state.trickHistory]);
 
   const trickPauseFrozen = trickPauseActive;
   const handPlayReachedTableRef = useRef(false);
