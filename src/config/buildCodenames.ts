@@ -51,6 +51,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.0.48": "Empty Hand Heroics",
   "1.0.49": "Quad Squad Goals",
   "1.0.50": "Trick Question",
+  "1.0.51": "Off-Suit Outburst",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
