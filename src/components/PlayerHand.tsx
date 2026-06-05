@@ -1127,22 +1127,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
           const isFocused = index === displayFocusIndex;
           const isPressed = pressedIndex === index;
           if (concealed) {
-            return (
-              <View
-                key={`${identity}-${index}`}
-                pointerEvents="none"
-                style={[
-                  styles.cardSlot,
-                  {
-                    left: slot.left,
-                    bottom: slot.bottom,
-                    width: cardWidth,
-                    height: cardHeight,
-                    opacity: 0,
-                  },
-                ]}
-              />
-            );
+            return null;
           }
           return (
             <View

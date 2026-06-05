@@ -32,6 +32,18 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-05T14:31:41"),
+    title: "Turn timing & table polish",
+    items: [
+      "Your hand — playable cards light up only after the last play lands on the table",
+      "Quick Game — opponents keep going after your first play; no more stuck turns",
+      "Your plays — cards stay in the fan until they fly; no empty gap when you hit Play",
+      "On top! — the table pill flashes like Pass so you spot your on-top beat",
+      "Bot table — bottom bar: Settings, Leave Game, and Achievements in one row; Skip game in the play area when spectating",
+      "Settings — clearer tip for full-screen play from your home screen",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-05T12:00:54"),
     title: "Turn order & card flights",
     items: [

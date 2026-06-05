@@ -519,9 +519,8 @@ export default function Settings({
             <BlurPanel style={ui.panel} intensity={48}>
               <Text style={ui.panelEyebrow}>Full screen</Text>
               <Text style={styles.tintHint}>
-                Playing in Safari or Chrome shows the address bar. Add the game to
-                your home screen for full-screen play. On iPhone, use Safari&apos;s
-                Share button in the bottom toolbar — not an in-page share menu.
+                Add the game to your homescreen for full-screen play without the browser toolbar taking up space.
+                Use the Share button from the toolbar, or ... menu button and choose Add to Home screen.
               </Text>
               <TouchableOpacity
                 style={[styles.saveBtn, styles.saveBtnActive, { marginTop: 12 }]}

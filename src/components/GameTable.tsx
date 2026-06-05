@@ -64,6 +64,8 @@ type Props = {
   turnHintText?: string | null;
   /** Pulse the turn hint like the Pass button when it's the local player's turn. */
   turnHintFlash?: boolean;
+  /** Pulse the On top! modifier pill like the Pass button (local on-top beat). */
+  playModifierFlash?: boolean;
 };
 
 export default function GameTable({
@@ -79,11 +81,13 @@ export default function GameTable({
   hiddenPlayKeys,
   turnHintText = null,
   turnHintFlash = false,
+  playModifierFlash = false,
 }: Props) {
   const [zoneSize, setZoneSize] = useState({ width: 0, height: 0 });
   const collectAnim = useRef(new Animated.Value(0)).current;
   const tableFadeAnim = useRef(new Animated.Value(1)).current;
   const turnHintFlashAnim = useRef(new Animated.Value(0)).current;
+  const onTopFlashAnim = useRef(new Animated.Value(0)).current;
   const collectHeldRef = useRef(false);
   const [stackFaceDown, setStackFaceDown] = useState(false);
 
@@ -318,6 +322,55 @@ export default function GameTable({
     return () => loop.stop();
   }, [turnHintFlash, turnHintFlashAnim]);
 
+  const showOnTopModifierFlash =
+    playModifierFlash && playModifierLabel === "On top!";
+
+  useEffect(() => {
+    if (!showOnTopModifierFlash) {
+      onTopFlashAnim.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(onTopFlashAnim, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,
+        }),
+        Animated.timing(onTopFlashAnim, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [showOnTopModifierFlash, onTopFlashAnim]);
+
+  const onTopModifierBackground = showOnTopModifierFlash
+    ? onTopFlashAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["rgba(212, 175, 55, 0.14)", "rgba(255, 255, 255, 0.96)"],
+      })
+    : undefined;
+
+  const onTopModifierBorder = showOnTopModifierFlash
+    ? onTopFlashAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["rgba(212, 175, 55, 0.38)", "rgba(255, 255, 255, 0.95)"],
+      })
+    : undefined;
+
+  const onTopModifierTextColor = showOnTopModifierFlash
+    ? onTopFlashAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["#d4af37", "#111111"],
+      })
+    : undefined;
+
   const turnHintBackground = turnHintFlash
     ? turnHintFlashAnim.interpolate({
         inputRange: [0, 1],
@@ -526,22 +579,45 @@ export default function GameTable({
                     </View>
                   ) : null}
                   {playModifierLabel ? (
-                    <View
-                      style={[
-                        styles.playTypeBadgeBody,
-                        styles.playTypeBadgeBodyHighlighted,
-                      ]}
-                    >
-                      <Text
-                        numberOfLines={1}
+                    showOnTopModifierFlash ? (
+                      <Animated.View
                         style={[
-                          styles.playTypeBadgeText,
-                          styles.playTypeBadgeTextHighlighted,
+                          styles.playTypeBadgeBody,
+                          styles.playTypeBadgeFlash,
+                          {
+                            backgroundColor: onTopModifierBackground,
+                            borderColor: onTopModifierBorder,
+                          },
                         ]}
                       >
-                        {playModifierLabel}
-                      </Text>
-                    </View>
+                        <Animated.Text
+                          numberOfLines={1}
+                          style={[
+                            styles.playTypeBadgeText,
+                            { color: onTopModifierTextColor },
+                          ]}
+                        >
+                          {playModifierLabel}
+                        </Animated.Text>
+                      </Animated.View>
+                    ) : (
+                      <View
+                        style={[
+                          styles.playTypeBadgeBody,
+                          styles.playTypeBadgeBodyHighlighted,
+                        ]}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          style={[
+                            styles.playTypeBadgeText,
+                            styles.playTypeBadgeTextHighlighted,
+                          ]}
+                        >
+                          {playModifierLabel}
+                        </Text>
+                      </View>
+                    )
                   ) : null}
                   {showRunXpPool ? (
                     <View
@@ -736,6 +812,16 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
+  playTypeBadgeFlash: Platform.select({
+    ios: {
+      shadowColor: "#fff",
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.35,
+      shadowRadius: 10,
+    },
+    android: { elevation: 5 },
+    default: {},
+  }),
   playTypeBadgeText: {
     color: "#d4af37",
     fontWeight: "800",

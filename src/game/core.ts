@@ -2197,6 +2197,17 @@ export function applyCpuTurn(state: GameState, playerId: string): GameState {
   const ackPass = canAcknowledgmentPass(state, playerId);
   if (!isCurrentTurn && !ackPass) return state;
 
+  const runOnTopBeat =
+    !!state.runOnTop?.active && state.runOnTop.playerIndex === pIndex;
+  if (
+    isCurrentTurn &&
+    !runOnTopBeat &&
+    !playerCanActInCurrentTrick(state, pIndex)
+  ) {
+    const advanced = advanceOffPriorPasser(state);
+    if (advanced !== state) return advanced;
+  }
+
   // Auto-placed asshole may still hold cards and must open after winning a trick.
   if (!isActiveInRound(state, playerId)) {
     const mustOpenTrick =
@@ -2208,8 +2219,6 @@ export function applyCpuTurn(state: GameState, playerId: string): GameState {
 
   const player = state.players[pIndex];
 
-  const runOnTop =
-    !!state.runOnTop?.active && state.runOnTop.playerIndex === pIndex;
   const effectiveTenRule = resolveEffectiveTenRule(state);
 
   // Acknowledgment passes (joker / cross-turn rank close) — never try to beat the pile.
@@ -2233,7 +2242,7 @@ export function applyCpuTurn(state: GameState, playerId: string): GameState {
     state.trickHistory,
     state.lastRoundOrder,
     player.id,
-    runOnTop,
+    runOnTopBeat,
   );
 
   if (cpuPlay && cpuPlay.length > 0) {

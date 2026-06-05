@@ -72,6 +72,7 @@ type Props = RingProps & {
   /** "Your turn" / "Waiting for …" below the play-type badge on the table. */
   turnHintText?: string | null;
   turnHintFlash?: boolean;
+  playModifierFlash?: boolean;
   plays?: TrickPlayDisplay[];
   /** Skip fly-in (trick-end pause snapshot, etc.) */
   skipPlayFlights?: boolean;
@@ -111,6 +112,8 @@ type Props = RingProps & {
   onElevatedHandFlightsChange?: (flights: CardFlightSpec[]) => void;
   /** Parent overlay calls this when an elevated hand flight completes. */
   elevatedFlightCompleteRef?: MutableRefObject<((id: string) => void) | null>;
+  /** True while any opponent/table play flight has not landed on the pile. */
+  onPendingPlayFlightsChange?: (pending: boolean) => void;
 };
 
 export default function GamePlayArea({
@@ -125,6 +128,7 @@ export default function GamePlayArea({
   runXpPoolAmount = null,
   turnHintText,
   turnHintFlash,
+  playModifierFlash = false,
   plays = [],
   skipPlayFlights = false,
   flightDurationMs = PLAY_CARD_FLIGHT_MS,
@@ -150,6 +154,7 @@ export default function GamePlayArea({
   onPlayFlightLanded,
   onElevatedHandFlightsChange,
   elevatedFlightCompleteRef,
+  onPendingPlayFlightsChange,
   children,
 }: Props & { children: React.ReactNode }) {
   const rootRef = useRef<View>(null);
@@ -655,6 +660,20 @@ export default function GamePlayArea({
     return hidden;
   }, [plays, landedKeys]);
 
+  const hasPendingPlayFlights = useMemo(() => {
+    if (skipPlayFlights || plays.length === 0) return false;
+    return plays.some((p) => {
+      const key = playDisplayKey(p);
+      if (landedKeys.has(key)) return false;
+      if (resolveLocalHandCapture(key) != null) return false;
+      return true;
+    });
+  }, [plays, landedKeys, skipPlayFlights, resolveLocalHandCapture]);
+
+  useEffect(() => {
+    onPendingPlayFlightsChange?.(hasPendingPlayFlights);
+  }, [hasPendingPlayFlights, onPendingPlayFlightsChange]);
+
   const tableChild =
     layout && React.isValidElement(children)
       ? React.cloneElement(
@@ -665,6 +684,7 @@ export default function GamePlayArea({
             runXpPoolAmount?: number | null;
             turnHintText?: string | null;
             turnHintFlash?: boolean;
+            playModifierFlash?: boolean;
             hiddenPlayKeys?: Set<string>;
           }>,
           {
@@ -674,6 +694,7 @@ export default function GamePlayArea({
             runXpPoolAmount,
             turnHintText,
             turnHintFlash,
+            playModifierFlash,
             hiddenPlayKeys,
           },
         )
