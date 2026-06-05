@@ -7,7 +7,8 @@ import React, {
   useState,
   type MutableRefObject,
 } from "react";
-import { View, StyleSheet, LayoutChangeEvent } from "react-native";
+import { View, StyleSheet, LayoutChangeEvent, Platform } from "react-native";
+import ScreenFlightPortal from "./ScreenFlightPortal";
 import OpponentRing from "./OpponentRing";
 import TableCardFlight, { type CardFlightSpec } from "./TableCardFlight";
 import { computePlayAreaLayout, tableScaleLimits } from "../utils/tableLayout";
@@ -155,8 +156,13 @@ export default function GamePlayArea({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const { height: shellHeight } = useVisualViewportSize();
   const [activeFlights, setActiveFlights] = useState<CardFlightSpec[]>([]);
+  const [playAreaScreenOrigin, setPlayAreaScreenOrigin] = useState<{
+    x: number;
+    y: number;
+  }>({ x: 0, y: 0 });
   const [landedKeys, setLandedKeys] = useState<Set<string>>(() => new Set());
   const prevPlayKeysRef = useRef<Set<string>>(new Set());
+  const flightsInProgressRef = useRef<Set<string>>(new Set());
   const flightsInitializedRef = useRef(false);
 
   const resolveLocalHandCapture = useCallback(
@@ -201,6 +207,13 @@ export default function GamePlayArea({
       height: size.height,
     });
   }, [layout, size.width, size.height, onPlayAreaMetrics]);
+
+  useEffect(() => {
+    if (!layout || size.height <= 0) return;
+    void measureViewInWindow(rootRef.current).then((win) => {
+      if (win) setPlayAreaScreenOrigin(win);
+    });
+  }, [layout, size.width, size.height]);
 
   const stackLayoutState = useMemo(() => {
     if (!layout) {
@@ -252,6 +265,7 @@ export default function GamePlayArea({
     if (plays.length !== 0) return;
     flightsInitializedRef.current = false;
     prevPlayKeysRef.current = new Set();
+    flightsInProgressRef.current = new Set();
     setLandedKeys(new Set());
     setActiveFlights([]);
   }, [plays.length]);
@@ -278,7 +292,7 @@ export default function GamePlayArea({
       );
       const joinedFullTrick =
         incoming.length === plays.length &&
-        plays.length > 1 &&
+        plays.length > 2 &&
         !hasPendingHandFlight();
       if (joinedFullTrick) {
         prevPlayKeysRef.current = currentKeys;
@@ -302,12 +316,15 @@ export default function GamePlayArea({
     }
 
     if (!layout || size.height <= 0) {
-      prevPlayKeysRef.current = currentKeys;
       return;
     }
 
-    const newPlays = plays.filter((p) => !prevPlayKeysRef.current.has(playDisplayKey(p)));
-    prevPlayKeysRef.current = currentKeys;
+    const newPlays = plays.filter((p) => {
+      const key = playDisplayKey(p);
+      return (
+        !prevPlayKeysRef.current.has(key) && !flightsInProgressRef.current.has(key)
+      );
+    });
 
     if (newPlays.length === 0) return;
 
@@ -315,17 +332,30 @@ export default function GamePlayArea({
     const cardW = stackLayoutState.cardWidth;
     const cardH = stackLayoutState.cardHeight;
     const playKeys = newPlays.map((p) => playDisplayKey(p));
+    for (const key of playKeys) {
+      flightsInProgressRef.current.add(key);
+    }
     let cancelled = false;
 
+    const markPlayKeysSeen = (keys: string[]) => {
+      for (const key of keys) {
+        prevPlayKeysRef.current.add(key);
+      }
+    };
+
     void (async () => {
+      try {
       const playAreaWin = await measureViewInWindow(rootRef.current);
-      if (cancelled || !playAreaWin) {
+      if (cancelled) return;
+      if (!playAreaWin) {
+        markPlayKeysSeen(playKeys);
         for (const key of playKeys) {
           setLandedKeys((prev) => new Set(prev).add(key));
           onPlayFlightLanded?.(key);
         }
         return;
       }
+      setPlayAreaScreenOrigin(playAreaWin);
 
       const flightsToStart: CardFlightSpec[] = [];
 
@@ -333,8 +363,6 @@ export default function GamePlayArea({
         const key = playDisplayKey(play);
         const playIndex = plays.findIndex((p) => playDisplayKey(p) === key);
         if (playIndex < 0) {
-          setLandedKeys((prev) => new Set(prev).add(key));
-          onPlayFlightLanded?.(key);
           continue;
         }
 
@@ -372,15 +400,11 @@ export default function GamePlayArea({
           fromCardH = handCapture.fromCardH;
         }
         if (!cardW || !cardH) {
-          setLandedKeys((prev) => new Set(prev).add(key));
-          onPlayFlightLanded?.(key);
           continue;
         }
         const target = playGroupTargetFromSpot(spot, play, layout, cardW, cardH);
 
         if (!origin) {
-          setLandedKeys((prev) => new Set(prev).add(key));
-          onPlayFlightLanded?.(key);
           continue;
         }
 
@@ -415,14 +439,23 @@ export default function GamePlayArea({
         }
         setActiveFlights((prev) => [...prev, ...flightsToStart]);
         for (const f of flightsToStart) {
+          prevPlayKeysRef.current.add(f.id);
           onPlayFlightStarted?.(f.id);
           if (resolveLocalHandCapture(f.id)) {
             onLocalHandFlightConsumed?.(f.id);
           }
         }
-      } else {
-        for (const key of playKeys) {
+      }
+      for (const key of playKeys) {
+        if (!flightsToStart.some((f) => f.id === key)) {
+          prevPlayKeysRef.current.add(key);
+          setLandedKeys((prev) => new Set(prev).add(key));
           onPlayFlightLanded?.(key);
+        }
+      }
+      } finally {
+        for (const key of playKeys) {
+          flightsInProgressRef.current.delete(key);
         }
       }
     })();
@@ -588,6 +621,17 @@ export default function GamePlayArea({
     () => activeFlights.filter((f) => !f.fromLocalHand),
     [activeFlights],
   );
+  const arenaFlightsScreen = useMemo(() => {
+    if (Platform.OS !== "web") return arenaFlights;
+    const { x, y } = playAreaScreenOrigin;
+    return arenaFlights.map((f) => ({
+      ...f,
+      fromX: x + f.fromX,
+      fromY: y + f.fromY,
+      toX: x + f.toX,
+      toY: y + f.toY,
+    }));
+  }, [arenaFlights, playAreaScreenOrigin]);
   const elevatedHandFlights = useMemo(
     () => activeFlights.filter((f) => f.fromLocalHand),
     [activeFlights],
@@ -661,15 +705,30 @@ export default function GamePlayArea({
       )}
 
       <View style={styles.flightLayer} pointerEvents="none">
-        {arenaFlights.map((flight) => (
-          <TableCardFlight
-            key={flight.id}
-            flight={flight}
-            durationMs={flightDurationMs}
-            onComplete={handleFlightComplete}
-          />
-        ))}
+        {Platform.OS === "web"
+          ? null
+          : arenaFlights.map((flight) => (
+              <TableCardFlight
+                key={flight.id}
+                flight={flight}
+                durationMs={flightDurationMs}
+                onComplete={handleFlightComplete}
+              />
+            ))}
       </View>
+
+      {Platform.OS === "web" && arenaFlightsScreen.length > 0 ? (
+        <ScreenFlightPortal>
+          {arenaFlightsScreen.map((flight) => (
+            <TableCardFlight
+              key={flight.id}
+              flight={flight}
+              durationMs={flightDurationMs}
+              onComplete={handleFlightComplete}
+            />
+          ))}
+        </ScreenFlightPortal>
+      ) : null}
 
       {layout && (
         <View style={styles.seatOverlay} pointerEvents="box-none">

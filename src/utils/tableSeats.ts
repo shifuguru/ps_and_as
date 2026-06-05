@@ -172,18 +172,22 @@ export function resolveFirstRoundLeadPlayerIndex(
 }
 
 /**
- * After mandatory role trades, the living player holding 3♣ leads the round.
+ * After mandatory role trades, the living player holding 3♣ leads the round
+ * (President, Asshole, or middle rank — whoever kept it after trades).
+ * Walks deal order so the result matches table seating, not raw player[] index.
  * If 3♣ is on the sidelined dead hand, fall back to round-1 alternate lead rules.
  */
 export function resolveLeadPlayerIndexAfterTrades(
   players: Pick<Player, "id" | "hand" | "isDeadHand" | "sidelinedHand">[],
   options: DealerContext = {},
 ): number {
-  for (let i = 0; i < players.length; i++) {
-    const p = players[i];
+  for (const id of livingDealRecipientOrder(players, options)) {
+    const idx = players.findIndex((p) => p.id === id);
+    if (idx < 0) continue;
+    const p = players[idx];
     if (isDeadHandPlayer(p)) continue;
     if (p.hand?.some((c) => c.value === 3 && c.suit === "clubs")) {
-      return i;
+      return idx;
     }
   }
   if (deadHandHoldsThreeClubs(players)) {

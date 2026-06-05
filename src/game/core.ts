@@ -33,6 +33,7 @@ export {
 
 export {
   resolveLeadPlayerIndexAfterTrades,
+  resolveFirstRoundLeadPlayerIndex,
   resolveOpeningPlayerIndex,
   resolveDealerId,
   buildDealerContext,

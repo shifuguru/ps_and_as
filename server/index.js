@@ -10,6 +10,7 @@ const {
   repairStuckTurnPointer,
   setTenRuleDirection,
   resolveLeadPlayerIndexAfterTrades,
+  resolveFirstRoundLeadPlayerIndex,
   resolveOpeningPlayerIndex,
   resolveDealerId,
   buildDealerContext,
@@ -584,6 +585,9 @@ function syncOpeningPlayerAfterTrades(gameState, hostId) {
     lastRoundOrder: lastRoundOrder ?? [],
   };
   let idx = resolveLeadPlayerIndexAfterTrades(gameState.players, dealerContext);
+  if (idx < 0) {
+    idx = resolveFirstRoundLeadPlayerIndex(gameState.players, dealerContext);
+  }
   if (idx < 0) {
     idx = resolveOpeningPlayerIndex(gameState.players, dealerContext);
   }

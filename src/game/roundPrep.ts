@@ -19,6 +19,7 @@ import {
   type DealerContext,
   buildDealerContext,
   resolveLeadPlayerIndexAfterTrades,
+  resolveFirstRoundLeadPlayerIndex,
   resolveOpeningPlayerIndex,
 } from "../utils/tableSeats";
 import { applyFinishOrderRoles, supportsViceRoles } from "../utils/roundRoles";
@@ -432,16 +433,6 @@ export function completeWinnerReturn(
 
   trade.returnedCards = selectedReturn.slice();
 
-  // 3♣ traded up for the round opener must return to the asshole after the
-  // president picks their return cards (even if those cards are not 3♣).
-  const threeClubsFromTrade = trade.incoming.find(
-    (c) => c.value === 3 && c.suit === "clubs",
-  );
-  if (threeClubsFromTrade) {
-    removeCardsFromHand(winner.hand, [threeClubsFromTrade]);
-    loser.hand.push(threeClubsFromTrade);
-  }
-
   trade.completed = true;
   return true;
 }
@@ -487,6 +478,8 @@ export function resolveOpenerAfterRoleTrades(
   }
   const afterTrades = resolveLeadPlayerIndexAfterTrades(players, dealerContext);
   if (afterTrades >= 0) return afterTrades;
+  const anyThreeLead = resolveFirstRoundLeadPlayerIndex(players, dealerContext);
+  if (anyThreeLead >= 0) return anyThreeLead;
   return resolveOpeningPlayerIndex(players, dealerContext);
 }
 

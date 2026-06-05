@@ -282,11 +282,11 @@ After the first round, player rankings matter.
 
 ### President
 
-The President gives away their worst cards and receives the Asshole's best cards.
+The President receives the Asshole's best card(s), then **chooses** which card(s) from their hand to send back (any cards they hold — not forced to return the 3♣).
 
 ### Asshole
 
-The Asshole gives away their best cards and receives the President's worst cards.
+The Asshole must give their best card(s). They receive whatever the President selected as the return.
 
 ### Five Or More Players
 

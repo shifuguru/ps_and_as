@@ -32,6 +32,15 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-05T12:00:54"),
+    title: "Turn order & card flights",
+    items: [
+      "After role trades, the player with the 3♣ opens — including the middle player in a 3-player game",
+      "President↔Asshole trades — you choose which cards to send back; Asshole still gives their best card",
+      "Opponent plays — cards fly from their seat to the table again on web",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-05T11:32:36"),
     title: "Online trades & hand cards",
     items: [

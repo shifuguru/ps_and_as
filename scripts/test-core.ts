@@ -1948,18 +1948,18 @@ console.log("Dead hand role/trade tests passed");
   completeWinnerReturn(players, trades[0], [{ suit: "clubs", value: 3 }]);
   assert.ok(
     players[1].hand.some((c) => c.suit === "clubs" && c.value === 3),
-    "Asshole receives 3♣ when president returns it",
+    "Asshole receives 3♣ only when president chooses it as the return card",
   );
   assert.strictEqual(
     resolveLeadPlayerIndexAfterTrades(players, { lastRoundOrder: lastOrder }),
     1,
-    "Asshole leads when 3♣ was traded back to them",
+    "Asshole leads when president returned 3♣ as their pick",
   );
   const next = buildFreshRoundState(base, players, { lastRoundOrder: lastOrder });
   assert.strictEqual(
     next.currentPlayerIndex,
     1,
-    "buildFreshRoundState opens on asshole after 3♣ trade return",
+    "buildFreshRoundState opens on asshole when they hold 3♣ after trade",
   );
 }
 
@@ -1975,13 +1975,51 @@ console.log("Dead hand role/trade tests passed");
   assert.strictEqual(trades.length, 1);
   completeWinnerReturn(players, trades[0], [{ suit: "diamonds", value: 4 }]);
   assert.ok(
+    players[0].hand.some((c) => c.suit === "clubs" && c.value === 3),
+    "President keeps 3♣ when they return a different card",
+  );
+  assert.strictEqual(
+    resolveLeadPlayerIndexAfterTrades(players, { lastRoundOrder: lastOrder }),
+    0,
+    "President leads when they still hold 3♣ after trade",
+  );
+  const next = buildFreshRoundState(base, players, { lastRoundOrder: lastOrder });
+  assert.strictEqual(
+    next.currentPlayerIndex,
+    0,
+    "buildFreshRoundState opens on president when they hold 3♣",
+  );
+}
+
+{
+  const base = createGame(["Pres", "Mid", "Ass"]);
+  const lastOrder = ["1", "2", "3"];
+  base.lastRoundOrder = lastOrder;
+  const players = clonePlayersForRound(base.players);
+  applyFinishOrderRoles(players, lastOrder);
+  players[0].hand = [{ suit: "hearts", value: 14 }, { suit: "diamonds", value: 10 }];
+  players[1].hand = [
+    { suit: "clubs", value: 3 },
+    { suit: "spades", value: 7 },
+  ];
+  players[2].hand = [{ suit: "hearts", value: 13 }];
+  const trades = applyMandatoryTrades(players);
+  assert.strictEqual(trades.length, 1, "3-player: president trade only");
+  completeWinnerReturn(players, trades[0], [{ suit: "diamonds", value: 10 }]);
+  assert.ok(
     players[1].hand.some((c) => c.suit === "clubs" && c.value === 3),
-    "Asshole keeps or receives 3♣ through trade returns",
+    "Middle player still holds 3♣ (no trade)",
   );
   assert.strictEqual(
     resolveLeadPlayerIndexAfterTrades(players, { lastRoundOrder: lastOrder }),
     1,
-    "Asshole leads when holding 3♣ after president trade return",
+    "Middle player opens when they hold 3♣",
+  );
+  const next = buildFreshRoundState(base, players, { lastRoundOrder: lastOrder });
+  assert.strictEqual(
+    next.currentPlayerIndex,
+    1,
+    "3-player: middle rank leads after trades when holding 3♣",
   );
 }
 

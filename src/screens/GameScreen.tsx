@@ -58,6 +58,7 @@ import {
   resolveCeremonyTrades,
   buildTradePhaseFromServerState,
   mergeTradesFromServerPending,
+  resolveOpenerAfterRoleTrades,
   shouldSyncMidTradeFromServer,
   serverPendingTradesComplete,
   type ClientPendingTrade,
@@ -1075,19 +1076,26 @@ function GameScreen({
       pendingTradesCompleteRef.current = null;
       resetBetweenRoundsUi();
       clearTradeReturnReveal();
+      const dealerContext = {
+        hostId: resolvedHostId,
+        lastRoundOrder: baseState.lastRoundOrder,
+        finishedOrder: ceremonyPrepRef.current?.finishOrder,
+      };
+      const openerFromHands = resolveOpenerAfterRoleTrades(merged, dealerContext);
       const useServerOpener =
         onlineMultiplayer &&
+        openerFromHands < 0 &&
         baseState.currentPlayerIndex >= 0 &&
         baseState.currentPlayerIndex < merged.length;
       const next = buildFreshRoundState(
         baseState,
         merged,
-        {
-          hostId: resolvedHostId,
-          lastRoundOrder: baseState.lastRoundOrder,
-          finishedOrder: ceremonyPrepRef.current?.finishOrder,
-        },
-        useServerOpener ? baseState.currentPlayerIndex : undefined,
+        dealerContext,
+        openerFromHands >= 0
+          ? openerFromHands
+          : useServerOpener
+            ? baseState.currentPlayerIndex
+            : undefined,
       );
       setState(next);
       setRoundOver(false);

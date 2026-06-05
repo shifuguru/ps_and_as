@@ -23,6 +23,14 @@ const { BOT_ROOM_CODE } = require("../server/botHostedRooms.js");
 const SERVER = process.env.SERVER_URL ?? "http://localhost:4000";
 const ROUNDS = Number(process.env.ROUNDS ?? 2);
 const SKIP_SLOW = process.env.SKIP_SLOW === "1";
+/** Comma-separated: 2h, 2hs, bot, 3..8 — run subset only */
+const ONLY = (process.env.ONLY ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+function wantScenario(id) {
+  return ONLY.length === 0 || ONLY.includes(id);
+}
 const DEAD_HAND_ID = "__dead_hand__";
 const CPU_ID_RE = /^cpu-\d+$/i;
 
@@ -506,7 +514,11 @@ async function runBotTableScenario() {
 }
 
 async function main() {
-  console.log(`Multiplayer matrix — ${SERVER}, ${ROUNDS} round(s) per scenario\n`);
+  const scope =
+    ONLY.length > 0 ? `scenarios [${ONLY.join(", ")}]` : "full matrix";
+  console.log(
+    `Multiplayer matrix — ${SERVER}, ${ROUNDS} round(s) per scenario (${scope})\n`,
+  );
 
   try {
     const probe = await connectClient("probe", "probe-connect");
@@ -517,11 +529,18 @@ async function main() {
     process.exit(1);
   }
 
-  await runHumanCountScenario(2, { deadHand: true, withSpectator: false });
-  await runHumanCountScenario(2, { deadHand: true, withSpectator: true });
-  await runBotTableScenario();
+  if (wantScenario("2h")) {
+    await runHumanCountScenario(2, { deadHand: true, withSpectator: false });
+  }
+  if (wantScenario("2hs")) {
+    await runHumanCountScenario(2, { deadHand: true, withSpectator: true });
+  }
+  if (wantScenario("bot")) {
+    await runBotTableScenario();
+  }
 
   for (let n = 3; n <= 8; n++) {
+    if (!wantScenario(String(n))) continue;
     if (SKIP_SLOW && n >= 7) {
       console.log(`  SKIP ${n} humans (SKIP_SLOW=1)`);
       continue;
