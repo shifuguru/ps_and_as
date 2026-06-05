@@ -32,6 +32,14 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-06T00:43"),
+    title: "Round end & 10 Lower",
+    items: [
+      "Online — reconnect or refresh after a round ends and you still get the last hand, then rankings",
+      "10 Lower — you must play the same number of cards as the 10 pile (no triple beat on a single 10)",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-05T14:31:41"),
     title: "Turn timing & table polish",
     items: [

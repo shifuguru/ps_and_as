@@ -1734,7 +1734,14 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
     pileIsUniform &&
     pile.length > 0 &&
     pile[0].value === 10;
-  if (tenRule?.active && tenRule.direction && (!inRunContext || tenRuleOnTopBeat)) {
+  const pileIsTenSet =
+    pileIsUniform && pile.length > 0 && pile[0].value === 10;
+  if (
+    tenRule?.active &&
+    tenRule.direction &&
+    pileIsTenSet &&
+    (!inRunContext || tenRuleOnTopBeat)
+  ) {
     if (!allSameValue(cards)) return false;
     const pileRank = rankIndex(pile[0].value);
     const playRank = rankIndex(cards[0].value);
@@ -1751,9 +1758,11 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
         return true;
       }
     }
+    if (playCount !== pileCount) return false;
     if (tenRule.direction === "higher") {
       return playRank > pileRank;
-    } else if (tenRule.direction === "lower") {
+    }
+    if (tenRule.direction === "lower") {
       return playRank < pileRank;
     }
   }

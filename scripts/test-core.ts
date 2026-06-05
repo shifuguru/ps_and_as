@@ -303,6 +303,29 @@ assert.strictEqual(
   "2 tens on 2 tens should close quad with 10-rule lower active",
 );
 
+const tripleSix: Card[] = [
+  { suit: "hearts", value: 6 },
+  { suit: "diamonds", value: 6 },
+  { suit: "clubs", value: 6 },
+];
+const singleTen: Card[] = [{ suit: "spades", value: 10 }];
+const tripleTen: Card[] = [
+  { suit: "spades", value: 10 },
+  { suit: "clubs", value: 10 },
+  { suit: "hearts", value: 10 },
+];
+const tenRuleLower = { active: true, direction: "lower" as const };
+assert.strictEqual(
+  isValidPlay(tripleSix, singleTen, tenRuleLower),
+  false,
+  "10-rule lower must match pile count — triple 6 cannot beat single 10",
+);
+assert.strictEqual(
+  isValidPlay(tripleSix, tripleTen, tenRuleLower),
+  true,
+  "10-rule lower triple 6 may beat triple 10 (same count, lower rank)",
+);
+
 console.log("Run-with-10 context tests passed");
 
 // --- Pass-lock tests and 8-player coverage ---

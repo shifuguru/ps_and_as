@@ -1245,7 +1245,7 @@ function handleRoundFinished(roomId, finishOrder, hands) {
   if (room.isPublic) broadcastAvailableRooms();
 }
 
-/** Spectators who sync late still get last-hand + scoreboard (missed live roundEnded). */
+/** Late sync / reconnect: replay roundEnded when the table is between rounds. */
 function emitBetweenRoundsSnapshot(socket, room) {
   const gs = room?.gameState;
   if (!gs || !isRoundComplete(gs) || gs.tenRulePending) return;
@@ -1587,9 +1587,7 @@ io.on('connection', (socket) => {
           skipDealAnimations: !!room.skipDealAnimations,
           spectator: sync?.spectator ?? !!joined.isSpectator,
         });
-        if (joined.isSpectator) {
-          emitBetweenRoundsSnapshot(socket, room);
-        }
+        emitBetweenRoundsSnapshot(socket, room);
       }
     }
     
@@ -1907,6 +1905,7 @@ io.on('connection', (socket) => {
     if (sync) {
       socket.emit('gameStateSync', sync);
     }
+    emitBetweenRoundsSnapshot(socket, room);
   });
 
   socket.on('roundFinished', ({ roomId, finishOrder, hands }) => {
