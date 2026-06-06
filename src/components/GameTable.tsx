@@ -1,4 +1,11 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from "react";
 import {
   View,
   Text,
@@ -21,6 +28,7 @@ import {
   stagePlayTypeBadgeTop,
   stageTurnHintTop,
 } from "../utils/tablePlayLayout";
+import type { MeasurableNode } from "../utils/playFlightDiagnostics";
 
 /** z-index stride per play group — cards within use 0..stride-1 by left-to-right order. */
 const GROUP_Z_STRIDE = 100;
@@ -66,6 +74,10 @@ type Props = {
   turnHintFlash?: boolean;
   /** Pulse the On top! modifier pill like the Pass button (local on-top beat). */
   playModifierFlash?: boolean;
+  /** Temporary flight/pile alignment diagnostics — play group nodes keyed by playDisplayKey. */
+  playGroupMeasureRefs?: MutableRefObject<Map<string, MeasurableNode>>;
+  /** Temporary — measured card-zone size inside GameTable (may differ from layoutHint). */
+  measuredZoneRef?: MutableRefObject<{ width: number; height: number }>;
 };
 
 export default function GameTable({
@@ -82,6 +94,8 @@ export default function GameTable({
   turnHintText = null,
   turnHintFlash = false,
   playModifierFlash = false,
+  playGroupMeasureRefs,
+  measuredZoneRef,
 }: Props) {
   const [zoneSize, setZoneSize] = useState({ width: 0, height: 0 });
   const collectAnim = useRef(new Animated.Value(0)).current;
@@ -178,6 +192,9 @@ export default function GameTable({
 
   const onZoneLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
+    if (measuredZoneRef) {
+      measuredZoneRef.current = { width, height };
+    }
     setZoneSize((prev) =>
       prev.width === width && prev.height === height ? prev : { width, height },
     );
@@ -453,9 +470,24 @@ export default function GameTable({
                       ? (playIndex + 1) * GROUP_Z_STRIDE
                       : groupZ;
 
+                  const rowPlayKey = playDisplayKey(play);
                   return (
                     <Animated.View
                       key={playKey(play, playIndex)}
+                      ref={
+                        playGroupMeasureRefs
+                          ? (node) => {
+                              if (node) {
+                                playGroupMeasureRefs.current.set(
+                                  rowPlayKey,
+                                  node as MeasurableNode,
+                                );
+                              } else {
+                                playGroupMeasureRefs.current.delete(rowPlayKey);
+                              }
+                            }
+                          : undefined
+                      }
                       style={[
                         styles.playGroup,
                         isNewest

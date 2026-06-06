@@ -21,6 +21,12 @@ import {
   stackSpotForPlay,
 } from "../utils/tablePlayLayout";
 import {
+  computeFlightLandDiagnostic,
+  ENABLE_FLIGHT_LAND_DIAGNOSTICS,
+  logFlightLandDiagnostic,
+  logMeasuredPileCentre,
+} from "../utils/playFlightDiagnostics";
+import {
   playDisplayKey,
   playFlightMaxBundleWidth,
   playGroupTargetFromSpot,
@@ -162,6 +168,7 @@ export default function GamePlayArea({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const { height: shellHeight } = useVisualViewportSize();
   const [activeFlights, setActiveFlights] = useState<CardFlightSpec[]>([]);
+  const activeFlightsRef = useRef<CardFlightSpec[]>([]);
   const [playAreaScreenOrigin, setPlayAreaScreenOrigin] = useState<{
     x: number;
     y: number;
@@ -170,6 +177,14 @@ export default function GamePlayArea({
   const prevPlayKeysRef = useRef<Set<string>>(new Set());
   const flightsInProgressRef = useRef<Set<string>>(new Set());
   const flightsInitializedRef = useRef(false);
+  const playGroupMeasureRefs = useRef(
+    new Map<string, import("../utils/playFlightDiagnostics").MeasurableNode>(),
+  );
+  const measuredZoneRef = useRef({ width: 0, height: 0 });
+
+  useEffect(() => {
+    activeFlightsRef.current = activeFlights;
+  }, [activeFlights]);
 
   const resolveLocalHandCapture = useCallback(
     (playKey: string): LocalHandFlightCapture | null => {
@@ -594,6 +609,35 @@ export default function GamePlayArea({
 
   const handleFlightComplete = useCallback(
     (id: string) => {
+      if (ENABLE_FLIGHT_LAND_DIAGNOSTICS && layout) {
+        const completing = activeFlightsRef.current.find((f) => f.id === id);
+        if (completing) {
+          const diag = computeFlightLandDiagnostic(
+            completing,
+            plays,
+            layout,
+            measuredZoneRef.current.width,
+            measuredZoneRef.current.height,
+          );
+          if (diag) {
+            logFlightLandDiagnostic(diag);
+            const flightCentreScreen = {
+              x: playAreaScreenOrigin.x + completing.toX,
+              y: playAreaScreenOrigin.y + completing.toY,
+            };
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                logMeasuredPileCentre(
+                  id,
+                  playGroupMeasureRefs.current.get(id),
+                  flightCentreScreen,
+                );
+              });
+            });
+          }
+        }
+      }
+
       setLandedKeys((prev) => {
         if (prev.has(id)) return prev;
         const next = new Set(prev);
@@ -615,7 +659,14 @@ export default function GamePlayArea({
       }
       onPlayFlightLanded?.(id);
     },
-    [onPlayFlightLanded, onElevatedHandFlightsChange],
+    [
+      layout,
+      plays,
+      playAreaScreenOrigin.x,
+      playAreaScreenOrigin.y,
+      onPlayFlightLanded,
+      onElevatedHandFlightsChange,
+    ],
   );
 
   useEffect(() => {
@@ -691,6 +742,8 @@ export default function GamePlayArea({
             turnHintFlash?: boolean;
             playModifierFlash?: boolean;
             hiddenPlayKeys?: Set<string>;
+            playGroupMeasureRefs?: typeof playGroupMeasureRefs;
+            measuredZoneRef?: typeof measuredZoneRef;
           }>,
           {
             layoutHint: layout,
@@ -701,6 +754,12 @@ export default function GamePlayArea({
             turnHintFlash,
             playModifierFlash,
             hiddenPlayKeys,
+            playGroupMeasureRefs: ENABLE_FLIGHT_LAND_DIAGNOSTICS
+              ? playGroupMeasureRefs
+              : undefined,
+            measuredZoneRef: ENABLE_FLIGHT_LAND_DIAGNOSTICS
+              ? measuredZoneRef
+              : undefined,
           },
         )
       : children;

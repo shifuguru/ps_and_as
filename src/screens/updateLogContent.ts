@@ -257,6 +257,12 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
 
 export const KNOWN_ISSUES: KnownIssue[] = [
   {
+    title: "Card play flight landing",
+    status: "Looking into it",
+    updatedAt: nzst("2026-06-06T16:05:04"),
+    note: "Cards played from your hand may still look like they land above the pile instead of sitting flush on it. We're measuring alignment.",
+  },
+  {
     title: "Achievement stats in lobbies",
     status: "Monitoring",
     updatedAt: nzst("2026-05-28T17:36"),
