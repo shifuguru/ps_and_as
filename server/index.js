@@ -1958,9 +1958,12 @@ io.on('connection', (socket) => {
     const player = room.players.find(p => p.socketId === socket.id);
     if (!player) return;
     const inRound = activeRoundPlayerIds(room).includes(player.id);
+    const betweenRounds =
+      isRoundComplete(room.gameState) && !room.gameState.tenRulePending;
     const canSpectatorReady =
       player.isSpectator &&
-      (room.isBotHosted || gameHasDeadHandSlot(room));
+      (room.isBotHosted || gameHasDeadHandSlot(room)) &&
+      betweenRounds;
     if (!inRound && !canSpectatorReady) return;
     room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
     if (room.isBotHosted) {

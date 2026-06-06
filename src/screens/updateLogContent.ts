@@ -32,6 +32,13 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-06T20:31:29"),
+    title: "Spectator seat claims",
+    items: [
+      "Open bot table — Ready to claim a seat only counts after the round ends, so you won't jump into a game from an old tap while watching",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-06T15:11:42"),
     title: "Card flight landing",
     items: [
