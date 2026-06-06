@@ -19,6 +19,8 @@ export type CardFlightSpec = {
   fromCardH?: number;
   /** Play flew from the local hand — parent may render in a screen-level overlay. */
   fromLocalHand?: boolean;
+  /** Same cap as playGroupTargetFromSpot — keeps flight centre aligned with pile target. */
+  maxBundleWidth?: number;
 };
 
 type Props = {
@@ -45,8 +47,13 @@ export default function TableCardFlight({
 
   const bundle = useMemo(
     () =>
-      layoutPlayBundle(flight.cards.length, flight.cardW, undefined, flight.cardH),
-    [flight.cards.length, flight.cardW, flight.cardH],
+      layoutPlayBundle(
+        flight.cards,
+        flight.cardW,
+        flight.maxBundleWidth,
+        flight.cardH,
+      ),
+    [flight.cards, flight.cardW, flight.cardH, flight.maxBundleWidth],
   );
 
   const deltaX = flight.toX - flight.fromX;

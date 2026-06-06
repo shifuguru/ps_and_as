@@ -22,6 +22,7 @@ import {
 } from "../utils/tablePlayLayout";
 import {
   playDisplayKey,
+  playFlightMaxBundleWidth,
   playGroupTargetFromSpot,
   seatOriginInPlayArea,
 } from "../utils/tablePlayFlight";
@@ -363,6 +364,7 @@ export default function GamePlayArea({
       setPlayAreaScreenOrigin(playAreaWin);
 
       const flightsToStart: CardFlightSpec[] = [];
+      const maxSpreadWidth = layout.cardZoneWidth * MAX_SPREAD_WIDTH_RATIO;
 
       for (const play of newPlays) {
         const key = playDisplayKey(play);
@@ -422,6 +424,7 @@ export default function GamePlayArea({
           toY: target.y,
           cardW: target.cardW,
           cardH: target.cardH,
+          maxBundleWidth: playFlightMaxBundleWidth(play.cards, maxSpreadWidth),
           fromCardW,
           fromCardH,
           fromLocalHand: !!handCapture,
@@ -540,6 +543,7 @@ export default function GamePlayArea({
       };
 
       if (cancelled) return;
+      const maxSpreadWidth = layout.cardZoneWidth * MAX_SPREAD_WIDTH_RATIO;
       const flightSpec = {
         id: key,
         cards: play.cards,
@@ -549,6 +553,7 @@ export default function GamePlayArea({
         toY: target.y,
         cardW: target.cardW,
         cardH: target.cardH,
+        maxBundleWidth: playFlightMaxBundleWidth(play.cards, maxSpreadWidth),
         fromCardW: cap.fromCardW,
         fromCardH: cap.fromCardH,
         fromLocalHand: true,

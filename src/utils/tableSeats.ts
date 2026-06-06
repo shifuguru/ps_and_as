@@ -176,6 +176,8 @@ export function resolveFirstRoundLeadPlayerIndex(
  * (President, Asshole, or middle rank — whoever kept it after trades).
  * Walks deal order so the result matches table seating, not raw player[] index.
  * If 3♣ is on the sidelined dead hand, fall back to round-1 alternate lead rules.
+ *
+ * Tests: import from tableSeats.ts (roundPrep uses this internally but does not export it).
  */
 export function resolveLeadPlayerIndexAfterTrades(
   players: Pick<Player, "id" | "hand" | "isDeadHand" | "sidelinedHand">[],

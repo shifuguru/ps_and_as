@@ -32,6 +32,13 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-06T15:11:42"),
+    title: "Card flight landing",
+    items: [
+      "Your plays — cards from your hand land directly on the pile without a visible overshoot or snap at the end",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-06T00:43"),
     title: "Round end & 10 Lower",
     items: [

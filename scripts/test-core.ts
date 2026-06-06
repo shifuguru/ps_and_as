@@ -61,6 +61,8 @@ import {
   resolveSkipDealAnimations,
 } from "../src/game/dealCeremonyAnimation";
 import { applyFinishOrderRoles, roleForPlacement, supportsViceRoles } from "../src/utils/roundRoles";
+// Opener resolution lives in tableSeats — not roundPrep. Ad-hoc harness scripts that
+// import resolveLeadPlayerIndexAfterTrades from roundPrep fail at runtime and look like gameplay bugs.
 import {
   resolveFirstRoundLeadPlayerIndex,
   resolveLeadPlayerIndexAfterTrades,
@@ -1921,6 +1923,9 @@ console.log("Deal ceremony animation policy tests passed");
 
 console.log("Dead hand role/trade tests passed");
 
+// Post-trade 3♣ opener tests — gameplay verified; a prior false failure was caused by
+// isolated harness scripts importing resolveLeadPlayerIndexAfterTrades from roundPrep.ts
+// instead of tableSeats.ts (see import block above).
 // After role trades, opener is whoever holds 3♣ (not dealer's left).
 {
   const base = createGame(["Pres", "Mid", "Ass"]);

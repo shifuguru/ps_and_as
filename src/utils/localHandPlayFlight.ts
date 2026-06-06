@@ -8,7 +8,11 @@ import {
   stackSpotForPlay,
 } from "./tablePlayLayout";
 import type { TrickPlayDisplay } from "./trickDisplay";
-import { playDisplayKey, playGroupTargetFromSpot } from "./tablePlayFlight";
+import {
+  playDisplayKey,
+  playFlightMaxBundleWidth,
+  playGroupTargetFromSpot,
+} from "./tablePlayFlight";
 
 export type LocalHandFlightCapture = {
   playKey: string;
@@ -58,6 +62,7 @@ export function buildLocalHandElevatedFlight(
   );
 
   const target = playGroupTargetFromSpot(spot, play, layout, cardW, cardH);
+  const maxSpreadWidth = layout.cardZoneWidth * MAX_SPREAD_WIDTH_RATIO;
   const fromX = capture.screenX - playAreaWindow.x;
   const fromY = capture.screenY - playAreaWindow.y;
 
@@ -70,6 +75,7 @@ export function buildLocalHandElevatedFlight(
     toY: playAreaWindow.y + target.y,
     cardW: target.cardW,
     cardH: target.cardH,
+    maxBundleWidth: playFlightMaxBundleWidth(play.cards, maxSpreadWidth),
     fromCardW: capture.fromCardW,
     fromCardH: capture.fromCardH,
     fromLocalHand: true,

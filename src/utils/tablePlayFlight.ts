@@ -1,3 +1,4 @@
+import type { Card } from "../game/ruleset";
 import { allSameValue, isRun } from "../game/core";
 import type { TrickPlayDisplay } from "./trickDisplay";
 import type { PlayAreaLayout } from "./tableLayout";
@@ -153,6 +154,19 @@ export function seatDealStackInPlayArea(
   };
 }
 
+export function playFlightMaxBundleWidth(
+  cards: Card[],
+  maxSpreadWidth: number,
+): number {
+  const bundleCapRatio =
+    cards.length >= 3 && isRun(cards)
+      ? 0.95
+      : cards.length > 1 && allSameValue(cards)
+        ? 1
+        : 0.68;
+  return Math.round(maxSpreadWidth * bundleCapRatio);
+}
+
 export function playGroupTargetFromSpot(
   spot: FrozenPlaySpot,
   play: TrickPlayDisplay,
@@ -161,16 +175,10 @@ export function playGroupTargetFromSpot(
   cardH: number,
 ): { x: number; y: number; cardW: number; cardH: number } {
   const maxSpreadWidth = layout.cardZoneWidth * MAX_SPREAD_WIDTH_RATIO;
-  const bundleCapRatio =
-    play.cards.length >= 3 && isRun(play.cards)
-      ? 0.95
-      : play.cards.length > 1 && allSameValue(play.cards)
-        ? 1
-        : 0.68;
   const bundle = layoutPlayBundle(
     play.cards,
     cardW,
-    Math.round(maxSpreadWidth * bundleCapRatio),
+    playFlightMaxBundleWidth(play.cards, maxSpreadWidth),
     cardH,
   );
 
