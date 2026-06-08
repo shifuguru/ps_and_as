@@ -32,7 +32,7 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-06-06T20:31:29"),
+    publishedAt: nzst("2026-06-08T12:37:44"),
     title: "Turn pill & late-round passes",
     items: [
       "Your play — the turn pill stays on you until your card lands and the table syncs; no more brief Waiting for… flicker on slow connections",
