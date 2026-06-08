@@ -57,6 +57,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.0.54": "Underhand Overhand",
   "1.0.55": "Shuffle Or Scramble",
   "1.0.56": "Asshole Ascendant",
+  "1.0.57": "Felt Table Fever",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
