@@ -13,10 +13,18 @@ import { useAppTheme } from "../context/ThemeContext";
 
 type Props = {
   visible: boolean;
+  /** True when direction is chosen before the 10 is committed. */
+  preCommit?: boolean;
   onChoose: (direction: "higher" | "lower") => void;
+  onCancel?: () => void;
 };
 
-export default function TenRuleModal({ visible, onChoose }: Props) {
+export default function TenRuleModal({
+  visible,
+  preCommit = false,
+  onChoose,
+  onCancel,
+}: Props) {
   const { colors, ui, blur } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { width } = useWindowDimensions();
@@ -29,13 +37,16 @@ export default function TenRuleModal({ visible, onChoose }: Props) {
           style={[ui.modalCard, { width: cardWidth, maxWidth: cardWidth }]}
           preset={blur.modal}
         >
-          <Text style={ui.modalTitle}>10 Played</Text>
+          <Text style={ui.modalTitle}>
+            {preCommit ? "Playing a 10" : "10 Played"}
+          </Text>
           <Text style={[ui.modalBody, { fontSize: 22, marginBottom: 10 }]}>
             Higher Or Lower?
           </Text>
           <Text style={[ui.emptyBody, { marginBottom: 18 }]}>
-            Choose what the next player must beat your tens with — a same-size
-            set that is either higher or lower in rank.
+            {preCommit
+              ? "Choose what the next player must beat your tens with — then your play will land on the table."
+              : "Choose what the next player must beat your tens with — a same-size set that is either higher or lower in rank."}
           </Text>
 
           <View style={styles.choiceRow}>
@@ -69,6 +80,21 @@ export default function TenRuleModal({ visible, onChoose }: Props) {
               <Text style={styles.choiceHint}>Stronger Rank</Text>
             </TouchableOpacity>
           </View>
+
+          {preCommit && onCancel ? (
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              activeOpacity={0.85}
+              onPress={() => {
+                triggerHaptic("light");
+                onCancel();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel — keep your selected cards"
+            >
+              <Text style={styles.cancelLabel}>Cancel</Text>
+            </TouchableOpacity>
+          ) : null}
         </BlurPanel>
       </View>
     </Modal>
@@ -87,32 +113,37 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       alignItems: "center",
       justifyContent: "center",
       paddingVertical: 16,
-      paddingHorizontal: 10,
-      borderRadius: 14,
+      paddingHorizontal: 8,
+      borderRadius: 12,
       borderWidth: 1,
-      borderColor: colors.btnGoldBorder,
-      backgroundColor: colors.btnGoldBg,
-      minHeight: 108,
+      borderColor: colors.panelBorder,
+      backgroundColor: colors.btnSecondaryBg,
     },
     choiceArrow: {
-      color: colors.gold,
       fontSize: 28,
-      fontWeight: "800",
-      lineHeight: 30,
-      marginBottom: 6,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      marginBottom: 4,
     },
     choiceLabel: {
+      fontSize: 18,
+      fontWeight: "700",
       color: colors.textPrimary,
-      fontSize: 16,
-      fontWeight: "800",
-      letterSpacing: 0.3,
     },
     choiceHint: {
+      fontSize: 12,
       color: colors.textMuted,
-      fontSize: 10,
+      marginTop: 2,
+    },
+    cancelBtn: {
+      marginTop: 14,
+      alignItems: "center",
+      paddingVertical: 12,
+    },
+    cancelLabel: {
+      fontSize: 16,
       fontWeight: "600",
-      letterSpacing: 0.2,
-      marginTop: 4,
+      color: colors.textMuted,
     },
   });
 }

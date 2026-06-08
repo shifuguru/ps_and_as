@@ -20,6 +20,8 @@ import {
   findCPUPlay,
   applyCpuTurn,
   setTenRuleDirection,
+  wouldActivateTenRule,
+  type PlayCardsOptions,
   isValidPlay,
   hasPassedInCurrentTrick,
   canAcknowledgmentPass,
@@ -2444,21 +2446,16 @@ function GameScreen({
               return currentState;
             }
 
-            const nextState = playCards(
+            const playOpts: PlayCardsOptions | undefined = ev.state.action
+              .tenRuleDirection
+              ? { tenRuleDirection: ev.state.action.tenRuleDirection }
+              : undefined;
+            return playCards(
               currentState,
               ev.state.action.playerId,
               ev.state.action.cards,
+              playOpts,
             );
-
-            // Handle 10 rule direction if needed
-            if (ev.state.action.tenRuleDirection && nextState.tenRulePending) {
-              return setTenRuleDirection(
-                nextState,
-                ev.state.action.tenRuleDirection,
-              );
-            }
-
-            return nextState;
           });
         } else if (ev.state.action.type === "pass") {
           setState((currentState) => {
@@ -3572,6 +3569,12 @@ function GameScreenBoard() {
     sourceIndices: number[];
     concealHand: boolean;
   } | null>(null);
+  /** Pre-commit 10 rule: direction before playCards / flight. */
+  const [pendingTenPlay, setPendingTenPlay] = useState<{
+    cards: CardType[];
+    playIndices: number[];
+    actorId: string;
+  } | null>(null);
   const [pendingTablePlayFlights, setPendingTablePlayFlights] = useState(false);
   const handlePendingTablePlayFlightsChange = useCallback((pending: boolean) => {
     setPendingTablePlayFlights(pending);
@@ -4224,56 +4227,15 @@ function GameScreenBoard() {
     }
   };
 
-  const handlePlayPress = async () => {
-    if (roundOver || !isHumanTurn || trickPauseActive || readOnlyGame) return;
-    const actor =
-      (myPlayerId && state.players.find((p) => p.id === myPlayerId)) ??
-      displayTurnPlayer;
-    if (!actor) return;
-    if (hasPassedInCurrentTrick(state, actor.id)) {
-      emitDebug("action:play:blocked", { playerId: actor.id, reason: "already passed" });
-      return;
-    }
-    const playIndices = [...selected];
-    const cards = playIndices.map((i) => hand[i]);
-    emitDebug("action:play:human:attempt", {
-      playerId: actor.id,
-      playerName: actor.name,
-      cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
-      before: snapshotState(state),
-    });
-    const cardStr = cards
-      .map((c) => {
-        const suit = {
-          hearts: "♥",
-          diamonds: "♦",
-          clubs: "♣",
-          spades: "♠",
-          joker: "★",
-        }[c.suit];
-        const val =
-          c.value === 11
-            ? "J"
-            : c.value === 12
-              ? "Q"
-              : c.value === 13
-                ? "K"
-                : c.value === 14
-                  ? "A"
-                  : c.value === 15
-                    ? "JOKER"
-                    : String(c.value);
-        return `${val}${suit}`;
-      })
-      .join(", ");
-    console.log(`You playing: ${cardStr}`);
-    if (onlineMultiplayer && !selectedCanPlay) {
-      emitDebug("action:play:human:failed", {
-        playerId: actor.id,
-        reason: "invalid play (local check)",
-      });
-      return;
-    }
+  const commitHumanPlayWithFlight = async (
+    cards: CardType[],
+    playIndices: number[],
+    actor: (typeof state.players)[number],
+    tenRuleDirection?: "higher" | "lower",
+  ) => {
+    const playOpts: PlayCardsOptions | undefined = tenRuleDirection
+      ? { tenRuleDirection }
+      : undefined;
 
     const flightPlayerId = myPlayerId ?? actor.id;
     const playFlightKey = playDisplayKey({
@@ -4284,7 +4246,6 @@ function GameScreenBoard() {
       ? await handRef.current.measurePlayOrigin(playIndices)
       : null;
     const cardKeys = cards.map((c) => handCardIdentity(c));
-    setSelected([]);
     setHandPlayInFlight({
       playKey: playFlightKey,
       cardKeys,
@@ -4352,11 +4313,12 @@ function GameScreenBoard() {
         type: "play",
         playerId: actor.id,
         cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
+        ...(tenRuleDirection ? { tenRuleDirection } : {}),
       });
       return;
     }
 
-    const next = playCards(state, actor.id, cards);
+    const next = playCards(state, actor.id, cards, playOpts);
     if (next === state) {
       clearLocalPlayPresentationLatch();
       localHandFlightRef.current = null;
@@ -4376,6 +4338,7 @@ function GameScreenBoard() {
         playerName: actor.name,
         cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
         after: snapshotState(next),
+        ...(tenRuleDirection ? { tenRuleDirection } : {}),
       });
       pendingLocalPlayRef.current = null;
       setState(next);
@@ -4383,8 +4346,95 @@ function GameScreenBoard() {
     }
   };
 
+  const handleTenRuleChoose = (direction: "higher" | "lower") => {
+    if (pendingTenPlay) {
+      const actor = state.players.find((p) => p.id === pendingTenPlay.actorId);
+      if (!actor) {
+        setPendingTenPlay(null);
+        return;
+      }
+      const { cards, playIndices } = pendingTenPlay;
+      setPendingTenPlay(null);
+      setSelected([]);
+      void commitHumanPlayWithFlight(cards, playIndices, actor, direction);
+      return;
+    }
+    if (onlineMultiplayer) {
+      setActionPending(true);
+      broadcastGameAction({ type: "tenRule", direction });
+      return;
+    }
+    setState(setTenRuleDirection(state, direction));
+  };
+
+  const handleTenRuleCancel = () => {
+    setPendingTenPlay(null);
+  };
+
+  const handlePlayPress = async () => {
+    if (roundOver || !isHumanTurn || trickPauseActive || readOnlyGame) return;
+    if (pendingTenPlay) return;
+    const actor =
+      (myPlayerId && state.players.find((p) => p.id === myPlayerId)) ??
+      displayTurnPlayer;
+    if (!actor) return;
+    if (hasPassedInCurrentTrick(state, actor.id)) {
+      emitDebug("action:play:blocked", { playerId: actor.id, reason: "already passed" });
+      return;
+    }
+    const playIndices = [...selected];
+    const cards = playIndices.map((i) => hand[i]);
+    emitDebug("action:play:human:attempt", {
+      playerId: actor.id,
+      playerName: actor.name,
+      cards: cards.map((c) => ({ suit: c.suit, value: c.value })),
+      before: snapshotState(state),
+    });
+    const cardStr = cards
+      .map((c) => {
+        const suit = {
+          hearts: "♥",
+          diamonds: "♦",
+          clubs: "♣",
+          spades: "♠",
+          joker: "★",
+        }[c.suit];
+        const val =
+          c.value === 11
+            ? "J"
+            : c.value === 12
+              ? "Q"
+              : c.value === 13
+                ? "K"
+                : c.value === 14
+                  ? "A"
+                  : c.value === 15
+                    ? "JOKER"
+                    : String(c.value);
+        return `${val}${suit}`;
+      })
+      .join(", ");
+    console.log(`You playing: ${cardStr}`);
+    if (onlineMultiplayer && !selectedCanPlay) {
+      emitDebug("action:play:human:failed", {
+        playerId: actor.id,
+        reason: "invalid play (local check)",
+      });
+      return;
+    }
+
+    if (wouldActivateTenRule(state, actor.id, cards)) {
+      setPendingTenPlay({ cards, playIndices, actorId: actor.id });
+      return;
+    }
+
+    setSelected([]);
+    await commitHumanPlayWithFlight(cards, playIndices, actor);
+  };
+
   const handlePassPress = () => {
     if (roundOver || trickPauseActive || readOnlyGame) return;
+    if (pendingTenPlay) return;
     if (!isHumanPassEligible) return;
     const actor =
       (myPlayerId && state.players.find((p) => p.id === myPlayerId)) ?? current;
@@ -4912,15 +4962,10 @@ function GameScreenBoard() {
       )}
 
       <TenRuleModal
-        visible={isTenRuleChoice}
-        onChoose={(direction) => {
-          if (onlineMultiplayer) {
-            setActionPending(true);
-            broadcastGameAction({ type: "tenRule", direction });
-            return;
-          }
-          setState(setTenRuleDirection(state, direction));
-        }}
+        visible={!!pendingTenPlay || isTenRuleChoice}
+        preCommit={!!pendingTenPlay}
+        onChoose={handleTenRuleChoose}
+        onCancel={pendingTenPlay ? handleTenRuleCancel : undefined}
       />
 
       {/* Game content — pad for bottom hand sheet */}

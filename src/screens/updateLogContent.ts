@@ -32,6 +32,16 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-08T21:24:32"),
+    title: "Playing a 10 & online resync",
+    items: [
+      "Playing a 10 — choose Higher or Lower before your tens go to the table, instead of waiting for them to land first",
+      "Online — reconnecting after a round ends should show the last hand and rankings more reliably",
+      "Quick Game — joining or refreshing mid-round resyncs more reliably on bot tables",
+      "General gameplay stability improvements",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-08T16:32:29"),
     title: "Turn highlight during card plays",
     items: [

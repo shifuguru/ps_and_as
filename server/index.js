@@ -1248,7 +1248,7 @@ function handleRoundFinished(roomId, finishOrder, hands) {
 /** Late sync / reconnect: replay roundEnded when the table is between rounds. */
 function emitBetweenRoundsSnapshot(socket, room) {
   const gs = room?.gameState;
-  if (!gs || !isRoundComplete(gs) || gs.tenRulePending) return;
+  if (!gs || !gameSync.isRoundCompleteState(gs) || gs.tenRulePending) return;
 
   const finishOrder = gs.finishedOrder?.slice() ?? [];
   const hands = {};
@@ -1470,6 +1470,9 @@ io.on('connection', (socket) => {
 
   socket.on('joinRoom', ({ roomId, name, profileId, clientBuildId, feltTint }) => {
     const code = normalizeRoomCode(roomId);
+    if (code === botHosted.BOT_ROOM_CODE) {
+      botHosted.repairBotHostedRoomIfNeeded(getBotContext());
+    }
     if (!rooms[code]) {
       socket.emit('error', { message: 'Room not found' });
       return;
@@ -1829,7 +1832,14 @@ io.on('connection', (socket) => {
     if (action?.type === 'play') {
       if (action.playerId && action.playerId !== player.id) return;
       const before = working;
-      next = playCards(working, player.id, action.cards || []);
+      next = playCards(
+        working,
+        player.id,
+        action.cards || [],
+        action.tenRuleDirection
+          ? { tenRuleDirection: action.tenRuleDirection }
+          : undefined,
+      );
       if (next === before) {
         socket.emit('error', { message: 'Invalid play' });
         return;
@@ -1884,10 +1894,15 @@ io.on('connection', (socket) => {
   });
 
   socket.on('requestGameState', ({ roomId }) => {
-    const room = rooms[roomId];
+    const code = normalizeRoomCode(roomId);
+    let room = rooms[code];
     if (!room) {
       console.warn('[Server] requestGameState: room not found', roomId);
       return;
+    }
+    if (room.isBotHosted) {
+      botHosted.repairBotHostedRoomIfNeeded(getBotContext());
+      room = rooms[code];
     }
     if (!room.inGame || !room.gameState?.players) {
       console.warn('[Server] requestGameState: no active game state', roomId, {

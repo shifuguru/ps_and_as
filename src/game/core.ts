@@ -436,7 +436,97 @@ function removeCardsFromHand(hand: Card[], cards: Card[]): Card[] {
   return remaining;
 }
 
-export function playCards(state: GameState, playerId: string, cards: Card[]): GameState {
+export type PlayCardsOptions = {
+  /** When set with an activating 10 play, direction is committed atomically (no tenRulePending). */
+  tenRuleDirection?: "higher" | "lower";
+};
+
+/** True when a legal play would activate the 10 rule (Higher/Lower) — use before committing. */
+export function wouldActivateTenRule(
+  state: GameState,
+  playerId: string,
+  cards: Card[],
+): boolean {
+  if (!cards.length || !allSameValue(cards)) return false;
+  if (!containsTen(cards)) return false;
+  const pIndex = state.players.findIndex((p) => p.id === playerId);
+  if (pIndex === -1 || state.currentPlayerIndex !== pIndex) return false;
+  const player = state.players[pIndex];
+  if (!isPlayerStillIn(state, playerId)) return false;
+  const isRunOnTopTurn =
+    state.runOnTop?.active && state.runOnTop.playerIndex === pIndex;
+  if (
+    state.currentTrick &&
+    !isRunOnTopTurn &&
+    hasPassedInCurrentTrick(state, playerId)
+  ) {
+    return false;
+  }
+  for (const c of cards) {
+    const found = player.hand.findIndex(
+      (h) => h.suit === c.suit && h.value === c.value,
+    );
+    if (found === -1) return false;
+  }
+  const simulatedTrick = state.currentTrick
+    ? {
+        ...state.currentTrick,
+        actions: [
+          ...state.currentTrick.actions,
+          {
+            type: "play" as const,
+            playerId: player.id,
+            playerName: player.name,
+            cards: cards.slice(),
+            timestamp: Date.now(),
+          },
+        ],
+      }
+    : undefined;
+  const seqForTen = consecutiveSequenceInfo(
+    cards,
+    state.pileHistory,
+    simulatedTrick,
+    state.players,
+    state.finishedOrder || [],
+  );
+  const isActiveRun = isRunContextSequence(seqForTen.repCards);
+  if (
+    isActiveRun &&
+    (state.tenRule?.active || state.tenRulePending) &&
+    !isRunOnTopTurn
+  ) {
+    return false;
+  }
+  if (state.tenRule?.active) return false;
+  const effectiveTenRule = resolveEffectiveTenRule(state);
+  if (
+    !isValidPlay(
+      cards,
+      state.pile,
+      effectiveTenRule,
+      state.pileHistory,
+      state.trickHistory,
+      state.fourOfAKindChallenge,
+      state.currentTrick,
+      state.players,
+      state.finishedOrder,
+      state.lastRoundOrder,
+      state.players[state.currentPlayerIndex]?.id,
+      isRunOnTopTurn,
+    )
+  ) {
+    return false;
+  }
+  return !isActiveRun;
+}
+
+export function playCards(
+  state: GameState,
+  playerId: string,
+  cards: Card[],
+  options?: PlayCardsOptions,
+): GameState {
   // Very small validation: ensure it's that player's turn and they have the cards
   const pIndex = state.players.findIndex((p) => p.id === playerId);
   if (pIndex === -1) return state;
@@ -446,6 +536,9 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   if (!isPlayerStillIn(state, playerId)) {
     syncFinishedFromEmptyHands(state);
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
+    ensureTurnNotOnPriorPasser(state);
+    const resolvedOutSeat = maybeResolveTrickAfterPasses(state);
+    if (resolvedOutSeat) return resolvedOutSeat;
     return { ...state };
   }
 
@@ -609,15 +702,44 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
   // Do not activate the 10-rule when the active pile is a run. Tens are
   // explicitly excluded from influencing runs.
   if (activatingTenRule) {
-    // 10 rule is being activated - add cards to pile but pause for player input
     state.pile = cards;
     state.pileHistory = state.pileHistory || [];
     state.pileHistory.push(cards.slice());
     state.pileOwners = state.pileOwners || [];
     state.pileOwners.push(player.id);
     syncPassCountFromTrick(state);
-    state.tenRule = { active: true, direction: null };
-    return { ...state, tenRulePending: true } as GameState;
+    const direction = options?.tenRuleDirection ?? null;
+    state.tenRule = { active: true, direction };
+
+    if (direction == null) {
+      // Legacy two-step path (reconnect / old clients) — prefer tenRuleDirection at commit.
+      const pending = { ...state, tenRulePending: true } as GameState;
+      if (wentOutOnThisPlay) {
+        const resolved = maybeResolveTrickAfterPasses(pending);
+        if (resolved) return resolved;
+      }
+      return pending;
+    }
+
+    state.tenRulePending = false;
+    if (state.currentTrick && state.currentTrick.actions.length > 0) {
+      const lastAction =
+        state.currentTrick.actions[state.currentTrick.actions.length - 1];
+      if (lastAction.type === "play") {
+        lastAction.tenRuleDirection = direction;
+      }
+    }
+    syncFinishedFromEmptyHands(state);
+    if (isRoundCompleteForLiving(state)) {
+      return { ...state };
+    }
+    const fromIndex = state.lastPlayPlayerIndex ?? state.currentPlayerIndex;
+    state.currentPlayerIndex = nextActivePlayerIndex(state, fromIndex);
+    state.mustPlay = true;
+    ensureTurnNotOnPriorPasser(state);
+    const resolved = maybeResolveTrickAfterPasses(state);
+    if (resolved) return resolved;
+    return { ...state };
   }
 
   // If 10 rule was active and a valid play was made, deactivate it.
@@ -712,6 +834,10 @@ export function playCards(state: GameState, playerId: string, cards: Card[]): Ga
     // advance from the player who just played
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
     ensureTurnNotOnPriorPasser(state);
+    if (!wasRunOnTop) {
+      const resolvedAfterPlay = maybeResolveTrickAfterPasses(state);
+      if (resolvedAfterPlay) return resolvedAfterPlay;
+    }
     state.mustPlay = false;
   }
 
@@ -752,6 +878,9 @@ export function setTenRuleDirection(state: GameState, direction: "higher" | "low
   const fromIndex = state.lastPlayPlayerIndex ?? state.currentPlayerIndex;
   state.currentPlayerIndex = nextActivePlayerIndex(state, fromIndex);
   state.mustPlay = true;
+  ensureTurnNotOnPriorPasser(state);
+  const resolved = maybeResolveTrickAfterPasses(state);
+  if (resolved) return resolved;
 
   return { ...state };
 }
@@ -2255,7 +2384,14 @@ export function applyCpuTurn(state: GameState, playerId: string): GameState {
   );
 
   if (cpuPlay && cpuPlay.length > 0) {
-    const nextState = playCards(state, playerId, cpuPlay);
+    const playOpts: PlayCardsOptions | undefined = wouldActivateTenRule(
+      state,
+      playerId,
+      cpuPlay,
+    )
+      ? { tenRuleDirection: Math.random() < 0.5 ? "higher" : "lower" }
+      : undefined;
+    const nextState = playCards(state, playerId, cpuPlay, playOpts);
     if (nextState !== state) {
       if (nextState.tenRulePending) {
         const direction = Math.random() < 0.5 ? "higher" : "lower";

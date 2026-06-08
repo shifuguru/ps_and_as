@@ -6,6 +6,7 @@ import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
 require("../../server/gameBridge.js");
+const core = require("../../server/gameBridge.js");
 const {
   playCards,
   passTurn,
@@ -14,8 +15,14 @@ const {
   isPlayerStillIn,
   isRoundCompleteForLiving,
   setTenRuleDirection,
-} = require("../../server/gameBridge.js");
+  repairStuckTurnPointer,
+  advanceOffPriorPasser,
+  resolveDisplayTurnPlayerIndex,
+  playerCanActInCurrentTrick,
+  hasPassedInCurrentTrick,
+} = core;
 const { createDeck, dealCards } = require("../../src/game/ruleset.ts");
+const { isDeadHandPlayer } = require("../../src/game/deadHand.ts");
 
 const GAMES = Number(process.env.OFFLINE_SIM_GAMES ?? 40);
 const PLAYERS = Number(process.env.OFFLINE_SIM_PLAYERS ?? 4);
@@ -66,6 +73,61 @@ function createGameSeeded(names, seed) {
     currentTrick: { trickNumber: 1, actions: [] },
     trickHistory: [],
   };
+}
+
+/** Pre-turn repair pass — same order as GameScreen offline effect. */
+function preprocessTurn(state) {
+  let working = repairStuckTurnPointer(state);
+  if (working !== state) return { state: working, kind: "repair-stuck" };
+
+  const displayIdx = resolveDisplayTurnPlayerIndex(working);
+  if (
+    displayIdx !== working.currentPlayerIndex &&
+    playerCanActInCurrentTrick(working, displayIdx)
+  ) {
+    const repaired = repairStuckTurnPointer(advanceOffPriorPasser(working));
+    if (repaired !== state) return { state: repaired, kind: "advance-display" };
+    working = repaired;
+  }
+
+  const current = working.players[working.currentPlayerIndex];
+  if (!current) {
+    throw new Error("no player at currentPlayerIndex");
+  }
+
+  if (
+    working.finishedOrder.includes(current.id) ||
+    current.hand.length === 0 ||
+    isDeadHandPlayer(current)
+  ) {
+    if (isRoundCompleteForLiving(working)) return { state: working, kind: "round-complete" };
+    const next = passTurn(working, current.id);
+    if (
+      next.currentPlayerIndex !== working.currentPlayerIndex ||
+      next.finishedOrder.length !== working.finishedOrder.length ||
+      (next.trickHistory?.length ?? 0) !== (working.trickHistory?.length ?? 0)
+    ) {
+      return { state: next, kind: "skip-empty-or-out" };
+    }
+    return { state: working, kind: "idle-empty" };
+  }
+
+  const isRunOnTopTurn =
+    !!working.runOnTop?.active &&
+    working.runOnTop.playerIndex === working.currentPlayerIndex;
+
+  if (hasPassedInCurrentTrick(working, current.id) && !isRunOnTopTurn) {
+    const next = advanceOffPriorPasser(working);
+    if (
+      next.currentPlayerIndex !== working.currentPlayerIndex ||
+      (next.trickHistory?.length ?? 0) !== (working.trickHistory?.length ?? 0) ||
+      !!next.runOnTop?.active !== !!working.runOnTop?.active
+    ) {
+      return { state: next, kind: "advance-off-passer" };
+    }
+  }
+
+  return { state: working, kind: "ready" };
 }
 
 function planCpuAction(state, playerId) {
@@ -122,6 +184,23 @@ function simulateOne(seed) {
     steps < MAX_STEPS
   ) {
     steps++;
+
+    const pre = preprocessTurn(state);
+    state = pre.state;
+    if (pre.kind !== "ready" && pre.kind !== "round-complete") {
+      if (pre.kind === "idle-empty") {
+        return {
+          ok: false,
+          seed,
+          reason: "idle-empty after preprocess",
+          steps,
+        };
+      }
+      if (isRoundCompleteForLiving(state) && !state.tenRulePending) continue;
+      continue;
+    }
+    if (isRoundCompleteForLiving(state) && !state.tenRulePending) continue;
+
     const cur = state.players[state.currentPlayerIndex];
     if (!cur) {
       return { ok: false, seed, reason: "no current player", steps };

@@ -27,6 +27,7 @@ import {
   syncFinishedFromEmptyHands,
   isRoundCompleteForLiving,
   setTenRuleDirection,
+  wouldActivateTenRule,
   resolveEffectiveTenRule,
   isOnTopEligiblePile,
   canAcknowledgmentPass,
@@ -421,7 +422,7 @@ function makeEmptyGame(names: string[]): GameState {
   const fiveH: Card = { suit: "hearts", value: 5 };
   const sixH: Card = { suit: "hearts", value: 6 };
   const sevenH: Card = { suit: "hearts", value: 7 };
-  g.players[0].hand = [fiveH];
+  g.players[0].hand = [fiveH, { suit: "clubs", value: 4 }];
   g.players[1].hand = [sixH];
   g.players[2].hand = [sevenH];
   g.currentPlayerIndex = 0;
@@ -537,31 +538,26 @@ function makeEmptyGame(names: string[]): GameState {
     ],
   };
 
-  const pending = playCards(g, g.players[0].id, [lastTen]);
-  assert.ok(pending.tenRulePending, "Ten rule should be pending on last-card 10");
-  assert.strictEqual(pending.players[0].hand.length, 0, "A should have no cards left");
   assert.ok(
-    pending.finishedOrder.includes(g.players[0].id),
-    "A should be marked finished",
-  );
-  assert.strictEqual(
-    pending.currentPlayerIndex,
-    0,
-    "Turn should stay with A until they choose higher/lower",
-  );
-  assert.ok(
-    !isRoundCompleteForLiving(pending),
-    "Round should not end before ten-rule choice (B still playing)",
+    wouldActivateTenRule(g, g.players[0].id, [lastTen]),
+    "Last-card 10 should activate ten rule before commit",
   );
 
-  const resolved = setTenRuleDirection(pending, "higher");
-  assert.ok(!resolved.tenRulePending, "Ten rule should clear after choice");
+  const resolved = playCards(g, g.players[0].id, [lastTen], {
+    tenRuleDirection: "higher",
+  });
+  assert.ok(!resolved.tenRulePending, "Pre-commit 10 should not leave tenRulePending");
   assert.ok(resolved.tenRule?.direction === "higher");
+  assert.strictEqual(resolved.players[0].hand.length, 0, "A should have no cards left");
+  assert.ok(
+    resolved.finishedOrder.includes(g.players[0].id),
+    "A should be marked finished",
+  );
   assert.ok(isPlayerStillIn(resolved, g.players[0].id) === false, "A stays out");
   assert.strictEqual(
     resolved.currentPlayerIndex,
     1,
-    "Turn should advance to B after ten-rule choice",
+    "Turn should advance to B after atomic ten-rule play",
   );
   assert.ok(
     !isRoundCompleteForLiving(resolved),
@@ -621,8 +617,8 @@ function makeEmptyGame(names: string[]): GameState {
   g.players[2].hand = [{ suit: "hearts", value: 6 }];
   g.currentPlayerIndex = 0;
 
-  let s = playCards(g, g.players[0].id, fourTens);
-  s = setTenRuleDirection(s, "higher");
+  let s = playCards(g, g.players[0].id, fourTens, { tenRuleDirection: "higher" });
+  assert.ok(!s.tenRulePending, "Four 10s with direction should commit atomically");
   s = passTurn(s, g.players[1].id);
   s = passTurn(s, g.players[2].id);
   const lastTrick = s.trickHistory[s.trickHistory.length - 1];
@@ -853,6 +849,120 @@ function makeEmptyGame(names: string[]): GameState {
   assert.notStrictEqual(
     repaired.players[repaired.currentPlayerIndex].id,
     g.players[0].id,
+  );
+}
+
+// seed 42003 trick 10 — out-player 10 + sole living opponent already passed
+{
+  const g = makeEmptyGame(["P1", "P2", "P3", "P4"]);
+  g.players[0].hand = [];
+  g.players[1].hand = [{ suit: "hearts", value: 5 }];
+  g.players[2].hand = [];
+  g.players[3].hand = [];
+  g.finishedOrder = [g.players[2].id, g.players[0].id, g.players[3].id];
+  g.pile = [{ suit: "diamonds", value: 10 }];
+  g.pileHistory = [[{ suit: "diamonds", value: 10 }]];
+  g.lastPlayPlayerIndex = 3;
+  g.currentPlayerIndex = 3;
+  g.tenRule = { active: true, direction: null };
+  g.tenRulePending = true;
+  g.currentTrick = {
+    trickNumber: 10,
+    actions: [
+      {
+        type: "play",
+        playerId: g.players[0].id,
+        playerName: "P1",
+        cards: [{ suit: "spades", value: 8 }],
+        timestamp: 1,
+      },
+      {
+        type: "pass",
+        playerId: g.players[1].id,
+        playerName: "P2",
+        timestamp: 2,
+      },
+      {
+        type: "play",
+        playerId: g.players[3].id,
+        playerName: "P4",
+        cards: [{ suit: "diamonds", value: 10 }],
+        timestamp: 3,
+      },
+    ],
+  };
+  g.passCount = 1;
+
+  const afterDirection = setTenRuleDirection(g, "higher");
+  assert.strictEqual(
+    afterDirection.pile.length,
+    0,
+    "Trick 10 should finalize after ten-rule direction when out leader's sole opponent passed",
+  );
+  assert.strictEqual(afterDirection.tenRulePending, false);
+  assert.ok(
+    isRoundCompleteForLiving(afterDirection) ||
+      isPlayerStillIn(
+        afterDirection,
+        afterDirection.players[afterDirection.currentPlayerIndex].id,
+      ),
+    "Turn must not rest on an out seat with an unresolved trick after trick 10 resolves",
+  );
+
+  const stuck = makeEmptyGame(["P1", "P2", "P3", "P4"]);
+  stuck.players[0].hand = [];
+  stuck.players[1].hand = [{ suit: "hearts", value: 5 }];
+  stuck.players[2].hand = [];
+  stuck.players[3].hand = [];
+  stuck.finishedOrder = [stuck.players[2].id, stuck.players[0].id, stuck.players[3].id];
+  stuck.pile = [{ suit: "diamonds", value: 10 }];
+  stuck.pileHistory = [[{ suit: "diamonds", value: 10 }]];
+  stuck.lastPlayPlayerIndex = 3;
+  stuck.currentPlayerIndex = 3;
+  stuck.tenRule = { active: true, direction: "higher" };
+  stuck.tenRulePending = false;
+  stuck.currentTrick = {
+    trickNumber: 10,
+    actions: [
+      {
+        type: "play",
+        playerId: stuck.players[0].id,
+        playerName: "P1",
+        cards: [{ suit: "spades", value: 8 }],
+        timestamp: 1,
+      },
+      {
+        type: "pass",
+        playerId: stuck.players[1].id,
+        playerName: "P2",
+        timestamp: 2,
+      },
+      {
+        type: "play",
+        playerId: stuck.players[3].id,
+        playerName: "P4",
+        cards: [{ suit: "diamonds", value: 10 }],
+        tenRuleDirection: "higher",
+        timestamp: 3,
+      },
+    ],
+  };
+  stuck.passCount = 1;
+  const afterOutPlay = playCards(stuck, stuck.players[3].id, [
+    { suit: "diamonds", value: 10 },
+  ]);
+  assert.strictEqual(
+    afterOutPlay.pile.length,
+    0,
+    "playCards on out seat must finalize when living opponent already passed",
+  );
+  assert.ok(
+    isRoundCompleteForLiving(afterOutPlay) ||
+      isPlayerStillIn(
+        afterOutPlay,
+        afterOutPlay.players[afterOutPlay.currentPlayerIndex].id,
+      ),
+    "Out-seat playCards repair must not leave an unresolved trick on an out seat",
   );
 }
 
@@ -1205,9 +1315,9 @@ function makeEmptyGame(names: string[]): GameState {
   g.players[3].hand = [{ suit: "clubs", value: 5 }];
   g.currentPlayerIndex = 0;
 
-  let s = playCards(g, "1", [tenH, tenD]);
-  assert.ok(s.tenRulePending, "Double 10s should prompt 10-rule direction");
-  s = setTenRuleDirection(s, "higher");
+  assert.ok(wouldActivateTenRule(g, "1", [tenH, tenD]), "Pair of 10s should activate ten rule");
+  let s = playCards(g, "1", [tenH, tenD], { tenRuleDirection: "higher" });
+  assert.ok(!s.tenRulePending, "Pair 10s with direction should commit atomically");
   s = passTurn(s, "2");
   s = passTurn(s, "3");
   s = passTurn(s, "4");
@@ -1279,8 +1389,7 @@ function makeEmptyGame(names: string[]): GameState {
   g.players[3].hand = [{ suit: "clubs", value: 6 }];
   g.currentPlayerIndex = 0;
 
-  let s = playCards(g, "1", [tenH]);
-  s = setTenRuleDirection(s, "lower");
+  let s = playCards(g, "1", [tenH], { tenRuleDirection: "lower" });
   s = passTurn(s, "2");
   s = passTurn(s, "3");
   s = passTurn(s, "4");
@@ -1341,8 +1450,7 @@ function makeEmptyGame(names: string[]): GameState {
   g.players[3].hand = [{ suit: "clubs", value: 6 }];
   g.currentPlayerIndex = 0;
 
-  let s = playCards(g, "1", [tenH]);
-  s = setTenRuleDirection(s, "lower");
+  let s = playCards(g, "1", [tenH], { tenRuleDirection: "lower" });
   s = passTurn(s, "2");
   s = passTurn(s, "3");
   s = passTurn(s, "4");
@@ -1421,8 +1529,7 @@ function makeEmptyGame(names: string[]): GameState {
   g.players[3].hand = [{ suit: "clubs", value: 6 }];
   g.currentPlayerIndex = 0;
 
-  let s = playCards(g, "1", [tenH, tenD]);
-  s = setTenRuleDirection(s, "higher");
+  let s = playCards(g, "1", [tenH, tenD], { tenRuleDirection: "higher" });
   s = passTurn(s, "2");
   s = passTurn(s, "3");
   s = passTurn(s, "4");
@@ -1452,8 +1559,7 @@ function makeEmptyGame(names: string[]): GameState {
   g.players[3].hand = [{ suit: "clubs", value: 6 }];
   g.currentPlayerIndex = 0;
 
-  let s = playCards(g, "1", [tenH]);
-  s = setTenRuleDirection(s, "higher");
+  let s = playCards(g, "1", [tenH], { tenRuleDirection: "higher" });
   s = playCards(s, "2", [jackH]);
   assert.ok(!s.tenRule?.active, "10 rule clears once the 10 pile is beaten");
   s = passTurn(s, "3");
