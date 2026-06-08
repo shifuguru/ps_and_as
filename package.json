@@ -17,6 +17,8 @@
     "test-multiplayer": "node ./scripts/test-multiplayer.mjs",
     "qa-chaos": "node ./scripts/qa/run-chaos.mjs",
     "test-cpu-stall": "node ./scripts/test-cpu-stall-botopn.mjs",
+    "test-release-gate": "node ./scripts/test-release-gate.mjs",
+    "test-release-gate:offline": "node ./scripts/test-release-gate.mjs --offline",
     "qa-league": "node ./scripts/qa/run-league.mjs",
     "qa-league:watch": "node ./scripts/qa/run-league.mjs --watch 30 --minutes 10",
     "print-game-budget": "npx tsx ./scripts/print-game-budget.ts"

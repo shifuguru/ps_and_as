@@ -182,9 +182,12 @@ export function playGroupTargetFromSpot(
     cardH,
   );
 
+  const effectiveWidth = spot.groupWidth ?? bundle.width;
+  const effectiveHeight = spot.groupHeight ?? bundle.height;
+
   return {
-    x: layout.cardZoneLeft + spot.left + bundle.width / 2,
-    y: layout.cardZoneTop + spot.top + bundle.height / 2,
+    x: layout.cardZoneLeft + spot.left + effectiveWidth / 2,
+    y: layout.cardZoneTop + spot.top + effectiveHeight / 2,
     cardW,
     cardH,
   };

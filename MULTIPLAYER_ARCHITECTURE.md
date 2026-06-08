@@ -38,8 +38,10 @@ Clients **do not** apply `playCards` / `passTurn` locally while online; they ren
 ## Event flow (play)
 
 1. Client: `gameAction` `{ type: 'play', cards }` (no local state mutation).
-2. Server: validate seat + turn → `playCards` → `advancePastInactiveSeats` → `bumpStateVersion` → `gameStateSync`.
+2. Server: validate seat + turn (`currentPlayerIndex`) → `playCards` / `passTurn` → `reconcileCurrentPlayerIndex` → `advancePastInactiveSeats` → `repairStuckTurnPointer` → `reconcileCurrentPlayerIndex` → `bumpStateVersion` → `gameStateSync`.
 3. Client: `applyServerSync` if `stateVersion >= lastApplied`.
+
+**Turn ownership:** Core mutators may leave `currentPlayerIndex` on an out or passed seat until the repair steps above. That is compensating behaviour, not the intended contract. See [ARCHITECTURE_GAPS.md](./ARCHITECTURE_GAPS.md) — **Turn Ownership Invariant** and [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.md).
 
 ## Bot table
 
@@ -48,3 +50,10 @@ Same pipeline; `botHostedRooms` runs CPU steps on the server and uses the same `
 ## Legacy note
 
 Older docs described broadcasting raw `gameAction` for client replay. That path is **offline / deprecated** for online play; the server does not rely on clients replaying actions.
+
+## Related docs
+
+- [GAME_ARCHITECTURE.md](./GAME_ARCHITECTURE.md) — § Turn ownership (`currentPlayerIndex`)
+- [ARCHITECTURE_GAPS.md](./ARCHITECTURE_GAPS.md) — gap register
+- [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.md) — invariant audit and investigation guide
+- [CPU_STALL_INVESTIGATION.md](./CPU_STALL_INVESTIGATION.md) — bot loop stall when display ≠ authoritative turn

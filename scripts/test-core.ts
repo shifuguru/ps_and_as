@@ -856,6 +856,65 @@ function makeEmptyGame(names: string[]): GameState {
   );
 }
 
+// Out leader + all living passed — pointer on out seat must finalize trick
+{
+  const g = makeEmptyGame(["P0", "P1", "P2", "P3"]);
+  g.players[0].hand = [];
+  g.players[1].hand = [];
+  g.players[2].hand = [{ suit: "spades", value: 8 }];
+  g.players[3].hand = [{ suit: "diamonds", value: 9 }];
+  g.finishedOrder = [g.players[0].id, g.players[1].id];
+  g.pile = [{ suit: "hearts", value: 7 }];
+  g.pileHistory = [[{ suit: "hearts", value: 7 }]];
+  g.lastPlayPlayerIndex = 0;
+  g.currentPlayerIndex = 0;
+  g.currentTrick = {
+    trickNumber: 2,
+    actions: [
+      {
+        type: "play",
+        playerId: g.players[0].id,
+        playerName: "P0",
+        cards: [{ suit: "hearts", value: 7 }],
+        timestamp: 1,
+      },
+      {
+        type: "pass",
+        playerId: g.players[2].id,
+        playerName: "P2",
+        timestamp: 2,
+      },
+      {
+        type: "pass",
+        playerId: g.players[3].id,
+        playerName: "P3",
+        timestamp: 3,
+      },
+    ],
+  };
+
+  const viaPass = passTurn(g, g.players[0].id);
+  assert.strictEqual(viaPass.pile.length, 0, "Trick should clear once living players have passed");
+  assert.strictEqual(viaPass.trickHistory?.length, 2, "Completed trick should be recorded");
+  assert.ok(
+    isPlayerStillIn(viaPass, viaPass.players[viaPass.currentPlayerIndex].id),
+    "Turn must land on a living player",
+  );
+  assert.strictEqual(viaPass.mustPlay, true, "Opener of next trick must play");
+  assert.ok(
+    !isPlayerStillIn(viaPass, g.players[0].id),
+    "Out leader must not receive turn ownership",
+  );
+
+  g.currentPlayerIndex = 1;
+  const viaRepair = repairStuckTurnPointer(g);
+  assert.strictEqual(viaRepair.pile.length, 0);
+  assert.ok(
+    isPlayerStillIn(viaRepair, viaRepair.players[viaRepair.currentPlayerIndex].id),
+    "Repair should finalize when pointer rests on any out seat",
+  );
+}
+
 // Joker does not land turn on a prior passer
 {
   const g = makeEmptyGame(["P1", "P2", "P3"]);
@@ -1890,13 +1949,18 @@ console.log("Deal ceremony animation policy tests passed");
   syncFinishedFromEmptyHands(g);
   assert.deepStrictEqual(
     livingFinishedOrder(g.players, g.finishedOrder),
-    ["host"],
-    "Only living finishers belong in finish order",
+    ["host", "guest"],
+    "Lone remaining player is auto-placed while still holding cards",
   );
   assert.strictEqual(
     g.players.find((p) => p.id === "host")!.role,
     "President",
     "First living player out should be President",
+  );
+  assert.strictEqual(
+    g.players.find((p) => p.id === "guest")!.role,
+    "Asshole",
+    "Lone remaining player is auto-asshole",
   );
   assert.strictEqual(
     g.players.find((p) => p.id === DEAD_HAND_ID)!.role,
@@ -1908,7 +1972,6 @@ console.log("Deal ceremony animation policy tests passed");
   syncFinishedFromEmptyHands(g);
   const order = livingFinishedOrder(g.players, g.finishedOrder);
   assert.deepStrictEqual(order, ["host", "guest"]);
-  assert.strictEqual(g.players.find((p) => p.id === "guest")!.role, "Asshole");
 
   const ceremonyPlayers = g.players.map((p) => ({
     ...p,

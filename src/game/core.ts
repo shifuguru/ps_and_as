@@ -2538,8 +2538,7 @@ export function passTurn(state: GameState, playerId: string): GameState {
 
   if (!isPlayerStillIn(state, playerId)) {
     syncFinishedFromEmptyHands(state);
-    state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
-    return { ...state };
+    return advanceOffPriorPasser(state);
   }
 
   try {
@@ -2647,13 +2646,16 @@ export function resolveDisplayTurnPlayerIndex(state: GameState): number {
   return state.currentPlayerIndex;
 }
 
-/** Fix authoritative snapshots where currentPlayerIndex still points at a prior passer. */
+/** Fix authoritative snapshots where currentPlayerIndex still points at a prior passer or out seat. */
 export function repairStuckTurnPointer(state: GameState): GameState {
   const idx = state.currentPlayerIndex;
   const p = state.players[idx];
   if (!p) return state;
   const runOnTop =
     state.runOnTop?.active && state.runOnTop.playerIndex === idx;
+  if (!runOnTop && !isPlayerStillIn(state, p.id)) {
+    return advanceOffPriorPasser(state);
+  }
   if (runOnTop || !hasPassedInCurrentTrick(state, p.id)) return state;
   return advanceOffPriorPasser(state);
 }

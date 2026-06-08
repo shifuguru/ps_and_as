@@ -84,7 +84,7 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
           }}
         >
           <Text style={[styles.title, gameTitleFaceStyle()]}>
-            P&apos;s & A&apos;s
+            Ps & As
           </Text>
           <Text style={styles.subtitle}>Presidents & Assholes</Text>
           <Text style={styles.credit}>App designed by Mike Drury</Text>

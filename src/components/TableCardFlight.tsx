@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
+import { CARD_PLAY_FLIGHT_Z } from "../styles/overlayZIndex";
 import Card from "./Card";
 import type { Card as CardType } from "../game/ruleset";
 import { layoutPlayBundle } from "../utils/tablePlayLayout";
@@ -132,8 +133,8 @@ export default function TableCardFlight({
           top: flight.fromY,
           width: 0,
           height: 0,
-          zIndex: 10000,
-          elevation: 10000,
+          zIndex: CARD_PLAY_FLIGHT_Z,
+          elevation: CARD_PLAY_FLIGHT_Z,
         },
       ]}
     >

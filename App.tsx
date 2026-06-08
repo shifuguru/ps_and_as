@@ -31,6 +31,7 @@ import {
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import FeltBackground from "./src/components/FeltBackground";
 import FullscreenBlurScrim from "./src/components/FullscreenBlurScrim";
+import { MODAL_OVERLAY_Z } from "./src/styles/overlayZIndex";
 import WebModalPortal from "./src/components/WebModalPortal";
 import { DEFAULT_FELT_COLOR, getWallpaperTint } from "./src/services/wallpaper";
 import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
@@ -1073,8 +1074,8 @@ const appStyles = StyleSheet.create({
   },
   settingsOverlay: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 200,
-    elevation: 200,
+    zIndex: MODAL_OVERLAY_Z,
+    elevation: MODAL_OVERLAY_Z,
   },
   settingsForeground: {
     ...StyleSheet.absoluteFillObject,

@@ -1,0 +1,31 @@
+---
+description: Use ARCHITECTURE_GAPS.md before architecture proposals, refactors, or new systems
+alwaysApply: true
+---
+
+# Architecture gaps workflow
+
+[ARCHITECTURE_GAPS.md](../../ARCHITECTURE_GAPS.md) is the **authoritative gap tracker** (reality). Architecture docs describe **intent**.
+
+Before proposing new architecture, new systems, or refactors:
+
+1. Read `ARCHITECTURE_GAPS.md`
+2. Check whether the issue already exists as a documented gap
+3. If yes: update status → investigate → implement → mark Resolved when shipped
+4. If no: create a new gap entry first, then investigate
+
+## Priority order
+
+- **P0:** CPU takeover after disconnect; returning player after timeout; rankings before last hand (online)
+- **P1:** Disconnect timeout alignment; XP persistence
+- **P2:** Pause state presentation; bot-open vs standard disconnect model
+
+## Rules
+
+- Do not create new architecture documents unless the user requests them
+- Do not redesign systems that already have architecture docs
+- Prefer closing documented gaps over introducing new features
+- Do not expand QA League or add architecture diagrams instead of fixing gaps
+- Current focus: gameplay and multiplayer stability
+
+**Success metric:** reduce Open gaps in `ARCHITECTURE_GAPS.md`.

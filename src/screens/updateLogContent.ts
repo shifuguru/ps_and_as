@@ -33,6 +33,15 @@ export function nzdt(local: string): string {
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
     publishedAt: nzst("2026-06-06T20:31:29"),
+    title: "Turn pill & late-round passes",
+    items: [
+      "Your play — the turn pill stays on you until your card lands and the table syncs; no more brief Waiting for… flicker on slow connections",
+      "Late round — when the trick leader is already out and everyone else has passed, the trick resolves instead of hanging",
+      "Settings and other overlays sit above card flights again",
+    ],
+  },
+  {
+    publishedAt: nzst("2026-06-06T20:31:29"),
     title: "Spectator seat claims",
     items: [
       "Open bot table — Ready to claim a seat only counts after the round ends, so you won't jump into a game from an old tap while watching",

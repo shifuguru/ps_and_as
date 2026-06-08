@@ -2,7 +2,8 @@
 
 **Status:** RC-1 fix applied in `runBotTurnLoop` (`repairTurnPointerAndReschedule`).  
 **Harness:** `node scripts/test-cpu-stall-botopn.mjs --headless`  
-**Live repro:** `npm run server` then `node scripts/test-cpu-stall-botopn.mjs`
+**Live repro:** `npm run server` then `node scripts/test-cpu-stall-botopn.mjs`  
+**Underlying turn model:** [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.md) — display vs authoritative `currentPlayerIndex` desync
 
 ---
 

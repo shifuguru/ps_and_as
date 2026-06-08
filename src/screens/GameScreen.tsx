@@ -3268,6 +3268,7 @@ function GameScreen({
         openSeatAvailable,
         isBotOpenTable,
         handleSkipBotTable,
+        actionPending,
         setActionPending,
         clearHandPlayFlightRef,
       }}
@@ -3373,6 +3374,7 @@ function GameScreenBoard() {
     openSeatAvailable,
     isBotOpenTable,
     handleSkipBotTable,
+    actionPending,
     setActionPending,
     clearHandPlayFlightRef,
   } = useContext(GameScreenRuntimeContext)! as {
@@ -3505,6 +3507,7 @@ function GameScreenBoard() {
     openSeatAvailable: boolean;
     isBotOpenTable: boolean;
     handleSkipBotTable: () => void;
+    actionPending: boolean;
     setActionPending: React.Dispatch<React.SetStateAction<boolean>>;
     clearHandPlayFlightRef: React.MutableRefObject<(() => void) | null>;
   };
@@ -3551,6 +3554,79 @@ function GameScreenBoard() {
   const handlePendingTablePlayFlightsChange = useCallback((pending: boolean) => {
     setPendingTablePlayFlights(pending);
   }, []);
+  /** Freeze turn pill / seat highlight until flight lands and sync clears (presentation only). */
+  type LocalPlayPresentationLatch = {
+    playKey: string;
+    playerId: string;
+    playerName: string;
+    playFlightLanded: boolean;
+  };
+  /** Flight animation should finish well under this; only fires if still not landed. */
+  const LOCAL_PLAY_FLIGHT_STUCK_MS = 2000;
+  /** Online sync wait — does not interrupt legitimate latency below this. */
+  const LOCAL_PLAY_SYNC_STUCK_MS = 10000;
+  const [localPlayPresentationLatch, setLocalPlayPresentationLatch] =
+    useState<LocalPlayPresentationLatch | null>(null);
+  const localPlayFlightStuckTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const localPlaySyncStuckTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const actionPendingRef = useRef(actionPending);
+  actionPendingRef.current = actionPending;
+  const cancelLocalPlayPresentationStuckTimeouts = useCallback(() => {
+    if (localPlayFlightStuckTimeoutRef.current) {
+      clearTimeout(localPlayFlightStuckTimeoutRef.current);
+      localPlayFlightStuckTimeoutRef.current = null;
+    }
+    if (localPlaySyncStuckTimeoutRef.current) {
+      clearTimeout(localPlaySyncStuckTimeoutRef.current);
+      localPlaySyncStuckTimeoutRef.current = null;
+    }
+  }, []);
+  const clearLocalPlayPresentationLatch = useCallback(() => {
+    cancelLocalPlayPresentationStuckTimeouts();
+    setLocalPlayPresentationLatch(null);
+  }, [cancelLocalPlayPresentationStuckTimeouts]);
+  const scheduleLocalPlaySyncStuckTimeout = useCallback(() => {
+    if (!onlineMultiplayer || localPlaySyncStuckTimeoutRef.current) return;
+    localPlaySyncStuckTimeoutRef.current = setTimeout(() => {
+      localPlaySyncStuckTimeoutRef.current = null;
+      setLocalPlayPresentationLatch((prev) => {
+        if (!prev?.playFlightLanded || !actionPendingRef.current) return prev;
+        return null;
+      });
+    }, LOCAL_PLAY_SYNC_STUCK_MS);
+  }, [onlineMultiplayer]);
+  const armLocalPlayPresentationLatch = useCallback(
+    (latch: LocalPlayPresentationLatch) => {
+      cancelLocalPlayPresentationStuckTimeouts();
+      setLocalPlayPresentationLatch(latch);
+      localPlayFlightStuckTimeoutRef.current = setTimeout(() => {
+        localPlayFlightStuckTimeoutRef.current = null;
+        setLocalPlayPresentationLatch((prev) => {
+          if (!prev || prev.playFlightLanded) return prev;
+          return null;
+        });
+      }, LOCAL_PLAY_FLIGHT_STUCK_MS);
+    },
+    [cancelLocalPlayPresentationStuckTimeouts],
+  );
+  useEffect(() => () => clearLocalPlayPresentationLatch(), [
+    clearLocalPlayPresentationLatch,
+  ]);
+  useEffect(() => {
+    const latch = localPlayPresentationLatch;
+    if (!latch?.playFlightLanded) return;
+    if (onlineMultiplayer && actionPending) return;
+    clearLocalPlayPresentationLatch();
+  }, [
+    localPlayPresentationLatch,
+    onlineMultiplayer,
+    actionPending,
+    clearLocalPlayPresentationLatch,
+  ]);
   const playAreaScreenRectBoardRef = useRef<{
     x: number;
     y: number;
@@ -3572,11 +3648,12 @@ function GameScreenBoard() {
       setElevatedHandFlights([]);
       localHandFlightRef.current = null;
       setLocalHandFlight(null);
+      clearLocalPlayPresentationLatch();
     };
     return () => {
       clearHandPlayFlightRef.current = null;
     };
-  }, [clearHandPlayFlightRef]);
+  }, [clearHandPlayFlightRef, clearLocalPlayPresentationLatch]);
   const handleLocalHandFlightConsumed = useCallback((playKey: string) => {
     if (localHandFlightRef.current?.playKey === playKey) {
       localHandFlightRef.current = null;
@@ -3624,11 +3701,20 @@ function GameScreenBoard() {
   );
   const handlePlayFlightLanded = useCallback(
     (playKey: string) => {
+      setLocalPlayPresentationLatch((prev) => {
+        if (prev?.playKey !== playKey) return prev;
+        return { ...prev, playFlightLanded: true };
+      });
+      if (localPlayFlightStuckTimeoutRef.current) {
+        clearTimeout(localPlayFlightStuckTimeoutRef.current);
+        localPlayFlightStuckTimeoutRef.current = null;
+      }
+      scheduleLocalPlaySyncStuckTimeout();
       if (handPlayInFlightRef.current?.playKey === playKey) {
         completeHandPlayFlight(playKey);
       }
     },
-    [completeHandPlayFlight],
+    [completeHandPlayFlight, scheduleLocalPlaySyncStuckTimeout],
   );
   const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
@@ -3855,8 +3941,24 @@ function GameScreenBoard() {
     state,
     displayTurnIndex,
   );
+  const presentationHoldActive =
+    !!localPlayPresentationLatch &&
+    (!localPlayPresentationLatch.playFlightLanded ||
+      (onlineMultiplayer && actionPending));
+  const holdPlayerId = localPlayPresentationLatch?.playerId ?? null;
+  const holdPlayer = holdPlayerId
+    ? state.players.find((p) => p.id === holdPlayerId)
+    : undefined;
+  const holdPlayerOut =
+    !!holdPlayer &&
+    (state.finishedOrder.includes(holdPlayer.id) || holdPlayer.hand.length === 0);
   const turnHighlightPlayerId =
-    revealTurnHighlight && displaySeatCanAct ? displayTurnPlayer.id : "";
+    revealTurnHighlight &&
+    (presentationHoldActive && holdPlayerId && !holdPlayerOut
+      ? holdPlayerId
+      : displaySeatCanAct
+        ? displayTurnPlayer.id
+        : "");
 
   const currentIsLocalHuman = !!myPlayerId && current.id === myPlayerId;
   const currentIsOut =
@@ -3892,7 +3994,8 @@ function GameScreenBoard() {
     (humanRunOnTopTurn ||
       (humanIsAuthoritativeCurrent &&
         playerCanActInCurrentTrick(state, state.currentPlayerIndex)));
-  const isHumanTurn = isHumanTurnServer && !pendingTablePlayFlights;
+  const isHumanTurn =
+    isHumanTurnServer && !pendingTablePlayFlights && !presentationHoldActive;
   const actingPlayerId =
     isHumanTurn && myPlayerId ? myPlayerId : displayTurnPlayer.id;
 
@@ -3902,7 +4005,8 @@ function GameScreenBoard() {
     !trickPauseActive &&
     !currentIsOut &&
     !state.tenRulePending;
-  const isHumanPassEligible = isHumanTurn || humanCanAckPass;
+  const isHumanPassEligible =
+    !presentationHoldActive && (isHumanTurn || humanCanAckPass);
 
   let hand = [] as CardType[];
   const handPlayer =
@@ -3998,7 +4102,9 @@ function GameScreenBoard() {
   );
 
   const handleCardPress = (idx: number) => {
-    if (trickPauseActive || roundOver || readOnlyGame) return;
+    if (trickPauseActive || roundOver || readOnlyGame || presentationHoldActive) {
+      return;
+    }
     const card = hand[idx];
     const ownerIdForHand = currentIsLocalHuman ? current.id : humanPlayer?.id;
     if (ownerIdForHand && hasPassedInCurrentTrick(state, ownerIdForHand)) {
@@ -4121,6 +4227,12 @@ function GameScreenBoard() {
       sourceIndices: playIndices,
       concealHand: false,
     });
+    armLocalPlayPresentationLatch({
+      playKey: playFlightKey,
+      playerId: flightPlayerId,
+      playerName: actor.name,
+      playFlightLanded: false,
+    });
 
     let capture: LocalHandFlightCapture | null = null;
     if (handOrigin) {
@@ -4173,6 +4285,7 @@ function GameScreenBoard() {
 
     const next = playCards(state, actor.id, cards);
     if (next === state) {
+      clearLocalPlayPresentationLatch();
       localHandFlightRef.current = null;
       setLocalHandFlight(null);
       setHandPlayInFlight(null);
@@ -4623,17 +4736,21 @@ function GameScreenBoard() {
             !awaitingDealerReshuffle &&
             !trickPauseActive &&
             !roundOver
-          ? isHumanTurn
-            ? "Your turn"
-            : isHumanTurnServer && pendingTablePlayFlights
-              ? formatWaitingForTurnHint(
-                  state.players.find((p) => p.id === activeLastPlayId)?.name ??
-                    displayTurnPlayer.name,
-                )
-              : formatWaitingForTurnHint(displayTurnPlayer.name)
+          ? presentationHoldActive && localPlayPresentationLatch
+            ? holdPlayerId === myPlayerId
+              ? "Your turn"
+              : formatWaitingForTurnHint(localPlayPresentationLatch.playerName)
+            : isHumanTurn
+              ? "Your turn"
+              : isHumanTurnServer && pendingTablePlayFlights
+                ? formatWaitingForTurnHint(
+                    state.players.find((p) => p.id === activeLastPlayId)?.name ??
+                      displayTurnPlayer.name,
+                  )
+                : formatWaitingForTurnHint(displayTurnPlayer.name)
           : null;
 
-  const turnHintFlash = turnHintText === "Your turn";
+  const turnHintFlash = turnHintText === "Your turn" && !presentationHoldActive;
   const playModifierFlash = humanRunOnTopTurn && !!playModifierLabel;
 
   // Compact structured debug log view (last 20 entries). Produce a concise one-line summary

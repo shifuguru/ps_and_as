@@ -1,7 +1,17 @@
 let core, rules;
 try {
-  // prefer running against latest TypeScript source if ts-node is installed
-  require('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'commonjs' } });
+  // Match server/gameBridge.ts-node options (project tsconfig uses moduleResolution bundler).
+  require('ts-node').register({
+    transpileOnly: true,
+    skipProject: true,
+    compilerOptions: {
+      module: 'commonjs',
+      moduleResolution: 'node',
+      esModuleInterop: true,
+      target: 'ES2020',
+      strict: false,
+    },
+  });
   core = require('../src/game/core');
   rules = require('../src/game/ruleset');
 } catch (e) {

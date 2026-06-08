@@ -1,6 +1,7 @@
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { createPortal } from "react-dom";
+import { CARD_PLAY_FLIGHT_Z } from "../styles/overlayZIndex";
 import { getWebOverlayPortalHost } from "../utils/webOverlayPortal";
 
 type Props = {
@@ -9,7 +10,7 @@ type Props = {
 
 /**
  * Renders short-lived card flights above the bottom hand.
- * On web the hand bar lives in #ps-body-portal (z 50); in-tree flights stay under it.
+ * On web the hand bar lives in #ps-body-portal (z 50); modals use MODAL_OVERLAY_Z (200).
  */
 export default function ScreenFlightPortal({ children }: Props) {
   const layer = (
@@ -31,8 +32,8 @@ export default function ScreenFlightPortal({ children }: Props) {
 const styles = StyleSheet.create({
   layer: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 10000,
-    elevation: 10000,
+    zIndex: CARD_PLAY_FLIGHT_Z,
+    elevation: CARD_PLAY_FLIGHT_Z,
     overflow: "visible",
   },
 });

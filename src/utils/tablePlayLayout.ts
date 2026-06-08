@@ -12,6 +12,9 @@ export type FrozenPlaySpot = {
   left: number;
   top: number;
   rotation: number;
+  /** Effective render box when pile uses unified playGroupSizes (matches GameTable). */
+  groupWidth?: number;
+  groupHeight?: number;
 };
 
 export type PlayStackTier = "buried" | "visible" | "beaten";
@@ -717,11 +720,27 @@ export function stackSpotForPlay(
   if (!spot) {
     return { left: 0, top: 0, rotation: 0, tier: "visible" };
   }
+  const maxSpreadWidth = zoneWidth > 0 ? zoneWidth * MAX_SPREAD_WIDTH_RATIO : 0;
+  const bundleCapRatio =
+    _play.cards.length >= 3 && isRun(_play.cards)
+      ? 0.95
+      : _play.cards.length > 1 && allSameValue(_play.cards)
+        ? 1
+        : 0.68;
+  const bundle = layoutPlayBundle(
+    _play.cards,
+    layout.cardWidth,
+    Math.round(maxSpreadWidth * bundleCapRatio),
+    layout.cardHeight,
+  );
+  const layoutGroupSize = layout.playGroupSizes?.[playIndex];
   return {
     left: spot.left,
     top: spot.top,
     rotation: spot.rotation ?? 0,
     tier: spot.tier ?? "visible",
+    groupWidth: layoutGroupSize?.width ?? bundle.width,
+    groupHeight: layoutGroupSize?.height ?? bundle.height,
   };
 }
 
