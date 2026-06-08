@@ -179,6 +179,12 @@ import {
   debugBg,
   logIosBottomGapMetrics,
 } from "../debug/iosBottomGapDebug";
+import {
+  logTurnRingVerifyEvent,
+  notePlayFlightLanded,
+  notePlayFlightStarted,
+  observeTurnHighlightRing,
+} from "../utils/turnRingFlightVerify";
 
 type GameStateWithDealSeed = GameState & { dealSeed?: number };
 
@@ -2192,6 +2198,12 @@ function GameScreen({
       }
 
       setState(repairStuckTurnPointer(parsed));
+      logTurnRingVerifyEvent("SYNC_RECEIVED", {
+        currentPlayerIndex: parsed.currentPlayerIndex,
+        activeLastPlayId: lastPlayPlayerId(parsed),
+        pendingTablePlayFlights: false,
+        turnHighlightPlayerId: "",
+      });
       finishSpectator();
     };
 
@@ -3677,9 +3689,20 @@ function GameScreenBoard() {
   }, [setSelected]);
   const handPlayInFlightRef = useRef(handPlayInFlight);
   handPlayInFlightRef.current = handPlayInFlight;
-  const handlePlayFlightStarted = useCallback((_playKey: string) => {
-    // Hand cards hide only once the elevated flight is on screen (see effect below).
-  }, []);
+  const handlePlayFlightStarted = useCallback(
+    (playKey: string) => {
+      const startedAt = notePlayFlightStarted(playKey);
+      logTurnRingVerifyEvent("FLIGHT_STARTED", {
+        currentPlayerIndex: state.currentPlayerIndex,
+        activeLastPlayId: lastPlayPlayerId(state),
+        pendingTablePlayFlights,
+        turnHighlightPlayerId: "",
+        playFlightKey: playKey,
+        playFlightStartedAt: startedAt,
+      });
+    },
+    [state, pendingTablePlayFlights],
+  );
 
   useEffect(() => {
     const outgoing = handPlayInFlight;
@@ -3701,6 +3724,15 @@ function GameScreenBoard() {
   );
   const handlePlayFlightLanded = useCallback(
     (playKey: string) => {
+      const landedAt = notePlayFlightLanded(playKey);
+      logTurnRingVerifyEvent("FLIGHT_LANDED", {
+        currentPlayerIndex: state.currentPlayerIndex,
+        activeLastPlayId: lastPlayPlayerId(state),
+        pendingTablePlayFlights,
+        turnHighlightPlayerId: "",
+        playFlightKey: playKey,
+        playFlightLandedAt: landedAt,
+      });
       setLocalPlayPresentationLatch((prev) => {
         if (prev?.playKey !== playKey) return prev;
         return { ...prev, playFlightLanded: true };
@@ -3714,7 +3746,7 @@ function GameScreenBoard() {
         completeHandPlayFlight(playKey);
       }
     },
-    [completeHandPlayFlight, scheduleLocalPlaySyncStuckTimeout],
+    [completeHandPlayFlight, scheduleLocalPlaySyncStuckTimeout, state, pendingTablePlayFlights],
   );
   const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
@@ -3941,6 +3973,7 @@ function GameScreenBoard() {
     state,
     displayTurnIndex,
   );
+  const activeLastPlayId = lastPlayPlayerId(state);
   const presentationHoldActive =
     !!localPlayPresentationLatch &&
     (!localPlayPresentationLatch.playFlightLanded ||
@@ -3952,13 +3985,46 @@ function GameScreenBoard() {
   const holdPlayerOut =
     !!holdPlayer &&
     (state.finishedOrder.includes(holdPlayer.id) || holdPlayer.hand.length === 0);
+  const lastPlayActor = activeLastPlayId
+    ? state.players.find((p) => p.id === activeLastPlayId)
+    : undefined;
+  const lastPlayActorCanHighlight =
+    !!lastPlayActor &&
+    !state.finishedOrder.includes(lastPlayActor.id) &&
+    lastPlayActor.hand.length > 0;
   const turnHighlightPlayerId =
     revealTurnHighlight &&
     (presentationHoldActive && holdPlayerId && !holdPlayerOut
       ? holdPlayerId
-      : displaySeatCanAct
-        ? displayTurnPlayer.id
-        : "");
+      : pendingTablePlayFlights && lastPlayActorCanHighlight
+        ? activeLastPlayId
+        : displaySeatCanAct
+          ? displayTurnPlayer.id
+          : "");
+
+  useLayoutEffect(() => {
+    observeTurnHighlightRing({
+      currentPlayerIndex: state.currentPlayerIndex,
+      activeLastPlayId,
+      pendingTablePlayFlights,
+      turnHighlightPlayerId,
+      playFlightKey:
+        handPlayInFlight?.playKey ??
+        localPlayPresentationLatch?.playKey ??
+        null,
+      presentationHoldActive,
+      holdPlayerId,
+    });
+  }, [
+    state.currentPlayerIndex,
+    activeLastPlayId,
+    pendingTablePlayFlights,
+    turnHighlightPlayerId,
+    handPlayInFlight?.playKey,
+    localPlayPresentationLatch?.playKey,
+    presentationHoldActive,
+    holdPlayerId,
+  ]);
 
   const currentIsLocalHuman = !!myPlayerId && current.id === myPlayerId;
   const currentIsOut =
@@ -4233,6 +4299,13 @@ function GameScreenBoard() {
       playerName: actor.name,
       playFlightLanded: false,
     });
+    logTurnRingVerifyEvent("PLAY_START", {
+      currentPlayerIndex: state.currentPlayerIndex,
+      activeLastPlayId: lastPlayPlayerId(state),
+      pendingTablePlayFlights,
+      turnHighlightPlayerId: "",
+      playFlightKey: playFlightKey,
+    });
 
     let capture: LocalHandFlightCapture | null = null;
     if (handOrigin) {
@@ -4402,7 +4475,6 @@ function GameScreenBoard() {
   );
   const contentTopPadding = insets.top + 8;
   const trickPlays = buildTrickPlayDisplays(state);
-  const activeLastPlayId = lastPlayPlayerId(state);
 
   const displayPlays: TrickPlayDisplay[] = useMemo(() => {
     const base =

@@ -32,6 +32,13 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-08T16:32:29"),
+    title: "Turn highlight during card plays",
+    items: [
+      "Turn ring — the gold highlight stays on whoever just played while their cards are still flying to the table, instead of jumping to the next player too soon",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-08T13:23:14"),
     title: "Card flight landing",
     items: [

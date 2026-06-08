@@ -47,6 +47,12 @@ const OFFLINE_GATES = [
     cmd: "node",
     args: ["scripts/test-cpu-stall-botopn.mjs", "--headless"],
   },
+  {
+    id: "turn-ring",
+    title: "Turn highlight ring vs pending play flights",
+    cmd: "node",
+    args: ["scripts/verify-turn-ring-highlight.mjs"],
+  },
 ];
 
 const SERVER_GATES = [
