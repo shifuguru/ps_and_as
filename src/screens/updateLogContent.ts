@@ -32,7 +32,7 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-06-08T12:37:44"),
+    publishedAt: nzst("2026-06-08T13:23:14"),
     title: "Card flight landing",
     items: [
       "Your plays — cards from your hand land on the pile instead of stopping above it, especially on iPhone home-screen play",
