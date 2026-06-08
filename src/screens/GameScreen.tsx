@@ -500,6 +500,7 @@ function GameScreen({
     layout: ReturnType<typeof computePlayAreaLayout>;
     width: number;
     height: number;
+    screenOrigin: { x: number; y: number };
   } | null>(null);
   const [ceremonyPrep, setCeremonyPrep] = useState<CeremonyPrepPayload | null>(
     null,
@@ -3239,6 +3240,7 @@ function GameScreen({
         playAreaGameHeight,
         ceremonyPlayAreaLayout,
         ceremonyPlayAreaHeight,
+        livePlayAreaMetrics,
         setLivePlayAreaMetrics,
         localControlledIds,
         deadHandGraveyard,
@@ -3345,6 +3347,7 @@ function GameScreenBoard() {
     playAreaGameHeight,
     ceremonyPlayAreaLayout,
     ceremonyPlayAreaHeight,
+    livePlayAreaMetrics,
     setLivePlayAreaMetrics,
     localControlledIds,
     deadHandGraveyard,
@@ -3462,11 +3465,18 @@ function GameScreenBoard() {
     playAreaGameHeight: number;
     ceremonyPlayAreaLayout: ReturnType<typeof computePlayAreaLayout> | null;
     ceremonyPlayAreaHeight: number;
+    livePlayAreaMetrics: {
+      layout: ReturnType<typeof computePlayAreaLayout>;
+      width: number;
+      height: number;
+      screenOrigin: { x: number; y: number };
+    } | null;
     setLivePlayAreaMetrics: React.Dispatch<
       React.SetStateAction<{
         layout: ReturnType<typeof computePlayAreaLayout>;
         width: number;
         height: number;
+        screenOrigin: { x: number; y: number };
       } | null>
     >;
     localControlledIds: string[];
@@ -3685,17 +3695,7 @@ function GameScreenBoard() {
 
   const handleElevatedHandFlightsChange = useCallback(
     (incoming: CardFlightSpec[]) => {
-      setElevatedHandFlights((prev) => {
-        if (incoming.length === 0) return [];
-        if (
-          incoming.length === 1 &&
-          prev.length === 1 &&
-          incoming[0].id === prev[0].id
-        ) {
-          return prev;
-        }
-        return incoming;
-      });
+      setElevatedHandFlights(incoming);
     },
     [],
   );
@@ -4249,8 +4249,8 @@ function GameScreenBoard() {
 
     const primePlayFlight = (baseState: GameState) => {
       if (!capture) return;
-      const layout = playAreaLayout;
-      const win = playAreaScreenRectBoardRef.current;
+      const layout = livePlayAreaMetrics?.layout ?? playAreaLayout;
+      const win = livePlayAreaMetrics?.screenOrigin;
       if (!layout || !win) return;
       const play = { cards, playerId: flightPlayerId };
       const plays = [...buildTrickPlayDisplays(baseState)];

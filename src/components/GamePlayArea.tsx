@@ -105,6 +105,8 @@ type Props = RingProps & {
     layout: PlayAreaLayout;
     width: number;
     height: number;
+    /** Inner play-area root in window coords — matches flight target space. */
+    screenOrigin: { x: number; y: number };
   }) => void;
   /** Where the selected cards were when Play was pressed (window coords). */
   localHandFlight?: LocalHandFlightCapture | null;
@@ -221,20 +223,21 @@ export default function GamePlayArea({
   }, [size.width, size.height, players.length, localPlayerIds.length, tableSeatCount, shellHeight]);
 
   useEffect(() => {
-    if (!layout || !onPlayAreaMetrics) return;
-    onPlayAreaMetrics({
-      layout,
-      width: size.width,
-      height: size.height,
-    });
-  }, [layout, size.width, size.height, onPlayAreaMetrics]);
-
-  useEffect(() => {
     if (!layout || size.height <= 0) return;
     void measureViewInWindow(rootRef.current).then((win) => {
       if (win) setPlayAreaScreenOrigin(win);
     });
   }, [layout, size.width, size.height]);
+
+  useEffect(() => {
+    if (!layout || !onPlayAreaMetrics) return;
+    onPlayAreaMetrics({
+      layout,
+      width: size.width,
+      height: size.height,
+      screenOrigin: playAreaScreenOrigin,
+    });
+  }, [layout, size.width, size.height, playAreaScreenOrigin, onPlayAreaMetrics]);
 
   const stackLayoutState = useMemo(() => {
     if (!layout) {

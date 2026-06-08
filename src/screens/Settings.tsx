@@ -520,7 +520,7 @@ export default function Settings({
               <Text style={ui.panelEyebrow}>Full screen</Text>
               <Text style={styles.tintHint}>
                 Add the game to your homescreen for full-screen play without the browser toolbar taking up space.
-                Use the Share button from the toolbar, or ... menu button and choose Add to Home screen.
+                Use the Share button from the toolbar, or menu button and choose Add to Home screen.
               </Text>
               <TouchableOpacity
                 style={[styles.saveBtn, styles.saveBtnActive, { marginTop: 12 }]}

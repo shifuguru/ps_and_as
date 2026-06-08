@@ -33,6 +33,13 @@ export function nzdt(local: string): string {
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
     publishedAt: nzst("2026-06-08T12:37:44"),
+    title: "Card flight landing",
+    items: [
+      "Your plays — cards from your hand land on the pile instead of stopping above it, especially on iPhone home-screen play",
+    ],
+  },
+  {
+    publishedAt: nzst("2026-06-08T12:37:44"),
     title: "Turn pill & late-round passes",
     items: [
       "Your play — the turn pill stays on you until your card lands and the table syncs; no more brief Waiting for… flicker on slow connections",
@@ -272,12 +279,6 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
 ];
 
 export const KNOWN_ISSUES: KnownIssue[] = [
-  {
-    title: "Card play flight landing",
-    status: "Looking into it",
-    updatedAt: nzst("2026-06-06T16:05:04"),
-    note: "Cards played from your hand may still look like they land above the pile instead of sitting flush on it. We're measuring alignment.",
-  },
   {
     title: "Achievement stats in lobbies",
     status: "Monitoring",
