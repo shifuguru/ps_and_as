@@ -67,6 +67,13 @@ import {
   type ServerPendingTrades,
 } from "../game/roundPrep";
 import {
+  handLengthSummary,
+  logFinalizeCeremonyAborted,
+  logFinalizeCeremonyRound,
+  logRoundTransitionVerbose,
+  logTradesCompleteReceived,
+} from "../game/roundTransitionDiagnostics";
+import {
   resolveCeremonyLaunchMode,
   resolveSkipDealAnimations,
 } from "../game/dealCeremonyAnimation";
@@ -216,19 +223,28 @@ const LAST_HAND_REVEAL_MS = 4000;
 const TRADE_RETURN_FLIGHT_MS = 520;
 const TRADE_RETURN_HOLD_MS = 650;
 
-/** Temporary — remove after Fix #1 manual tests (rankings vs last-hand ordering). */
-const ROUND_TRANSITION_LOG = false;
+/** Round transition instrumentation — verbose in dev; warnings/errors always on. */
+const ROUND_TRANSITION_LOG = typeof __DEV__ !== "undefined" ? __DEV__ : false;
 
 function roundTransitionLog(
   message: string,
   detail?: Record<string, unknown>,
 ): void {
+  logRoundTransitionVerbose(message, detail);
   if (!ROUND_TRANSITION_LOG) return;
   if (detail && Object.keys(detail).length > 0) {
     console.log(`[ROUND] ${message}`, detail);
   } else {
     console.log(`[ROUND] ${message}`);
   }
+}
+
+function ceremonyPlayersForFinalize(
+  prep: CeremonyPrepPayload | null,
+  fallback: GameState["players"],
+): GameState["players"] {
+  if (!prep) return fallback;
+  return prep.dealtPlayers ?? prep.players;
 }
 
 type LastHandRevealPayload = {
@@ -1079,12 +1095,43 @@ function GameScreen({
       players: GameState["players"],
       baseState: GameState,
       serverHands?: Record<string, CardType[]> | null,
-    ) => {
+    ): boolean => {
+      const roundKey = roundCeremonyKey(baseState as GameStateWithDealSeed);
       const handsSource =
         serverHands ?? pendingTradesCompleteRef.current ?? null;
+      const handSourceKind: "serverHands" | "pendingTradesCompleteRef" | "none" =
+        serverHands
+          ? "serverHands"
+          : pendingTradesCompleteRef.current
+            ? "pendingTradesCompleteRef"
+            : "none";
+
+      if (onlineMultiplayer && !handsSource) {
+        logFinalizeCeremonyAborted({
+          roundKey,
+          reason: "no hand source (serverHands and pendingTradesCompleteRef both null)",
+          handSource: handSourceKind,
+        });
+        return false;
+      }
+
       const merged = handsSource
         ? applyServerPlayerHands(players, handsSource)
         : players;
+
+      if (onlineMultiplayer) {
+        const living = merged.filter((p) => !isDeadHandPlayer(p));
+        const anyHand = living.some((p) => (p.hand?.length ?? 0) > 0);
+        if (!anyHand) {
+          logFinalizeCeremonyAborted({
+            roundKey,
+            reason: "merged hands empty after applyServerPlayerHands",
+            handSource: handSourceKind,
+          });
+          return false;
+        }
+      }
+
       pendingTradesCompleteRef.current = null;
       resetBetweenRoundsUi();
       clearTradeReturnReveal();
@@ -1109,6 +1156,13 @@ function GameScreen({
             ? baseState.currentPlayerIndex
             : undefined,
       );
+      logFinalizeCeremonyRound({
+        roundKey,
+        handLengths: handLengthSummary(
+          Object.fromEntries(next.players.map((p) => [p.id, p.hand])),
+        ),
+        handSource: handSourceKind,
+      });
       setState(next);
       setRoundOver(false);
       roundStatsRecordedRef.current = false;
@@ -1124,6 +1178,7 @@ function GameScreen({
       setForfeitedXpPlayerIds(new Set());
       xpCommittedForRoundRef.current = false;
       ceremonyDoneForRoundRef.current = roundCeremonyKey(next);
+      return true;
     },
     [
       resolvedHostId,
@@ -1216,8 +1271,12 @@ function GameScreen({
           return;
         }
         if (launchMode === "finalizeNow") {
+          const finalizePlayers = ceremonyPlayersForFinalize(
+            prep,
+            prep.dealtPlayers ?? prep.players,
+          );
           finalizeCeremonyRound(
-            prep.players,
+            finalizePlayers,
             prep.baseState,
             pendingTradesCompleteRef.current ?? prep.serverPlayerHands,
           );
@@ -1276,7 +1335,7 @@ function GameScreen({
         shouldFinalizeCeremonyEarly(prep, pendingTradesCompleteRef.current)
       ) {
         finalizeCeremonyRound(
-          prep.players,
+          ceremonyPlayersForFinalize(prep, prep.players),
           prep.baseState,
           pendingTradesCompleteRef.current ?? prep.serverPlayerHands,
         );
@@ -2125,12 +2184,20 @@ function GameScreen({
           const deal = executeCeremonyDeal(parsed, finishOrder, {
             dealSeed: roundDealSeed,
             hostId: resolvedHostId,
+            onlineAuthoritative: true,
           });
           const trades = resolveCeremonyTrades(
             deal.trades,
             serverPending,
             serverRoles,
             deal.players,
+            {
+              onlineMultiplayer: true,
+              diagnostics: {
+                roundKey,
+                freshRound: !!parsed.freshRound,
+              },
+            },
           );
           const ceremonyPlayers = ceremonyPlayersForDealAnimation(deal.players);
 
@@ -2550,7 +2617,7 @@ function GameScreen({
         resetBetweenRoundsUi();
         setBotNextRoundAt(null);
         if (onlineMultiplayer) {
-          pendingTradesCompleteRef.current = null;
+          // Do not clear pendingTradesCompleteRef — tradesComplete may have landed first.
           setCeremonyPrep(null);
           setTradePhase(null);
           setActiveTrade(null);
@@ -2617,9 +2684,17 @@ function GameScreen({
           pendingTradesCompleteRef.current = hands;
         }
         const prep = ceremonyPrepRef.current;
+        const gs = stateRef.current as GameStateWithDealSeed | null;
+        const roundKey = gs ? roundCeremonyKey(gs) : undefined;
+        logTradesCompleteReceived({
+          roundKey,
+          handLengths: handLengthSummary(hands),
+          hasPrep: !!prep,
+          hasTradePhase: !!tradePhaseRef.current,
+        });
         if (prep) {
           finalizeCeremonyRoundRef.current(
-            prep.players,
+            ceremonyPlayersForFinalize(prep, prep.players),
             prep.baseState,
             hands ?? pendingTradesCompleteRef.current,
           );

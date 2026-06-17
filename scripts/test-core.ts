@@ -40,6 +40,7 @@ import {
   applyCpuTurn,
   isTrickOpeningLead,
   runFromCurrentTrick,
+  type TrickHistory,
 } from "../src/game/core";
 import {
   applyMandatoryTrades,
@@ -52,6 +53,7 @@ import {
   pickHighestCards,
   resolveCeremonyTrades,
   buildTradesFromServerPending,
+  executeCeremonyDeal,
   serverPendingTradesComplete,
   buildTradePhaseFromServerState,
   mergeTradesFromServerPending,
@@ -239,13 +241,13 @@ assert.strictEqual(
     { id: "3", name: "P3", hand: [], role: "Neutral" },
     { id: "4", name: "P4", hand: [], role: "Neutral" },
   ];
-  const trick4565 = {
+  const trick4565: TrickHistory = {
     trickNumber: 1,
     actions: [
-      { type: "play" as const, playerId: "1", playerName: "P1", cards: [{ suit: "hearts", value: 4 }], timestamp: 1 },
-      { type: "play" as const, playerId: "2", playerName: "P2", cards: [{ suit: "diamonds", value: 5 }], timestamp: 2 },
-      { type: "play" as const, playerId: "3", playerName: "P3", cards: [{ suit: "clubs", value: 6 }], timestamp: 3 },
-      { type: "play" as const, playerId: "4", playerName: "P4", cards: [{ suit: "spades", value: 5 }], timestamp: 4 },
+      { type: "play", playerId: "1", playerName: "P1", cards: [{ suit: "hearts", value: 4 }], timestamp: 1 },
+      { type: "play", playerId: "2", playerName: "P2", cards: [{ suit: "diamonds", value: 5 }], timestamp: 2 },
+      { type: "play", playerId: "3", playerName: "P3", cards: [{ suit: "clubs", value: 6 }], timestamp: 3 },
+      { type: "play", playerId: "4", playerName: "P4", cards: [{ suit: "spades", value: 5 }], timestamp: 4 },
     ],
   };
   const pileFive: Card[] = [{ suit: "spades", value: 5 }];
@@ -1880,7 +1882,7 @@ console.log("CPU round-1 opening tests passed");
       loserId: "ass",
       winnerName: "P",
       loserName: "A",
-      incoming: [{ suit: "spades", value: 14 }],
+      incoming: [{ suit: "spades" as const, value: 14 }],
       returnCount: 1,
       completed: false,
     },
@@ -1889,7 +1891,7 @@ console.log("CPU round-1 opening tests passed");
     president: {
       fromId: "ass",
       count: 1,
-      incoming: [{ suit: "spades", value: 14 }],
+      incoming: [{ suit: "spades" as const, value: 14 }],
       selected: [{ suit: "hearts", value: 4 }],
     },
   });
@@ -1917,7 +1919,7 @@ console.log("CPU round-1 opening tests passed");
       president: {
         fromId: "ass",
         count: 1,
-        incoming: [{ suit: "spades", value: 14 }],
+        incoming: [{ suit: "spades" as const, value: 14 }],
         selected: null,
       },
     },
@@ -2317,6 +2319,204 @@ console.log("Mandatory trade rank tests passed");
   assert.strictEqual(trades.length, 1, "Fresh round still runs VP trade in 5-player game");
   assert.strictEqual(trades[0].key, "vicePresident");
 }
+
+// --- Regression: online fresh round / no phantom President trade ---
+{
+  const players = createGame(["P1", "P2", "P3"]).players;
+  assignPlayerRoles(players, ["1", "2", "3"]);
+  players.forEach((p) => {
+    p.hand = [
+      { suit: "spades", value: 15 },
+      { suit: "hearts", value: 14 },
+      { suit: "clubs", value: 5 },
+    ];
+  });
+  const localTrades = applyMandatoryTrades(players);
+  assert.strictEqual(localTrades.length, 1, "offline local would create president trade");
+
+  const serverRoles = { "1": "president", "2": "vice_president", "3": "asshole" };
+  const onlineTrades = resolveCeremonyTrades(
+    localTrades,
+    {},
+    serverRoles,
+    players,
+    { onlineMultiplayer: true, diagnostics: { freshRound: true, roundKey: "test:fresh" } },
+  );
+  assert.strictEqual(
+    onlineTrades.length,
+    0,
+    "empty server pendingTrades must mean no trades online (no phantom RoleTradeModal)",
+  );
+}
+
+{
+  const base = createGame(["P1", "P2", "P3"]);
+  base.consecutiveAssholeCount = 3;
+  base.freshRound = true;
+  const deal = executeCeremonyDeal(base, ["1", "2", "3"], {
+    onlineAuthoritative: true,
+    dealSeed: 4242,
+  });
+  assert.strictEqual(deal.trades.length, 0, "online ceremony deal must not generate local trades");
+  assert.strictEqual(deal.skipPresidentTrade, true, "freshRound from server preserved");
+  assert.strictEqual(deal.streakAfterRound.consecutiveAssholeCount, 3);
+  assert.strictEqual(deal.streakAfterRound.freshRound, true);
+
+  const serverRoles = { "1": "president", "2": "vice_president", "3": "asshole" };
+  const merged = resolveCeremonyTrades(
+    applyMandatoryTrades(clonePlayersForRound(deal.players)),
+    {},
+    serverRoles,
+    deal.players,
+    { onlineMultiplayer: true, diagnostics: { freshRound: true } },
+  );
+  assert.strictEqual(merged.length, 0, "3x Asshole fresh round: no president trade online");
+}
+
+{
+  const players = createGame(["P1", "P2", "P3", "P4", "P5"]).players;
+  assignPlayerRoles(players, ["1", "2", "3", "4", "5"]);
+  const localTrades = applyMandatoryTrades(players, { skipPresidentTrade: true });
+  assert.strictEqual(localTrades.length, 1);
+
+  const serverPending = {
+    vicePresident: {
+      fromId: "5",
+      count: 1,
+      incoming: [{ suit: "spades" as const, value: 15 }],
+      selected: null as Card[] | null,
+    },
+  };
+  const serverRoles = {
+    "1": "president",
+    "2": "vice_president",
+    "3": "neutral",
+    "4": "vice_asshole",
+    "5": "asshole",
+  };
+  const onlineTrades = resolveCeremonyTrades(
+    localTrades,
+    serverPending,
+    serverRoles,
+    players,
+    { onlineMultiplayer: true, diagnostics: { freshRound: true } },
+  );
+  assert.strictEqual(onlineTrades.length, 1);
+  assert.strictEqual(onlineTrades[0]?.key, "vicePresident");
+  assert.ok(
+    !onlineTrades.some((t) => t.key === "president"),
+    "fresh round must not include president trade from server",
+  );
+}
+
+console.log("Fresh round online trade regression tests passed");
+
+// --- Regression: on-top after higher/lower 10 (rules unchanged) ---
+{
+  const tenH: Card = { suit: "hearts", value: 10 };
+  const jackH: Card = { suit: "hearts", value: 11 };
+  const nineH: Card = { suit: "hearts", value: 9 };
+
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+  g.lastRoundOrder = ["1", "2", "3", "4"];
+  g.players[0].hand = [tenH, jackH, nineH, { suit: "clubs", value: 3 }];
+  g.players[1].hand = [{ suit: "clubs", value: 4 }];
+  g.players[2].hand = [{ suit: "spades", value: 5 }];
+  g.players[3].hand = [{ suit: "clubs", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [tenH], { tenRuleDirection: "higher" });
+  s = passTurn(s, "2");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+  assert.ok(s.runOnTop?.active, "higher 10 grants on-top");
+  const effective = resolveEffectiveTenRule(s);
+  assert.strictEqual(effective.direction, "higher");
+  assert.ok(
+    isValidPlay(
+      [jackH],
+      s.pile,
+      effective,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "on-top higher: J beats single 10",
+  );
+  assert.ok(
+    !isValidPlay(
+      [nineH],
+      s.pile,
+      effective,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "on-top higher: 9 does not beat 10",
+  );
+}
+
+{
+  const tenD: Card = { suit: "diamonds", value: 10 };
+  const nineC: Card = { suit: "clubs", value: 9 };
+
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+  g.lastRoundOrder = ["1", "2", "3", "4"];
+  g.players[0].hand = [tenD, nineC, { suit: "hearts", value: 3 }];
+  g.players[1].hand = [{ suit: "clubs", value: 4 }];
+  g.players[2].hand = [{ suit: "spades", value: 5 }];
+  g.players[3].hand = [{ suit: "clubs", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [tenD], { tenRuleDirection: "lower" });
+  s = passTurn(s, "2");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+  assert.ok(s.runOnTop?.active, "lower 10 grants on-top");
+  const effective = resolveEffectiveTenRule(s);
+  assert.strictEqual(effective.direction, "lower");
+  assert.ok(
+    isValidPlay(
+      [nineC],
+      s.pile,
+      effective,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "on-top lower: 9 beats single 10",
+  );
+}
+
+console.log("On-top ten-rule regression tests passed");
 
 {
   assert.ok(!supportsViceRoles(4));

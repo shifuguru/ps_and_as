@@ -637,7 +637,6 @@ export class SocketAdapter implements NetworkAdapter {
     });
 
     this.socket.on("nextRoundStarting", (data: any) => {
-      this.cachedTradesComplete = null;
       if (typeof data?.dealSeed === "number") {
         this.cachedDealSeed = data.dealSeed;
       }

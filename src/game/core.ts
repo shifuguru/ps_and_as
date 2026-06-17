@@ -16,6 +16,13 @@ import {
   resolveOpeningPlayerIndex,
 } from "../utils/tableSeats";
 import { applyFinishOrderRoles } from "../utils/roundRoles";
+import {
+  diagnoseTenRuleOnTopRejection,
+  logGrantRunOnTopBeat,
+  logResolveEffectiveTenRule,
+  logResolveTenRuleDirectionFromTrick,
+  logRunOnTopPlayRejected,
+} from "./onTopDiagnostics";
 
 export {
   DEAD_HAND_ID,
@@ -94,7 +101,11 @@ export function resolveTenRuleDirectionFromTrick(
   for (let i = currentTrick.actions.length - 1; i >= 0; i--) {
     const action = currentTrick.actions[i];
     if (action.type !== "play" || !action.cards?.length) continue;
-    if (action.tenRuleDirection) return action.tenRuleDirection;
+    if (action.tenRuleDirection) {
+      logResolveTenRuleDirectionFromTrick(currentTrick, action.tenRuleDirection);
+      return action.tenRuleDirection;
+    }
+    logResolveTenRuleDirectionFromTrick(currentTrick, null);
     return null;
   }
   return null;
@@ -121,24 +132,32 @@ function pileEndsRunContext(
 export function resolveEffectiveTenRule(
   state: Pick<GameState, "tenRule" | "currentTrick" | "runOnTop" | "pile">,
 ): { active: boolean; direction: "higher" | "lower" | null } {
+  let result: { active: boolean; direction: "higher" | "lower" | null };
   if (state.tenRule?.active && state.tenRule.direction) {
-    return state.tenRule;
-  }
-  const pileIsTen = pileIsUniformTen(state.pile ?? []);
-  if (!pileIsTen) {
-    if (state.tenRule?.active) {
-      return state.tenRule;
+    result = state.tenRule;
+  } else {
+    const pileIsTen = pileIsUniformTen(state.pile ?? []);
+    if (!pileIsTen) {
+      if (state.tenRule?.active) {
+        result = state.tenRule;
+      } else {
+        result = { active: false, direction: null };
+      }
+    } else {
+      const recovered = resolveTenRuleDirectionFromTrick(state.currentTrick);
+      if (recovered && state.runOnTop?.active) {
+        result = { active: true, direction: recovered };
+      } else if (state.tenRule?.active) {
+        result = state.tenRule;
+      } else {
+        result = { active: false, direction: null };
+      }
     }
-    return { active: false, direction: null };
   }
-  const recovered = resolveTenRuleDirectionFromTrick(state.currentTrick);
-  if (recovered && state.runOnTop?.active) {
-    return { active: true, direction: recovered };
+  if (state.runOnTop?.active) {
+    logResolveEffectiveTenRule(state, result);
   }
-  if (state.tenRule?.active) {
-    return state.tenRule;
-  }
-  return { active: false, direction: null };
+  return result;
 }
 
 function syncTenRuleForRunOnTop(state: GameState): void {
@@ -628,6 +647,16 @@ export function playCards(
   }
 
   if (!isValidPlay(cards, state.pile, effectiveTenRule, state.pileHistory, state.trickHistory, state.fourOfAKindChallenge, state.currentTrick, state.players, state.finishedOrder, state.lastRoundOrder, state.players[state.currentPlayerIndex]?.id, isRunOnTopTurn)) {
+    if (isRunOnTopTurn) {
+      const rejectionReason =
+        diagnoseTenRuleOnTopRejection(
+          cards,
+          state.pile,
+          effectiveTenRule,
+          true,
+        ) ?? "isValidPlay returned false (run adjacency, rank beat, or other rule)";
+      logRunOnTopPlayRejected(state, cards, effectiveTenRule, rejectionReason);
+    }
     // If the attempted play is invalid and the player is required to play,
     // check whether the player truly has any valid alternative play. If no
     // valid plays exist, convert this attempted play into a pass to avoid
@@ -2570,6 +2599,7 @@ function grantRunOnTopBeat(state: GameState, leaderIndex: number): GameState {
   state.runOnTop = { active: true, playerIndex: leaderIndex };
   state.currentPlayerIndex = leaderIndex;
   state.mustPlay = true;
+  logGrantRunOnTopBeat(state, leaderIndex);
   return { ...state };
 }
 

@@ -32,6 +32,15 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-17T13:05:38"),
+    title: "Fresh round & online dealing",
+    items: [
+      "Online — after a fresh round (three Asshole streaks), the next deal no longer pops a phantom President trade or stalls before play",
+      "Online — when trades finish, your dealt hand shows up reliably instead of starting the round empty",
+      "Online — round transitions between rankings and the next deal are more stable when sync messages arrive out of order",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-08T21:24:32"),
     title: "Playing a 10 & online resync",
     items: [

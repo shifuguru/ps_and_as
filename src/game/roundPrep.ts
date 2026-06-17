@@ -24,6 +24,11 @@ import {
 } from "../utils/tableSeats";
 import { applyFinishOrderRoles, supportsViceRoles } from "../utils/roundRoles";
 import { isCpuPlayer } from "../utils/localPlayer";
+import {
+  logCeremonyTradeDivergence,
+  logCeremonyTradeResolved,
+  logFreshRoundPresidentTradeWarning,
+} from "./roundTransitionDiagnostics";
 
 export type ClientPendingTrade = {
   key: "president" | "vicePresident";
@@ -368,13 +373,37 @@ export function buildTradePhaseFromServerState(
   return { baseState: parsed, players, trades };
 }
 
-/** Prefer server pending trades when roles are assigned — avoids duplicating local mandatory trades. */
+export type CeremonyTradeDiagnostics = {
+  roundKey?: string;
+  freshRound?: boolean;
+};
+
+export type ResolveCeremonyTradesOptions = {
+  onlineMultiplayer?: boolean;
+  diagnostics?: CeremonyTradeDiagnostics;
+};
+
+/**
+ * Online: server `pendingTrades` is authoritative — empty object means no trades.
+ * Offline: prefer server pending when present, else local mandatory trades.
+ */
 export function resolveCeremonyTrades(
   localTrades: ClientPendingTrade[],
   serverPending: ServerPendingTrades | null | undefined,
   serverRoles: Record<string, string> | null | undefined,
   players: Player[],
+  options?: ResolveCeremonyTradesOptions,
 ): ClientPendingTrade[] {
+  if (options?.onlineMultiplayer) {
+    return resolveOnlineCeremonyTrades(
+      serverPending,
+      serverRoles,
+      players,
+      localTrades,
+      options.diagnostics,
+    );
+  }
+
   if (!serverPending || !serverRoles) return localTrades;
   const roleValues = Object.values(serverRoles);
   if (
@@ -389,6 +418,69 @@ export function resolveCeremonyTrades(
     serverPending,
   );
   return fromServer.length > 0 ? fromServer : localTrades;
+}
+
+/** Authoritative online trades — never fall back to locally generated trades. */
+function resolveOnlineCeremonyTrades(
+  serverPending: ServerPendingTrades | null | undefined,
+  serverRoles: Record<string, string> | null | undefined,
+  players: Player[],
+  localTradesForComparison: ClientPendingTrade[],
+  diagnostics?: CeremonyTradeDiagnostics,
+): ClientPendingTrade[] {
+  if (!serverRoles) return [];
+
+  const roleValues = Object.values(serverRoles);
+  if (
+    !roleValues.includes("president") ||
+    !roleValues.includes("asshole")
+  ) {
+    return [];
+  }
+
+  const pending = serverPending ?? {};
+  const serverKeys = Object.keys(pending);
+  const fromServer = buildTradesFromServerPending(
+    players,
+    serverRoles,
+    pending,
+  );
+
+  if (localTradesForComparison.length !== fromServer.length) {
+    logCeremonyTradeDivergence({
+      roundKey: diagnostics?.roundKey,
+      freshRound: diagnostics?.freshRound,
+      serverTradeCount: fromServer.length,
+      localTradeCount: localTradesForComparison.length,
+      serverPendingKeys: serverKeys,
+      localTradeKeys: localTradesForComparison.map((t) => t.key),
+    });
+  }
+
+  if (diagnostics?.freshRound) {
+    const localPresident = localTradesForComparison.some(
+      (t) => t.key === "president",
+    );
+    const serverPresident = fromServer.some((t) => t.key === "president");
+    if (localPresident || serverPresident) {
+      logFreshRoundPresidentTradeWarning({
+        roundKey: diagnostics?.roundKey,
+        freshRound: true,
+        localPresident,
+        serverPresident,
+      });
+    }
+  }
+
+  logCeremonyTradeResolved({
+    roundKey: diagnostics?.roundKey,
+    freshRound: diagnostics?.freshRound,
+    serverPendingKeys: serverKeys,
+    tradeCount: fromServer.length,
+    onlineMultiplayer: true,
+  });
+
+  return fromServer;
 }
 
 /** Offline: president/VP CPUs instantly return their lowest cards. */
@@ -556,18 +648,28 @@ export function executeCeremonyDeal(
   options: {
     dealSeed?: number;
     hostId?: string | null;
+    /** Online sync: do not recompute streak or generate local trades. */
+    onlineAuthoritative?: boolean;
   },
 ): CeremonyDealResult {
-  const streakAfterRound = advanceAssholeStreakAfterRound(
-    {
-      consecutiveAssholeId: baseState.consecutiveAssholeId ?? null,
-      consecutiveAssholeCount: baseState.consecutiveAssholeCount ?? 0,
-      freshRound: !!baseState.freshRound,
-    },
-    finishedOrder,
-    baseState.players,
-  );
-  const skipPresidentTrade = shouldSkipPresidentAssholeTrade(streakAfterRound);
+  const streakAfterRound = options.onlineAuthoritative
+    ? {
+        consecutiveAssholeId: baseState.consecutiveAssholeId ?? null,
+        consecutiveAssholeCount: baseState.consecutiveAssholeCount ?? 0,
+        freshRound: !!baseState.freshRound,
+      }
+    : advanceAssholeStreakAfterRound(
+        {
+          consecutiveAssholeId: baseState.consecutiveAssholeId ?? null,
+          consecutiveAssholeCount: baseState.consecutiveAssholeCount ?? 0,
+          freshRound: !!baseState.freshRound,
+        },
+        finishedOrder,
+        baseState.players,
+      );
+  const skipPresidentTrade = options.onlineAuthoritative
+    ? !!baseState.freshRound
+    : shouldSkipPresidentAssholeTrade(streakAfterRound);
 
   let players = clonePlayersForRound(
     baseState.players.map((p) => ({ ...p, hand: [] })),
@@ -578,7 +680,9 @@ export function executeCeremonyDeal(
   const rolesById: Record<string, string> = {};
   if (finishedOrder.length >= 2) {
     assignPlayerRoles(players, finishedOrder);
-    trades = applyMandatoryTrades(players, { skipPresidentTrade });
+    if (!options.onlineAuthoritative) {
+      trades = applyMandatoryTrades(players, { skipPresidentTrade });
+    }
     for (const p of players) {
       if (!isDeadHandPlayer(p) && p.role !== "Neutral") {
         rolesById[p.id] = p.role;
