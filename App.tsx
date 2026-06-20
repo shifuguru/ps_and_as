@@ -49,6 +49,8 @@ import {
   pickCpuDisplayNames,
 } from "./src/utils/cpuNames";
 import AppErrorBoundary from "./src/components/AppErrorBoundary";
+import MissionControlScreen from "./src/screens/MissionControlScreen";
+import { isMissionControlRoute } from "./src/studio/loadStudioData";
 import { StatusBar } from "expo-status-bar";
 
 function AppContent() {
@@ -1034,6 +1036,26 @@ function AppContent() {
 
 export default function App() {
   const { ready: fontsReady } = useAppFonts();
+  const missionControl = Platform.OS === "web" && isMissionControlRoute();
+
+  if (missionControl) {
+    if (!fontsReady) {
+      return (
+        <SafeAreaProvider>
+          <View style={[appStyles.fontBoot, appStyles.webFontBoot]} />
+        </SafeAreaProvider>
+      );
+    }
+    return (
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <AppErrorBoundary>
+            <MissionControlScreen />
+          </AppErrorBoundary>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    );
+  }
 
   if (!fontsReady) {
     return (
