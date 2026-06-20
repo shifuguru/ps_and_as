@@ -2,7 +2,6 @@ import React, { Component, type ErrorInfo, type ReactNode } from "react";
 import { Platform } from "react-native";
 import CrashLandingPage from "./CrashLandingPage";
 import ReadmeFallbackRedirect from "./ReadmeFallbackRedirect";
-import { isMissionControlRoute } from "../studio/loadStudioData";
 
 type Props = {
   children: ReactNode;
@@ -30,14 +29,6 @@ export default class AppErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      if (Platform.OS === "web" && isMissionControlRoute()) {
-        return (
-          <CrashLandingPage
-            error={this.state.error}
-            onRefresh={this.handleRefresh}
-          />
-        );
-      }
       if (Platform.OS === "web") {
         return <ReadmeFallbackRedirect />;
       }
