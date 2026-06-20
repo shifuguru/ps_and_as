@@ -8,6 +8,7 @@
  * Env:
  *   RELEASE_GATE_SPAWN_SERVER=1  spawn server if port closed
  *   SKIP_LIVE=1                  skip live BOTOPN stall (headless still runs)
+ *   SKIP_BOTOPN=1                skip botopn-lifecycle (RC scope — D-010 waiver)
  *   SKIP_OFFLINE=1               socket tests only
  *   SERVER_URL                   default http://localhost:4000
  */
@@ -87,6 +88,8 @@ const SERVER_GATES = [
     title: "BOTOPN lifecycle (solo cycle, spectator, seated play)",
     cmd: "node",
     args: ["scripts/test-bot-table-lifecycle.mjs"],
+    skip: () =>
+      process.env.SKIP_BOTOPN === "1" || process.env.RC_SCOPE === "1",
   },
   {
     id: "botopn-stall-live",

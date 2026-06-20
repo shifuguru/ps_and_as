@@ -199,6 +199,39 @@ export function resolveLeadPlayerIndexAfterTrades(
 }
 
 /**
+ * After mandatory role trades (round 2+): opener is the living 3♣ holder.
+ * Does not fall back to other rank-3 cards (3♥/3♦/3♠).
+ * If no living 3♣: logs and falls back to dealer's-left via resolveOpeningPlayerIndex.
+ */
+export function resolveOpenerAfterRoleTrades(
+  players: Pick<Player, "id" | "hand" | "isDeadHand" | "sidelinedHand">[],
+  options: DealerContext = {},
+): number {
+  const priorRound =
+    (options.lastRoundOrder?.length ?? 0) >= 2 ||
+    (options.finishedOrder?.length ?? 0) >= 2;
+
+  if (!priorRound) {
+    return resolveOpeningPlayerIndex(players, options);
+  }
+
+  const afterTrades = resolveLeadPlayerIndexAfterTrades(players, options);
+  if (afterTrades >= 0) return afterTrades;
+
+  if (typeof console !== "undefined" && console.warn) {
+    console.warn(
+      "[opener] post-trade: no living 3♣ holder in hands snapshot; falling back to dealer-left opener",
+      {
+        lastRoundOrderLen: options.lastRoundOrder?.length ?? 0,
+        playerCount: players.length,
+      },
+    );
+  }
+
+  return resolveOpeningPlayerIndex(players, options);
+}
+
+/**
  * First to act each round — one seat anticlockwise from the dealer
  * (same seat that receives the first card in deal order).
  * Round 1 uses {@link resolveFirstRoundLeadPlayerIndex} when no prior round order.

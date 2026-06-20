@@ -61,6 +61,8 @@ import {
   buildTradePhaseFromServerState,
   mergeTradesFromServerPending,
   resolveOpenerAfterRoleTrades,
+  openingLeadNotYetTaken,
+  reconcilePostTradeOpeningIndex,
   shouldSyncMidTradeFromServer,
   serverPendingTradesComplete,
   type ClientPendingTrade,
@@ -72,6 +74,7 @@ import {
   logFinalizeCeremonyRound,
   logRoundTransitionVerbose,
   logTradesCompleteReceived,
+  logPostTradeOpenerReconciled,
 } from "../game/roundTransitionDiagnostics";
 import {
   resolveCeremonyLaunchMode,
@@ -1138,23 +1141,15 @@ function GameScreen({
       const dealerContext = {
         hostId: resolvedHostId,
         lastRoundOrder: baseState.lastRoundOrder,
-        finishedOrder: ceremonyPrepRef.current?.finishOrder,
+        finishedOrder:
+          ceremonyPrepRef.current?.finishOrder ?? baseState.lastRoundOrder,
       };
       const openerFromHands = resolveOpenerAfterRoleTrades(merged, dealerContext);
-      const useServerOpener =
-        onlineMultiplayer &&
-        openerFromHands < 0 &&
-        baseState.currentPlayerIndex >= 0 &&
-        baseState.currentPlayerIndex < merged.length;
       const next = buildFreshRoundState(
         baseState,
         merged,
         dealerContext,
-        openerFromHands >= 0
-          ? openerFromHands
-          : useServerOpener
-            ? baseState.currentPlayerIndex
-            : undefined,
+        openerFromHands >= 0 ? openerFromHands : undefined,
       );
       logFinalizeCeremonyRound({
         roundKey,
@@ -2010,6 +2005,41 @@ function GameScreen({
       // Defer applying cached state until the deal ceremony runs (applyServerSync).
     }
 
+    const reconcileSyncedOpeningPlayer = (
+      parsed: ServerAugmentedState,
+    ): ServerAugmentedState => {
+      if (
+        !onlineMultiplayer ||
+        !serverPendingTradesComplete(parsed.pendingTrades) ||
+        !parsed.playerHands ||
+        !openingLeadNotYetTaken(parsed)
+      ) {
+        return parsed;
+      }
+      const { index, corrected, expectedIndex } = reconcilePostTradeOpeningIndex(
+        parsed,
+        {
+          hostId: resolvedHostId,
+          playerHands: parsed.playerHands,
+        },
+      );
+      if (!corrected) return parsed;
+      const openerId = parsed.players[index]?.id ?? null;
+      logPostTradeOpenerReconciled({
+        roundKey: roundCeremonyKey(parsed),
+        staleIndex: parsed.currentPlayerIndex,
+        stalePlayerId: parsed.players[parsed.currentPlayerIndex]?.id ?? null,
+        correctedIndex: index,
+        correctedPlayerId: openerId,
+        expectedIndex,
+      });
+      return {
+        ...parsed,
+        currentPlayerIndex: index,
+        mustPlay: true,
+      };
+    };
+
     const applyServerSync = (raw: unknown, spectator?: boolean) => {
       const parsed = parseServerGameState(raw) as ServerAugmentedState | null;
       if (!parsed) {
@@ -2266,9 +2296,10 @@ function GameScreen({
         setGameXpByPlayerId(parsed.roundXpByPlayerId);
       }
 
-      setState(repairStuckTurnPointer(parsed));
+      const syncedForPlay = reconcileSyncedOpeningPlayer(parsed);
+      setState(repairStuckTurnPointer(syncedForPlay));
       logTurnRingVerifyEvent("SYNC_RECEIVED", {
-        currentPlayerIndex: parsed.currentPlayerIndex,
+        currentPlayerIndex: syncedForPlay.currentPlayerIndex,
         activeLastPlayId: lastPlayPlayerId(parsed),
         pendingTablePlayFlights: false,
         turnHighlightPlayerId: "",
@@ -4118,11 +4149,11 @@ function GameScreenBoard() {
   const localHumanId = myPlayerId ?? humanPlayer?.id;
   const runOnTopActive =
     !!state.runOnTop?.active &&
-    state.runOnTop.playerIndex === displayTurnIndex;
+    state.runOnTop.playerIndex === state.currentPlayerIndex;
   const humanRunOnTopTurn =
-    !!state.runOnTop?.active &&
-    !!myPlayerId &&
-    state.players[state.runOnTop.playerIndex]?.id === myPlayerId;
+    runOnTopActive &&
+    !!localHumanId &&
+    state.players[state.runOnTop.playerIndex]?.id === localHumanId;
   const localIsOut =
     !!humanPlayer &&
     (state.finishedOrder.includes(humanPlayer.id) ||
@@ -4219,7 +4250,10 @@ function GameScreenBoard() {
     isHumanPassEligible &&
     !roundOver &&
     !hasAnyValidPlay &&
-    !!(localHumanId && !hasPassedInCurrentTrick(state, localHumanId));
+    !!(
+      localHumanId &&
+      (!hasPassedInCurrentTrick(state, localHumanId) || humanRunOnTopTurn)
+    );
 
   const isOpeningLead = isRoundOpeningLead(state);
 
@@ -4251,7 +4285,11 @@ function GameScreenBoard() {
     }
     const card = hand[idx];
     const ownerIdForHand = currentIsLocalHuman ? current.id : humanPlayer?.id;
-    if (ownerIdForHand && hasPassedInCurrentTrick(state, ownerIdForHand)) {
+    if (
+      ownerIdForHand &&
+      hasPassedInCurrentTrick(state, ownerIdForHand) &&
+      !humanRunOnTopTurn
+    ) {
       emitDebug("ui:select:blocked:passed", { playerId: ownerIdForHand });
       return;
     }
@@ -4453,7 +4491,7 @@ function GameScreenBoard() {
       (myPlayerId && state.players.find((p) => p.id === myPlayerId)) ??
       displayTurnPlayer;
     if (!actor) return;
-    if (hasPassedInCurrentTrick(state, actor.id)) {
+    if (hasPassedInCurrentTrick(state, actor.id) && !humanRunOnTopTurn) {
       emitDebug("action:play:blocked", { playerId: actor.id, reason: "already passed" });
       return;
     }
@@ -4514,11 +4552,11 @@ function GameScreenBoard() {
     const actor =
       (myPlayerId && state.players.find((p) => p.id === myPlayerId)) ?? current;
     if (!actor) return;
-    if (hasPassedInCurrentTrick(state, actor.id)) {
+    if (hasPassedInCurrentTrick(state, actor.id) && !humanRunOnTopTurn) {
       emitDebug("action:pass:blocked", { playerId: actor.id, reason: "already passed" });
       return;
     }
-    console.log(`You passed`);
+    console.log(humanRunOnTopTurn ? `You skipped on top!` : `You passed`);
     emitDebug("action:pass:human:attempt", {
       playerId: actor.id,
       playerName: actor.name,
@@ -5255,7 +5293,11 @@ function GameScreenBoard() {
               !isHumanPassEligible ||
               roundOver ||
               mustLeadOpening ||
-              !!(localHumanId && hasPassedInCurrentTrick(state, localHumanId))
+              !!(
+                localHumanId &&
+                hasPassedInCurrentTrick(state, localHumanId) &&
+                !humanRunOnTopTurn
+              )
             }
             isPlayerTurn={isHumanPassEligible && !roundOver && !gameplayLocked}
             noValidPlays={noValidPlays}

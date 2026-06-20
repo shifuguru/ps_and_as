@@ -32,6 +32,15 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-06-21T00:24:28"),
+    title: "On Top, opening lead & Find Game",
+    items: [
+      "On Top — after winning with a 10, your on-top turn should work again even if sync briefly lost your Higher/Lower choice",
+      "Online — after role trades, the player with 3♣ opens the round (not whoever received another three)",
+      "Find Game — when nobody is hosting publicly, you'll see No Public Games Available instead of a bot table listing",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-17T13:05:38"),
     title: "Fresh round & online dealing",
     items: [

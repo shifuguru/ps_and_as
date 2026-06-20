@@ -109,3 +109,7 @@ export function logFinalizeCeremonyAborted(detail: {
 }): void {
   logRoundTransitionError("finalizeCeremonyRound aborted", detail);
 }
+
+export function logPostTradeOpenerReconciled(detail?: RoundTransitionDetail): void {
+  logRoundTransitionWarn("post-trade opener reconciled from playerHands", detail);
+}

@@ -42,6 +42,7 @@ export {
   resolveLeadPlayerIndexAfterTrades,
   resolveFirstRoundLeadPlayerIndex,
   resolveOpeningPlayerIndex,
+  resolveOpenerAfterRoleTrades,
   resolveDealerId,
   buildDealerContext,
 } from "../utils/tableSeats";
@@ -105,9 +106,8 @@ export function resolveTenRuleDirectionFromTrick(
       logResolveTenRuleDirectionFromTrick(currentTrick, action.tenRuleDirection);
       return action.tenRuleDirection;
     }
-    logResolveTenRuleDirectionFromTrick(currentTrick, null);
-    return null;
   }
+  logResolveTenRuleDirectionFromTrick(currentTrick, null);
   return null;
 }
 
@@ -145,7 +145,7 @@ export function resolveEffectiveTenRule(
       }
     } else {
       const recovered = resolveTenRuleDirectionFromTrick(state.currentTrick);
-      if (recovered && state.runOnTop?.active) {
+      if (recovered && (state.runOnTop?.active || state.tenRule?.active)) {
         result = { active: true, direction: recovered };
       } else if (state.tenRule?.active) {
         result = state.tenRule;
@@ -190,7 +190,10 @@ export function isOnTopEligiblePile(
   }
 
   // 10-rule on top! only when the trick ends on a 10 pile with higher/lower active.
-  return !!(pileIsUniformTen(pile) && tenRule?.active && tenRule.direction);
+  if (!pileIsUniformTen(pile) || !tenRule?.active) return false;
+  const direction =
+    tenRule.direction ?? resolveTenRuleDirectionFromTrick(currentTrick);
+  return !!direction;
 }
 
 export type GameState = {
@@ -2489,7 +2492,7 @@ export function resolveCompletedAcknowledgmentTrick(state: GameState): GameState
     state.currentTrick,
     state.players,
     state.finishedOrder || [],
-    state.tenRule,
+    resolveEffectiveTenRule(state),
   );
   if (onTopEligible && !state.runOnTop?.active) {
     return grantRunOnTopBeat(state, leaderIndex);
@@ -2855,7 +2858,7 @@ export function maybeResolveTrickAfterPasses(state: GameState): GameState | null
       state.currentTrick,
       state.players,
       state.finishedOrder || [],
-      state.tenRule,
+      resolveEffectiveTenRule(state),
     );
     if (onTopEligible && !state.runOnTop?.active) {
       return grantRunOnTopBeat(state, leaderIndex);
@@ -2877,7 +2880,7 @@ export function maybeResolveTrickAfterPasses(state: GameState): GameState | null
     state.currentTrick,
     state.players,
     state.finishedOrder || [],
-    state.tenRule,
+    resolveEffectiveTenRule(state),
   );
   if (onTopEligible) {
     return grantRunOnTopBeat(state, leaderIndex);

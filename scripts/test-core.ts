@@ -58,6 +58,8 @@ import {
   buildTradePhaseFromServerState,
   mergeTradesFromServerPending,
   shouldSyncMidTradeFromServer,
+  reconcilePostTradeOpeningIndex,
+  openingLeadNotYetTaken,
 } from "../src/game/roundPrep";
 import {
   resolveCeremonyLaunchMode,
@@ -70,6 +72,7 @@ import {
   resolveFirstRoundLeadPlayerIndex,
   resolveLeadPlayerIndexAfterTrades,
   resolveOpeningPlayerIndex,
+  resolveOpenerAfterRoleTrades,
 } from "../src/utils/tableSeats";
 
 // Basic deck tests
@@ -1733,7 +1736,70 @@ function makeTwoPlayerDeadHandGame(
   );
 }
 
+// --- Dead hand post-trade opening (round 2+) ---
+
+const deadHandPostTradeCtx = {
+  lastRoundOrder: ["host", "guest"],
+  hostId: "host",
+};
+
+{
+  const players = makeTwoPlayerDeadHandGame(
+    {
+      host: [{ suit: "hearts", value: 5 }],
+      guest: [{ suit: "spades", value: 3 }],
+      [DEAD_HAND_ID]: [],
+    },
+    [{ suit: "clubs", value: 3 }],
+  );
+  assert.strictEqual(
+    resolveOpenerAfterRoleTrades(players, deadHandPostTradeCtx),
+    1,
+    "Post-trade: dead hand 3♣ sidelined — guest with 3♠ opens",
+  );
+}
+
+{
+  const players = makeTwoPlayerDeadHandGame(
+    {
+      host: [{ suit: "hearts", value: 3 }],
+      guest: [{ suit: "clubs", value: 4 }],
+      [DEAD_HAND_ID]: [],
+    },
+    [{ suit: "clubs", value: 3 }],
+  );
+  assert.strictEqual(
+    resolveOpenerAfterRoleTrades(players, deadHandPostTradeCtx),
+    0,
+    "Post-trade: dead hand 3♣ — host with 3♥ opens (any living rank-3 fallback)",
+  );
+}
+
+{
+  const players = makeTwoPlayerDeadHandGame(
+    {
+      host: [{ suit: "hearts", value: 5 }],
+      guest: [{ suit: "diamonds", value: 4 }],
+      [DEAD_HAND_ID]: [],
+    },
+    [
+      { suit: "clubs", value: 3 },
+      { suit: "spades", value: 3 },
+      { suit: "hearts", value: 3 },
+      { suit: "diamonds", value: 3 },
+    ],
+  );
+  const opener = resolveOpenerAfterRoleTrades(players, deadHandPostTradeCtx);
+  const dealersLeft = resolveOpeningPlayerIndex(players, deadHandPostTradeCtx);
+  assert.strictEqual(
+    opener,
+    dealersLeft,
+    "Post-trade: all 3s sidelined on dead hand — dealer's-left fallback",
+  );
+}
+
 console.log("Dead hand round-1 opening tests passed");
+console.log("Dead hand post-trade opening tests passed");
 
 // --- CPU round-1 opening (double 3s / combo leads) ---
 
@@ -2222,6 +2288,107 @@ console.log("Dead hand role/trade tests passed");
   );
 }
 
+// Production repro: president returns 3♥ to asshole; middle keeps 3♣ — asshole must not open.
+{
+  const base = createGame(["Pres", "Mid", "Ass"]);
+  const lastOrder = ["1", "2", "3"];
+  base.lastRoundOrder = lastOrder;
+  const players = clonePlayersForRound(base.players);
+  applyFinishOrderRoles(players, lastOrder);
+  players[0].hand = [
+    { suit: "hearts", value: 14 },
+    { suit: "hearts", value: 3 },
+  ];
+  players[1].hand = [
+    { suit: "clubs", value: 3 },
+    { suit: "spades", value: 7 },
+  ];
+  players[2].hand = [{ suit: "diamonds", value: 13 }];
+  const trades = applyMandatoryTrades(players);
+  assert.strictEqual(trades.length, 1);
+  completeWinnerReturn(players, trades[0], [{ suit: "hearts", value: 3 }]);
+  assert.ok(
+    players[2].hand.some((c) => c.suit === "hearts" && c.value === 3),
+    "Asshole received 3♥ from president",
+  );
+  assert.ok(
+    players[1].hand.some((c) => c.suit === "clubs" && c.value === 3),
+    "Middle still holds 3♣",
+  );
+  const openerIdx = resolveOpenerAfterRoleTrades(players, {
+    lastRoundOrder: lastOrder,
+  });
+  assert.strictEqual(
+    openerIdx,
+    1,
+    "3♣ holder opens — not asshole with 3♥",
+  );
+  assert.notStrictEqual(
+    openerIdx,
+    2,
+    "Asshole with 3♥ must not receive opening lead",
+  );
+  const next = buildFreshRoundState(base, players, { lastRoundOrder: lastOrder });
+  assert.strictEqual(next.currentPlayerIndex, 1);
+}
+
+// 4-player post-trade: opener is 3♣ holder after president return.
+{
+  const base = createGame(["P1", "P2", "P3", "P4"]);
+  const lastOrder = ["1", "2", "3", "4"];
+  base.lastRoundOrder = lastOrder;
+  const players = clonePlayersForRound(base.players);
+  applyFinishOrderRoles(players, lastOrder);
+  players[0].hand = [{ suit: "hearts", value: 14 }, { suit: "diamonds", value: 9 }];
+  players[1].hand = [{ suit: "clubs", value: 3 }, { suit: "spades", value: 8 }];
+  players[2].hand = [{ suit: "hearts", value: 11 }];
+  players[3].hand = [{ suit: "diamonds", value: 13 }];
+  const trades = applyMandatoryTrades(players);
+  assert.strictEqual(trades.length, 1);
+  completeWinnerReturn(players, trades[0], [{ suit: "diamonds", value: 9 }]);
+  assert.ok(
+    players[1].hand.some((c) => c.suit === "clubs" && c.value === 3),
+    "P2 keeps 3♣",
+  );
+  const openerIdx = resolveOpenerAfterRoleTrades(players, {
+    lastRoundOrder: lastOrder,
+  });
+  assert.strictEqual(
+    openerIdx,
+    1,
+    "4-player: 3♣ holder (P2) opens after trades",
+  );
+}
+
+// Client reconcile: stale asshole index corrected from playerHands.
+{
+  const base = createGame(["Pres", "Mid", "Ass"]);
+  const lastOrder = ["1", "2", "3"];
+  base.lastRoundOrder = lastOrder;
+  const playerHands: Record<string, Card[]> = {
+    "1": [{ suit: "hearts", value: 14 }],
+    "2": [{ suit: "clubs", value: 3 }, { suit: "spades", value: 7 }],
+    "3": [
+      { suit: "hearts", value: 3 },
+      { suit: "diamonds", value: 13 },
+    ],
+  };
+  const stale: GameState = {
+    ...base,
+    currentPlayerIndex: 2,
+    pile: [],
+    trickHistory: [],
+    currentTrick: { trickNumber: 1, actions: [] },
+    playerHands,
+  } as GameState;
+  assert.ok(openingLeadNotYetTaken(stale));
+  const { index, corrected } = reconcilePostTradeOpeningIndex(stale, {
+    playerHands,
+  });
+  assert.strictEqual(corrected, true, "stale asshole index should be corrected");
+  assert.strictEqual(index, 1, "reconcile picks 3♣ holder");
+}
+
 console.log("Post-trade 3♣ opener tests passed");
 
 // Last remaining player finishes the round even with cards left in hand.
@@ -2410,6 +2577,145 @@ console.log("Mandatory trade rank tests passed");
 }
 
 console.log("Fresh round online trade regression tests passed");
+
+// Direction recovered from trick when tenRule.direction is stripped (sync/reconnect)
+{
+  const tenH: Card = { suit: "hearts", value: 10 };
+  const jackH: Card = { suit: "hearts", value: 11 };
+  const nineH: Card = { suit: "hearts", value: 9 };
+
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+  g.lastRoundOrder = ["1", "2", "3", "4"];
+  g.players[0].hand = [tenH, jackH, nineH, { suit: "clubs", value: 3 }];
+  g.players[1].hand = [{ suit: "clubs", value: 4 }];
+  g.players[2].hand = [{ suit: "spades", value: 5 }];
+  g.players[3].hand = [{ suit: "clubs", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [tenH], { tenRuleDirection: "higher" });
+  s.tenRule = { active: true, direction: null };
+  assert.ok(
+    isOnTopEligiblePile(
+      s.pile,
+      s.pileHistory,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      s.tenRule,
+    ),
+    "on-top eligible when direction is recoverable from trick",
+  );
+  s = passTurn(s, "2");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+  assert.ok(s.runOnTop?.active, "higher 10 grants on-top after direction strip");
+  assert.strictEqual(s.runOnTop?.playerIndex, 0, "on-top owner is 10 player");
+  const effective = resolveEffectiveTenRule(s);
+  assert.strictEqual(effective.direction, "higher");
+  assert.ok(
+    isValidPlay(
+      [jackH],
+      s.pile,
+      effective,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "on-top higher: J beats single 10 after direction recovery",
+  );
+  assert.ok(
+    !isValidPlay(
+      [nineH],
+      s.pile,
+      effective,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "on-top higher: 9 rejected after direction recovery",
+  );
+}
+
+{
+  const tenD: Card = { suit: "diamonds", value: 10 };
+  const nineC: Card = { suit: "clubs", value: 9 };
+  const eightC: Card = { suit: "clubs", value: 8 };
+
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+  g.lastRoundOrder = ["1", "2", "3", "4"];
+  g.players[0].hand = [tenD, nineC, eightC, { suit: "hearts", value: 3 }];
+  g.players[1].hand = [{ suit: "clubs", value: 4 }];
+  g.players[2].hand = [{ suit: "spades", value: 5 }];
+  g.players[3].hand = [{ suit: "clubs", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [tenD], { tenRuleDirection: "lower" });
+  s.tenRule = { active: true, direction: null };
+  s = passTurn(s, "2");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+  assert.ok(s.runOnTop?.active, "lower 10 grants on-top after direction strip");
+  const effective = resolveEffectiveTenRule(s);
+  assert.strictEqual(effective.direction, "lower");
+  assert.ok(
+    isValidPlay(
+      [nineC],
+      s.pile,
+      effective,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "on-top lower: 9 beats single 10 after direction recovery",
+  );
+  assert.ok(
+    !isValidPlay(
+      [eightC],
+      s.pile,
+      effective,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "on-top lower: 8 rejected after direction recovery",
+  );
+}
+
+console.log("On-top direction recovery regression tests passed");
 
 // --- Regression: on-top after higher/lower 10 (rules unchanged) ---
 {

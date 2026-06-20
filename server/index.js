@@ -12,6 +12,7 @@ const {
   resolveLeadPlayerIndexAfterTrades,
   resolveFirstRoundLeadPlayerIndex,
   resolveOpeningPlayerIndex,
+  resolveOpenerAfterRoleTrades,
   resolveDealerId,
   buildDealerContext,
   needsRoundOneDealerReshuffle,
@@ -265,6 +266,12 @@ function startNextRound(roomId) {
     if (allTradesComplete(room.gameState)) {
       room.gameState.pendingTrades = {};
     }
+  } else if (
+    lastOrder.length >= 2 &&
+    allTradesComplete(room.gameState)
+  ) {
+    syncOpeningPlayerAfterTrades(room.gameState, room.host);
+    reconcileCurrentPlayerIndex(room);
   }
 
   room.gameState.readyForNextRound = {};
@@ -584,13 +591,7 @@ function syncOpeningPlayerAfterTrades(gameState, hostId) {
     hostId: hostId ?? null,
     lastRoundOrder: lastRoundOrder ?? [],
   };
-  let idx = resolveLeadPlayerIndexAfterTrades(gameState.players, dealerContext);
-  if (idx < 0) {
-    idx = resolveFirstRoundLeadPlayerIndex(gameState.players, dealerContext);
-  }
-  if (idx < 0) {
-    idx = resolveOpeningPlayerIndex(gameState.players, dealerContext);
-  }
+  const idx = resolveOpenerAfterRoleTrades(gameState.players, dealerContext);
   if (idx >= 0 && idx < gameState.players.length) {
     gameState.currentPlayerIndex = idx;
     gameState.mustPlay = true;
@@ -1820,10 +1821,19 @@ io.on('connection', (socket) => {
     }
 
     const working = cloneGameState(room.gameState);
+    const runOnTopIdx =
+      working.runOnTop?.active && working.runOnTop.playerIndex >= 0
+        ? working.runOnTop.playerIndex
+        : -1;
+    const runOnTopTurn =
+      runOnTopIdx >= 0 && working.players[runOnTopIdx]?.id === player.id;
+    if (runOnTopTurn && working.currentPlayerIndex !== runOnTopIdx) {
+      working.currentPlayerIndex = runOnTopIdx;
+    }
     const currentId = working.players[working.currentPlayerIndex]?.id;
     const ackPass =
       action?.type === "pass" && canAcknowledgmentPass(working, player.id);
-    if (player.id !== currentId && !ackPass) {
+    if (player.id !== currentId && !ackPass && !runOnTopTurn) {
       socket.emit('error', { message: 'Not your turn' });
       return;
     }
@@ -1954,14 +1964,17 @@ io.on('connection', (socket) => {
     }
 
     io.to(roomId).emit('playerHandsUpdate', { playerHands });
-    broadcastGameState(io, room);
 
     if (allTradesComplete(room.gameState)) {
       syncOpeningPlayerAfterTrades(room.gameState, room.host);
+      reconcileCurrentPlayerIndex(room);
+      broadcastGameState(io, room);
       io.to(roomId).emit('tradesComplete', { playerHands });
       if (room.isBotHosted) {
         botHosted.kickBotTurnLoop(roomId, getBotContext());
       }
+    } else {
+      broadcastGameState(io, room);
     }
   });
 

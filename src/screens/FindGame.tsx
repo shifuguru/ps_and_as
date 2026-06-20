@@ -41,7 +41,11 @@ import { getOrCreatePlayerId } from "../services/gameCenter";
 import { triggerHaptic } from "../utils/haptics";
 import { playerInitials } from "../utils/playerDisplay";
 import { validateDisplayText, displayTextError } from "../utils/profanityFilter";
-import { isValidRoomCode, normalizeRoomCode } from "../utils/roomCode";
+import {
+  isBotPublicRoomCode,
+  isValidRoomCode,
+  normalizeRoomCode,
+} from "../utils/roomCode";
 import { contentMaxWidth } from "../styles/uiStandards";
 import { useAppTheme } from "../context/ThemeContext";
 
@@ -246,8 +250,21 @@ export default function FindGame({
       setError("Room codes are 4–8 letters and numbers.");
       return;
     }
+    if (isBotPublicRoomCode(code)) {
+      setError("No public games available right now. Host a game or try again later.");
+      return;
+    }
     handleJoinRoom(code);
   };
+
+  /** D-010 — hide bot-hosted public table from Find Game listing. */
+  const publicRooms = useMemo(
+    () =>
+      availableRooms.filter(
+        (room) => !room.isBotHosted && !isBotPublicRoomCode(room.roomId),
+      ),
+    [availableRooms],
+  );
 
   const handleHost = () => {
     if (!requireName()) return;
@@ -439,16 +456,16 @@ export default function FindGame({
               </BlurPanel>
             ) : null}
 
-            {availableRooms.length === 0 && roomsLoaded ? (
+            {publicRooms.length === 0 && roomsLoaded ? (
               <BlurPanel style={ui.panel} intensity={44}>
-                <Text style={ui.emptyTitle}>No Public Games</Text>
+                <Text style={ui.emptyTitle}>No Public Games Available</Text>
                 <Text style={ui.emptyBody}>
                   Host a game above and share the room code, or browse again
                   when someone opens a public lobby.
                 </Text>
               </BlurPanel>
             ) : (
-              availableRooms.map((room) => {
+              publicRooms.map((room) => {
                 const inPlay = !!room.inGame && !!room.roundInProgress;
                 const betweenRounds = !!room.inGame && !room.roundInProgress;
                 const seatOpen = !!room.deadHandSeatOpen;

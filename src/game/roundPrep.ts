@@ -21,6 +21,7 @@ import {
   resolveLeadPlayerIndexAfterTrades,
   resolveFirstRoundLeadPlayerIndex,
   resolveOpeningPlayerIndex,
+  resolveOpenerAfterRoleTrades,
 } from "../utils/tableSeats";
 import { applyFinishOrderRoles, supportsViceRoles } from "../utils/roundRoles";
 import { isCpuPlayer } from "../utils/localPlayer";
@@ -556,23 +557,49 @@ export function applyServerPlayerHands(
   );
 }
 
-/** Who leads after mandatory trades: 3♣ holder among living players when prior round. */
-export function resolveOpenerAfterRoleTrades(
-  players: Player[],
-  dealerOptions?: DealerContext,
-): number {
-  const dealerContext: DealerContext = dealerOptions ?? {};
-  const priorRound =
-    (dealerContext.lastRoundOrder?.length ?? 0) >= 2 ||
-    (dealerContext.finishedOrder?.length ?? 0) >= 2;
-  if (!priorRound) {
-    return resolveOpeningPlayerIndex(players, dealerContext);
+export { resolveOpenerAfterRoleTrades } from "../utils/tableSeats";
+export function openingLeadNotYetTaken(
+  state: Pick<GameState, "pile" | "trickHistory" | "currentTrick">,
+): boolean {
+  return (
+    (state.pile?.length ?? 0) === 0 &&
+    (state.trickHistory?.length ?? 0) === 0 &&
+    (state.currentTrick?.actions?.length ?? 0) === 0
+  );
+}
+
+/** Prefer 3♣ holder over a stale server currentPlayerIndex after trades complete. */
+export function reconcilePostTradeOpeningIndex(
+  state: GameState,
+  options: {
+    hostId?: string | null;
+    finishOrder?: string[];
+    playerHands?: Record<string, Card[]> | null;
+  },
+): { index: number; corrected: boolean; expectedIndex: number } {
+  const hands = options.playerHands ?? null;
+  const players = hands
+    ? applyServerPlayerHands(state.players, hands)
+    : state.players;
+  const dealerContext: DealerContext = {
+    hostId: options.hostId ?? null,
+    lastRoundOrder: state.lastRoundOrder,
+    finishedOrder: options.finishOrder ?? state.lastRoundOrder,
+  };
+  const expectedIndex = resolveOpenerAfterRoleTrades(players, dealerContext);
+  if (expectedIndex < 0) {
+    return {
+      index: state.currentPlayerIndex,
+      corrected: false,
+      expectedIndex,
+    };
   }
-  const afterTrades = resolveLeadPlayerIndexAfterTrades(players, dealerContext);
-  if (afterTrades >= 0) return afterTrades;
-  const anyThreeLead = resolveFirstRoundLeadPlayerIndex(players, dealerContext);
-  if (anyThreeLead >= 0) return anyThreeLead;
-  return resolveOpeningPlayerIndex(players, dealerContext);
+  const corrected = state.currentPlayerIndex !== expectedIndex;
+  return {
+    index: expectedIndex,
+    corrected,
+    expectedIndex,
+  };
 }
 
 export function buildFreshRoundState(
