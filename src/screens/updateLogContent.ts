@@ -32,6 +32,17 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-13T15:57"),
+    title: "Rules polish, round end & table feel",
+    items: [
+      "Runs — sequences only count going up the ranks; fake zig-zag runs no longer activate",
+      "On Top — beating a 10 follows the same Higher/Lower rules as during the trick (On Top just gives you the extra turn)",
+      "Round end — the table clears cleanly before rankings, so turn rings and flying cards don't hang around",
+      "Your plays — cards from your hand shouldn't get stuck floating above the pile",
+      "Table & menus — glass overlays, clearer buttons, and smoother turn highlights for the intended look of the game",
+    ],
+  },
+  {
     publishedAt: nzst("2026-06-21T00:24:28"),
     title: "On Top, opening lead & Find Game",
     items: [

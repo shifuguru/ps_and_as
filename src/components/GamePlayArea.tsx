@@ -32,7 +32,9 @@ import {
   playGroupTargetFromSpot,
   seatOriginInPlayArea,
 } from "../utils/tablePlayFlight";
+import { PLAY_CARD_FLIGHT_MS } from "../utils/playAnimationTiming";
 export { LOCAL_SEAT_BAND as LOCAL_SEAT_HEIGHT } from "../utils/tableLayout";
+export { PLAY_CARD_FLIGHT_MS };
 
 type RingProps = Omit<
   React.ComponentProps<typeof OpponentRing>,
@@ -44,9 +46,6 @@ type RingProps = Omit<
   | "seatDimensions"
   | "sideAnchorMargin"
 >;
-
-/** Default duration for hand → pile play flights. */
-export const PLAY_CARD_FLIGHT_MS = 640;
 
 /** Selected-hand position captured at Play — matched to the outgoing play by key. */
 export type LocalHandFlightCapture = {
@@ -169,6 +168,19 @@ export default function GamePlayArea({
   const rootRef = useRef<View>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const { height: shellHeight } = useVisualViewportSize();
+  /**
+   * Play flight registry — one lifecycle for local human, remote human, and CPU.
+   *
+   * Shared: plays effect → activeFlights → hiddenPlayKeys → settlePlayFlight
+   * → landedKeys + onPlayFlightLanded; trick-empty resets flights/landedKeys.
+   *
+   * Justified local-only differences:
+   * - Render host: fromLocalHand entries sync to GameScreen ScreenFlightPortal (above
+   *   the hand bar); CPU/opponent copies render in the arena / web arena portal here.
+   * - Origin: LocalHandFlightCapture at Play vs seatOriginInPlayArea for others.
+   * - GameScreen: handPlayInFlight + localPlayPresentationLatch (optimistic online UI).
+   * - Late-capture effect re-flights if hand measure arrives after an early land-skip.
+   */
   const [activeFlights, setActiveFlights] = useState<CardFlightSpec[]>([]);
   const activeFlightsRef = useRef<CardFlightSpec[]>([]);
   const [playAreaScreenOrigin, setPlayAreaScreenOrigin] = useState<{
@@ -451,18 +463,6 @@ export default function GamePlayArea({
 
       if (cancelled) return;
       if (flightsToStart.length > 0) {
-        const elevated = flightsToStart
-          .filter((f) => f.fromLocalHand)
-          .map((f) => ({
-            ...f,
-            fromX: playAreaWin.x + f.fromX,
-            fromY: playAreaWin.y + f.fromY,
-            toX: playAreaWin.x + f.toX,
-            toY: playAreaWin.y + f.toY,
-          }));
-        if (elevated.length > 0) {
-          onElevatedHandFlightsChange?.(elevated);
-        }
         setActiveFlights((prev) => [...prev, ...flightsToStart]);
         for (const f of flightsToStart) {
           prevPlayKeysRef.current.add(f.id);
@@ -503,7 +503,6 @@ export default function GamePlayArea({
     onLocalHandFlightConsumed,
     onPlayFlightStarted,
     onPlayFlightLanded,
-    onElevatedHandFlightsChange,
   ]);
 
   /** Hand capture can arrive after plays sync landed early — fly from the hand. */
@@ -576,15 +575,6 @@ export default function GamePlayArea({
         fromCardH: cap.fromCardH,
         fromLocalHand: true,
       };
-      onElevatedHandFlightsChange?.([
-        {
-          ...flightSpec,
-          fromX: playAreaWin.x + origin.x,
-          fromY: playAreaWin.y + origin.y,
-          toX: playAreaWin.x + target.x,
-          toY: playAreaWin.y + target.y,
-        },
-      ]);
       setActiveFlights((prev) => {
         if (prev.some((f) => f.id === key)) return prev;
         return [...prev, flightSpec];
@@ -607,37 +597,35 @@ export default function GamePlayArea({
     activeFlights,
     landedKeys,
     onLocalHandFlightConsumed,
-    onElevatedHandFlightsChange,
   ]);
 
-  const handleFlightComplete = useCallback(
+  const settlePlayFlight = useCallback(
     (id: string) => {
-      if (ENABLE_FLIGHT_LAND_DIAGNOSTICS && layout) {
-        const completing = activeFlightsRef.current.find((f) => f.id === id);
-        if (completing) {
-          const diag = computeFlightLandDiagnostic(
-            completing,
-            plays,
-            layout,
-            measuredZoneRef.current.width,
-            measuredZoneRef.current.height,
-          );
-          if (diag) {
-            logFlightLandDiagnostic(diag);
-            const flightCentreScreen = {
-              x: playAreaScreenOrigin.x + completing.toX,
-              y: playAreaScreenOrigin.y + completing.toY,
-            };
+      const completing = activeFlightsRef.current.find((f) => f.id === id);
+
+      if (ENABLE_FLIGHT_LAND_DIAGNOSTICS && layout && completing) {
+        const diag = computeFlightLandDiagnostic(
+          completing,
+          plays,
+          layout,
+          measuredZoneRef.current.width,
+          measuredZoneRef.current.height,
+        );
+        if (diag) {
+          logFlightLandDiagnostic(diag);
+          const flightCentreScreen = {
+            x: playAreaScreenOrigin.x + completing.toX,
+            y: playAreaScreenOrigin.y + completing.toY,
+          };
+          requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                logMeasuredPileCentre(
-                  id,
-                  playGroupMeasureRefs.current.get(id),
-                  flightCentreScreen,
-                );
-              });
+              logMeasuredPileCentre(
+                id,
+                playGroupMeasureRefs.current.get(id),
+                flightCentreScreen,
+              );
             });
-          }
+          });
         }
       }
 
@@ -647,19 +635,7 @@ export default function GamePlayArea({
         next.add(id);
         return next;
       });
-      let clearElevated = false;
-      setActiveFlights((prev) => {
-        const completing = prev.find((f) => f.id === id);
-        const next = prev.filter((f) => f.id !== id);
-        clearElevated = !!(
-          completing?.fromLocalHand &&
-          !next.some((f) => f.fromLocalHand)
-        );
-        return next;
-      });
-      if (clearElevated) {
-        onElevatedHandFlightsChange?.([]);
-      }
+      setActiveFlights((prev) => prev.filter((f) => f.id !== id));
       onPlayFlightLanded?.(id);
     },
     [
@@ -668,18 +644,17 @@ export default function GamePlayArea({
       playAreaScreenOrigin.x,
       playAreaScreenOrigin.y,
       onPlayFlightLanded,
-      onElevatedHandFlightsChange,
     ],
   );
 
   useEffect(() => {
     if (elevatedFlightCompleteRef) {
-      elevatedFlightCompleteRef.current = handleFlightComplete;
+      elevatedFlightCompleteRef.current = settlePlayFlight;
       return () => {
         elevatedFlightCompleteRef.current = null;
       };
     }
-  }, [elevatedFlightCompleteRef, handleFlightComplete]);
+  }, [elevatedFlightCompleteRef, settlePlayFlight]);
 
   const arenaFlights = useMemo(
     () => activeFlights.filter((f) => !f.fromLocalHand),
@@ -696,17 +671,21 @@ export default function GamePlayArea({
       toY: y + f.toY,
     }));
   }, [arenaFlights, playAreaScreenOrigin]);
-  const elevatedHandFlights = useMemo(
-    () => activeFlights.filter((f) => f.fromLocalHand),
-    [activeFlights],
-  );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!onElevatedHandFlightsChange) return;
-    if (elevatedHandFlights.length === 0) {
-      onElevatedHandFlightsChange([]);
-    }
-  }, [elevatedHandFlights.length, onElevatedHandFlightsChange]);
+    const { x, y } = playAreaScreenOrigin;
+    const elevated = activeFlights
+      .filter((f) => f.fromLocalHand)
+      .map((f) => ({
+        ...f,
+        fromX: x + f.fromX,
+        fromY: y + f.fromY,
+        toX: x + f.toX,
+        toY: y + f.toY,
+      }));
+    onElevatedHandFlightsChange(elevated);
+  }, [activeFlights, playAreaScreenOrigin, onElevatedHandFlightsChange]);
 
   const hiddenPlayKeys = useMemo(() => {
     const hidden = new Set<string>();
@@ -800,7 +779,7 @@ export default function GamePlayArea({
                 key={flight.id}
                 flight={flight}
                 durationMs={flightDurationMs}
-                onComplete={handleFlightComplete}
+                onComplete={settlePlayFlight}
               />
             ))}
       </View>
@@ -812,7 +791,7 @@ export default function GamePlayArea({
               key={flight.id}
               flight={flight}
               durationMs={flightDurationMs}
-              onComplete={handleFlightComplete}
+              onComplete={settlePlayFlight}
             />
           ))}
         </ScreenFlightPortal>

@@ -1,13 +1,12 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
   Modal,
   View,
   Text,
-  TouchableOpacity,
-  StyleSheet,
   useWindowDimensions,
 } from "react-native";
 import BlurPanel from "./BlurPanel";
+import AppButton from "./ui/AppButton";
 import { triggerHaptic } from "../utils/haptics";
 import { useAppTheme } from "../context/ThemeContext";
 
@@ -25,8 +24,7 @@ export default function LeaveGameConfirmModal({
   onConfirm,
   message = "You'll forfeit this game and return to the menu. Other players may continue without you.",
 }: Props) {
-  const { colors, ui, blur } = useAppTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { ui, blur } = useAppTheme();
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(width - 48, 400);
 
@@ -43,48 +41,29 @@ export default function LeaveGameConfirmModal({
           </Text>
 
           <View style={ui.actionTrack}>
-            <TouchableOpacity
-              style={ui.actionSecondary}
-              activeOpacity={0.82}
+            <AppButton
+              label="Cancel"
+              variant="secondary"
+              style={{ flex: 1 }}
               onPress={() => {
                 triggerHaptic("light");
                 onCancel();
               }}
-              accessibilityRole="button"
               accessibilityLabel="Cancel — stay in game"
-            >
-              <Text style={ui.actionSecondaryText}>Cancel</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[ui.actionPrimary, styles.leaveConfirmBtn]}
-              activeOpacity={0.82}
+            />
+            <AppButton
+              label="Yes, Leave"
+              variant="destructive"
+              style={{ flex: 1.45 }}
               onPress={() => {
                 triggerHaptic("medium");
                 onConfirm();
               }}
-              accessibilityRole="button"
               accessibilityLabel="Yes, leave game"
-            >
-              <Text style={[ui.actionPrimaryText, styles.leaveConfirmText]}>
-                Yes, Leave
-              </Text>
-            </TouchableOpacity>
+            />
           </View>
         </BlurPanel>
       </View>
     </Modal>
   );
-}
-
-function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
-  return StyleSheet.create({
-    leaveConfirmBtn: {
-      backgroundColor: colors.mode === "light" ? "#c62828" : "#8b1a1a",
-      borderColor: colors.mode === "light" ? "#b71c1c" : "#6d1515",
-    },
-    leaveConfirmText: {
-      color: "#fff",
-    },
-  });
 }

@@ -291,9 +291,9 @@ function buildShellColors(
     statusBarStyle: isDark ? "light" : "dark",
     blur: {
       chrome: {
-        intensity: isDark ? 40 : 36,
-        scrimOpacity: isDark ? 0.14 : 0.11,
-        webOpacity: isDark ? 0.04 : 0.26,
+        intensity: isDark ? 48 : 44,
+        scrimOpacity: isDark ? 0.09 : 0.06,
+        webOpacity: isDark ? 0.03 : 0.2,
         tint: isDark ? "dark" : "light",
       },
       panel: {

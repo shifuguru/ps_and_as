@@ -106,10 +106,14 @@ export function getWebShellCssText(feltTint: string): string {
     }
     .ps-bottom-bar-shell {
       position: absolute !important;
-      left: 0 !important;
-      right: 0 !important;
+      left: 10px !important;
+      right: 10px !important;
+      width: auto !important;
       bottom: 0 !important;
       box-sizing: border-box !important;
+      border-top-left-radius: 22px !important;
+      border-top-right-radius: 22px !important;
+      overflow: hidden !important;
       padding-bottom: constant(safe-area-inset-bottom) !important;
       padding-bottom: env(safe-area-inset-bottom, 0px) !important;
     }

@@ -7,6 +7,8 @@
  *   iPhone Pro Max    ~932
  */
 
+import { HAND_SELECT_LIFT } from "../components/cardDimensions";
+
 export type CompactHeightTier =
   | "comfortable"
   | "standard"
@@ -17,9 +19,8 @@ export type CompactHeightTier =
 const BASE_HAND_CARD_W = 86;
 const BASE_HAND_CARD_H = 124;
 /** Keep in sync with PlayerHand.tsx fan headroom math. */
-const SELECT_LIFT = 12;
 const MAX_CENTER_LIFT = 14;
-const BASE_FAN_HEADROOM = SELECT_LIFT + MAX_CENTER_LIFT + 24;
+const BASE_FAN_HEADROOM = HAND_SELECT_LIFT + MAX_CENTER_LIFT + 24;
 /** Bottom clearance for fan tilt — keep in sync with PlayerHand fanBottomInset(). */
 const BASE_FAN_BOTTOM_CLEARANCE =
   Math.ceil((BASE_HAND_CARD_W / 2) * 1.1 * Math.sin((18 * Math.PI) / 180)) + 4;
@@ -82,6 +83,8 @@ export type HandLayoutMetrics = {
   fanHeight: number;
   handControlsGap: number;
   handZoneTopClearance: number;
+  /** Inset above the hand→controls gap — keeps lifted/selected cards off the buttons. */
+  handZoneBottomPad: number;
 };
 
 export function resolveHandMetrics(shellHeight: number): HandLayoutMetrics {
@@ -95,9 +98,11 @@ export function resolveHandMetrics(shellHeight: number): HandLayoutMetrics {
     Math.round(BASE_FAN_BOTTOM_CLEARANCE * fanHeadroomScale(tier));
 
   const handControlsGap =
-    tier === "veryTight" ? 8 : tier === "tight" ? 10 : tier === "compact" ? 12 : 14;
+    tier === "veryTight" ? 8 : tier === "tight" ? 12 : tier === "compact" ? 14 : 18;
   const handZoneTopClearance =
     tier === "veryTight" || tier === "tight" ? 2 : 4;
+  const handZoneBottomPad =
+    tier === "veryTight" ? 2 : tier === "tight" ? 3 : 4;
 
   return {
     tier,
@@ -106,6 +111,7 @@ export function resolveHandMetrics(shellHeight: number): HandLayoutMetrics {
     fanHeight,
     handControlsGap,
     handZoneTopClearance,
+    handZoneBottomPad,
   };
 }
 
@@ -114,13 +120,13 @@ export function resolveActionBarHeight(tier: CompactHeightTier): number {
   switch (tier) {
     case "comfortable":
     case "standard":
-      return 98;
-    case "compact":
-      return 90;
-    case "tight":
       return 84;
-    case "veryTight":
+    case "compact":
       return 78;
+    case "tight":
+      return 72;
+    case "veryTight":
+      return 66;
   }
 }
 
@@ -144,9 +150,9 @@ export function resolveActionTrackGap(tier: CompactHeightTier): number {
 
 /** Space above Pass / Play inside the bottom bar (tier-aware). */
 export function resolveControlsTopPad(tier: CompactHeightTier): number {
-  if (tier === "veryTight") return 8;
-  if (tier === "tight") return 10;
-  return 12;
+  if (tier === "veryTight") return 6;
+  if (tier === "tight") return 8;
+  return 8;
 }
 
 /** Top padding inside the opponent ring play area. */
@@ -174,9 +180,13 @@ export function resolveBottomChromeMetrics(
   const hand = resolveHandMetrics(shellHeight);
   const actionBarHeight = resolveActionBarHeight(hand.tier);
   const controlsTopPad = resolveControlsTopPad(hand.tier);
-  const actionBarPadding = hand.tier === "veryTight" ? 12 : 16;
+  const actionBarPadding = hand.tier === "veryTight" ? 8 : 12;
   const handSection = handVisible
-    ? hand.fanHeight + hand.handZoneTopClearance + hand.handControlsGap + 2
+    ? hand.fanHeight +
+      hand.handZoneTopClearance +
+      hand.handZoneBottomPad +
+      hand.handControlsGap +
+      2
     : 0;
   const reservedHeight =
     8 +
@@ -207,7 +217,8 @@ export function localHandShuffleScreenCenter(
     true,
     bottomOuterPad,
   );
-  const handZoneHeight = chrome.fanHeight + chrome.handZoneTopClearance;
+  const handZoneHeight =
+    chrome.fanHeight + chrome.handZoneTopClearance + chrome.handZoneBottomPad;
   const controlsBlock = chrome.actionBarHeight + chrome.actionBarPadding + 4;
   const gapBlock = chrome.handControlsGap + 2;
   const centerFromBottom =

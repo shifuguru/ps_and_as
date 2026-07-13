@@ -1,6 +1,10 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, TouchableWithoutFeedback, View, StyleSheet, Easing, Platform, Text } from "react-native";
 import { Card as CardType, formatCardRank } from "../game/ruleset";
+import {
+  HAND_SELECT_LIFT,
+  HAND_SELECT_SCALE,
+} from "./cardDimensions";
 import { useDarkModeCards } from "../context/CardAppearanceContext";
 import { getCardFaceColors, suitColorForCard } from "../utils/cardFaceTheme";
 
@@ -63,8 +67,9 @@ export default function Card({
     Animated.spring(anim, {
       toValue: selected ? 1 : 0,
       useNativeDriver: false,
-      stiffness: 200,
-      damping: 14,
+      stiffness: 320,
+      damping: 22,
+      mass: 0.88,
     } as any).start();
   }, [selected]);
 
@@ -97,7 +102,14 @@ export default function Card({
     return () => loop.stop();
   }, [flash, flashAnim]);
 
-  const selectTranslateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
+  const selectTranslateY = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -HAND_SELECT_LIFT],
+  });
+  const selectScale = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, HAND_SELECT_SCALE],
+  });
   const translateY = Animated.add(selectTranslateY, float);
 
   const isTable = variant === "table";
@@ -276,7 +288,7 @@ export default function Card({
         local.card,
         local.cardHand,
         style,
-        { transform: [{ translateY }] },
+        { transform: [{ translateY }, { scale: selectScale }] },
         flash && local.cardFlash,
       ]}
     >
@@ -415,6 +427,25 @@ const local = StyleSheet.create({
     position: "relative",
     overflow: "hidden",
     opacity: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.22,
+        shadowRadius: 11,
+      },
+      android: { elevation: 6 },
+      web: {
+        boxShadow:
+          "0 1px 2px rgba(0,0,0,0.12), 0 5px 10px rgba(0,0,0,0.14)",
+      } as object,
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.22,
+        shadowRadius: 11,
+      },
+    }),
   },
   cardTable: {},
   cardFlash: {

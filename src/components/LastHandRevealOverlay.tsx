@@ -12,12 +12,15 @@ import {
 } from "react-native";
 import Card from "./Card";
 import BlurPanel from "./BlurPanel";
+import ModalBackdrop from "./ModalBackdrop";
 import type { Card as CardType } from "../game/ruleset";
 import { useAppTheme } from "../context/ThemeContext";
+import { LAST_HAND_REVEAL_Z } from "../styles/overlayZIndex";
 
 const CARD_W = 64;
 const CARD_H = Math.round(CARD_W * (124 / 86));
 const CARD_STEP = 44;
+const PANEL_RISE_MS = 320;
 
 type Props = {
   visible: boolean;
@@ -35,30 +38,32 @@ export default function LastHandRevealOverlay({
   const { colors, ui, blur } = useAppTheme();
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(width - 40, 420);
-  const fade = useRef(new Animated.Value(0)).current;
-  const rise = useRef(new Animated.Value(10)).current;
+  const rise = useRef(new Animated.Value(12)).current;
+  const scale = useRef(new Animated.Value(0.96)).current;
 
   useEffect(() => {
     if (!visible) {
-      fade.setValue(0);
-      rise.setValue(10);
+      rise.setValue(12);
+      scale.setValue(0.96);
       return;
     }
     Animated.parallel([
-      Animated.timing(fade, {
-        toValue: 1,
-        duration: 280,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
       Animated.timing(rise, {
         toValue: 0,
-        duration: 320,
+        duration: PANEL_RISE_MS,
+        delay: 120,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(scale, {
+        toValue: 1,
+        duration: PANEL_RISE_MS,
+        delay: 120,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
     ]).start();
-  }, [visible, fade, rise]);
+  }, [visible, rise, scale]);
 
   const fanWidth = useMemo(() => {
     if (cards.length <= 1) return CARD_W;
@@ -68,25 +73,27 @@ export default function LastHandRevealOverlay({
   if (!visible || cards.length === 0) return null;
 
   return (
-    <Animated.View
-      style={[styles.backdrop, { opacity: fade }]}
+    <View
+      style={[styles.layer, { zIndex: LAST_HAND_REVEAL_Z, elevation: LAST_HAND_REVEAL_Z }]}
       pointerEvents="box-none"
     >
-      <TouchableOpacity
-        style={StyleSheet.absoluteFill}
-        activeOpacity={1}
-        onPress={onDismiss}
-        accessibilityRole="button"
-        accessibilityLabel="Dismiss last hand reveal"
-      />
+      <ModalBackdrop visible zIndex={LAST_HAND_REVEAL_Z}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={onDismiss}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss last hand reveal"
+        />
+      </ModalBackdrop>
       <Animated.View
         style={[
           styles.panelWrap,
           {
-            transform: [{ translateY: rise }],
-            opacity: fade,
+            transform: [{ translateY: rise }, { scale }],
           },
         ]}
+        pointerEvents="box-none"
       >
         <BlurPanel
           style={[
@@ -134,24 +141,22 @@ export default function LastHandRevealOverlay({
           </ScrollView>
         </BlurPanel>
       </Animated.View>
-    </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
+  layer: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 110,
-    elevation: 110,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 20,
-    backgroundColor: "rgba(0, 0, 0, 0.42)",
   },
   panelWrap: {
     width: "100%",
     maxWidth: 420,
     alignItems: "center",
+    zIndex: LAST_HAND_REVEAL_Z + 1,
   },
   title: {
     marginBottom: 4,

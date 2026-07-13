@@ -240,8 +240,8 @@ export function computePlayAreaLayout(
     Math.max(seat.footprintW, seat.footprintH) * RING_SEAT_INSET;
 
   const maxCardW = width - sideMargin * 2;
-  const widthRatio = isWide ? 0.8 : isVeryCompact ? 0.88 : isCompact ? 0.86 : 0.84;
-  const heightRatio = isWide ? 0.58 : isVeryCompact ? 0.46 : isCompact ? 0.5 : 0.52;
+  const widthRatio = isWide ? 0.82 : isVeryCompact ? 0.9 : isCompact ? 0.88 : 0.86;
+  const heightRatio = isWide ? 0.6 : isVeryCompact ? 0.48 : isCompact ? 0.52 : 0.54;
 
   const minCardZone = isVeryCompact ? 96 : isCompact ? 112 : 128;
   const maxCardZoneW = isWide ? 300 : isVeryCompact ? 210 : 260;
@@ -349,21 +349,21 @@ export function tableScaleLimits(
   maxFillScale: number;
 } {
   if (layout.isVeryCompact) {
-    return { displayScale: 0.92, maxFillScale: 1.34 };
+    return { displayScale: 0.94, maxFillScale: 1.46 };
   }
   if (layout.isStretchy) {
-    return { displayScale: 1, maxFillScale: 1.52 };
+    return { displayScale: 1, maxFillScale: 1.66 };
   }
   if (layout.isCompact) {
-    return { displayScale: 0.98, maxFillScale: 1.46 };
+    return { displayScale: 1, maxFillScale: 1.59 };
   }
   if (layout.isTall) {
-    return { displayScale: 1, maxFillScale: 1.5 };
+    return { displayScale: 1, maxFillScale: 1.64 };
   }
   if (layout.isWide) {
-    return { displayScale: 1, maxFillScale: 1.56 };
+    return { displayScale: 1, maxFillScale: 1.7 };
   }
-  return { displayScale: 1, maxFillScale: 1.48 };
+  return { displayScale: 1, maxFillScale: 1.61 };
 }
 
 export function opponentRowPositions(

@@ -559,14 +559,18 @@ function makeEmptyGame(names: string[]): GameState {
     "A should be marked finished",
   );
   assert.ok(isPlayerStillIn(resolved, g.players[0].id) === false, "A stays out");
-  assert.strictEqual(
-    resolved.currentPlayerIndex,
-    1,
-    "Turn should advance to B after atomic ten-rule play",
+  assert.ok(
+    isRoundCompleteForLiving(resolved),
+    "Round ends immediately when only one player remains",
   );
   assert.ok(
-    !isRoundCompleteForLiving(resolved),
-    "Round should continue for remaining players",
+    resolved.finishedOrder.includes(g.players[1].id),
+    "Last player is auto-placed as asshole",
+  );
+  assert.strictEqual(
+    resolved.players[1].hand.length,
+    1,
+    "Asshole keeps remaining cards for reveal",
   );
 }
 
@@ -589,17 +593,12 @@ function makeEmptyGame(names: string[]): GameState {
     "Opponent should be marked out on their last card",
   );
   assert.ok(
-    !isRoundCompleteForLiving(s),
-    "Last player acknowledges the trick before the round ends",
+    isRoundCompleteForLiving(s),
+    "Round should end immediately when only one player remains",
   );
-  s = passTurn(s, g.players[1].id);
   assert.ok(
     s.finishedOrder.includes(g.players[1].id),
     "Last player should be auto-finished with cards when opponent goes out",
-  );
-  assert.ok(
-    isRoundCompleteForLiving(s),
-    "Round should end once only one player remains",
   );
   assert.strictEqual(
     s.players[1].hand.length,
@@ -795,9 +794,15 @@ function makeEmptyGame(names: string[]): GameState {
   assert.ok(hasPassedInCurrentTrick(s, g.players[1].id));
   s = playCards(s, g.players[2].id, [joker]);
   assert.strictEqual(s.players[2].hand.length, 0);
-  assert.strictEqual(s.pile.length, 0, "Trick clears when only living opponent already passed");
-  assert.strictEqual(s.trickHistory?.length, 2);
-  assert.strictEqual(s.players[s.currentPlayerIndex].id, g.players[2].id);
+  assert.ok(
+    isRoundCompleteForLiving(s),
+    "Round ends when second-to-last player goes out on joker",
+  );
+  assert.ok(
+    s.finishedOrder.includes(g.players[1].id),
+    "Last remaining player is auto-placed as asshole",
+  );
+  assert.strictEqual(s.players[1].hand.length, 1, "Asshole keeps cards for reveal");
 }
 
 // Pass during a run — turn must not return to a player who already passed
@@ -899,19 +904,14 @@ function makeEmptyGame(names: string[]): GameState {
   g.passCount = 1;
 
   const afterDirection = setTenRuleDirection(g, "higher");
-  assert.strictEqual(
-    afterDirection.pile.length,
-    0,
-    "Trick 10 should finalize after ten-rule direction when out leader's sole opponent passed",
+  assert.ok(
+    isRoundCompleteForLiving(afterDirection),
+    "Round completes when sole living opponent remains after ten-rule direction",
   );
   assert.strictEqual(afterDirection.tenRulePending, false);
   assert.ok(
-    isRoundCompleteForLiving(afterDirection) ||
-      isPlayerStillIn(
-        afterDirection,
-        afterDirection.players[afterDirection.currentPlayerIndex].id,
-      ),
-    "Turn must not rest on an out seat with an unresolved trick after trick 10 resolves",
+    afterDirection.finishedOrder.includes(g.players[1].id),
+    "Last player is auto-placed when round ends",
   );
 
   const stuck = makeEmptyGame(["P1", "P2", "P3", "P4"]);
@@ -1375,10 +1375,10 @@ function makeEmptyGame(names: string[]): GameState {
 
 {
   const tenH: Card = { suit: "hearts", value: 10 };
+  const fiveH: Card = { suit: "hearts", value: 5 };
   const nineH: Card = { suit: "hearts", value: 9 };
   const nineD: Card = { suit: "diamonds", value: 9 };
-  const eightH: Card = { suit: "hearts", value: 8 };
-  const eightD: Card = { suit: "diamonds", value: 8 };
+  const jackH: Card = { suit: "hearts", value: 11 };
 
   const g = createGame(["P1", "P2", "P3", "P4"]);
   g.players.forEach((p) => (p.hand = []));
@@ -1388,10 +1388,10 @@ function makeEmptyGame(names: string[]): GameState {
   g.mustPlay = false;
   g.lastRoundOrder = ["1", "2", "3", "4"];
 
-  g.players[0].hand = [tenH, nineH, nineD, { suit: "clubs", value: 3 }];
+  g.players[0].hand = [tenH, fiveH, nineH, { suit: "clubs", value: 3 }];
   g.players[1].hand = [{ suit: "clubs", value: 4 }];
-  g.players[2].hand = [{ suit: "spades", value: 5 }];
-  g.players[3].hand = [{ suit: "clubs", value: 6 }];
+  g.players[2].hand = [{ suit: "spades", value: 6 }];
+  g.players[3].hand = [{ suit: "clubs", value: 7 }];
   g.currentPlayerIndex = 0;
 
   let s = playCards(g, "1", [tenH], { tenRuleDirection: "lower" });
@@ -1402,6 +1402,57 @@ function makeEmptyGame(names: string[]): GameState {
   assert.ok(s.runOnTop?.active, "Single 10 with lower rule should grant on top!");
   assert.ok(
     isValidPlay(
+      [fiveH],
+      s.pile,
+      s.tenRule,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "10 Lower on-top: any lower rank (5) is legal",
+  );
+  assert.ok(
+    isValidPlay(
+      [nineH],
+      s.pile,
+      s.tenRule,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "10 Lower on-top: 9 is legal",
+  );
+  assert.ok(
+    !isValidPlay(
+      [jackH],
+      s.pile,
+      s.tenRule,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "10 Lower on-top: higher rank (J) is illegal",
+  );
+  assert.ok(
+    !isValidPlay(
       [nineH, nineD],
       s.pile,
       s.tenRule,
@@ -1415,24 +1466,7 @@ function makeEmptyGame(names: string[]): GameState {
       "1",
       true,
     ),
-    "Lower pair should beat single 10 during lower on top!",
-  );
-  assert.ok(
-    !isValidPlay(
-      [eightH, eightD],
-      s.pile,
-      s.tenRule,
-      s.pileHistory,
-      s.trickHistory,
-      s.fourOfAKindChallenge,
-      s.currentTrick,
-      s.players,
-      s.finishedOrder,
-      undefined,
-      "1",
-      true,
-    ),
-    "Pair below 9 cannot beat single 10 during lower on top!",
+    "10 Lower on-top: pair count must match single 10",
   );
 }
 
@@ -1465,7 +1499,7 @@ function makeEmptyGame(names: string[]): GameState {
 
   assert.ok(
     isValidPlay(
-      [nineH, nineD],
+      [nineH],
       s.pile,
       resolveEffectiveTenRule(s),
       s.pileHistory,
@@ -1481,7 +1515,7 @@ function makeEmptyGame(names: string[]): GameState {
     "On-top validation should recover lower direction from the trick",
   );
 
-  s = playCards(s, "1", [nineH, nineD]);
+  s = playCards(s, "1", [nineH]);
   assert.strictEqual(s.pile.length, 0, "On-top play should win the trick");
   assert.strictEqual(s.trickHistory?.length, 1);
 }
@@ -2651,6 +2685,28 @@ console.log("Fresh round online trade regression tests passed");
     ),
     "on-top higher: 9 rejected after direction recovery",
   );
+
+  // Full sync strip: tenRule.active and direction both cleared before grant.
+  let s2 = playCards(g, "1", [tenH], { tenRuleDirection: "higher" });
+  s2.tenRule = { active: false, direction: null };
+  assert.ok(
+    isOnTopEligiblePile(
+      s2.pile,
+      s2.pileHistory,
+      s2.currentTrick,
+      s2.players,
+      s2.finishedOrder,
+      resolveEffectiveTenRule(s2),
+    ),
+    "on-top eligible when tenRule fully stripped but trick carries direction",
+  );
+  s2 = passTurn(s2, "2");
+  s2 = passTurn(s2, "3");
+  s2 = passTurn(s2, "4");
+  assert.ok(
+    s2.runOnTop?.active,
+    "higher 10 grants on-top after full tenRule strip",
+  );
 }
 
 {
@@ -2697,7 +2753,7 @@ console.log("Fresh round online trade regression tests passed");
     "on-top lower: 9 beats single 10 after direction recovery",
   );
   assert.ok(
-    !isValidPlay(
+    isValidPlay(
       [eightC],
       s.pile,
       effective,
@@ -2711,7 +2767,24 @@ console.log("Fresh round online trade regression tests passed");
       "1",
       true,
     ),
-    "on-top lower: 8 rejected after direction recovery",
+    "on-top lower: 8 beats single 10 after direction recovery",
+  );
+  assert.ok(
+    !isValidPlay(
+      [{ suit: "hearts", value: 11 }],
+      s.pile,
+      effective,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "on-top lower: J rejected after direction recovery",
   );
 }
 
@@ -2823,6 +2896,102 @@ console.log("On-top direction recovery regression tests passed");
 }
 
 console.log("On-top ten-rule regression tests passed");
+
+// --- P0: On Top does not alter 10-rule comparison ---
+{
+  const tenH: Card = { suit: "hearts", value: 10 };
+  const fiveH: Card = { suit: "hearts", value: 5 };
+  const queenH: Card = { suit: "hearts", value: 12 };
+
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+  g.lastRoundOrder = ["1", "2", "3", "4"];
+  g.players[0].hand = [tenH, fiveH, { suit: "clubs", value: 3 }];
+  g.players[1].hand = [{ suit: "clubs", value: 4 }];
+  g.players[2].hand = [{ suit: "spades", value: 6 }];
+  g.players[3].hand = [{ suit: "diamonds", value: 7 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [tenH], { tenRuleDirection: "lower" });
+  s = passTurn(s, "2");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+  assert.ok(s.runOnTop?.active, "10 Lower all-pass grants on-top");
+  assert.strictEqual(resolveEffectiveTenRule(s).direction, "lower");
+  assert.ok(
+    isValidPlay(
+      [fiveH],
+      s.pile,
+      resolveEffectiveTenRule(s),
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "10 Lower on-top: 5 is legal",
+  );
+  s = playCards(s, "1", [fiveH]);
+  assert.ok(!s.runOnTop?.active, "on-top clears after play");
+  assert.strictEqual(s.pile.length, 0, "on-top lower play wins trick");
+  assert.strictEqual(s.trickHistory?.length, 1);
+  assert.strictEqual(s.players[s.currentPlayerIndex].id, "1");
+}
+
+{
+  const tenH: Card = { suit: "hearts", value: 10 };
+  const queenH: Card = { suit: "hearts", value: 12 };
+  const jackH: Card = { suit: "hearts", value: 11 };
+
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+  g.lastRoundOrder = ["1", "2", "3", "4"];
+  g.players[0].hand = [tenH, queenH, jackH, { suit: "clubs", value: 3 }];
+  g.players[1].hand = [{ suit: "clubs", value: 4 }];
+  g.players[2].hand = [{ suit: "spades", value: 5 }];
+  g.players[3].hand = [{ suit: "diamonds", value: 6 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [tenH], { tenRuleDirection: "higher" });
+  s = passTurn(s, "2");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+  assert.ok(s.runOnTop?.active, "10 Higher all-pass grants on-top");
+  const effective = resolveEffectiveTenRule(s);
+  assert.ok(
+    isValidPlay(
+      [queenH],
+      s.pile,
+      effective,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      true,
+    ),
+    "10 Higher on-top: Q over single 10 is legal",
+  );
+  s = playCards(s, "1", [queenH]);
+  assert.strictEqual(s.pile.length, 0, "on-top higher play wins trick");
+}
+
+console.log("On-top comparison invariant regression tests passed");
 
 {
   assert.ok(!supportsViceRoles(4));

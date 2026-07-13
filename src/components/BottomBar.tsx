@@ -12,7 +12,12 @@ import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import BlurPanel from "./BlurPanel";
 import { ACTION_BAR_HEIGHT } from "./ActionBar";
 import { HAND_FAN_HEIGHT as DEFAULT_HAND_FAN_HEIGHT } from "./PlayerHand";
-import { resolveBottomChromeMetrics } from "../utils/compactGameLayout";
+import {
+  resolveBottomChromeMetrics,
+  resolveControlsTopPad,
+  resolveCompactHeightTier,
+} from "../utils/compactGameLayout";
+import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import { getWebBodyPortalHost } from "../utils/webBodyPortal";
 import {
   isMobileWeb,
@@ -23,17 +28,17 @@ import { useAppTheme } from "../context/ThemeContext";
 import { useInWebOverlayPortal } from "./WebModalPortal";
 
 /** Space between the top of the bottom bar and the Pass / Play row */
-export const BOTTOM_CONTROLS_TOP_PAD = 12;
+export const BOTTOM_CONTROLS_TOP_PAD = 8;
 
 /** Height of controls below the hand (ActionBar + padding). Keep in sync with ActionBar. */
 export const BOTTOM_CONTROLS_HEIGHT =
-  ACTION_BAR_HEIGHT + BOTTOM_CONTROLS_TOP_PAD + 16;
+  ACTION_BAR_HEIGHT + BOTTOM_CONTROLS_TOP_PAD + 12;
 
 /** Space for the centered leave pill below an action track (gap + button). */
 export const BOTTOM_LEAVE_ROW_HEIGHT = 48;
 
 /** Gap between the hand fan and the action buttons */
-export const HAND_CONTROLS_GAP = 14;
+export const HAND_CONTROLS_GAP = 18;
 
 /** Empty space above the fan inside the hand zone. */
 export const HAND_ZONE_TOP_CLEARANCE = 4;
@@ -125,6 +130,9 @@ export default function BottomBar({
           : null,
       ]}
       preset={blur.chrome}
+      intensity={blur.chrome.intensity + 6}
+      scrimOpacity={blur.chrome.scrimOpacity * 0.72}
+      webOpacity={blur.chrome.webOpacity * 0.82}
     >
       <View style={[styles.inner, { paddingBottom: contentInset }]}>
         {children}
@@ -144,18 +152,24 @@ export function BottomBarHand({
   children,
   height,
   controlsGap = HAND_CONTROLS_GAP,
+  bottomPad = 0,
   style,
 }: {
   children?: React.ReactNode;
   height: number;
   controlsGap?: number;
+  bottomPad?: number;
   style?: StyleProp<object>;
 }) {
   return (
     <View
       style={[
         styles.handZone,
-        { height, marginBottom: controlsGap },
+        {
+          height: height + bottomPad,
+          marginBottom: controlsGap,
+          paddingBottom: bottomPad,
+        },
         style,
       ]}
     >
@@ -172,7 +186,15 @@ export function BottomBarControls({
   children?: React.ReactNode;
   style?: StyleProp<object>;
 }) {
-  return <View style={[styles.controls, style]}>{children}</View>;
+  const { height: viewportHeight } = useVisualViewportSize();
+  const tier = resolveCompactHeightTier(viewportHeight);
+  const topPad = resolveControlsTopPad(tier);
+
+  return (
+    <View style={[styles.controls, { paddingTop: topPad }, style]}>
+      {children}
+    </View>
+  );
 }
 
 /** Centered leave control — always sits below the primary action track. */
@@ -204,27 +226,29 @@ export function BottomBarLeave({
   );
 }
 
+const FLOAT_INSET = 10;
+
 const styles = StyleSheet.create({
   bar: {
     position: "absolute",
-    left: 0,
-    right: 0,
+    left: FLOAT_INSET,
+    right: FLOAT_INSET,
     bottom: 0,
     zIndex: 50,
     elevation: 50,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
     overflow: "hidden",
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(255,255,255,0.14)",
+    borderTopColor: "rgba(255,255,255,0.1)",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: -8 },
-        shadowOpacity: 0.28,
-        shadowRadius: 20,
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.16,
+        shadowRadius: 14,
       },
-      android: { elevation: 24 },
+      android: { elevation: 16 },
     }),
   },
   webShell: {
@@ -246,7 +270,6 @@ const styles = StyleSheet.create({
   controls: {
     width: "100%",
     paddingHorizontal: 16,
-    paddingTop: BOTTOM_CONTROLS_TOP_PAD,
-    paddingBottom: 4,
+    paddingBottom: 2,
   },
 });

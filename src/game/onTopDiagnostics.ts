@@ -4,6 +4,13 @@
 
 import type { Card } from "./ruleset";
 
+const RANK_ORDER = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+
+function rankIndex(value: number): number {
+  const idx = RANK_ORDER.indexOf(value);
+  return idx >= 0 ? idx : -1;
+}
+
 type TenRuleState = {
   active: boolean;
   direction: "higher" | "lower" | null;
@@ -127,43 +134,40 @@ function resolveDirectionForLog(
   return null;
 }
 
-/** Mirror isValidPlay ten-rule-on-top guards for diagnostic messages only. */
+/** Mirror isValidPlay §9 ten-rule comparison for diagnostic messages only. */
 export function diagnoseTenRuleOnTopRejection(
   cards: Card[],
   pile: Card[],
   tenRule: TenRuleState | undefined,
-  runOnTop: boolean,
+  _runOnTop: boolean,
 ): string | null {
-  if (!runOnTop) return null;
   if (!cards.length) return "empty play";
   const pileIsUniform =
     pile.length > 0 && pile.every((c) => c.value === pile[0].value);
   const pileIsTenSet = pileIsUniform && pile[0].value === 10;
   if (!tenRule?.active || !tenRule.direction) {
-    return "ten-rule block skipped: tenRule inactive or direction null";
+    return "ten-rule: inactive or direction null";
   }
   if (!pileIsTenSet) {
-    return "ten-rule on-top block skipped: pile is not uniform tens";
+    return "ten-rule: pile is not uniform tens";
   }
   const playCount = cards.length;
   const pileCount = pile.length;
-  const playRank = cards[0]?.value;
-  const pileRank = pile[0]?.value;
+  const playRank = rankIndex(cards[0].value);
+  const pileRank = rankIndex(pile[0].value);
+  const pileLabel = pile[0].value;
+  if (playCount !== pileCount) {
+    return `10 ${tenRule.direction}: play count ${playCount} must match pile count ${pileCount}`;
+  }
   if (tenRule.direction === "higher") {
-    if (playCount !== pileCount) {
-      return `on-top higher: playCount ${playCount} !== pileCount ${pileCount}`;
-    }
-    if (playRank !== pileRank + 1) {
-      return `on-top higher: playRank ${playRank} !== pileRank+1 ${pileRank + 1}`;
+    if (playRank <= pileRank) {
+      return `10 Higher: play rank must be higher than ${pileLabel}`;
     }
     return null;
   }
   if (tenRule.direction === "lower") {
-    if (playRank !== pileRank - 1) {
-      return `on-top lower: playRank ${playRank} !== pileRank-1 ${pileRank - 1}`;
-    }
-    if (playCount < pileCount) {
-      return `on-top lower: playCount ${playCount} < pileCount ${pileCount}`;
+    if (playRank >= pileRank) {
+      return `10 Lower: play rank must be lower than ${pileLabel}`;
     }
     return null;
   }

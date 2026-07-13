@@ -35,6 +35,12 @@ import { normalizePlayerRole, roleEmoji as sharedRoleEmoji } from "../utils/roun
 import TurnBellButton from "./TurnBellButton";
 import { playerAvatarBackgroundColor, playerThemePalette } from "../utils/playerAvatarColor";
 import { isCpuPlayer } from "../utils/localPlayer";
+import {
+  TURN_INTRO_FADE,
+  TURN_INTRO_PEAK,
+  TURN_INTRO_SETTLE,
+  useTurnIntroAnimation,
+} from "../hooks/useTurnIntroAnimation";
 
 function roleEmoji(role: Player["role"] | string | undefined): string | null {
   return sharedRoleEmoji(normalizePlayerRole(role));
@@ -121,36 +127,10 @@ export default function OpponentSeat({
   const styles = useMemo(() => createStyles(colors, palette), [colors, palette]);
   const hookDims = useSeatDimensions(layoutWidth);
   const dims = seatDimsProp ?? hookDims;
-  const pulse = useRef(new Animated.Value(0)).current;
+  const turnIntro = useTurnIntroAnimation(isActive, isOut);
   const nudgePulse = useRef(new Animated.Value(0)).current;
   const initials = playerInitials(player.name);
   const role = roleEmoji(player.role);
-
-  useEffect(() => {
-    if (!isActive || isOut) {
-      pulse.stopAnimation();
-      pulse.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 700,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: 700,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [isActive, isOut, pulse]);
 
   useEffect(() => {
     if (!nudgeHighlighted || !isActive || isOut) {
@@ -179,62 +159,71 @@ export default function OpponentSeat({
     return () => loop.stop();
   }, [nudgeHighlighted, isActive, isOut, nudgePulse]);
 
-  const ringScale = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.12],
+  const introRange = [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, TURN_INTRO_SETTLE, 1] as const;
+
+  const ringScale = turnIntro.interpolate({
+    inputRange: [...introRange],
+    outputRange: [0.98, 1.02, 1.05, 1.01, 1],
+    extrapolate: "clamp",
   });
-  const ringOpacity = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.82, 1],
+  const ringOpacity = turnIntro.interpolate({
+    inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
+    outputRange: [0, 0.74, 0.88, 0.78],
+    extrapolate: "clamp",
   });
-  const coreOpacity = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.55, 1],
+  const coreOpacity = turnIntro.interpolate({
+    inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
+    outputRange: [0, 0.5, 0.64, 0.54],
+    extrapolate: "clamp",
   });
-  const glowScale = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.12],
+  const glowScale = turnIntro.interpolate({
+    inputRange: [...introRange],
+    outputRange: [0.98, 1.02, 1.05, 1.02, 1],
+    extrapolate: "clamp",
   });
-  const glowOpacity = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.4, 0.88],
+  const glowOpacity = turnIntro.interpolate({
+    inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
+    outputRange: [0, 0.22, 0.36, 0.28],
+    extrapolate: "clamp",
   });
-  const haloScale = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.22],
+  const haloScale = turnIntro.interpolate({
+    inputRange: [...introRange],
+    outputRange: [0.97, 1.02, 1.08, 1.03, 1],
+    extrapolate: "clamp",
   });
-  const haloOpacity = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.18, 0.52],
+  const haloOpacity = turnIntro.interpolate({
+    inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
+    outputRange: [0, 0.12, 0.24, 0.16],
+    extrapolate: "clamp",
   });
 
   const nudgeRingScale = nudgePulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [1.08, 1.22],
+    outputRange: [1.04, 1.12],
   });
   const nudgeRingOpacity = nudgePulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.95, 1],
+    outputRange: [0.82, 0.94],
   });
   const nudgeCoreOpacity = nudgePulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.82, 1],
+    outputRange: [0.62, 0.82],
   });
   const nudgeGlowScale = nudgePulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [1.1, 1.24],
+    outputRange: [1.06, 1.14],
   });
   const nudgeGlowOpacity = nudgePulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.72, 1],
+    outputRange: [0.48, 0.68],
   });
   const nudgeHaloScale = nudgePulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [1.14, 1.32],
+    outputRange: [1.08, 1.18],
   });
   const nudgeHaloOpacity = nudgePulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.48, 0.92],
+    outputRange: [0.28, 0.52],
   });
 
   const activeHaloScale = nudgeHighlighted ? nudgeHaloScale : haloScale;
@@ -654,8 +643,8 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   const accentSoft = hexToRgba(accent, 0.55);
   const accentFill = hexToRgba(accent, 0.08);
   const accentBlade = hexToRgba(accentBright, 1);
-  const accentHalo = hexToRgba(accentBright, 0.26);
-  const accentBloom = hexToRgba(accentBright, 0.5);
+  const accentHalo = hexToRgba(accentBright, 0.14);
+  const accentBloom = hexToRgba(accentBright, 0.28);
   const accentLocal = hexToRgba(accent, 0.75);
   const accentBadge = hexToRgba(accent, 0.35);
   const onFelt = colors.onFelt;
@@ -786,24 +775,24 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   turnRingHalo: {
     position: "absolute",
     backgroundColor: accentHalo,
-    ...saberShadow(20, 0.72),
+    ...saberShadow(12, 0.38),
   },
   turnRingGlow: {
     position: "absolute",
     backgroundColor: accentBloom,
-    ...saberShadow(12, 0.85),
+    ...saberShadow(8, 0.42),
   },
   turnRing: {
     position: "absolute",
-    borderWidth: 3,
+    borderWidth: 2.5,
     borderColor: accentBlade,
-    ...saberShadow(14, 1),
+    ...saberShadow(8, 0.52),
   },
   turnRingCore: {
     position: "absolute",
     borderWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.92)",
-    ...saberShadow(8, 0.85),
+    borderColor: "rgba(255, 255, 255, 0.82)",
+    ...saberShadow(5, 0.4),
   },
   lastPlayRing: {
     position: "absolute",

@@ -7,6 +7,7 @@ import {
   effectivePile,
   isRunContextSequence,
   isValidPlay,
+  isValidRunExtension,
   resolveRunContext,
   createGame,
   playCards,
@@ -301,15 +302,14 @@ const cases: Case[] = [
     expectRun: false,
   },
   {
-    name: "descending with 10: J-10-9 is a run",
+    name: "J-10-9 descending play order is not a run",
     actions: [
       makeAction("play", 0, [card(11)]),
       makeAction("play", 1, [card(10)]),
       makeAction("play", 2, [card(9)]),
     ],
     pile: [card(9)],
-    expectRun: true,
-    expectValues: [11, 10, 9],
+    expectRun: false,
   },
   {
     name: "long singles run 3-4-5-6-7-8",
@@ -741,35 +741,16 @@ console.log("\n=== Run direction: bidirectional from pile top ===\n");
   };
   const pile = [card(9)];
   const history: Card[][] = [[card(11)], [card(10)], [card(9)]];
-  const backwardTen = isValidPlay(
-    [card(10)],
-    pile,
-    undefined,
-    history,
-    undefined,
-    undefined,
-    trick,
-    players,
-    [],
-  );
-  const forwardEight = isValidPlay(
-    [card(8)],
-    pile,
-    undefined,
-    history,
-    undefined,
-    undefined,
-    trick,
-    players,
-    [],
-  );
-  if (backwardTen && forwardEight) {
+  const ctx = resolveRunContext(pile, history, trick, players, []);
+  if (!ctx.inRunContext && ctx.runSeq.length === 0) {
     passed++;
-    console.log("PASS  descending J-10-9 accepts 10 and 8 on 9");
+    console.log("PASS  descending J-10-9 is not a run");
   } else {
     failed++;
     console.log("FAIL  descending run adjacency");
-    console.log(`      backwardTen=${backwardTen} forwardEight=${forwardEight}`);
+    console.log(
+      `      inRun=${ctx.inRunContext} runSeq=${ctx.runSeq.map((c) => c.value)}`,
+    );
   }
 }
 
@@ -1657,6 +1638,116 @@ console.log("\n=== Oscillating step-back: J-Q-K-J-Q keeps Runs! context ===\n");
     console.log("FAIL  J-Q-K-J-Q oscillating step-back");
     console.log(
       `      inRun=${ctx.inRunContext} runSeq=${ctx.runSeq.map((c) => c.value)}`,
+    );
+  }
+}
+
+console.log("\n=== Oscillating step-back: 8-9-10-9-8 extension legality (RC P0) ===\n");
+{
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(8)]),
+      makeAction("play", 1, [card(9)]),
+      makeAction("play", 2, [card(10)]),
+      makeAction("play", 3, [card(9)]),
+      makeAction("play", 0, [card(8)]),
+    ],
+  };
+  const pile = [card(8)];
+  const history: Card[][] = [[card(8)], [card(9)], [card(10)], [card(9)]];
+  const ctx = resolveRunContext(pile, history, trick, players, []);
+  const legal = (v: number) =>
+    isValidPlay(
+      [card(v)],
+      pile,
+      undefined,
+      history,
+      undefined,
+      undefined,
+      trick,
+      players,
+      [],
+    );
+  const ext = (v: number) =>
+    isValidRunExtension(v, pile, history, trick, players, []);
+  const expectLegal = [7, 9];
+  const expectIllegal = [6, 8, 10];
+  const legalOk = expectLegal.every((v) => legal(v));
+  const illegalOk = expectIllegal.every((v) => !legal(v));
+  const inRunOk = ctx.inRunContext && ctx.runSeq.map((c) => c.value).join(",") === "8,9,10";
+  // Anchor-aware extension must agree for legal ranks (7,9); 10 may diverge on anchors vs pile-top guard
+  const extensionAgrees = expectLegal.every((v) => ext(v) === legal(v));
+
+  if (inRunOk && legalOk && illegalOk && extensionAgrees) {
+    passed++;
+    console.log("PASS  8-9-10-9-8: inRunContext; 7+9 legal; 6+8+10 illegal");
+  } else {
+    failed++;
+    console.log("FAIL  8-9-10-9-8 active run extensions (RC P0)");
+    console.log(
+      JSON.stringify({
+        inRunContext: ctx.inRunContext,
+        runSeq: ctx.runSeq.map((c) => c.value),
+        runMultiplicity: ctx.runMultiplicity,
+        legal7: legal(7),
+        legal9: legal(9),
+        legal6: legal(6),
+        legal8: legal(8),
+        legal10: legal(10),
+        ext7: ext(7),
+        ext9: ext(9),
+        ext10: ext(10),
+        symptom_7_off_9_on: !legal(7) && legal(9),
+      }),
+    );
+  }
+}
+
+console.log("\n=== Control: 10-9-10-9-8 is NOT a run (symptom signature) ===\n");
+{
+  const trick = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(10)]),
+      makeAction("play", 1, [card(9)]),
+      makeAction("play", 2, [card(10)]),
+      makeAction("play", 3, [card(9)]),
+      makeAction("play", 0, [card(8)]),
+    ],
+  };
+  const pile = [card(8)];
+  const history: Card[][] = [[card(10)], [card(9)], [card(10)], [card(9)]];
+  const ctx = resolveRunContext(pile, history, trick, players, []);
+  const legal = (v: number) =>
+    isValidPlay(
+      [card(v)],
+      pile,
+      undefined,
+      history,
+      undefined,
+      undefined,
+      trick,
+      players,
+      [],
+    );
+  const symptom = !legal(7) && legal(9);
+  if (!ctx.inRunContext && symptom) {
+    passed++;
+    console.log(
+      "PASS  control: inRunContext false reproduces 7-off/9-on via rank-beat",
+    );
+  } else {
+    failed++;
+    console.log("FAIL  control case for rank-beat symptom");
+    console.log(
+      JSON.stringify({
+        inRunContext: ctx.inRunContext,
+        runSeq: ctx.runSeq.map((c) => c.value),
+        legal7: legal(7),
+        legal9: legal(9),
+        symptom,
+      }),
     );
   }
 }

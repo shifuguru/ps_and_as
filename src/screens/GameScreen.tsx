@@ -47,6 +47,7 @@ import {
   runTrickBonusXpAmount,
   activeRunXpPoolInfo,
   resolveEffectiveTenRule,
+  isValidRunExtension,
 } from "../game/core";
 import {
   allTradesCompleted,
@@ -150,7 +151,6 @@ import GamePlayArea, {
 } from "../components/GamePlayArea";
 import { playDisplayKey } from "../utils/tablePlayFlight";
 import {
-  buildLocalHandElevatedFlight,
   mergeOutgoingCardsAtSourceIndices,
 } from "../utils/localHandPlayFlight";
 import DealCeremonyOverlay, {
@@ -223,6 +223,8 @@ function serverShowsNewRoundInProgress(state: GameState): boolean {
 }
 
 const LAST_HAND_REVEAL_MS = 4000;
+const ROUND_TRANSITION_PAUSE_MS = 175;
+const ROUND_TRANSITION_CLEAR_MS = 320;
 const TRADE_RETURN_FLIGHT_MS = 520;
 const TRADE_RETURN_HOLD_MS = 650;
 
@@ -443,6 +445,25 @@ function canCardBePlayedAtAll(
     return matchesValid(sameValue.slice(0, runMultiplicity));
   }
 
+  // Run extension when activation was missed (stale pileHistory vs currentTrick).
+  if (
+    !inRunContext &&
+    !tenRuleOnTopBeat &&
+    isValidRunExtension(
+      cardValue,
+      pile,
+      pileHistory,
+      currentTrick,
+      players,
+      finishedOrder || [],
+    )
+  ) {
+    const mult = pileCount || 1;
+    if (sameValue.length >= mult) {
+      return matchesValid(sameValue.slice(0, mult));
+    }
+  }
+
   // Regular play: match pile count, or fewer when completing a quad across turns
   const requiredCount = cardsNeededToPlay(pile, cardValue);
   if (sameValue.length < requiredCount) return false;
@@ -568,6 +589,8 @@ function GameScreen({
   } | null>(null);
   const tradeReturnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [roundOver, setRoundOver] = useState(false);
+  const [rankingsModalVisible, setRankingsModalVisible] = useState(false);
+  const [tableSweepOut, setTableSweepOut] = useState(false);
   const [botNextRoundAt, setBotNextRoundAt] = useState<number | null>(null);
   const [lastHandReveal, setLastHandReveal] = useState<LastHandRevealPayload | null>(
     null,
@@ -1894,6 +1917,51 @@ function GameScreen({
     networkAdapter,
     forfeitedXpPlayerIds,
   ]);
+
+  /** Clear selection and trick pause as soon as the round ends. */
+  useEffect(() => {
+    if (!roundOver && !lastHandReveal) return;
+    clearHandPlayFlightRef.current?.();
+    setSelected([]);
+    setFocused(null);
+    if (trickPauseTimerRef.current) {
+      clearTimeout(trickPauseTimerRef.current);
+      trickPauseTimerRef.current = null;
+    }
+    setTrickPauseActive(false);
+    setTrickPauseSnapshot(null);
+    setShowWinnerBanner(false);
+    setStackCollecting(false);
+  }, [roundOver, lastHandReveal]);
+
+  /** Round-complete transition: brief pause → table sweep → rankings modal. */
+  useEffect(() => {
+    const rankingsEligible =
+      !!state &&
+      roundOver &&
+      !lastHandReveal &&
+      !ceremonyPrep &&
+      !tradePhase;
+    if (!rankingsEligible) {
+      setTableSweepOut(false);
+      setRankingsModalVisible(false);
+      return;
+    }
+    setTableSweepOut(false);
+    setRankingsModalVisible(false);
+    const pauseTimer = setTimeout(
+      () => setTableSweepOut(true),
+      ROUND_TRANSITION_PAUSE_MS,
+    );
+    const modalTimer = setTimeout(
+      () => setRankingsModalVisible(true),
+      ROUND_TRANSITION_PAUSE_MS + ROUND_TRANSITION_CLEAR_MS,
+    );
+    return () => {
+      clearTimeout(pauseTimer);
+      clearTimeout(modalTimer);
+    };
+  }, [state, roundOver, lastHandReveal, ceremonyPrep, tradePhase]);
 
   /** Record placement stats when an online round ends via server broadcast. */
   useEffect(() => {
@@ -3307,6 +3375,8 @@ function GameScreen({
         setFocused,
         roundOver,
         botNextRoundAt,
+        rankingsModalVisible,
+        tableSweepOut,
         lastHandReveal,
         clearLastHandReveal,
         finishLastHandReveal,
@@ -3414,6 +3484,8 @@ function GameScreenBoard() {
     setFocused,
     roundOver,
     botNextRoundAt,
+    rankingsModalVisible,
+    tableSweepOut,
     lastHandReveal,
     clearLastHandReveal,
     finishLastHandReveal,
@@ -3526,6 +3598,8 @@ function GameScreenBoard() {
     setFocused: React.Dispatch<React.SetStateAction<number | null>>;
     roundOver: boolean;
     botNextRoundAt: number | null;
+    rankingsModalVisible: boolean;
+    tableSweepOut: boolean;
     lastHandReveal: LastHandRevealPayload | null;
     clearLastHandReveal: () => void;
     finishLastHandReveal: () => void;
@@ -3659,6 +3733,7 @@ function GameScreenBoard() {
   );
   const { ui, blur } = useAppTheme();
   const playAreaHostRef = useRef<View>(null);
+  /** Screen-space mirror of GamePlayArea fromLocalHand flights — render-only; GPA owns timing. */
   const [elevatedHandFlights, setElevatedHandFlights] = useState<
     CardFlightSpec[]
   >([]);
@@ -3771,20 +3846,29 @@ function GameScreenBoard() {
     },
     [onPlayAreaScreenMeasure],
   );
+  /** Clears local-human presentation overlays; GPA clears activeFlights/landedKeys on trick empty. */
+  const resetTrickPresentation = useCallback(() => {
+    setHandPlayInFlight(null);
+    pendingLocalPlayRef.current = null;
+    setElevatedHandFlights([]);
+    localHandFlightRef.current = null;
+    setLocalHandFlight(null);
+    clearLocalPlayPresentationLatch();
+    setPendingTablePlayFlights(false);
+  }, [clearLocalPlayPresentationLatch]);
   useEffect(() => {
     if (!clearHandPlayFlightRef) return;
-    clearHandPlayFlightRef.current = () => {
-      setHandPlayInFlight(null);
-      pendingLocalPlayRef.current = null;
-      setElevatedHandFlights([]);
-      localHandFlightRef.current = null;
-      setLocalHandFlight(null);
-      clearLocalPlayPresentationLatch();
-    };
+    clearHandPlayFlightRef.current = resetTrickPresentation;
     return () => {
       clearHandPlayFlightRef.current = null;
     };
-  }, [clearHandPlayFlightRef, clearLocalPlayPresentationLatch]);
+  }, [clearHandPlayFlightRef, resetTrickPresentation]);
+
+  useEffect(() => {
+    if (!roundOver && !lastHandReveal) return;
+    setPendingTenPlay(null);
+  }, [roundOver, lastHandReveal]);
+
   const handleLocalHandFlightConsumed = useCallback((playKey: string) => {
     if (localHandFlightRef.current?.playKey === playKey) {
       localHandFlightRef.current = null;
@@ -4035,6 +4119,9 @@ function GameScreenBoard() {
   }
   /** Hide who leads until deal + mandatory trades finish (state may still track opener). */
   const revealTurnHighlight = !inCeremony;
+  const betweenRoundsPresentation = roundOver || !!lastHandReveal;
+  const immediateTableClear = !!lastHandReveal;
+  const showActiveTurnUi = revealTurnHighlight && !betweenRoundsPresentation;
   if (!current) {
     return (
       <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
@@ -4102,7 +4189,7 @@ function GameScreenBoard() {
     !state.finishedOrder.includes(lastPlayActor.id) &&
     lastPlayActor.hand.length > 0;
   const turnHighlightPlayerId =
-    revealTurnHighlight &&
+    showActiveTurnUi &&
     (presentationHoldActive && holdPlayerId && !holdPlayerOut
       ? holdPlayerId
       : pendingTablePlayFlights && lastPlayActorCanHighlight
@@ -4258,7 +4345,7 @@ function GameScreenBoard() {
   const isOpeningLead = isRoundOpeningLead(state);
 
   const startingCardIndex =
-    revealTurnHighlight &&
+    showActiveTurnUi &&
     isHumanTurn &&
     !roundOver &&
     !!state.mustPlay &&
@@ -4394,33 +4481,7 @@ function GameScreenBoard() {
       setLocalHandFlight(capture);
     }
 
-    const primePlayFlight = (baseState: GameState) => {
-      if (!capture) return;
-      const layout = livePlayAreaMetrics?.layout ?? playAreaLayout;
-      const win = livePlayAreaMetrics?.screenOrigin;
-      if (!layout || !win) return;
-      const play = { cards, playerId: flightPlayerId };
-      const plays = [...buildTrickPlayDisplays(baseState)];
-      const key = playDisplayKey(play);
-      if (!plays.some((p) => playDisplayKey(p) === key)) {
-        plays.push(play);
-      }
-      const spec = buildLocalHandElevatedFlight(
-        capture,
-        play,
-        plays,
-        layout,
-        win,
-      );
-      if (spec) {
-        setElevatedHandFlights((prev) =>
-          prev.some((f) => f.id === spec.id) ? prev : [spec],
-        );
-      }
-    };
-
     if (onlineMultiplayer) {
-      primePlayFlight(state);
       setActionPending(true);
       broadcastGameAction({
         type: "play",
@@ -4433,11 +4494,7 @@ function GameScreenBoard() {
 
     const next = playCards(state, actor.id, cards, playOpts);
     if (next === state) {
-      clearLocalPlayPresentationLatch();
-      localHandFlightRef.current = null;
-      setLocalHandFlight(null);
-      setHandPlayInFlight(null);
-      setElevatedHandFlights([]);
+      resetTrickPresentation();
       emitDebug("action:play:human:failed", {
         playerId: actor.id,
         playerName: actor.name,
@@ -4455,7 +4512,6 @@ function GameScreenBoard() {
       });
       pendingLocalPlayRef.current = null;
       setState(next);
-      primePlayFlight(next);
     }
   };
 
@@ -4602,7 +4658,8 @@ function GameScreenBoard() {
   const localCeremonyDeal = !!(ceremonyPrep && humanPlayer);
   const localPlayerOut =
     !!humanPlayer && state.finishedOrder.includes(humanPlayer.id);
-  const handInBottomBar = handVisible && !gameplayLocked;
+  const handInBottomBar =
+    handVisible && !gameplayLocked && !betweenRoundsPresentation;
   /** Keep bottom chrome height stable when the local player is out (hand hidden). */
   const handReserveActive =
     handInBottomBar || localPlayerOut || showLocalDealerHandZone;
@@ -4660,6 +4717,12 @@ function GameScreenBoard() {
     trickPlays,
     handPlayInFlight,
   ]);
+
+  const tablePlaysForRender =
+    immediateTableClear || rankingsModalVisible ? [] : displayPlays;
+  const suppressTurnPresentation = betweenRoundsPresentation;
+  const gameTableFadeOut =
+    tableSweepOut || (trickPauseActive && showWinnerBanner);
 
   /** Drop optimistic hand flight once the play is on the table or archived in trickHistory. */
   useEffect(() => {
@@ -4952,11 +5015,11 @@ function GameScreenBoard() {
 
   const playTypePills = getPlayTypePills();
   const playCountLabel =
-    playTypePills.countLabel && !trickPauseFrozen
+    playTypePills.countLabel && !trickPauseFrozen && !suppressTurnPresentation
       ? playTypePills.countLabel
       : null;
   const playModifierLabel =
-    playTypePills.modifierLabel && !trickPauseFrozen
+    playTypePills.modifierLabel && !trickPauseFrozen && !suppressTurnPresentation
       ? playTypePills.modifierLabel
       : null;
 
@@ -4965,7 +5028,7 @@ function GameScreenBoard() {
       ? ceremonyStatusText
       : gameplayLocked && !tradePhase
         ? ceremonyStatusText ?? "Dealing cards…"
-        : revealTurnHighlight &&
+        : showActiveTurnUi &&
             !tradePhase &&
             !readOnlyOnline &&
             !awaitingDealerReshuffle &&
@@ -5104,12 +5167,12 @@ function GameScreenBoard() {
         <GamePlayArea
           players={opponentPlayers}
           localPlayerIds={localControlledIds}
-          currentPlayerId={turnHighlightPlayerId}
+          currentPlayerId={suppressTurnPresentation ? "" : turnHighlightPlayerId}
           finishedOrder={state.finishedOrder}
           passedPlayerIds={displayPassedPlayerIds}
-          lastPlayPlayerId={activeLastPlayId}
-          plays={displayPlays}
-          skipPlayFlights={trickPauseFrozen}
+          lastPlayPlayerId={suppressTurnPresentation ? null : activeLastPlayId}
+          plays={tablePlaysForRender}
+          skipPlayFlights={trickPauseFrozen || betweenRoundsPresentation}
           trickWinnerPlayerId={trickWinnerPlayerId}
           trickWinnerXpAmount={trickWinnerXpAmount}
           trickWinnerShout={trickWinnerShout}
@@ -5142,10 +5205,11 @@ function GameScreenBoard() {
         >
           <GameTable
             key={tableRenderKey}
-            plays={displayPlays}
+            plays={tablePlaysForRender}
             collectToStack={trickPauseActive && stackCollecting}
             collectDurationMs={trickStackCollectMs}
-            fadeOut={trickPauseActive && showWinnerBanner}
+            fadeOut={gameTableFadeOut}
+            fadeOutDurationMs={ROUND_TRANSITION_CLEAR_MS}
           />
         </GamePlayArea>
         {awaitingDealerReshuffle &&
@@ -5176,6 +5240,7 @@ function GameScreenBoard() {
           <BottomBarHand
             height={handMetrics.fanHeight + handMetrics.handZoneTopClearance}
             controlsGap={handMetrics.handControlsGap}
+            bottomPad={handMetrics.handZoneBottomPad}
           >
             <PlayerHand
               ref={handRef}
@@ -5195,6 +5260,7 @@ function GameScreenBoard() {
           <BottomBarHand
             height={handMetrics.fanHeight + handMetrics.handZoneTopClearance}
             controlsGap={handMetrics.handControlsGap}
+            bottomPad={handMetrics.handZoneBottomPad}
           >
             <View style={local.ceremonyHandDeck} pointerEvents="none">
               {ceremonyDealProgress.phase === "shuffle" ? (
@@ -5403,7 +5469,7 @@ function GameScreenBoard() {
         onConfirm={handleTradeConfirm}
       />
 
-      {elevatedHandFlights.length > 0 ? (
+      {elevatedHandFlights.length > 0 && !betweenRoundsPresentation ? (
         <ScreenFlightPortal>
           {elevatedHandFlights.map((flight) => (
             <TableCardFlight
@@ -5434,7 +5500,7 @@ function GameScreenBoard() {
       />
 
       <RoundCompleteModal
-        visible={roundOver && !lastHandReveal && !ceremonyPrep && !tradePhase}
+        visible={rankingsModalVisible}
         finishedOrder={state.finishedOrder.filter((id) =>
           state.players.some(
             (p) => p.id === id && !isDeadHandPlayer(p),

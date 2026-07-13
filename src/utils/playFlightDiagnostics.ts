@@ -15,8 +15,8 @@ import {
 } from "./tablePlayFlight";
 import type { TrickPlayDisplay } from "./trickDisplay";
 
-/** Temporary — remove after flight/pile alignment is verified in production. */
-export const ENABLE_FLIGHT_LAND_DIAGNOSTICS = true;
+/** Set true temporarily to log pile vs flight alignment in dev. */
+export const ENABLE_FLIGHT_LAND_DIAGNOSTICS = false;
 
 function bundleCapForTable(
   cards: TrickPlayDisplay["cards"],

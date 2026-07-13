@@ -25,15 +25,113 @@ import {
   computePlayStackLayout,
   layoutPlayBundle,
   MAX_SPREAD_WIDTH_RATIO,
+  isUnifiedActivePilePlay,
+  unifiedActivePileGroupZ,
+  stageCardRowCenterY,
   stagePlayTypeBadgeTop,
   stageTurnHintTop,
 } from "../utils/tablePlayLayout";
+import Svg, { Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
 import type { MeasurableNode } from "../utils/playFlightDiagnostics";
 
 /** z-index stride per play group — cards within use 0..stride-1 by left-to-right order. */
 const GROUP_Z_STRIDE = 100;
 /** Approx. width for "Waiting for " + 24-char name + ellipsis (12px font). */
 const TURN_HINT_PILL_MAX_WIDTH = 268;
+
+function PileContactShadow({
+  centerX,
+  centerY,
+  cardW,
+  cardH,
+}: {
+  centerX: number;
+  centerY: number;
+  cardW: number;
+  cardH: number;
+}) {
+  if (centerX <= 0 || centerY <= 0 || cardW <= 0 || cardH <= 0) return null;
+
+  const rx = Math.round(Math.max(cardW * 0.92, 56));
+  const ry = Math.round(Math.max(cardH * 0.2, 14));
+  const width = rx * 2;
+  const height = ry * 2;
+  const cx = width / 2;
+  const cy = height / 2;
+
+  return (
+    <View
+      style={[
+        styles.pileContactShadow,
+        {
+          left: centerX - rx,
+          top: centerY - ry + Math.round(cardH * 0.22),
+          width,
+          height,
+        },
+      ]}
+      pointerEvents="none"
+    >
+      <Svg width={width} height={height}>
+        <Defs>
+          <RadialGradient id="pileContactGrad" cx="50%" cy="50%" rx="50%" ry="50%">
+            <Stop offset="0%" stopColor="rgba(0,0,0,0.1)" stopOpacity={1} />
+            <Stop offset="55%" stopColor="rgba(0,0,0,0.04)" stopOpacity={1} />
+            <Stop offset="100%" stopColor="rgba(0,0,0,0)" stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="url(#pileContactGrad)" />
+      </Svg>
+    </View>
+  );
+}
+
+function PileSpotlight({
+  centerX,
+  centerY,
+  cardW,
+  cardH,
+}: {
+  centerX: number;
+  centerY: number;
+  cardW: number;
+  cardH: number;
+}) {
+  if (centerX <= 0 || centerY <= 0 || cardW <= 0 || cardH <= 0) return null;
+
+  const rx = Math.round(Math.max(cardW * 1.55, 88));
+  const ry = Math.round(Math.max(cardH * 0.5, 36));
+  const width = rx * 2;
+  const height = ry * 2;
+  const cx = width / 2;
+  const cy = height / 2;
+
+  return (
+    <View
+      style={[
+        styles.pileSpotlight,
+        {
+          left: centerX - rx,
+          top: centerY - ry + Math.round(cardH * 0.08),
+          width,
+          height,
+        },
+      ]}
+      pointerEvents="none"
+    >
+      <Svg width={width} height={height}>
+        <Defs>
+          <RadialGradient id="pileSpotlightGrad" cx="50%" cy="50%" rx="50%" ry="50%">
+            <Stop offset="0%" stopColor="rgba(255,255,255,0.11)" stopOpacity={1} />
+            <Stop offset="45%" stopColor="rgba(255,255,255,0.04)" stopOpacity={1} />
+            <Stop offset="100%" stopColor="rgba(255,255,255,0)" stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="url(#pileSpotlightGrad)" />
+      </Svg>
+    </View>
+  );
+}
 
 function playKey(play: TrickPlayDisplay, index: number): string {
   return `${index}-${play.playerId}-${play.cards.map((c) => `${c.suit}${c.value}`).join("-")}`;
@@ -267,6 +365,11 @@ export default function GameTable({
 
   const playCount = plays.length;
 
+  const unifiedPileGroupZ = useMemo(
+    () => unifiedActivePileGroupZ(plays, GROUP_Z_STRIDE),
+    [plays],
+  );
+
   const emptyMessage = useMemo(() => {
     const narrow =
       stageWidth > 0
@@ -414,12 +517,31 @@ export default function GameTable({
       ? { width: stageWidth, height: stageHeight }
       : null;
 
+  const pileSpotlightCenterY = stageCardRowCenterY(stageHeight);
+  const pileSpotlightCenterX = stageWidth / 2;
+
   return (
     <View style={styles.tableFrame} onLayout={onZoneLayout}>
       <View
         style={[styles.gameplayStage, stageStyle]}
         pointerEvents="box-none"
       >
+        {stageStyle ? (
+          <>
+            <PileContactShadow
+              centerX={pileSpotlightCenterX}
+              centerY={pileSpotlightCenterY}
+              cardW={cardW || layout.cardWidth}
+              cardH={cardH || layout.cardHeight}
+            />
+            <PileSpotlight
+              centerX={pileSpotlightCenterX}
+              centerY={pileSpotlightCenterY}
+              cardW={cardW || layout.cardWidth}
+              cardH={cardH || layout.cardHeight}
+            />
+          </>
+        ) : null}
         <View style={styles.cardLayer} pointerEvents="box-none">
           {playCount > 0 ? (
             <Animated.View style={[styles.playCluster, { opacity: tableFadeAnim }]}>
@@ -468,7 +590,10 @@ export default function GameTable({
                   const stackZIndex =
                     collectToStack || stackFaceDown || fadeOut
                       ? (playIndex + 1) * GROUP_Z_STRIDE
-                      : groupZ;
+                      : unifiedPileGroupZ != null &&
+                          isUnifiedActivePilePlay(plays, playIndex)
+                        ? unifiedPileGroupZ
+                        : groupZ;
 
                   const rowPlayKey = playDisplayKey(play);
                   return (
@@ -749,6 +874,16 @@ const styles = StyleSheet.create({
     zIndex: 1,
     overflow: "visible",
   },
+  pileSpotlight: {
+    position: "absolute",
+    zIndex: 0,
+    overflow: "visible",
+  },
+  pileContactShadow: {
+    position: "absolute",
+    zIndex: 0,
+    overflow: "visible",
+  },
   playCluster: {
     ...StyleSheet.absoluteFillObject,
   },
@@ -766,19 +901,26 @@ const styles = StyleSheet.create({
   playGroupActive: Platform.select({
     ios: {
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.22,
-      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 5 },
+      shadowOpacity: 0.28,
+      shadowRadius: 11,
     },
-    default: {},
+    android: { elevation: 7 },
+    web: {
+      boxShadow:
+        "0 2px 4px rgba(0,0,0,0.1), 0 7px 14px rgba(0,0,0,0.11)",
+    } as object,
   }),
   playGroupBuried: Platform.select({
     ios: {
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.12,
-      shadowRadius: 2,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.18,
+      shadowRadius: 4,
     },
+    web: {
+      boxShadow: "0 1px 3px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.08)",
+    } as object,
     default: {},
   }),
   playGroupBuriedStack: Platform.select({

@@ -2,6 +2,12 @@
 export const HAND_CARD_WIDTH = 86;
 export const HAND_CARD_HEIGHT = 124;
 
+/** Hand selection motion — keep fan headroom math in sync across layout + Card. */
+export const HAND_SELECT_LIFT = 16;
+export const HAND_SELECT_SCALE = 1.04;
+/** Horizontal nudge for cards adjacent to a selection. */
+export const HAND_SELECT_NEIGHBOR_SPREAD = 3;
+
 /**
  * Table pile layout footprint — same as hand. GameTable scales the pile up
  * (never below 1×) to fill the card zone; boosting here only shrinks on screen.

@@ -24,6 +24,10 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import Card from "./Card";
 import BlurPanel from "./BlurPanel";
 import { Card as CardType } from "../game/ruleset";
+import {
+  HAND_SELECT_LIFT,
+  HAND_SELECT_NEIGHBOR_SPREAD,
+} from "./cardDimensions";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import { resolveHandMetrics } from "../utils/compactGameLayout";
 import { buttonLabel } from "../styles/buttonStyles";
@@ -42,7 +46,6 @@ function scrollHintEdgeOpacity(preset: BlurPreset): number {
 /** Must match `Card.tsx` default dimensions at comfortable tier */
 const BASE_CARD_WIDTH = 86;
 const BASE_CARD_HEIGHT = 124;
-const SELECT_LIFT = 12;
 
 /** Extra separation on each side of the centred card (when fully centred) */
 const CENTER_GUTTER = 10;
@@ -111,7 +114,7 @@ function fanNormSpan(containerWidth: number, step: number): number {
 const FAN_BOTTOM_PADDING = 0;
 
 /** Headroom above card tops for arc + selected lift + centre scale (comfortable tier) */
-const BASE_FAN_HEADROOM = SELECT_LIFT + MAX_CENTER_LIFT + 24;
+const BASE_FAN_HEADROOM = HAND_SELECT_LIFT + MAX_CENTER_LIFT + 24;
 
 /** Total height of the hand fan area at comfortable tier — used when shell height is unknown. */
 export const HAND_FAN_HEIGHT =
@@ -153,7 +156,7 @@ function cardCenterFromHandLayout(
   handZoneHeight: number,
   selected: boolean,
 ): { x: number; y: number } {
-  const lift = selected ? SELECT_LIFT : 0;
+  const lift = selected ? HAND_SELECT_LIFT : 0;
   return {
     x: handWindow.x + slot.left + cardWidth / 2 - scroll,
     y: handWindow.y + handZoneHeight - slot.bottom - cardHeight / 2 - lift,
@@ -280,6 +283,19 @@ function snapScroll(
   );
 }
 
+function selectionNeighborSpread(
+  index: number,
+  selectedIndices: readonly number[],
+): number {
+  if (selectedIndices.length === 0) return 0;
+  let offset = 0;
+  for (const sel of selectedIndices) {
+    if (index === sel - 1) offset -= HAND_SELECT_NEIGHBOR_SPREAD;
+    if (index === sel + 1) offset += HAND_SELECT_NEIGHBOR_SPREAD;
+  }
+  return Math.max(-6, Math.min(6, offset));
+}
+
 function computeCarouselSlots(
   count: number,
   containerWidth: number,
@@ -288,6 +304,7 @@ function computeCarouselSlots(
   cardWidth: number,
   maxCenterLift: number,
   focusOverride?: number | null,
+  selectedIndices: readonly number[] = [],
 ): CarouselSlot[] {
   if (count === 0) return [];
 
@@ -306,7 +323,9 @@ function computeCarouselSlots(
   const normSpan = fanNormSpan(containerWidth, step);
 
   return Array.from({ length: count }, (_, i) => {
-    const left = cardLeft(i, focused, gutter, step);
+    const left =
+      cardLeft(i, focused, gutter, step) +
+      selectionNeighborSpread(i, selectedIndices);
     const symmetricCenterX = i * step + cardWidth / 2 - scrollOffset;
     const distFromCenter = symmetricCenterX - handCenterX;
     const norm = Math.max(-1, Math.min(1, distFromCenter / normSpan));
@@ -637,6 +656,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
         cardWidth,
         maxCenterLift,
         displayFocusIndex,
+        selectedIndices,
       ),
     [
       cards.length,
@@ -646,6 +666,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
       cardWidth,
       maxCenterLift,
       displayFocusIndex,
+      selectedIndices,
     ],
   );
 

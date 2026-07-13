@@ -136,22 +136,24 @@ export function resolveEffectiveTenRule(
   if (state.tenRule?.active && state.tenRule.direction) {
     result = state.tenRule;
   } else {
+    const recovered = resolveTenRuleDirectionFromTrick(state.currentTrick);
     const pileIsTen = pileIsUniformTen(state.pile ?? []);
-    if (!pileIsTen) {
+    // Uniform 10 pile + direction on the winning play — still in 10-rule even when
+    // sync stripped tenRule.active before on-top grant (pre-grant chicken-and-egg).
+    if (pileIsTen && recovered) {
+      result = { active: true, direction: recovered };
+    } else if (!pileIsTen) {
       if (state.tenRule?.active) {
         result = state.tenRule;
       } else {
         result = { active: false, direction: null };
       }
+    } else if (recovered && state.runOnTop?.active) {
+      result = { active: true, direction: recovered };
+    } else if (state.tenRule?.active) {
+      result = state.tenRule;
     } else {
-      const recovered = resolveTenRuleDirectionFromTrick(state.currentTrick);
-      if (recovered && (state.runOnTop?.active || state.tenRule?.active)) {
-        result = { active: true, direction: recovered };
-      } else if (state.tenRule?.active) {
-        result = state.tenRule;
-      } else {
-        result = { active: false, direction: null };
-      }
+      result = { active: false, direction: null };
     }
   }
   if (state.runOnTop?.active) {
@@ -189,10 +191,10 @@ export function isOnTopEligiblePile(
     return true;
   }
 
-  // 10-rule on top! only when the trick ends on a 10 pile with higher/lower active.
-  if (!pileIsUniformTen(pile) || !tenRule?.active) return false;
+  // 10-rule on top! when the trick ends on a 10 pile with higher/lower committed.
+  if (!pileIsUniformTen(pile)) return false;
   const direction =
-    tenRule.direction ?? resolveTenRuleDirectionFromTrick(currentTrick);
+    tenRule?.direction ?? resolveTenRuleDirectionFromTrick(currentTrick);
   return !!direction;
 }
 
@@ -250,41 +252,8 @@ function syncPassCountFromTrick(state: GameState): void {
   state.passCount = passedIds.size;
 }
 
-/** True when the sole remaining player still owes a play/pass on the current pile. */
-function lastPlayerMustRespondToCurrentTrick(
-  state: GameState,
-  lastPlayerId: string,
-): boolean {
-  if (!state.pile?.length) return false;
-
-  const leaderIndex = resolveTrickLeaderIndex(state);
-  if (leaderIndex === null || leaderIndex < 0) return false;
-  const leaderId = state.players[leaderIndex]?.id;
-  if (!leaderId || leaderId === lastPlayerId) return false;
-
-  const actions = state.currentTrick?.actions ?? [];
-  let leaderLastPlayIdx = -1;
-  for (let i = actions.length - 1; i >= 0; i--) {
-    const action = actions[i];
-    if (action.type === "play" && action.playerId === leaderId) {
-      leaderLastPlayIdx = i;
-      break;
-    }
-  }
-  if (leaderLastPlayIdx < 0) return false;
-
-  const afterLeader = actions.slice(leaderLastPlayIdx + 1);
-  return !afterLeader.some(
-    (a) =>
-      (a.type === "play" || a.type === "pass") && a.playerId === lastPlayerId,
-  );
-}
-
 /** When every other living player has gone out, place the last one (asshole). */
-function finalizeLoneRemainingPlayer(
-  state: GameState,
-  deferAfterOutPlayBy?: string,
-): void {
+function finalizeLoneRemainingPlayer(state: GameState): void {
   const living = livingPlayerIds(state.players)
     .map((id) => state.players.find((p) => p.id === id))
     .filter((p): p is Player => !!p && !isDeadHandPlayer(p));
@@ -295,8 +264,6 @@ function finalizeLoneRemainingPlayer(
     .filter((p) => p.id !== last.id)
     .every((p) => state.finishedOrder.includes(p.id));
   if (!allOthersPlaced) return;
-  if (deferAfterOutPlayBy && deferAfterOutPlayBy !== last.id) return;
-  if (lastPlayerMustRespondToCurrentTrick(state, last.id)) return;
   // Last remaining player is auto-asshole — may still hold cards (shown at round end).
   state.finishedOrder.push(last.id);
 }
@@ -304,7 +271,7 @@ function finalizeLoneRemainingPlayer(
 /** Sync finish order from empty hands and auto-place the last remaining player. */
 export function syncFinishedFromEmptyHands(
   state: GameState,
-  options?: { skipLoneFinalize?: boolean; deferLoneAfterOutPlayBy?: string },
+  options?: { skipLoneFinalize?: boolean },
 ): void {
   const livingIds = new Set(livingPlayerIds(state.players));
   state.finishedOrder = state.finishedOrder.filter((id) => livingIds.has(id));
@@ -317,7 +284,7 @@ export function syncFinishedFromEmptyHands(
   }
 
   if (!options?.skipLoneFinalize && !state.tenRulePending) {
-    finalizeLoneRemainingPlayer(state, options?.deferLoneAfterOutPlayBy);
+    finalizeLoneRemainingPlayer(state);
   }
   applyFinishOrderRoles(state.players, state.finishedOrder);
 }
@@ -332,8 +299,8 @@ export function tenRuleChooserIndex(state: GameState): number | null {
 export function isPlayerStillIn(state: GameState, playerId: string): boolean {
   const player = state.players.find((p) => p.id === playerId);
   if (!player || isDeadHandPlayer(player)) return false;
-  // Empty hand = out. Players auto-placed last while holding cards (asshole)
-  // must still pass on the current trick before the round ends.
+  // Empty hand = out. Lone asshole may still hold cards but is already in finishedOrder.
+  if (state.finishedOrder.includes(playerId)) return false;
   return player.hand.length > 0;
 }
 
@@ -698,7 +665,6 @@ export function playCards(
   }
   syncFinishedFromEmptyHands(state, {
     skipLoneFinalize: activatingTenRule,
-    deferLoneAfterOutPlayBy: wentOutOnThisPlay ? player.id : undefined,
   });
   // record who played last
   state.lastPlayPlayerIndex = pIndex;
@@ -863,6 +829,10 @@ export function playCards(
     if (extendingQuadsRun) {
       state.fourOfAKindChallenge = undefined;
     }
+    syncFinishedFromEmptyHands(state);
+    if (isRoundCompleteForLiving(state)) {
+      return { ...state };
+    }
     // advance from the player who just played
     state.currentPlayerIndex = nextActivePlayerIndex(state, pIndex);
     ensureTurnNotOnPriorPasser(state);
@@ -965,21 +935,30 @@ export function resolveRunContext(
     players,
     finishedOrder,
   );
-  const runSeq =
-    seqInfo.repCards.length >= trickRunInfo.repCards.length
-      ? seqInfo.repCards
-      : trickRunInfo.repCards;
+  const trickValid = isRunContextSequence(trickRunInfo.repCards);
+  const seqValid = isRunContextSequence(seqInfo.repCards);
+  let picked: { repCards: Card[]; multiplicity: number };
+  if (trickValid && !seqValid) {
+    picked = trickRunInfo;
+  } else if (seqValid && !trickValid) {
+    picked = seqInfo;
+  } else if (trickValid && seqValid) {
+    picked =
+      seqInfo.repCards.length >= trickRunInfo.repCards.length
+        ? seqInfo
+        : trickRunInfo;
+  } else {
+    picked =
+      seqInfo.repCards.length >= trickRunInfo.repCards.length
+        ? seqInfo
+        : trickRunInfo;
+  }
+  const runSeq = picked.repCards;
   let runMultiplicity = 1;
   if (runSeq.length >= MIN_RUN_CONTEXT_LENGTH) {
-    runMultiplicity =
-      seqInfo.repCards.length >= trickRunInfo.repCards.length
-        ? seqInfo.multiplicity
-        : trickRunInfo.multiplicity || 1;
+    runMultiplicity = picked.multiplicity || 1;
   } else if (runSeq.length >= 2) {
-    runMultiplicity =
-      seqInfo.repCards.length >= trickRunInfo.repCards.length
-        ? seqInfo.multiplicity
-        : trickRunInfo.multiplicity || 1;
+    runMultiplicity = picked.multiplicity || 1;
   }
   return {
     runSeq,
@@ -1057,11 +1036,14 @@ function getRunExtensionAnchorValues(chronology: Card[], pile: Card[]): number[]
       const rVal = chronology[n - 2].value;
       const tVal = chronology[n - 3].value;
       if (
-        rVal !== pileVal &&
-        Math.abs(rankIndex(rVal) - rankIndex(tVal)) === 1 &&
-        Math.abs(rankIndex(pileVal) - rankIndex(tVal)) === 1
+        isStepBackPile(chronology, pile) &&
+        rankIndex(rVal) - rankIndex(tVal) === 1 &&
+        rankIndex(pileVal) - rankIndex(rVal) === 1
       ) {
-        anchors.add(tVal);
+        const stepBackRun = longestContiguousAscendingSuffix(chronology, n - 3, 2);
+        if (stepBackRun.length >= 2) {
+          anchors.add(stepBackRun[stepBackRun.length - 1].value);
+        }
       }
     }
   }
@@ -1189,6 +1171,43 @@ export function getHighestValue(cards: Card[]) {
 // is already a run of length>=3, or the concatenation of last single-card plays
 // from pileHistory (chronological) if those form a run. This lets sequences like
 // [3],[4],[5] be treated as an active 3-card run even though state.pile is [5].
+function isContiguousAscendingSequence(seq: Card[], minLength: number): boolean {
+  if (seq.length < minLength) return false;
+  for (let i = 0; i < seq.length; i++) {
+    if (isJoker(seq[i])) return false;
+  }
+  for (let i = 1; i < seq.length; i++) {
+    if (rankIndex(seq[i].value) !== rankIndex(seq[i - 1].value) + 1) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isContiguousAscendingRun(seq: Card[]): boolean {
+  return isContiguousAscendingSequence(seq, MIN_RUN_CONTEXT_LENGTH);
+}
+
+/** Longest contiguous ascending suffix ending at `endIdx` (play-order activation). */
+function longestContiguousAscendingSuffix(
+  chronology: Card[],
+  endIdx: number,
+  minLength = MIN_RUN_CONTEXT_LENGTH,
+): Card[] {
+  if (endIdx < 0 || endIdx >= chronology.length) return [];
+  let best: Card[] = [];
+  for (let start = 0; start <= endIdx; start++) {
+    const suffix = chronology.slice(start, endIdx + 1);
+    if (
+      isContiguousAscendingSequence(suffix, minLength) &&
+      suffix.length > best.length
+    ) {
+      best = suffix;
+    }
+  }
+  return best;
+}
+
 function longestRunSubstring(chronology: Card[]): Card[] {
   if (!chronology?.length) return [];
   let best: Card[] = [];
@@ -1199,7 +1218,7 @@ function longestRunSubstring(chronology: Card[]): Card[] {
       end++
     ) {
       const sub = chronology.slice(start, end + 1);
-      if (isRunContextSequence(sub) && sub.length > best.length) {
+      if (isContiguousAscendingRun(sub) && sub.length > best.length) {
         best = sub;
       }
     }
@@ -1208,18 +1227,7 @@ function longestRunSubstring(chronology: Card[]): Card[] {
 }
 
 function longestRunSuffixAtIndex(chronology: Card[], endIdx: number): Card[] {
-  if (endIdx < 0 || endIdx >= chronology.length) return [];
-  let best: Card[] = [];
-  for (let start = 0; start <= endIdx; start++) {
-    const suffix = chronology.slice(start, endIdx + 1);
-    if (
-      suffix.length >= MIN_RUN_CONTEXT_LENGTH &&
-      isRunContextSequence(suffix)
-    ) {
-      if (suffix.length > best.length) best = suffix;
-    }
-  }
-  return best;
+  return longestContiguousAscendingSuffix(chronology, endIdx);
 }
 
 /**
@@ -1249,6 +1257,7 @@ function resolveRunFromChronology(chronology: Card[], pile?: Card[]): Card[] {
   }
 
   // Skip-over step-back extension (e.g. J-Q-J then K extends from Q, not pile-top J).
+  // Ascending activation tail only — rejects synthesized descending runs (10-9-10-8).
   if (n >= 3) {
     const rVal = chronology[n - 2].value;
     const tVal = chronology[n - 3].value;
@@ -1257,15 +1266,15 @@ function resolveRunFromChronology(chronology: Card[], pile?: Card[]): Card[] {
       Math.abs(rankIndex(rVal) - rankIndex(tVal)) === 1 &&
       Math.abs(rankIndex(pileVal) - rankIndex(tVal)) === 1
     ) {
-      const tailAtT = monotonicSuffixEndingAt(chronology, n - 3);
-      if (tailAtT.length >= 2) {
-        const dir = runDirectionOfSeq(tailAtT);
-        const lastRank = rankIndex(tailAtT[tailAtT.length - 1].value);
-        if (dir !== 0 && rankIndex(pileVal) - lastRank === dir) {
-          const extended = [...tailAtT, { value: pileVal, suit: pile![0].suit }];
-          if (isRunContextSequence(extended) && extended.length > best.length) {
-            best = extended;
-          }
+      const tailAtT = longestContiguousAscendingSuffix(chronology, n - 3, 2);
+      if (
+        tailAtT.length >= 2 &&
+        tailAtT[tailAtT.length - 1].value === tVal &&
+        rankIndex(pileVal) - rankIndex(tVal) === 1
+      ) {
+        const extended = [...tailAtT, { value: pileVal, suit: pile![0].suit }];
+        if (isRunContextSequence(extended) && extended.length > best.length) {
+          best = extended;
         }
       }
     }
@@ -1403,7 +1412,10 @@ export function consecutiveSequenceInfo(
         const b = e2[0];
         const c = pile[0];
         if (!isJoker(a) && !isJoker(b) && !isJoker(c)) {
-          if (Math.abs(rankIndex(b.value) - rankIndex(a.value)) === 1 && Math.abs(rankIndex(c.value) - rankIndex(b.value)) === 1) {
+          if (
+            rankIndex(b.value) - rankIndex(a.value) === 1 &&
+            rankIndex(c.value) - rankIndex(b.value) === 1
+          ) {
             const combined = [a, b, c];
             if (isRunContextSequence(combined)) {
               return { repCards: combined, multiplicity: e1.length };
@@ -1906,19 +1918,7 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
     if (!allSameValue(cards)) return false;
     const pileRank = rankIndex(pile[0].value);
     const playRank = rankIndex(cards[0].value);
-    if (runOnTop) {
-      // On top: beat by exactly one rank step; lower may use a higher multiplicity
-      // (e.g. pair 9s over single 10 during lower on top).
-      if (tenRule.direction === "higher") {
-        if (playCount !== pileCount || playRank !== pileRank + 1) return false;
-        return true;
-      }
-      if (tenRule.direction === "lower") {
-        if (playRank !== pileRank - 1) return false;
-        if (playCount < pileCount) return false;
-        return true;
-      }
-    }
+    // 10-rule comparison is invariant — On Top only grants initiative, not a new predicate.
     if (playCount !== pileCount) return false;
     if (tenRule.direction === "higher") {
       return playRank > pileRank;
@@ -1959,7 +1959,12 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
       if (extendsFromAnchor) {
         const hypothetical = [...chronology, cards[0]];
         const run = resolveRunFromChronology(hypothetical, cards);
-        if (run.length >= MIN_RUN_CONTEXT_LENGTH) return true;
+        if (
+          run.length >= MIN_RUN_CONTEXT_LENGTH &&
+          isContiguousAscendingRun(run)
+        ) {
+          return true;
+        }
       }
     }
   }
@@ -1990,24 +1995,15 @@ export function isRunContextSequence(cards: Card[]): boolean {
   }
 
   const firstStep = rankIndex(cards[1].value) - rankIndex(cards[0].value);
-  if (Math.abs(firstStep) !== 1) return false;
-  const direction = firstStep > 0 ? 1 : -1;
+  if (firstStep !== 1) return false;
 
-  // Strictly monotonic — rejects ping-pong like 6-7-6-7 or 10-9-10-9.
+  // Strictly ascending in play order — no descending runs (10-9-8).
   for (let i = 1; i < cards.length; i++) {
     const prev = rankIndex(cards[i - 1].value);
     const cur = rankIndex(cards[i].value);
-    if (cur - prev !== direction) return false;
+    if (cur - prev !== 1) return false;
   }
 
-  const uniqueValues = [...new Set(cards.map((c) => c.value))];
-  if (uniqueValues.length < MIN_RUN_CONTEXT_LENGTH) return false;
-  const sortedUnique = uniqueValues.sort((a, b) => rankIndex(a) - rankIndex(b));
-  for (let i = 1; i < sortedUnique.length; i++) {
-    const prev = rankIndex(sortedUnique[i - 1]);
-    const cur = rankIndex(sortedUnique[i]);
-    if (cur !== prev + 1) return false;
-  }
   return true;
 }
 
@@ -2507,6 +2503,9 @@ export function advanceTurnAfterClearPlay(
   fromIndex: number,
 ): GameState {
   syncFinishedFromEmptyHands(state);
+  if (isRoundCompleteForLiving(state)) {
+    return { ...state };
+  }
   state.mustPlay = false;
   if (!isTrickAcknowledgmentPassPhase(state)) {
     state.currentPlayerIndex = nextActivePlayerIndex(state, fromIndex);

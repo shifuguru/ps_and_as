@@ -21,9 +21,14 @@ import {
   resolveActionTrackGap,
   resolveCompactHeightTier,
 } from "../utils/compactGameLayout";
+import {
+  TURN_INTRO_FADE,
+  TURN_INTRO_PEAK,
+  useTurnIntroAnimation,
+} from "../hooks/useTurnIntroAnimation";
 
 /** Fixed height budget for bottom-bar layout math (see GameScreen). */
-export const ACTION_BAR_HEIGHT = 98;
+export const ACTION_BAR_HEIGHT = 84;
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -67,31 +72,36 @@ export default function ActionBar({
   const isLight = colors.mode === "light";
   const gold = colors.gold;
   const goldDim = hexToRgba(gold, isLight ? 0.42 : 0.38);
-  const goldGlow = hexToRgba(gold, isLight ? 0.18 : 0.2);
   const passIdleBg = colors.actionSecondaryBg;
   const passIdleBorder = colors.actionSecondaryBorder;
   const passIdleText = colors.actionSecondaryText;
   const playIdleBg = colors.actionPrimaryDisabledBg;
   const playIdleBorder = colors.actionPrimaryDisabledBorder;
   const playIdleText = colors.actionPrimaryDisabledText;
-  const playTurnBgLow = hexToRgba(gold, isLight ? 0.08 : 0.12);
-  const playTurnBgHigh = hexToRgba(gold, isLight ? 0.14 : 0.22);
+  const playTurnBgLow = hexToRgba(gold, isLight ? 0.1 : 0.14);
+  const playTurnBgHigh = hexToRgba(gold, isLight ? 0.18 : 0.28);
+  const playTurnBgRest = hexToRgba(gold, isLight ? 0.15 : 0.21);
+  const playReadyBorder = isLight ? hexToRgba(gold, 0.92) : hexToRgba(gold, 1);
+  const playTurnBorderRest = hexToRgba(gold, isLight ? 0.78 : 0.84);
   const passTurnBgLow = isLight
     ? hexToRgba(colors.textPrimary, 0.04)
     : "rgba(255,255,255,0.06)";
   const passTurnBgHigh = isLight
     ? hexToRgba(colors.textPrimary, 0.08)
     : "rgba(255,255,255,0.11)";
+  const passTurnBgRest = isLight
+    ? hexToRgba(colors.textPrimary, 0.06)
+    : "rgba(255,255,255,0.08)";
   const { width, height: shellHeight } = useWindowDimensions();
   const viewport = useVisualViewportSize();
   const tier = resolveCompactHeightTier(viewport.height || shellHeight);
   const actionBarHeight = resolveActionBarHeight(tier);
   const buttonMinHeight = resolveActionButtonMinHeight(tier);
   const actionTrackGap = resolveActionTrackGap(tier);
-  const containerGap = tier === "veryTight" || tier === "tight" ? 8 : 12;
+  const containerGap = tier === "veryTight" || tier === "tight" ? 6 : 8;
   const barWidth = Math.min(width - 32, 440);
 
-  const turnGlow = useRef(new Animated.Value(0)).current;
+  const turnIntro = useTurnIntroAnimation(isPlayerTurn);
   const passFlash = useRef(new Animated.Value(0)).current;
 
   const hasSelection = selectedCount > 0;
@@ -111,31 +121,6 @@ export default function ActionBar({
       : "Pass Turn";
 
   const playReady = isPlayerTurn && !playDisabled && hasSelection;
-
-  useEffect(() => {
-    if (!isPlayerTurn) {
-      turnGlow.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(turnGlow, {
-          toValue: 1,
-          duration: 1600,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: false,
-        }),
-        Animated.timing(turnGlow, {
-          toValue: 0,
-          duration: 1600,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: false,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [isPlayerTurn, turnGlow]);
 
   useEffect(() => {
     if (!showPassFlash) {
@@ -171,9 +156,9 @@ export default function ActionBar({
         ],
       })
     : isPlayerTurn && !passDisabled
-      ? turnGlow.interpolate({
-          inputRange: [0, 1],
-          outputRange: [passTurnBgLow, passTurnBgHigh],
+      ? turnIntro.interpolate({
+          inputRange: [0, TURN_INTRO_PEAK, 1],
+          outputRange: [passTurnBgLow, passTurnBgHigh, passTurnBgRest],
         })
       : passIdleBg;
 
@@ -182,12 +167,7 @@ export default function ActionBar({
         inputRange: [0, 1],
         outputRange: [goldDim, isLight ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.95)"],
       })
-    : isPlayerTurn && !passDisabled
-      ? turnGlow.interpolate({
-          inputRange: [0, 1],
-          outputRange: [goldGlow, goldDim],
-        })
-      : passIdleBorder;
+    : passIdleBorder;
 
   const passTextColor = showPassFlash
     ? passFlash.interpolate({
@@ -197,22 +177,24 @@ export default function ActionBar({
     : passIdleText;
 
   const playBorderColor = playReady
-    ? gold
+    ? playReadyBorder
     : isPlayerTurn && !playDisabled
-      ? turnGlow.interpolate({
-          inputRange: [0, 1],
-          outputRange: [goldGlow, goldDim],
+      ? turnIntro.interpolate({
+          inputRange: [0, TURN_INTRO_PEAK, 1],
+          outputRange: [goldDim, gold, playTurnBorderRest],
         })
       : playIdleBorder;
 
   const playBackground = playReady
     ? gold
     : isPlayerTurn && !playDisabled
-      ? turnGlow.interpolate({
-          inputRange: [0, 1],
-          outputRange: [playTurnBgLow, playTurnBgHigh],
+      ? turnIntro.interpolate({
+          inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
+          outputRange: [playTurnBgLow, playTurnBgHigh, playTurnBgHigh, playTurnBgRest],
         })
       : playIdleBg;
+
+  const playEnabled = isPlayerTurn && !playDisabled;
 
   return (
     <View
@@ -249,7 +231,7 @@ export default function ActionBar({
           style={[
             styles.passButton,
             { minHeight: buttonMinHeight },
-            passDisabled && styles.buttonMuted,
+            passDisabled && styles.passButtonDisabled,
             showPassFlash && styles.passButtonFlash,
             {
               backgroundColor: passBackground,
@@ -270,13 +252,7 @@ export default function ActionBar({
               {passLabel}
             </Animated.Text>
           ) : (
-            <Text
-              style={[
-                styles.passText,
-                { color: passIdleText },
-                passDisabled && styles.textMuted,
-              ]}
-            >
+            <Text style={[styles.passText, { color: passIdleText }]}>
               {passLabel}
             </Text>
           )}
@@ -304,13 +280,14 @@ export default function ActionBar({
           style={[
             styles.playButton,
             { minHeight: buttonMinHeight },
-            playDisabled && styles.buttonMuted,
+            playDisabled && styles.playButtonDisabled,
             playReady && styles.playButtonReady,
-            isPlayerTurn && !playDisabled && !playReady && styles.playButtonTurn,
+            playEnabled && !playReady && styles.playButtonTurn,
             {
               backgroundColor: playBackground,
               borderColor: playBorderColor,
-              ...(playReady || (isPlayerTurn && !playDisabled && !playReady)
+              borderWidth: playReady || playEnabled ? 1.5 : 1,
+              ...(playReady || playEnabled
                 ? Platform.select({
                     ios: { shadowColor: gold },
                     default: {},
@@ -333,12 +310,10 @@ export default function ActionBar({
               styles.playText,
               { color: playIdleText },
               playReady && styles.playTextReady,
-              isPlayerTurn &&
-                !playDisabled &&
+              playEnabled &&
                 !playReady && {
                   color: isLight ? colors.actionPrimaryText : "#f5f0e6",
                 },
-              playDisabled && styles.textMuted,
             ]}
           >
             {playLabel}
@@ -417,17 +392,18 @@ export default function ActionBar({
 const styles = StyleSheet.create({
   container: {
     alignSelf: "center",
-    gap: 12,
+    gap: 8,
   },
   leaveRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
+    gap: 8,
     width: "100%",
   },
   leaveButtonFlex: {
     flexShrink: 1,
+    marginTop: 4,
   },
   leaveFabSpacer: {
     width: 40,
@@ -459,6 +435,9 @@ const styles = StyleSheet.create({
     minHeight: 48,
     ...BUTTON_CENTER,
   },
+  passButtonDisabled: {
+    opacity: 0.58,
+  },
   passButtonFlash: {
     ...Platform.select({
       ios: {
@@ -478,24 +457,27 @@ const styles = StyleSheet.create({
     minHeight: 48,
     ...BUTTON_CENTER,
   },
+  playButtonDisabled: {
+    opacity: 0.68,
+  },
   playButtonTurn: {
     ...Platform.select({
       ios: {
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.34,
+        shadowRadius: 10,
       },
-      android: { elevation: 3 },
+      android: { elevation: 5 },
     }),
   },
   playButtonReady: {
     ...Platform.select({
       ios: {
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.52,
+        shadowRadius: 14,
       },
-      android: { elevation: 6 },
+      android: { elevation: 8 },
     }),
   },
   passText: buttonLabel(15, {
@@ -513,16 +495,11 @@ const styles = StyleSheet.create({
   }),
   playTextReady: {
     color: "#111",
+    fontWeight: "900",
   },
   playSubtext: buttonLabel(10, {
     fontWeight: "600",
     marginTop: 3,
     letterSpacing: 0.2,
   }),
-  buttonMuted: {
-    opacity: 0.4,
-  },
-  textMuted: {
-    opacity: 0.65,
-  },
 });

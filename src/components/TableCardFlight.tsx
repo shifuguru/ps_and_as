@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 import { CARD_PLAY_FLIGHT_Z } from "../styles/overlayZIndex";
+import {
+  PLAY_CARD_FLIGHT_MS,
+  playFlightMotionVariance,
+} from "../utils/playAnimationTiming";
 import Card from "./Card";
 import type { Card as CardType } from "../game/ruleset";
 import { layoutPlayBundle } from "../utils/tablePlayLayout";
@@ -30,13 +34,23 @@ type Props = {
   onComplete: (id: string) => void;
 };
 
-const FLIGHT_EASING = Easing.bezier(0.25, 0.85, 0.35, 1);
-/** Progress when the flying copy reaches the table slot — hand off to GameTable here. */
+/** Ease-out deceleration into the pile slot. */
+const FLIGHT_EASING = Easing.bezier(0.22, 1, 0.36, 1);
 const LAND_AT = 1;
+
+/** Lift before horizontal travel (fraction of progress). */
+const LIFT_END = 0.18;
+/** Peak arc + rotation during travel. */
+const TRAVEL_PEAK = 0.58;
+/** Travel nearly complete — gentle settle follows. */
+const TRAVEL_END = 0.92;
+
+const LIFT_ROTATE_RATIO = 0.35;
+const SETTLE_OVERSHOOT_Y = 1;
 
 export default function TableCardFlight({
   flight,
-  durationMs = 640,
+  durationMs = PLAY_CARD_FLIGHT_MS,
   onComplete,
 }: Props) {
   const progress = useRef(new Animated.Value(0)).current;
@@ -45,6 +59,17 @@ export default function TableCardFlight({
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
   onCompleteRef.current = onComplete;
+
+  const motion = useMemo(() => {
+    const isPlayFlight = Math.abs(durationMs - PLAY_CARD_FLIGHT_MS) < 40;
+    return isPlayFlight
+      ? playFlightMotionVariance(flight.id)
+      : {
+          durationMs,
+          liftPx: 8,
+          peakRotateDeg: 1,
+        };
+  }, [durationMs, flight.id]);
 
   const bundle = useMemo(
     () =>
@@ -60,7 +85,13 @@ export default function TableCardFlight({
   const deltaX = flight.toX - flight.fromX;
   const deltaY = flight.toY - flight.fromY;
   const travel = Math.hypot(deltaX, deltaY);
-  const arcLift = Math.min(36, Math.max(12, travel * 0.14));
+  const arcLift = Math.min(24, Math.max(10, travel * 0.12));
+  const liftPx = motion.liftPx;
+  const rotateSign = deltaX >= 0 ? 1 : -1;
+  const peakRotate = `${rotateSign * motion.peakRotateDeg}deg`;
+  const liftRotate = `${rotateSign * motion.peakRotateDeg * LIFT_ROTATE_RATIO}deg`;
+  const travelRotate = `${rotateSign * motion.peakRotateDeg * 0.15}deg`;
+  const arcMidY = deltaY * TRAVEL_PEAK - Math.max(arcLift * 0.65, liftPx * 0.4);
 
   useEffect(() => {
     completeFiredRef.current = false;
@@ -82,7 +113,7 @@ export default function TableCardFlight({
 
     const anim = Animated.timing(progress, {
       toValue: 1,
-      duration: durationMs,
+      duration: motion.durationMs,
       easing: FLIGHT_EASING,
       useNativeDriver: true,
     });
@@ -98,17 +129,23 @@ export default function TableCardFlight({
       progress.removeListener(landListener);
       animRef.current = null;
     };
-  }, [flight.id, durationMs, progress]);
+  }, [flight.id, motion.durationMs, progress]);
 
   const translateX = progress.interpolate({
-    inputRange: [0, LAND_AT],
-    outputRange: [0, deltaX],
+    inputRange: [0, LIFT_END, TRAVEL_END, LAND_AT],
+    outputRange: [0, 0, deltaX * 0.97, deltaX],
     extrapolate: "clamp",
   });
 
   const translateY = progress.interpolate({
-    inputRange: [0, 0.45, LAND_AT],
-    outputRange: [0, -arcLift, deltaY],
+    inputRange: [0, LIFT_END, TRAVEL_PEAK, TRAVEL_END, LAND_AT],
+    outputRange: [
+      0,
+      -liftPx,
+      arcMidY,
+      deltaY + SETTLE_OVERSHOOT_Y,
+      deltaY,
+    ],
     extrapolate: "clamp",
   });
 
@@ -118,8 +155,20 @@ export default function TableCardFlight({
       : 0.68;
 
   const scale = progress.interpolate({
-    inputRange: [0, LAND_AT],
-    outputRange: [startScale, 1],
+    inputRange: [0, LIFT_END, TRAVEL_PEAK, TRAVEL_END, LAND_AT],
+    outputRange: [
+      startScale,
+      startScale * 1.02,
+      1.008,
+      1.002,
+      1,
+    ],
+    extrapolate: "clamp",
+  });
+
+  const rotate = progress.interpolate({
+    inputRange: [0, LIFT_END, TRAVEL_PEAK, TRAVEL_END, LAND_AT],
+    outputRange: ["0deg", liftRotate, peakRotate, travelRotate, "0deg"],
     extrapolate: "clamp",
   });
 
@@ -146,7 +195,7 @@ export default function TableCardFlight({
             height: bundle.height,
             marginLeft: -bundle.width / 2,
             marginTop: -bundle.height / 2,
-            transform: [{ translateX }, { translateY }, { scale }],
+            transform: [{ translateX }, { translateY }, { rotate }, { scale }],
           },
         ]}
       >

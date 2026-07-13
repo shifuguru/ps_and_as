@@ -120,11 +120,15 @@ export function ensureWebFeltBackdrop(tint = DEFAULT_FELT_COLOR): void {
   const texture = layer.querySelector(".ps-felt-layer-texture");
   const tintEl = layer.querySelector(".ps-felt-layer-tint");
 
+  const staleDepth = layer.querySelector(".ps-felt-layer-depth");
+  if (staleDepth) staleDepth.remove();
+
   if (texture) {
     texture.style.backgroundImage = `url("${url}")`;
     texture.style.backgroundSize = "cover";
     texture.style.backgroundPosition = "center center";
     texture.style.backgroundRepeat = "no-repeat";
+    texture.style.filter = "";
   }
 
   if (tintEl) {

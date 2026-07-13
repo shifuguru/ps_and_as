@@ -41,6 +41,7 @@ export default function BlurPanel({
   const resolvedIntensity = intensity ?? blur.intensity;
   const resolvedScrim = scrimOpacity ?? blur.scrimOpacity;
   const resolvedWebOpacity = webOpacity ?? blur.webOpacity;
+  const webBlurPx = Math.round(Math.min(28, Math.max(16, resolvedIntensity * 0.46)));
   const scrimRgb = colors.mode === "light" ? "255, 255, 255" : "8, 28, 18";
   const webTintStrength = colors.mode === "light" ? 0.2 : 0.42;
 
@@ -52,7 +53,11 @@ export default function BlurPanel({
         onLayout={onLayout}
         style={[
           styles.fallback,
-          { backgroundColor: `rgba(${scrimRgb}, ${resolvedWebOpacity})` },
+          {
+            backgroundColor: `rgba(${scrimRgb}, ${resolvedWebOpacity})`,
+            backdropFilter: `blur(${webBlurPx}px) saturate(1.35)`,
+            WebkitBackdropFilter: `blur(${webBlurPx}px) saturate(1.35)`,
+          } as ViewStyle,
           style,
         ]}
       >
@@ -104,12 +109,6 @@ const styles = StyleSheet.create({
   },
   fallback: {
     overflow: "hidden",
-    ...(Platform.OS === "web"
-      ? ({
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-        } as object)
-      : null),
   },
   fallbackTint: {
     ...StyleSheet.absoluteFillObject,

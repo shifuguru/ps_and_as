@@ -83,6 +83,11 @@ export function computeGameScreenBudget(
       px: handVisible ? chrome.handZoneTopClearance : 0,
     },
     {
+      id: "handBottomPad",
+      label: "Hand bottom pad",
+      px: handVisible ? chrome.handZoneBottomPad : 0,
+    },
+    {
       id: "handGap",
       label: "Hand → action gap",
       px: handVisible ? chrome.handControlsGap + 2 : 0,

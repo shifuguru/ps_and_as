@@ -493,6 +493,27 @@ function isUnifiedActivePileCandidate(
   return rank !== undefined && pilePlays.every((p) => p.cards[0]?.value === rank);
 }
 
+/** True when this play is fanned inside a same-rank unified active pile. */
+export function isUnifiedActivePilePlay(
+  plays: TablePlayEntry[],
+  playIndex: number,
+): boolean {
+  if (playIndex < 0 || playIndex >= plays.length) return false;
+  const active = findActivePileRange(plays);
+  if (!isUnifiedActivePileCandidate(plays, active)) return false;
+  return playIndex >= active.start && playIndex <= active.end;
+}
+
+/** Shared group z-index for unified-pile plays — card-level z handles fan order. */
+export function unifiedActivePileGroupZ(
+  plays: TablePlayEntry[],
+  groupZStride: number,
+): number | null {
+  const active = findActivePileRange(plays);
+  if (!isUnifiedActivePileCandidate(plays, active)) return null;
+  return active.start * groupZStride;
+}
+
 type VisibleLayoutResult = {
   positions: PlayStackLayout["positions"];
   playCardOffsets: Array<number[] | undefined>;

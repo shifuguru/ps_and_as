@@ -1,32 +1,55 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet } from 'react-native';
+import React from "react";
+import { View, Animated, StyleSheet } from "react-native";
+import {
+  TURN_INTRO_FADE,
+  TURN_INTRO_PEAK,
+  TURN_INTRO_SETTLE,
+  useTurnIntroAnimation,
+} from "../hooks/useTurnIntroAnimation";
 
-export default function TurnIndicator({ active = false }: any) {
-  const pulse = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (active) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
-          Animated.timing(pulse, { toValue: 0, duration: 700, useNativeDriver: true }),
-        ]),
-      ).start();
-    } else {
-      pulse.stopAnimation();
-      pulse.setValue(0);
-    }
-  }, [active]);
+type Props = {
+  active?: boolean;
+};
 
-  const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.22] });
-  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.9] });
+const REST_SCALE = 1;
+const REST_OPACITY = 0.75;
+const PEAK_SCALE = 1.06;
+
+export default function TurnIndicator({ active = false }: Props) {
+  const intro = useTurnIntroAnimation(active);
+
+  const ringScale = intro.interpolate({
+    inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, TURN_INTRO_SETTLE, 1],
+    outputRange: [0.96, 1.02, PEAK_SCALE, 1.01, REST_SCALE],
+    extrapolate: "clamp",
+  });
+
+  const opacity = intro.interpolate({
+    inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
+    outputRange: [0, REST_OPACITY, 0.88, REST_OPACITY],
+    extrapolate: "clamp",
+  });
 
   if (!active) return <View style={{ width: 0, height: 0 }} />;
 
   return (
-    <Animated.View style={[styles.ring, { transform: [{ scale: ringScale }], opacity }]} pointerEvents="none" />
+    <Animated.View
+      style={[styles.ring, { transform: [{ scale: ringScale }], opacity }]}
+      pointerEvents="none"
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  ring: { position: 'absolute', width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: 'rgba(212,175,55,0.9)', top: -16, left: -16, zIndex: -1 },
+  ring: {
+    position: "absolute",
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 3,
+    borderColor: "rgba(212,175,55,0.9)",
+    top: -16,
+    left: -16,
+    zIndex: -1,
+  },
 });
