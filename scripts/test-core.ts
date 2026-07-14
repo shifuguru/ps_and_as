@@ -40,6 +40,7 @@ import {
   applyCpuTurn,
   isTrickOpeningLead,
   runFromCurrentTrick,
+  isTrickRunActive,
   type TrickHistory,
 } from "../src/game/core";
 import {
@@ -109,7 +110,7 @@ assert.strictEqual(isFourOfAKind(four), true, "four of a kind detected");
 
 console.log("All core tests passed");
 
-// --- Additional tests for runs with 10s (context sequences) ---
+// --- Additional tests for runs with 10s (sticky currentTrick.runActive) ---
 
 // Build a run context from pileHistory: [7],[8],[9]
 const seven: Card = { suit: "hearts", value: 7 };
@@ -118,12 +119,27 @@ const nine: Card = { suit: "clubs", value: 9 };
 const ten: Card = { suit: "diamonds", value: 10 };
 const jack: Card = { suit: "hearts", value: 11 };
 
+const stickyRunSingles: TrickHistory = {
+  trickNumber: 1,
+  actions: [],
+  runActive: true,
+  runMultiplicity: 1,
+};
+
 const pileAfterNine: Card[] = [nine];
 const history789: Card[][] = [[seven], [eight], [nine]];
 
 // 10 should be valid as an adjacency play during an active run context
 assert.strictEqual(
-  isValidPlay([ten], pileAfterNine, undefined, history789, [{ trickNumber: 0, actions: [] }]),
+  isValidPlay(
+    [ten],
+    pileAfterNine,
+    undefined,
+    history789,
+    undefined,
+    undefined,
+    stickyRunSingles,
+  ),
   true,
   "10 should be allowed as adjacency during run context"
 );
@@ -139,12 +155,28 @@ assert.strictEqual(
 
 // From 10, both 9 and J should be valid adjacency responses in the run context
 assert.strictEqual(
-  isValidPlay([jack], [ten], undefined, history78910, [{ trickNumber: 0, actions: [] }]),
+  isValidPlay(
+    [jack],
+    [ten],
+    undefined,
+    history78910,
+    undefined,
+    undefined,
+    stickyRunSingles,
+  ),
   true,
   "Jack should be allowed after 10 in run context"
 );
 assert.strictEqual(
-  isValidPlay([nine], [ten], undefined, history78910, [{ trickNumber: 0, actions: [] }]),
+  isValidPlay(
+    [nine],
+    [ten],
+    undefined,
+    history78910,
+    undefined,
+    undefined,
+    stickyRunSingles,
+  ),
   true,
   "9 should be allowed after 10 in run context"
 );
@@ -152,12 +184,28 @@ assert.strictEqual(
 // 10-rule must not block run continuation even if it was previously activated
 const tenRuleHigher = { active: true, direction: "higher" as const };
 assert.strictEqual(
-  isValidPlay([jack], [ten], tenRuleHigher, history78910, [{ trickNumber: 0, actions: [] }]),
+  isValidPlay(
+    [jack],
+    [ten],
+    tenRuleHigher,
+    history78910,
+    undefined,
+    undefined,
+    stickyRunSingles,
+  ),
   true,
   "Jack should be allowed after 10 in run context even with 10-rule higher active"
 );
 assert.strictEqual(
-  isValidPlay([nine], [ten], tenRuleHigher, history78910, [{ trickNumber: 0, actions: [] }]),
+  isValidPlay(
+    [nine],
+    [ten],
+    tenRuleHigher,
+    history78910,
+    undefined,
+    undefined,
+    stickyRunSingles,
+  ),
   true,
   "9 should be allowed after 10 in run context even with 10-rule higher active"
 );
@@ -182,7 +230,9 @@ assert.strictEqual(
     [ten],
     tenRuleHigher,
     history78910,
-    [{ trickNumber: 0, actions: [] }],
+    undefined,
+    undefined,
+    stickyRunSingles,
   ),
   false,
   "Queen cannot beat 10 via 10-rule when 7-8-9-10 is an active run",
@@ -192,8 +242,10 @@ assert.strictEqual(
 const ka2King: Card = { suit: "hearts", value: 13 };
 const ka2Ace: Card = { suit: "diamonds", value: 14 };
 const ka2Two: Card = { suit: "clubs", value: 15 };
-const trickKA2 = {
+const trickKA2: TrickHistory = {
   trickNumber: 0,
+  runActive: true,
+  runMultiplicity: 1,
   actions: [
     { type: "play" as const, playerId: "1", playerName: "P1", cards: [ka2King], timestamp: 1 },
     { type: "play" as const, playerId: "2", playerName: "P2", cards: [ka2Ace], timestamp: 2 },
@@ -246,6 +298,8 @@ assert.strictEqual(
   ];
   const trick4565: TrickHistory = {
     trickNumber: 1,
+    runActive: true,
+    runMultiplicity: 1,
     actions: [
       { type: "play", playerId: "1", playerName: "P1", cards: [{ suit: "hearts", value: 4 }], timestamp: 1 },
       { type: "play", playerId: "2", playerName: "P2", cards: [{ suit: "diamonds", value: 5 }], timestamp: 2 },
@@ -658,13 +712,23 @@ function makeEmptyGame(names: string[]): GameState {
 // Joker cannot be played during an active run
 {
   const joker: Card = { suit: "joker", value: 16 };
-  const runPile: Card[] = [
-    { suit: "hearts", value: 5 },
-    { suit: "diamonds", value: 6 },
-    { suit: "clubs", value: 7 },
-  ];
+  const runPile: Card[] = [{ suit: "clubs", value: 7 }];
+  const stickyRun: TrickHistory = {
+    trickNumber: 1,
+    actions: [],
+    runActive: true,
+    runMultiplicity: 1,
+  };
   assert.ok(
-    !isValidPlay([joker], runPile),
+    !isValidPlay(
+      [joker],
+      runPile,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      stickyRun,
+    ),
     "Joker should not be playable on an active singles run",
   );
 }
@@ -826,6 +890,11 @@ function makeEmptyGame(names: string[]): GameState {
   let s = playCards(g, g.players[0].id, [{ suit: "hearts", value: 3 }]);
   s = playCards(s, g.players[1].id, [{ suit: "hearts", value: 4 }]);
   s = playCards(s, g.players[2].id, [{ suit: "hearts", value: 5 }]);
+  assert.ok(
+    s.currentTrick?.runActive,
+    "Trick should sticky-activate Runs after 3-4-5",
+  );
+  assert.strictEqual(s.currentTrick?.runMultiplicity, 1);
   assert.ok(
     runFromCurrentTrick(s.currentTrick, s.players, s.finishedOrder ?? [], s.pile)
       .length >= 3,
@@ -1139,8 +1208,22 @@ function makeEmptyGame(names: string[]): GameState {
     { suit: "spades", value: 7 },
   ];
   const pileHistory: Card[][] = [four5s, four6s];
+  const stickyQuadsRun: TrickHistory = {
+    trickNumber: 1,
+    actions: [],
+    runActive: true,
+    runMultiplicity: 4,
+  };
   assert.ok(
-    !isValidPlay([joker], four7s, undefined, pileHistory),
+    !isValidPlay(
+      [joker],
+      four7s,
+      undefined,
+      pileHistory,
+      undefined,
+      undefined,
+      stickyQuadsRun,
+    ),
     "Joker should not be playable during an active quads run",
   );
   const four8s: Card[] = [
@@ -1150,7 +1233,15 @@ function makeEmptyGame(names: string[]): GameState {
     { suit: "spades", value: 8 },
   ];
   assert.ok(
-    isValidPlay(four8s, four7s, undefined, pileHistory),
+    isValidPlay(
+      four8s,
+      four7s,
+      undefined,
+      pileHistory,
+      undefined,
+      undefined,
+      stickyQuadsRun,
+    ),
     "Next-rank quads should extend an active quads run",
   );
 }
@@ -1294,6 +1385,86 @@ function makeEmptyGame(names: string[]): GameState {
   assert.ok(!s.runOnTop?.active, "No on-top when run leader is out of cards");
   assert.strictEqual(s.pile.length, 0, "Trick clears when out-of-cards leader would get on top");
   assert.strictEqual(s.trickHistory?.[0]?.winnerId, "3", "Last player who played wins the trick");
+}
+
+// --- Run On Top after step-back (3-4-5-6-5): grant must not require pile===runSeq tip ---
+
+{
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+
+  const three: Card = { suit: "clubs", value: 3 };
+  const four: Card = { suit: "hearts", value: 4 };
+  const five: Card = { suit: "diamonds", value: 5 };
+  const six: Card = { suit: "clubs", value: 6 };
+  const fiveB: Card = { suit: "hearts", value: 5 };
+  const fourOpt: Card = { suit: "spades", value: 4 };
+  const sixOpt: Card = { suit: "spades", value: 6 };
+
+  g.players[0].hand = [three, fiveB, fourOpt, sixOpt, { suit: "clubs", value: 12 }];
+  g.players[1].hand = [four, { suit: "hearts", value: 12 }, { suit: "hearts", value: 13 }];
+  g.players[2].hand = [five, { suit: "diamonds", value: 12 }, { suit: "diamonds", value: 13 }];
+  g.players[3].hand = [six, { suit: "spades", value: 12 }, { suit: "spades", value: 13 }];
+  g.currentPlayerIndex = 0;
+
+  let s = playCards(g, "1", [three]);
+  s = playCards(s, "2", [four]);
+  s = playCards(s, "3", [five]);
+  s = playCards(s, "4", [six]);
+  s = playCards(s, "1", [fiveB]);
+
+  assert.ok(
+    isValidPlay(
+      [fourOpt],
+      s.pile,
+      s.tenRule,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      false,
+    ),
+    "After step-back, 4 remains legal under sticky run",
+  );
+  assert.ok(
+    isValidPlay(
+      [sixOpt],
+      s.pile,
+      s.tenRule,
+      s.pileHistory,
+      s.trickHistory,
+      s.fourOfAKindChallenge,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder,
+      undefined,
+      "1",
+      false,
+    ),
+    "After step-back, 6 remains legal under sticky run",
+  );
+
+  s = passTurn(s, "2");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+
+  assert.ok(
+    s.runOnTop?.active,
+    "Run On Top grants after step-back when others pass (3-4-5-6-5)",
+  );
+  assert.strictEqual(s.runOnTop?.playerIndex, 0, "On Top goes to last player who played");
+  assert.strictEqual(s.currentPlayerIndex, 0, "Turn returns to On Top owner");
+  assert.strictEqual(s.mustPlay, true, "On Top is a must-play / Skip turn");
+  assert.strictEqual(s.pile.length, 1, "Pile retained until On Top play or Skip");
+  assert.strictEqual(s.pile[0].value, 5, "Pile still the step-back 5");
 }
 
 // --- Double 10s "on top!" when everyone else passes ---
@@ -1870,6 +2041,107 @@ console.log("Dead hand post-trade opening tests passed");
 }
 
 {
+  // Regression: living 3♣ exists table-wide, so any opening 3s must include it
+  // even when currentPlayerId is omitted (CPU / callers used to skip that check).
+  const hand: Card[] = [
+    { suit: "hearts", value: 3 },
+    { suit: "diamonds", value: 3 },
+    { suit: "clubs", value: 3 },
+  ];
+  const players = [{ id: "cpu-1", name: "B", hand, role: "Neutral" as const }];
+  assert.strictEqual(
+    isValidPlay(
+      [
+        { suit: "hearts", value: 3 },
+        { suit: "diamonds", value: 3 },
+      ],
+      [],
+      undefined,
+      [],
+      [],
+      undefined,
+      { trickNumber: 1, actions: [] },
+      players,
+      [],
+      undefined,
+      undefined,
+    ),
+    false,
+    "Round-1 opening cannot omit living 3♣ even without currentPlayerId",
+  );
+  const playNoId = findCPUPlay(
+    hand,
+    [],
+    undefined,
+    [],
+    undefined,
+    { trickNumber: 1, actions: [] },
+    players,
+    [],
+    [],
+    undefined,
+    undefined,
+    false,
+  );
+  assert.ok(
+    playNoId && playNoId.some((c) => c.suit === "clubs"),
+    "CPU without currentPlayerId must still include living 3♣",
+  );
+}
+
+{
+  // Wrong opener (no 3♣) must not open with other 3s while living 3♣ exists elsewhere.
+  const cpuHand: Card[] = [
+    { suit: "hearts", value: 3 },
+    { suit: "spades", value: 4 },
+  ];
+  const table = [
+    { id: "cpu-1", name: "CPU", hand: cpuHand, role: "Neutral" as const },
+    {
+      id: "human",
+      name: "You",
+      hand: [{ suit: "clubs", value: 3 }],
+      role: "Neutral" as const,
+    },
+  ];
+  assert.strictEqual(
+    isValidPlay(
+      [{ suit: "hearts", value: 3 }],
+      [],
+      undefined,
+      [],
+      [],
+      undefined,
+      { trickNumber: 1, actions: [] },
+      table,
+      [],
+      undefined,
+      "cpu-1",
+    ),
+    false,
+    "Cannot open with a non-clubs 3 while another living player holds 3♣",
+  );
+  assert.strictEqual(
+    findCPUPlay(
+      cpuHand,
+      [],
+      undefined,
+      [],
+      undefined,
+      { trickNumber: 1, actions: [] },
+      table,
+      [],
+      [],
+      undefined,
+      "cpu-1",
+      false,
+    ),
+    null,
+    "CPU without 3♣ finds no round-1 open while living 3♣ exists elsewhere",
+  );
+}
+
+{
   const hand: Card[] = [
     { suit: "spades", value: 3 },
     { suit: "hearts", value: 3 },
@@ -1881,6 +2153,23 @@ console.log("Dead hand post-trade opening tests passed");
       [DEAD_HAND_ID]: [],
     },
     [{ suit: "clubs", value: 3 }],
+  );
+  assert.strictEqual(
+    isValidPlay(
+      [{ suit: "hearts", value: 3 }],
+      [],
+      undefined,
+      [],
+      [],
+      undefined,
+      { trickNumber: 1, actions: [] },
+      players,
+      [DEAD_HAND_ID],
+      undefined,
+      "guest",
+    ),
+    false,
+    "Dead-hand 3♣: opener holding 3♠ must include it when opening with 3s",
   );
   const play = findCPUPlay(
     hand,
@@ -1899,6 +2188,10 @@ console.log("Dead hand post-trade opening tests passed");
   assert.ok(
     play && play.length >= 1 && play.every((c) => c.value === 3),
     "CPU should open with 3s when dead hand holds 3♣ (single or double)",
+  );
+  assert.ok(
+    play!.some((c) => c.suit === "spades"),
+    "Dead-hand 3♣: CPU holding 3♠ must include it",
   );
 }
 
@@ -3095,3 +3388,164 @@ console.log("On-top comparison invariant regression tests passed");
 console.log("Ceremony trade merge tests passed");
 
 console.log("Fresh round tests passed");
+
+// --- Canonical sticky Runs architecture (P0) ---
+{
+  function validOn(
+    state: GameState,
+    cards: Card[],
+    playerId = state.players[state.currentPlayerIndex].id,
+  ): boolean {
+    return isValidPlay(
+      cards,
+      state.pile,
+      state.tenRule,
+      state.pileHistory,
+      state.trickHistory,
+      state.fourOfAKindChallenge,
+      state.currentTrick,
+      state.players,
+      state.finishedOrder,
+      undefined,
+      playerId,
+      !!(state.runOnTop?.active &&
+        state.players[state.runOnTop.playerIndex]?.id === playerId),
+    );
+  }
+
+  const g = createGame(["P1", "P2", "P3", "P4"]);
+  g.players.forEach((p) => (p.hand = []));
+  g.pile = [];
+  g.pileHistory = [];
+  g.currentTrick = { trickNumber: 1, actions: [] };
+  g.mustPlay = false;
+  g.lastRoundOrder = ["1", "2", "3", "4"];
+
+  const c3: Card = { suit: "clubs", value: 3 };
+  const c4: Card = { suit: "hearts", value: 4 };
+  const c5: Card = { suit: "diamonds", value: 5 };
+  const c6: Card = { suit: "spades", value: 6 };
+  const c7: Card = { suit: "clubs", value: 7 };
+  const c8: Card = { suit: "hearts", value: 8 };
+  const c9: Card = { suit: "diamonds", value: 9 };
+  const c10: Card = { suit: "spades", value: 10 };
+  const cJ: Card = { suit: "clubs", value: 11 };
+  const cQ: Card = { suit: "diamonds", value: 12 };
+  const deadHigh: Card = { suit: "spades", value: 14 };
+
+  g.players[0].hand = [c3, c6, c9, cJ, cQ];
+  g.players[1].hand = [c4, c7, c10, deadHigh];
+  g.players[2].hand = [c5, c8, { suit: "hearts", value: 14 }];
+  g.players[3].hand = [
+    { suit: "clubs", value: 14 },
+    { suit: "diamonds", value: 14 },
+    { suit: "hearts", value: 13 },
+  ];
+  g.currentPlayerIndex = 0;
+
+  // 1) Basic activation on third ascending consecutive rank
+  let s = playCards(g, "1", [c3]);
+  assert.ok(!s.currentTrick?.runActive, "Runs inactive after first play");
+  s = playCards(s, "2", [c4]);
+  assert.ok(!s.currentTrick?.runActive, "Runs inactive after two ascending");
+  s = playCards(s, "3", [c5]);
+  assert.ok(isTrickRunActive(s.currentTrick), "Runs activates on 3-4-5");
+  assert.strictEqual(s.currentTrick?.runMultiplicity, 1);
+
+  // 2) Climb + step-back stays sticky (P4 has no adjacent — passes)
+  s = passTurn(s, "4");
+  s = playCards(s, "1", [c6]);
+  s = playCards(s, "2", [c7]);
+  s = playCards(s, "3", [c8]);
+  assert.ok(isTrickRunActive(s.currentTrick), "Runs still sticky after climb to 8");
+  s = passTurn(s, "4");
+  // Step-back 8→9 (not requiring reconstruktion from pile tip=tail)
+  s = playCards(s, "1", [c9]);
+  assert.ok(isTrickRunActive(s.currentTrick), "Runs sticky after step/continue to 9");
+  assert.strictEqual(s.pile[0].value, 9);
+
+  // 3) CPU / isValidPlay reject non-adjacent during sticky Runs
+  assert.ok(!validOn(s, [deadHigh], "2"), "Ace not adjacent to 9 — illegal in sticky Run");
+  assert.ok(validOn(s, [c10], "2"), "10 adjacent to 9 is legal in sticky Run");
+  const cpuNoAdj = findCPUPlay(
+    [deadHigh, { suit: "hearts", value: 12 }],
+    s.pile,
+    s.tenRule,
+    s.pileHistory,
+    s.fourOfAKindChallenge,
+    s.currentTrick,
+    s.players,
+    s.finishedOrder,
+    s.trickHistory,
+    undefined,
+    "2",
+    false,
+  );
+  assert.strictEqual(cpuNoAdj, null, "CPU returns null with no adjacent Run card");
+  const cpuOk = findCPUPlay(
+    s.players[1].hand,
+    s.pile,
+    s.tenRule,
+    s.pileHistory,
+    s.fourOfAKindChallenge,
+    s.currentTrick,
+    s.players,
+    s.finishedOrder,
+    s.trickHistory,
+    undefined,
+    "2",
+    false,
+  );
+  assert.ok(cpuOk && cpuOk[0].value === 10, "CPU picks adjacent 10 during sticky Run");
+
+  // 4) 10 does NOT activate Higher/Lower during sticky Runs
+  assert.ok(!wouldActivateTenRule(s, "2", [c10]), "wouldActivateTenRule false while Runs active");
+  s = playCards(s, "2", [c10]);
+  assert.ok(isTrickRunActive(s.currentTrick), "Runs remains sticky after 10");
+  assert.ok(!s.tenRule?.active && !s.tenRulePending, "Ten rule / chooser never activate during Runs");
+  // P3 has no 9/J — pass. Next is P4 (pass). Then P1 plays J.
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+  assert.ok(validOn(s, [cJ], "1"), "After Run 10, Jack is legal (not Ten Higher)");
+  assert.ok(
+    validOn(s, [{ suit: "hearts", value: 9 }], "1"),
+    "After Run 10, 9 is legal step-back (not Ten Lower)",
+  );
+  s = playCards(s, "1", [cJ]);
+  assert.ok(isTrickRunActive(s.currentTrick));
+
+  // 5) Run On Top after sticky Run (everyone else passes)
+  s = passTurn(s, "2");
+  s = passTurn(s, "3");
+  s = passTurn(s, "4");
+  assert.ok(s.runOnTop?.active, "Run On Top grants after sticky Run when others pass");
+  assert.strictEqual(s.runOnTop?.playerIndex, 0);
+  assert.ok(isTrickRunActive(s.currentTrick), "Runs stays sticky into On Top");
+  assert.ok(
+    isOnTopEligiblePile(
+      s.pile,
+      s.pileHistory,
+      s.currentTrick,
+      s.players,
+      s.finishedOrder || [],
+      s.tenRule,
+    ),
+    "On Top eligibility depends on sticky runActive",
+  );
+
+  // 6) On Top adjacent play ends trick — Runs clears with new currentTrick
+  assert.ok(validOn(s, [cQ], "1"), "On Top play follows Run adjacency");
+  s = playCards(s, "1", [cQ]);
+  assert.ok(!s.runOnTop?.active, "On Top cleared after play");
+  assert.strictEqual(s.pile.length, 0, "Trick ends / pile clears after On Top");
+  assert.ok(
+    !isTrickRunActive(s.currentTrick),
+    "Runs ends only when the trick ends",
+  );
+  assert.ok(
+    s.trickHistory?.some((t) => t.runActive),
+    "Completed trick retains runActive for history",
+  );
+}
+
+console.log("Canonical sticky Runs architecture tests passed");

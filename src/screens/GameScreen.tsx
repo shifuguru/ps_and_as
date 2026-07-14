@@ -26,7 +26,6 @@ import {
   hasPassedInCurrentTrick,
   canAcknowledgmentPass,
   isTrickAcknowledgmentPassPhase,
-  resolveRunContext,
   isAdjacentToPileTop,
   nextActivePlayerIndex,
   advanceOffPriorPasser,
@@ -77,6 +76,7 @@ import {
   logTradesCompleteReceived,
   logPostTradeOpenerReconciled,
 } from "../game/roundTransitionDiagnostics";
+import { roundEndPhase } from "../utils/roundEndCrashTrace";
 import {
   resolveCeremonyLaunchMode,
   resolveSkipDealAnimations,
@@ -227,6 +227,8 @@ const ROUND_TRANSITION_PAUSE_MS = 175;
 const ROUND_TRANSITION_CLEAR_MS = 320;
 const TRADE_RETURN_FLIGHT_MS = 520;
 const TRADE_RETURN_HOLD_MS = 650;
+/** Stable empty plays — avoid new `[]` each render during round-end table clear. */
+const EMPTY_TRICK_PLAYS: TrickPlayDisplay[] = [];
 
 /** Round transition instrumentation — verbose in dev; warnings/errors always on. */
 const ROUND_TRANSITION_LOG = typeof __DEV__ !== "undefined" ? __DEV__ : false;
@@ -422,33 +424,19 @@ function canCardBePlayedAtAll(
     return true;
   }
 
-  // Check if pile is in an active run — extend with a rank adjacent to pile top.
-  // During a 10-rule on-top beat, higher/lower still governs (not run adjacency).
-  const { runMultiplicity, inRunContext } = resolveRunContext(
-    pile,
-    pileHistory,
-    currentTrick,
-    players,
-    finishedOrder || [],
-  );
-  const pileIsUniform = pile.length > 0 && pile.every((c) => c.value === pile[0].value);
-  const tenRuleOnTopBeat =
-    !!runOnTop &&
-    !!tenRule?.active &&
-    !!tenRule.direction &&
-    pileIsUniform &&
-    pile[0].value === 10;
-
-  if (inRunContext && !tenRuleOnTopBeat) {
+  // Sticky Runs — consume currentTrick.runActive only (never re-detect).
+  const inRunContext = !!currentTrick?.runActive;
+  const runMultiplicity = currentTrick?.runMultiplicity ?? 1;
+  // Tens never govern while Runs is sticky-active.
+  if (inRunContext) {
     if (!isAdjacentToPileTop(pile, cardValue)) return false;
     if (sameValue.length < runMultiplicity) return false;
     return matchesValid(sameValue.slice(0, runMultiplicity));
   }
 
-  // Run extension when activation was missed (stale pileHistory vs currentTrick).
+  // Pre-activation extension (forming toward a Run) — activation itself is playCards-only.
   if (
     !inRunContext &&
-    !tenRuleOnTopBeat &&
     isValidRunExtension(
       cardValue,
       pile,
@@ -595,6 +583,36 @@ function GameScreen({
   const [lastHandReveal, setLastHandReveal] = useState<LastHandRevealPayload | null>(
     null,
   );
+
+  /** DEV: force round-end ceremony from Playwright (? / console). */
+  useEffect(() => {
+    if (typeof globalThis === "undefined") return;
+    const g = globalThis as {
+      __PS_FORCE_ROUND_END?: () => void;
+      __PS_DEBUG_ROUND?: () => Record<string, unknown>;
+    };
+    g.__PS_FORCE_ROUND_END = () => {
+      console.log("[RC-CRASH-TRACE] GameScreen.__PS_FORCE_ROUND_END");
+      setLastHandReveal(null);
+      setRoundOver(true);
+    };
+    g.__PS_DEBUG_ROUND = () => ({
+      roundOver,
+      rankingsModalVisible,
+      tableSweepOut,
+      finishedOrder: state?.finishedOrder ?? null,
+      playerCount: state?.players?.length ?? 0,
+      crash: (globalThis as { __LAST_APP_CRASH?: unknown }).__LAST_APP_CRASH ?? null,
+      trace: (globalThis as { __RC_CRASH_TRACE?: unknown }).__RC_CRASH_TRACE ?? null,
+      phaseTrace:
+        (globalThis as { __ROUND_END_PHASE_TRACE?: unknown })
+          .__ROUND_END_PHASE_TRACE ?? null,
+    });
+    return () => {
+      delete g.__PS_FORCE_ROUND_END;
+      delete g.__PS_DEBUG_ROUND;
+    };
+  }, [roundOver, rankingsModalVisible, tableSweepOut, state?.finishedOrder, state?.players?.length]);
   const [playerReadyStates, setPlayerReadyStates] = useState<{
     [playerId: string]: boolean;
   }>({});
@@ -706,6 +724,10 @@ function GameScreen({
   const trickPauseActiveRef = useRef(trickPauseActive);
   trickPauseActiveRef.current = trickPauseActive;
   const clearHandPlayFlightRef = useRef<(() => void) | null>(null);
+  /** Board mirrors handPlayInFlight.playKey so trick-pause can keep On Top capture. */
+  const handPlayInFlightKeyRef = useRef<string | null>(null);
+  /** Extra ms before stack collect when a closing hand flight still needs to land. */
+  const trickPauseExtraHoldMsRef = useRef(0);
   const startNextRoundRef = useRef<(seed?: number) => void>(() => {});
   const finalizeCeremonyRoundRef = useRef<
     (
@@ -970,6 +992,7 @@ function GameScreen({
 
   const finishLastHandReveal = useCallback(() => {
     roundTransitionLog("lastHandReveal finish");
+    roundEndPhase("4.last_hand_unmounts");
     if (betweenRoundsKeyRef.current) {
       lastHandRevealPlayedKeyRef.current = betweenRoundsKeyRef.current;
     }
@@ -996,6 +1019,10 @@ function GameScreen({
         lastHandRevealPlayedKeyRef.current = key;
       }
       clearLastHandRevealTimer();
+      roundEndPhase("3.last_hand_mounts", {
+        playerId: payload.playerId,
+        cardCount: payload.cards.length,
+      });
       roundTransitionLog("lastHandReveal start", {
         playerId: payload.playerId,
         cardCount: payload.cards.length,
@@ -1656,8 +1683,6 @@ function GameScreen({
   const TRICK_SPREAD_HOLD_MS = 380;
   const TRICK_STACK_COLLECT_MS = 520;
   const TRICK_WINNER_SHOW_MS = 800;
-  const TRICK_PAUSE_TOTAL_MS =
-    TRICK_SPREAD_HOLD_MS + TRICK_STACK_COLLECT_MS + TRICK_WINNER_SHOW_MS;
 
   function snapshotState(s: GameState | null) {
     if (!s) return null;
@@ -1790,15 +1815,27 @@ function GameScreen({
         [winnerId]: (prev[winnerId] ?? 0) + trickXp,
       }));
     }
+    const pausePlays = buildPlaysFromTrick(last);
     setTrickPauseSnapshot({
-      plays: buildPlaysFromTrick(last),
+      plays: pausePlays,
       passedPlayerIds: passedIdsFromTrick(last),
       winnerName: last.winnerName,
       winnerId: winnerId ?? "",
       trickIndex: len,
       runBonusXp,
     });
-    clearHandPlayFlightRef.current?.();
+    // On Top closes the trick in the same update as the play — keep the hand
+    // flight capture so GamePlayArea can animate that closing card.
+    const pendingKey = handPlayInFlightKeyRef.current;
+    const keepClosingHandFlight =
+      !!pendingKey &&
+      pausePlays.some((p) => playDisplayKey(p) === pendingKey);
+    trickPauseExtraHoldMsRef.current = keepClosingHandFlight
+      ? PLAY_CARD_FLIGHT_MS
+      : 0;
+    if (!keepClosingHandFlight) {
+      clearHandPlayFlightRef.current?.();
+    }
     setShowWinnerBanner(false);
     setStackCollecting(false);
     setTrickPauseActive(true);
@@ -1818,15 +1855,19 @@ function GameScreen({
       clearTimeout(trickCollectTimerRef.current);
     }
 
+    const spreadHoldMs = TRICK_SPREAD_HOLD_MS + trickPauseExtraHoldMsRef.current;
+    const pauseTotalMs =
+      spreadHoldMs + TRICK_STACK_COLLECT_MS + TRICK_WINNER_SHOW_MS;
+
     trickCollectTimerRef.current = setTimeout(() => {
       setStackCollecting(true);
       trickCollectTimerRef.current = null;
-    }, TRICK_SPREAD_HOLD_MS);
+    }, spreadHoldMs);
 
     trickBannerTimerRef.current = setTimeout(() => {
       setShowWinnerBanner(true);
       trickBannerTimerRef.current = null;
-    }, TRICK_SPREAD_HOLD_MS + TRICK_STACK_COLLECT_MS);
+    }, spreadHoldMs + TRICK_STACK_COLLECT_MS);
 
     trickPauseTimerRef.current = setTimeout(() => {
       setShowWinnerBanner(false);
@@ -1834,8 +1875,9 @@ function GameScreen({
       setTrickPauseActive(false);
       setTrickPauseSnapshot(null);
       setLastTrickWinner(null);
+      trickPauseExtraHoldMsRef.current = 0;
       trickPauseTimerRef.current = null;
-    }, TRICK_PAUSE_TOTAL_MS);
+    }, pauseTotalMs);
 
     return () => {
       if (trickCollectTimerRef.current) {
@@ -1947,16 +1989,26 @@ function GameScreen({
       setRankingsModalVisible(false);
       return;
     }
+    roundEndPhase("1.round_completes", {
+      finishedOrderLen: state?.finishedOrder?.length ?? 0,
+      playerCount: state?.players?.length ?? 0,
+      pileLen: state?.pile?.length ?? 0,
+      playsAssumptionCleared: true,
+    });
     setTableSweepOut(false);
     setRankingsModalVisible(false);
-    const pauseTimer = setTimeout(
-      () => setTableSweepOut(true),
-      ROUND_TRANSITION_PAUSE_MS,
-    );
-    const modalTimer = setTimeout(
-      () => setRankingsModalVisible(true),
-      ROUND_TRANSITION_PAUSE_MS + ROUND_TRANSITION_CLEAR_MS,
-    );
+    const pauseTimer = setTimeout(() => {
+      setTableSweepOut(true);
+      roundEndPhase("2.table_clears", {
+        pauseMs: ROUND_TRANSITION_PAUSE_MS,
+      });
+    }, ROUND_TRANSITION_PAUSE_MS);
+    const modalTimer = setTimeout(() => {
+      setRankingsModalVisible(true);
+      roundEndPhase("5.rankingsModalVisible_true", {
+        delayMs: ROUND_TRANSITION_PAUSE_MS + ROUND_TRANSITION_CLEAR_MS,
+      });
+    }, ROUND_TRANSITION_PAUSE_MS + ROUND_TRANSITION_CLEAR_MS);
     return () => {
       clearTimeout(pauseTimer);
       clearTimeout(modalTimer);
@@ -2130,7 +2182,16 @@ function GameScreen({
       const prevTrickLen = stateRef.current?.trickHistory?.length ?? 0;
       const nextTrickLen = parsed.trickHistory?.length ?? 0;
       if (nextTrickLen > prevTrickLen) {
-        clearHandPlayFlightRef.current?.();
+        const last =
+          parsed.trickHistory?.[parsed.trickHistory.length - 1] ?? null;
+        const pendingKey = handPlayInFlightKeyRef.current;
+        const keepClosingHandFlight =
+          !!pendingKey &&
+          !!last &&
+          buildPlaysFromTrick(last).some((p) => playDisplayKey(p) === pendingKey);
+        if (!keepClosingHandFlight) {
+          clearHandPlayFlightRef.current?.();
+        }
       }
       setActionPending(false);
       setSyncError(null);
@@ -3458,6 +3519,7 @@ function GameScreen({
         actionPending,
         setActionPending,
         clearHandPlayFlightRef,
+        handPlayInFlightKeyRef,
       }}
     >
       <GameScreenBoard />
@@ -3567,6 +3629,7 @@ function GameScreenBoard() {
     actionPending,
     setActionPending,
     clearHandPlayFlightRef,
+    handPlayInFlightKeyRef,
   } = useContext(GameScreenRuntimeContext)! as {
     state: GameState;
     setState: React.Dispatch<React.SetStateAction<GameState | null>>;
@@ -3709,6 +3772,7 @@ function GameScreenBoard() {
     actionPending: boolean;
     setActionPending: React.Dispatch<React.SetStateAction<boolean>>;
     clearHandPlayFlightRef: React.MutableRefObject<(() => void) | null>;
+    handPlayInFlightKeyRef: React.MutableRefObject<string | null>;
   };
 
   const [ceremonyDealCounts, setCeremonyDealCounts] = useState<
@@ -3882,6 +3946,7 @@ function GameScreenBoard() {
   }, [setSelected]);
   const handPlayInFlightRef = useRef(handPlayInFlight);
   handPlayInFlightRef.current = handPlayInFlight;
+  handPlayInFlightKeyRef.current = handPlayInFlight?.playKey ?? null;
   const handlePlayFlightStarted = useCallback(
     (playKey: string) => {
       const startedAt = notePlayFlightStarted(playKey);
@@ -3911,7 +3976,15 @@ function GameScreenBoard() {
 
   const handleElevatedHandFlightsChange = useCallback(
     (incoming: CardFlightSpec[]) => {
-      setElevatedHandFlights(incoming);
+      setElevatedHandFlights((prev) => {
+        if (
+          prev.length === incoming.length &&
+          prev.every((f, i) => f.id === incoming[i]?.id)
+        ) {
+          return prev;
+        }
+        return incoming;
+      });
     },
     [],
   );
@@ -4694,6 +4767,7 @@ function GameScreenBoard() {
     viewportHeight,
   );
   const contentTopPadding = insets.top + 8;
+  // Rebuild every render — pile / trick / history can update independently.
   const trickPlays = buildTrickPlayDisplays(state);
 
   const displayPlays: TrickPlayDisplay[] = useMemo(() => {
@@ -4719,17 +4793,28 @@ function GameScreenBoard() {
   ]);
 
   const tablePlaysForRender =
-    immediateTableClear || rankingsModalVisible ? [] : displayPlays;
+    immediateTableClear || rankingsModalVisible
+      ? EMPTY_TRICK_PLAYS
+      : displayPlays;
   const suppressTurnPresentation = betweenRoundsPresentation;
   const gameTableFadeOut =
     tableSweepOut || (trickPauseActive && showWinnerBanner);
 
-  /** Drop optimistic hand flight once the play is on the table or archived in trickHistory. */
+  /** Drop optimistic hand flight once on the live pile — not when archived into
+   *  trickHistory during pause (On Top: keep capture until the flight lands). */
   useEffect(() => {
     if (!handPlayInFlight) return;
     const key = handPlayInFlight.playKey;
     if (trickPlays.some((p) => playDisplayKey(p) === key)) {
       setHandPlayInFlight(null);
+      return;
+    }
+    // Keep through trick-pause / pending local capture (On Top same-tick finalize).
+    if (trickPauseActive) return;
+    if (
+      localHandFlight?.playKey === key ||
+      localHandFlightRef.current?.playKey === key
+    ) {
       return;
     }
     const lastTrick = state.trickHistory?.[state.trickHistory.length - 1];
@@ -4739,7 +4824,13 @@ function GameScreenBoard() {
     ) {
       setHandPlayInFlight(null);
     }
-  }, [trickPlays, handPlayInFlight, state.trickHistory]);
+  }, [
+    trickPlays,
+    handPlayInFlight,
+    state.trickHistory,
+    trickPauseActive,
+    localHandFlight,
+  ]);
 
   const trickPauseFrozen = trickPauseActive;
   const handPlayReachedTableRef = useRef(false);
@@ -4922,19 +5013,13 @@ function GameScreenBoard() {
     });
   }
 
-  // Add active 10 rule status (never while a run is active — tens don't govern runs)
-  const runContextForLog = resolveRunContext(
-    state.pile,
-    state.pileHistory,
-    state.currentTrick,
-    state.players,
-    state.finishedOrder || [],
-  );
+  // Add active 10 rule status (never while sticky Runs is active)
+  const stickyRunActive = !!state.currentTrick?.runActive;
   if (
     state.tenRule?.active &&
     state.tenRule.direction &&
     !state.tenRulePending &&
-    !runContextForLog.inRunContext
+    !stickyRunActive
   ) {
     fullGameLog.push({
       text: `[10 Rule: ${state.tenRule.direction.toUpperCase()} active]`,
@@ -4970,13 +5055,8 @@ function GameScreenBoard() {
       return { countLabel: null, modifierLabel };
     }
 
-    const { inRunContext, runMultiplicity } = resolveRunContext(
-      state.pile,
-      state.pileHistory,
-      state.currentTrick,
-      state.players,
-      state.finishedOrder || [],
-    );
+    const inRunContext = !!state.currentTrick?.runActive;
+    const runMultiplicity = state.currentTrick?.runMultiplicity ?? 1;
 
     if (!modifierLabel) {
       if (inRunContext) {

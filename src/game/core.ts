@@ -4,6 +4,7 @@ import { Card, Player, createDeck, shuffleDeck, shuffleDeckSeeded, dealCards } f
 import {
   applyDeadHandAfterDeal,
   createDeadHandPlayer,
+  deadHandHoldsThreeClubs,
   isDeadHandPlayer,
   isRoundCompleteForLiving,
   livingPlayerHasRank,
@@ -69,7 +70,83 @@ export type TrickHistory = {
   winnerName?: string;
   /** Total cards in the run when this trick was won (0 if none). Used for run bonus XP. */
   runLength?: number;
+  /**
+   * Canonical sticky Runs flag for this trick.
+   * Set once in playCards() when three ascending consecutive ranks land;
+   * cleared only when the trick ends. Consumers must not re-detect from pile.
+   */
+  runActive?: boolean;
+  /** Multiplicity locked at Run activation (1=singles, 2=doubles, …). */
+  runMultiplicity?: number;
 };
+
+/** Authoritative: did this trick already activate Runs? */
+export function isTrickRunActive(
+  trick?: TrickHistory | null,
+): boolean {
+  return !!trick?.runActive;
+}
+
+/** Locked multiplicity once Runs is active; 0 when inactive. */
+export function trickRunMultiplicity(
+  trick?: TrickHistory | null,
+): number {
+  if (!trick?.runActive) return 0;
+  return trick.runMultiplicity ?? 1;
+}
+
+/**
+ * Activation-only: would committing `cards` complete a 3+ ascending
+ * same-multiplicity sequence? Used solely by playCards / wouldActivateTenRule
+ * to decide whether to set currentTrick.runActive — never to ask "is Runs live?".
+ */
+export function playWouldActivateRun(
+  cards: Card[],
+  pile: Card[],
+  pileHistory: Card[][] | undefined,
+  currentTrick: TrickHistory | undefined,
+  players: Player[] | undefined,
+  finishedOrder: string[],
+  player: Pick<Player, "id" | "name">,
+): boolean {
+  if (!cards.length || !allSameValue(cards)) return false;
+  if (isTrickRunActive(currentTrick)) return false;
+  const simulatedTrick: TrickHistory = currentTrick
+    ? {
+        ...currentTrick,
+        actions: [
+          ...currentTrick.actions,
+          {
+            type: "play",
+            playerId: player.id,
+            playerName: player.name,
+            cards: cards.slice(),
+            timestamp: Date.now(),
+          },
+        ],
+      }
+    : {
+        trickNumber: 1,
+        actions: [
+          {
+            type: "play",
+            playerId: player.id,
+            playerName: player.name,
+            cards: cards.slice(),
+            timestamp: Date.now(),
+          },
+        ],
+      };
+  // After this play lands, the new pile top is `cards`.
+  const seq = consecutiveSequenceInfo(
+    cards,
+    pileHistory,
+    simulatedTrick,
+    players,
+    finishedOrder,
+  );
+  return isRunContextSequence(seq.repCards);
+}
 
 export type FourOfAKindChallenge = {
   active: boolean;
@@ -117,15 +194,6 @@ function pileIsUniformTen(pile: Card[]): boolean {
     allSameValue(pile) &&
     pile[0].value === 10
   );
-}
-
-/** True when the pile top is the tail rank of an active run sequence. */
-function pileEndsRunContext(
-  pile: Card[],
-  runSeq: Card[],
-): boolean {
-  if (!pile?.length || !allSameValue(pile) || !runSeq.length) return false;
-  return runSeq[runSeq.length - 1].value === pile[0].value;
 }
 
 /** Ten-rule state for validation — restores direction from the winning 10 during on-top! */
@@ -180,14 +248,8 @@ export function isOnTopEligiblePile(
 ): boolean {
   if (!pile.length) return false;
 
-  const { runSeq, inRunContext } = resolveRunContext(
-    pile,
-    pileHistory,
-    currentTrick,
-    players,
-    finishedOrder,
-  );
-  if (inRunContext && pileEndsRunContext(pile, runSeq)) {
+  // Run On Top: depends only on sticky trick Run state — never re-detect from pile.
+  if (isTrickRunActive(currentTrick)) {
     return true;
   }
 
@@ -438,6 +500,8 @@ export function wouldActivateTenRule(
 ): boolean {
   if (!cards.length || !allSameValue(cards)) return false;
   if (!containsTen(cards)) return false;
+  // Invariant: Tens are completely suppressed while Runs is active.
+  if (isTrickRunActive(state.currentTrick)) return false;
   const pIndex = state.players.findIndex((p) => p.id === playerId);
   if (pIndex === -1 || state.currentPlayerIndex !== pIndex) return false;
   const player = state.players[pIndex];
@@ -457,33 +521,17 @@ export function wouldActivateTenRule(
     );
     if (found === -1) return false;
   }
-  const simulatedTrick = state.currentTrick
-    ? {
-        ...state.currentTrick,
-        actions: [
-          ...state.currentTrick.actions,
-          {
-            type: "play" as const,
-            playerId: player.id,
-            playerName: player.name,
-            cards: cards.slice(),
-            timestamp: Date.now(),
-          },
-        ],
-      }
-    : undefined;
-  const seqForTen = consecutiveSequenceInfo(
-    cards,
-    state.pileHistory,
-    simulatedTrick,
-    state.players,
-    state.finishedOrder || [],
-  );
-  const isActiveRun = isRunContextSequence(seqForTen.repCards);
+  // Completing a Run with this 10 activates Runs, not Tens.
   if (
-    isActiveRun &&
-    (state.tenRule?.active || state.tenRulePending) &&
-    !isRunOnTopTurn
+    playWouldActivateRun(
+      cards,
+      state.pile,
+      state.pileHistory,
+      state.currentTrick,
+      state.players,
+      state.finishedOrder || [],
+      player,
+    )
   ) {
     return false;
   }
@@ -507,7 +555,7 @@ export function wouldActivateTenRule(
   ) {
     return false;
   }
-  return !isActiveRun;
+  return true;
 }
 
 export function playCards(
@@ -562,40 +610,23 @@ export function playCards(
 
   try { console.log('[core DEBUG] playCards incoming cards', cards.map(c=>c.value), 'containsTwo=', containsTwo(cards), '__filename=', __filename); } catch(e) {}
 
-  // Compute effective pile/run for contextual rule checks (e.g., tens shouldn't
-  // trigger the ten-rule when the active pile is a run formed by consecutive
-  // single-card plays).
-  // Consider both historical pile context and the current trick's single-card
-  // plays when deciding whether the active context is a run. Previously only
-  // pileHistory was used which missed runs formed within the currentTrick
-  // (e.g., player A plays 8, player B plays 9, player C plays 10 in the same
-  // trick). In that case the 10 should NOT activate the ten-rule; we must
-  // detect the run via runFromCurrentTrick as well.
-  // Create a simulated trick with the current play added to check for run formation
-  const simulatedTrick = state.currentTrick ? {
-    ...state.currentTrick,
-    actions: [...state.currentTrick.actions, {
-      type: "play" as const,
-      playerId: player.id,
-      playerName: player.name,
-      cards: cards.slice(),
-      timestamp: Date.now(),
-    }]
-  } : undefined;
-
-  const seqForTen = consecutiveSequenceInfo(
-    cards,
-    state.pileHistory,
-    simulatedTrick,
-    state.players,
-    state.finishedOrder || [],
-  );
-  const isActiveRun = isRunContextSequence(seqForTen.repCards);
+  const alreadyRunActive = isTrickRunActive(state.currentTrick);
+  const willActivateRun =
+    !alreadyRunActive &&
+    playWouldActivateRun(
+      cards,
+      state.pile,
+      state.pileHistory,
+      state.currentTrick,
+      state.players,
+      state.finishedOrder || [],
+      player,
+    );
+  // Sticky + activating-this-play: Tens never fire while Runs is/will be active.
+  const runSuppressesTen = alreadyRunActive || willActivateRun;
   const playedTen = containsTen(cards);
-  // Tens never trigger higher/lower once a run is declared (including when this
-  // play is the third card that completes the run).
   if (
-    isActiveRun &&
+    runSuppressesTen &&
     (state.tenRule?.active || state.tenRulePending) &&
     !isRunOnTopTurn
   ) {
@@ -603,7 +634,7 @@ export function playCards(
     state.tenRulePending = false;
   }
   const activatingTenRule =
-    playedTen && !state.tenRule?.active && !isActiveRun;
+    playedTen && !state.tenRule?.active && !runSuppressesTen;
 
   // Validate play type: must play same number of cards as pile (unless pile is empty)
   // Enforce clear precedence: if this play is a 2 and the current trick already
@@ -681,6 +712,14 @@ export function playCards(
     timestamp: Date.now(),
   });
 
+  // Sole ownership of Run activation — set once, sticky until trick ends.
+  if (willActivateRun && state.currentTrick) {
+    state.currentTrick.runActive = true;
+    state.currentTrick.runMultiplicity = cards.length;
+    state.tenRule = { active: false, direction: null };
+    state.tenRulePending = false;
+  }
+
   // Two and single Joker still immediately end/clear the pile. Four-of-a-kind
   // starts a special challenge: the next player must play another set of four
   // of a higher rank or a Joker to beat it. We therefore don't automatically
@@ -691,10 +730,9 @@ export function playCards(
   // Joker as the last clear and leave it on the pile so other players can
   // visibly see it and choose to pass before the trick is concluded.
 
-  // Check if 10 was played - will need user input for direction
   try {
     console.log(
-      `[core DEBUG] playCards context: playedTen=${playedTen}, runSeq=${(seqForTen.repCards || []).map((c) => c.value).join(",")}, isActiveRun=${isActiveRun}`,
+      `[core DEBUG] playCards context: playedTen=${playedTen}, runActive=${!!state.currentTrick?.runActive}, willActivateRun=${willActivateRun}, activatingTenRule=${activatingTenRule}`,
     );
   } catch (e) {}
   // Do not activate the 10-rule when the active pile is a run. Tens are
@@ -744,7 +782,7 @@ export function playCards(
   // Also clear when extending an active run (tens never govern runs).
   if (
     state.tenRule?.active &&
-    (state.tenRule.direction || isActiveRun) &&
+    (state.tenRule.direction || runSuppressesTen || isTrickRunActive(state.currentTrick)) &&
     !wasRunOnTop
   ) {
     state.tenRule = { active: false, direction: null };
@@ -784,7 +822,7 @@ export function playCards(
     allSameValue(cards) &&
     cards[0].value === state.pile[0].value &&
     (state.pile.length + cards.length === 4) &&
-    !isActiveRun
+    !isTrickRunActive(state.currentTrick)
   ) {
     // Combine to visible four-of-a-kind on the pile
     const combined = [...state.pile, ...cards];
@@ -915,6 +953,13 @@ export const RANK_ORDER = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 /** Consecutive plays required before run/adjacency rules replace beat-the-pile. */
 export const MIN_RUN_CONTEXT_LENGTH = 3;
 
+/**
+ * Reconstruct Run sequence from pile / history / trick actions.
+ * NOT authoritative for live gameplay. Keep only for:
+ * - activation helpers (playWouldActivateRun / consecutiveSequenceInfo)
+ * - replay / backfill / diagnostics / regression tests that assert detection
+ * Live "is Runs active?" MUST use currentTrick.runActive (isTrickRunActive).
+ */
 export function resolveRunContext(
   pile: Card[],
   pileHistory?: Card[][],
@@ -1140,20 +1185,14 @@ export function isValidRunExtension(
 function isExtendingQuadsRun(
   cards: Card[],
   pile: Card[],
-  pileHistory?: Card[][],
+  _pileHistory?: Card[][],
   currentTrick?: TrickHistory,
-  players?: Player[],
-  finishedOrder: string[] = [],
+  _players?: Player[],
+  _finishedOrder: string[] = [],
 ): boolean {
   if (!isFourOfAKind(cards)) return false;
-  const { runSeq, runMultiplicity, inRunContext } = resolveRunContext(
-    pile,
-    pileHistory,
-    currentTrick,
-    players,
-    finishedOrder,
-  );
-  if (!inRunContext || runMultiplicity !== 4) return false;
+  if (!isTrickRunActive(currentTrick)) return false;
+  if (trickRunMultiplicity(currentTrick) !== 4) return false;
   return isAdjacentToPileTop(pile, cards[0].value);
 }
 
@@ -1632,7 +1671,7 @@ export function collectRunPlaySteps(
   return fromTrick.length >= fromHist.length ? fromTrick : fromHist;
 }
 
-/** Rank count of the active run (0 when not in run context). */
+/** Rank count of the active run (0 when sticky Runs is not active). */
 export function runContextLengthFromState(
   state: Pick<
     GameState,
@@ -1644,17 +1683,16 @@ export function runContextLengthFromState(
     | "finishedOrder"
   >,
 ): number {
-  const { runSeq, inRunContext } = resolveRunContext(
-    state.pile,
-    state.pileHistory,
-    state.currentTrick,
-    state.players,
-    state.finishedOrder || [],
-  );
-  return inRunContext ? runSeq.length : 0;
+  if (!isTrickRunActive(state.currentTrick)) return 0;
+  const steps = collectRunPlaySteps(state);
+  if (steps.length > 0) return steps.length;
+  return MIN_RUN_CONTEXT_LENGTH;
 }
 
-/** Cards in the run chain at a single pile snapshot (0 when Runs! is not active). */
+/**
+ * Cards in the run chain at a pile snapshot (reconstruction OK for counting).
+ * Caller must already know sticky Runs is active for live XP.
+ */
 function runChainCardCountAt(
   state: Pick<
     GameState,
@@ -1665,20 +1703,17 @@ function runChainCardCountAt(
     | "players"
     | "finishedOrder"
   >,
+  runMultiplicity: number,
 ): number {
-  const { inRunContext, runMultiplicity } = resolveRunContext(
-    state.pile,
-    state.pileHistory,
-    state.currentTrick,
-    state.players,
-    state.finishedOrder || [],
-  );
-  if (!inRunContext) return 0;
   const steps = collectRunPlaySteps(state);
+  if (steps.length === 0) return 0;
   return steps.length * runMultiplicity;
 }
 
-/** Total cards in the run — high-water mark across the trick (step-backs never reduce XP). */
+/**
+ * Total cards in the sticky Run — high-water mark across the trick
+ * (step-backs never reduce XP). Returns 0 when Runs is not sticky-active.
+ */
 export function runCardCountFromState(
   state: Pick<
     GameState,
@@ -1690,9 +1725,11 @@ export function runCardCountFromState(
     | "finishedOrder"
   >,
 ): number {
+  if (!isTrickRunActive(state.currentTrick)) return 0;
+  const runMultiplicity = trickRunMultiplicity(state.currentTrick) || 1;
   const trick = state.currentTrick;
   if (!trick?.actions?.some((a) => a.type === "play" && a.cards?.length)) {
-    return runChainCardCountAt(state);
+    return runChainCardCountAt(state, runMultiplicity);
   }
 
   let max = 0;
@@ -1715,17 +1752,22 @@ export function runCardCountFromState(
 
     max = Math.max(
       max,
-      runChainCardCountAt({
-        pile,
-        pileHistory: [...pileHistory],
-        pileOwners: [...pileOwners],
-        currentTrick: {
-          trickNumber: trick.trickNumber,
-          actions: [...prefixActions],
+      runChainCardCountAt(
+        {
+          pile,
+          pileHistory: [...pileHistory],
+          pileOwners: [...pileOwners],
+          currentTrick: {
+            trickNumber: trick.trickNumber,
+            actions: [...prefixActions],
+            runActive: true,
+            runMultiplicity,
+          },
+          players: state.players,
+          finishedOrder: state.finishedOrder || [],
         },
-        players: state.players,
-        finishedOrder: state.finishedOrder || [],
-      }),
+        runMultiplicity,
+      ),
     );
   }
 
@@ -1750,7 +1792,7 @@ export function runTrickBonusXpAmount(
   return runCardCount * xpPerCard;
 }
 
-/** Live run bonus pool while a trick is in progress (0 until Runs! — 3+ ranks). */
+/** Live run bonus pool while sticky Runs is active (0 otherwise). */
 export function activeRunXpPoolInfo(
   state: Pick<
     GameState,
@@ -1768,6 +1810,9 @@ export function activeRunXpPoolInfo(
   poolXp: number;
   pileLeaderId: string | null;
 } {
+  if (!isTrickRunActive(state.currentTrick)) {
+    return { runLength: 0, poolXp: 0, pileLeaderId: null };
+  }
   const runCardCount = runCardCountFromState(state);
   const poolXp = runTrickBonusXpAmount(runCardCount, xpPerCard);
   const leaderIdx = resolveTrickLeaderIndex(state as GameState);
@@ -1820,8 +1865,9 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   if (!cards || cards.length === 0) return false;
   const playCount = getPlayCount(cards);
   const pileCount = getPlayCount(pile);
-  // 2. First round opening: player anticlockwise from dealer leads; if they hold
-  // 3♣ they must open with 3s including it. Later rounds: any legal lead.
+  // 2. First round opening: lead with 3s. If any living player holds 3♣ the
+  // lead must include it. Dead-hand 3♣: living opener with 3♠ must include 3♠.
+  // Later rounds: any legal lead.
   const isRoundOpening =
     pileCount === 0 &&
     (!pileHistory || pileHistory.length === 0) &&
@@ -1831,9 +1877,6 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   const currentPlayer = currentPlayerId
     ? players?.find((p) => p.id === currentPlayerId)
     : undefined;
-  const openerHoldsThreeClubs = !!currentPlayer?.hand?.some(
-    (c) => c.value === 3 && c.suit === "clubs",
-  );
   if (
     isRoundOpening &&
     isFirstRoundOfSession &&
@@ -1841,11 +1884,22 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
     livingPlayerHasRank(players, 3)
   ) {
     if (!allSameValue(cards) || cards[0].value !== 3) return false;
-    if (openerHoldsThreeClubs) {
-      const hasThreeClubs = cards.some(
-        (c) => c.value === 3 && c.suit === "clubs",
+    if (deadHandHoldsThreeClubs(players)) {
+      const openerHoldsThreeSpades = !!currentPlayer?.hand?.some(
+        (c) => c.value === 3 && c.suit === "spades",
       );
-      if (!hasThreeClubs) return false;
+      if (
+        openerHoldsThreeSpades &&
+        !cards.some((c) => c.value === 3 && c.suit === "spades")
+      ) {
+        return false;
+      }
+    } else if (livingPlayerHasRank(players, 3, "clubs")) {
+      // Table-wide: while living 3♣ exists, opening 3s must include it.
+      // Do not rely only on currentPlayerId (CPU / callers can omit it).
+      if (!cards.some((c) => c.value === 3 && c.suit === "clubs")) {
+        return false;
+      }
     }
     return true;
   }
@@ -1855,14 +1909,9 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   if (isJoker(cards[0]) && cards.length > 1) return false;
   // 4. Defensive: prevent joker-on-joker plays
   if (isSingleJoker(cards) && pileCount > 0 && pile.some(c => isJoker(c))) return false;
-  // 5. Run detection (consecutive single-card plays)
-  const { runMultiplicity, inRunContext } = resolveRunContext(
-    pile,
-    pileHistory,
-    currentTrick,
-    players,
-    finishedOrder || [],
-  );
+  // 5. Canonical sticky Runs — never re-detect from pile for live legality.
+  const inRunContext = isTrickRunActive(currentTrick);
+  const runMultiplicity = trickRunMultiplicity(currentTrick) || 1;
   const pileIsUniform = allSameValue(pile);
   const closesToQuad =
     pileIsUniform &&
@@ -1887,9 +1936,6 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   // 7. Joker rules — a single joker beats any set on the pile (not during an active run)
   if (isSingleJoker(cards) && pileCount > 0) {
     if (inRunContext) return false;
-    const pileItselfIsRun =
-      pile.length >= MIN_RUN_CONTEXT_LENGTH && isRunContextSequence(pile);
-    if (pileItselfIsRun) return false;
     if (pile.some((c) => isJoker(c))) return false;
     if (tenRule?.active && tenRule.direction === "lower") return false;
     return true;
@@ -1899,26 +1945,19 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
   // 8b. Closing to four-of-a-kind across turns (before 10-rule — same-rank
   // completion must be allowed even when tens triggered higher/lower mode).
   if (closesToQuad && !inRunContext) return true;
-  // 9. 10 Rule: only outside run contexts (including on top!)
-  const tenRuleOnTopBeat =
-    !!runOnTop &&
-    !!tenRule?.active &&
-    !!tenRule.direction &&
-    pileIsUniform &&
-    pile.length > 0 &&
-    pile[0].value === 10;
+  // 9. 10 Rule: completely suppressed while Runs is active (never simultaneous).
+  // On Top over a 10 pile still uses higher/lower only when Runs is inactive.
   const pileIsTenSet =
     pileIsUniform && pile.length > 0 && pile[0].value === 10;
   if (
+    !inRunContext &&
     tenRule?.active &&
     tenRule.direction &&
-    pileIsTenSet &&
-    (!inRunContext || tenRuleOnTopBeat)
+    pileIsTenSet
   ) {
     if (!allSameValue(cards)) return false;
     const pileRank = rankIndex(pile[0].value);
     const playRank = rankIndex(cards[0].value);
-    // 10-rule comparison is invariant — On Top only grants initiative, not a new predicate.
     if (playCount !== pileCount) return false;
     if (tenRule.direction === "higher") {
       return playRank > pileRank;
@@ -1927,14 +1966,13 @@ export function isValidPlay(cards: Card[], pile: Card[], tenRule?: { active: boo
       return playRank < pileRank;
     }
   }
-  // 10. Run logic: extend with an adjacent rank from the pile top.
-  // Tens do not activate or override runs — only adjacency applies here.
+  // 10. Run logic: sticky active → same multiplicity + adjacent ±1 only.
   if (inRunContext && !isJoker(cards[0])) {
     if (playCount !== runMultiplicity) return false;
     if (!allSameValue(pile)) return false;
     return isAdjacentToPileTop(pile, cards[0].value);
   }
-  // 10b. Skip-over run extension before a 3-card context exists (e.g. J-Q-J then K).
+  // 10b. Skip-over run extension before sticky activation (e.g. J-Q-J then K).
   if (
     !inRunContext &&
     playCount === pileCount &&
@@ -2252,14 +2290,9 @@ export function findCPUPlay(
     return enumerateValidCpuPlay(hand, ctx);
   }
 
-  // Effective run context: extend with an adjacent card/group matching multiplicity
-  const { runMultiplicity, inRunContext } = resolveRunContext(
-    pile,
-    pileHistory,
-    currentTrick,
-    players,
-    finishedOrder || [],
-  );
+  // Sticky Runs: extend with adjacent card/group matching locked multiplicity.
+  const inRunContext = isTrickRunActive(currentTrick);
+  const runMultiplicity = trickRunMultiplicity(currentTrick) || 1;
   if (inRunContext) {
     if (runMultiplicity === 1) {
       const adjCandidates = hand.filter((c) => {

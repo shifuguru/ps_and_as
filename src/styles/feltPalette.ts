@@ -303,9 +303,9 @@ function buildShellColors(
         tint: isDark ? "dark" : "light",
       },
       modal: {
-        intensity: isDark ? 62 : 50,
-        scrimOpacity: isDark ? 0.22 : 0.17,
-        webOpacity: isDark ? 0.06 : 0.38,
+        intensity: isDark ? 72 : 58,
+        scrimOpacity: isDark ? 0.34 : 0.28,
+        webOpacity: isDark ? 0.2 : 0.54,
         tint: isDark ? "dark" : "light",
       },
     },

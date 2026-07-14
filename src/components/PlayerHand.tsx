@@ -135,6 +135,7 @@ type Props = {
   playableIndices: boolean[];
   /** Index of the 3♣ when it must be played to open — pulses like Pass flash */
   startingCardIndex?: number;
+  /** When true, cards cannot be selected for play — browsing/scrolling still works. */
   disabled?: boolean;
   onCardPress: (index: number) => void;
 };
@@ -919,11 +920,12 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   };
 
   const handleCardPress = (index: number) => {
-    if (disabled) return;
+    // Always allow browse/focus scroll — even when selection is locked (not your turn).
     if (index !== focusedIndex) {
       setPendingFocusIndex(index);
       scrollToIndex(index);
     }
+    if (disabled) return;
     onCardPress(index);
   };
 
@@ -1147,6 +1149,9 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
           const isPlayable = playableIndices[index] ?? true;
           const isFocused = index === displayFocusIndex;
           const isPressed = pressedIndex === index;
+          /** Dim unplayable cards only while selecting is allowed; off-turn keep cards readable. */
+          const cardInteractionLocked =
+            !inOutgoingPlay && (disabled ? false : !isPlayable);
           if (concealed) {
             return null;
           }
@@ -1188,16 +1193,17 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                 highlight={
                   inOutgoingPlay || isSelected
                     ? 1
-                    : isPlayable
+                    : !disabled && isPlayable
                       ? isFocused
                         ? 0.65
                         : 0.2
-                      : 0
+                      : isFocused
+                        ? 0.35
+                        : 0
                 }
                 flash={index === startingCardIndex}
-                disabled={(disabled || !isPlayable) && !inOutgoingPlay}
+                disabled={cardInteractionLocked}
                 onPress={() => {
-                  if (disabled) return;
                   handleCardPress(index);
                 }}
                 style={{ width: cardWidth, height: cardHeight }}

@@ -252,35 +252,37 @@ function RankingRow({
         },
       ]}
     >
-      <View style={[styles.roleBanner, banner.container]} pointerEvents="none">
-        <Text style={[styles.roleBannerText, banner.text]}>
+      <View style={styles.rankMain}>
+        <Text style={[styles.rankIndex, isPresident && styles.rankIndexPresident]}>
+          {index + 1}
+        </Text>
+        <View style={styles.rankBody}>
+          <View style={styles.rankTopRow}>
+            <Text style={styles.rankName} numberOfLines={1}>
+              {player.name}
+            </Text>
+            {ready ? (
+              <Text style={styles.readyCheck} accessibilityLabel="Ready">
+                Ready
+              </Text>
+            ) : null}
+            <RankXpDisplay
+              visible={visible}
+              animationReady={rankXpAnimationReady(player, xpAnimationReady)}
+              boardDisplayed={boardDisplayed}
+              rowDelay={index * ROW_STAGGER_MS}
+              finalTotal={finalTotal}
+              roundEarned={roundEarned}
+              feltGreen={feltGreen}
+              styles={styles}
+            />
+          </View>
+        </View>
+      </View>
+      <View style={[styles.roleFooter, banner.container]} pointerEvents="none">
+        <Text style={[styles.roleFooterText, banner.text]}>
           {roleBannerLabel(role)}
         </Text>
-      </View>
-      <Text style={[styles.rankIndex, isPresident && styles.rankIndexPresident]}>
-        {index + 1}
-      </Text>
-      <View style={styles.rankBody}>
-        <View style={styles.rankTopRow}>
-          <Text style={styles.rankName} numberOfLines={1}>
-            {player.name}
-          </Text>
-          {ready ? (
-            <Text style={styles.readyCheck} accessibilityLabel="Ready">
-              ✓
-            </Text>
-          ) : null}
-          <RankXpDisplay
-            visible={visible}
-            animationReady={rankXpAnimationReady(player, xpAnimationReady)}
-            boardDisplayed={boardDisplayed}
-            rowDelay={index * ROW_STAGGER_MS}
-            finalTotal={finalTotal}
-            roundEarned={roundEarned}
-            feltGreen={feltGreen}
-            styles={styles}
-          />
-        </View>
       </View>
     </Animated.View>
   );
@@ -295,35 +297,39 @@ function roleBannerStyle(
     case "President":
       return {
         container: {
-          backgroundColor: hexToRgba(colors.gold, 0.92),
-          borderColor: colors.btnGoldBorder,
+          backgroundColor: hexToRgba(colors.gold, 0.75),
+          borderTopColor: hexToRgba(colors.gold, isDark ? 0.2 : 0.3),
         },
         text: { color: colors.textOnGold },
       };
     case "Vice President":
       return {
         container: {
-          backgroundColor: hexToRgba(colors.gold, isDark ? 0.35 : 0.28),
-          borderColor: hexToRgba(colors.gold, 0.4),
+          backgroundColor: hexToRgba(colors.gold, 0.7),
+          borderTopColor: hexToRgba(colors.gold, isDark ? 0.15 : 0.2),
         },
         text: { color: colors.textOnGold },
       };
     case "Vice Asshole":
-    case "Asshole":
+    case "Asshole": {
+      const clay = isDark ? "#a85a32" : "#9a4e28";
       return {
         container: {
-          backgroundColor: hexToRgba(isDark ? "#c45c26" : "#d84315", isDark ? 0.42 : 0.18),
-          borderColor: hexToRgba(isDark ? "#e07a3a" : "#bf360c", 0.45),
+          backgroundColor: hexToRgba(clay, 0.72),
+          borderTopColor: hexToRgba(clay, 0.4),
         },
-        text: { color: isDark ? "#ffe8d6" : "#8b2500" },
+        text: { color: "#fff6ee" },
       };
+    }
     default:
       return {
         container: {
-          backgroundColor: hexToRgba(colors.textPrimary, isDark ? 0.12 : 0.08),
-          borderColor: colors.panelBorder,
+          backgroundColor: isDark
+            ? "rgba(22, 42, 32, 0.72)"
+            : "rgba(28, 48, 38, 0.7)",
+          borderTopColor: colors.panelBorder,
         },
-        text: { color: colors.textMuted },
+        text: { color: isDark ? colors.textMuted : "rgba(255,255,255,0.92)" },
       };
   }
 }
@@ -348,22 +354,20 @@ export default function RoundCompleteModal({
   const styles = useMemo(() => createStyles(colors), [colors]);
   const feltGreen = palette.complementBright;
   const { width } = useWindowDimensions();
-  const cardWidth = Math.min(width - 48, 420);
+  const cardWidth = Math.min(width - 48, 400);
   const canClaimSeat = spectatorMode && deadHandSeatOpen;
   const displayReadyStates = useMemo(() => {
-    if (!botsAutoReady) return readyStates;
+    // CPUs never manually ready — count and show them ready whenever seated.
     const next = { ...readyStates };
     for (const p of players) {
       if (isCpuPlayer(p)) next[p.id] = true;
     }
     return next;
-  }, [readyStates, botsAutoReady, players]);
+  }, [readyStates, players]);
   const isReady = localPlayerId ? !!displayReadyStates[localPlayerId] : false;
   const seatedForReady = useMemo(
     () =>
-      players.filter(
-        (p) => !p.isDeadHand && p.id !== "__dead_hand__" && !isCpuPlayer(p),
-      ),
+      players.filter((p) => !p.isDeadHand && p.id !== "__dead_hand__"),
     [players],
   );
   const readyDenominator =
@@ -464,15 +468,19 @@ export default function RoundCompleteModal({
           <BlurPanel
             style={[ui.modalCard, { width: cardWidth, maxWidth: cardWidth }]}
             preset={blur.modal}
-            onLayout={() => setBoardDisplayed(true)}
+            onLayout={() => {
+              setBoardDisplayed(true);
+            }}
           >
             <Text style={ui.modalTitle}>Round Complete</Text>
-            <Text style={[ui.modalBody, styles.subtitle]}>Final Rankings</Text>
+            <Text style={ui.modalBody}>Final Rankings</Text>
 
             <View style={styles.rankings}>
               {rankedOrder.map((playerId, index) => {
                 const player = players.find((p) => p.id === playerId);
-                if (!player) return null;
+                if (!player) {
+                  return null;
+                }
 
                 const role = roleForPlacement(index, livingCount || rankedOrder.length);
                 const ready = !!displayReadyStates[playerId];
@@ -504,18 +512,18 @@ export default function RoundCompleteModal({
             </View>
 
             <Text style={styles.readyCount}>
-              {readyCount} / {readyDenominator}{" "}
+              {readyCount}/{readyDenominator}{" "}
               {botsAutoReady && canClaimSeat
-                ? "Ready to claim seat"
+                ? "ready to claim seat"
                 : canClaimSeat
-                  ? "Ready (incl. dead hand seat)"
-                  : "Players Ready"}
+                  ? "ready (including dead hand seat)"
+                  : "ready"}
             </Text>
 
             {botsAutoReady && botDealSecondsLeft != null ? (
               <Text style={styles.botDealTimer}>
                 {botDealSecondsLeft > 0
-                  ? `Next deal in ${botDealSecondsLeft}s — skips when all players are ready`
+                  ? `Next deal in ${botDealSecondsLeft}s`
                   : "Starting next deal…"}
               </Text>
             ) : null}
@@ -523,7 +531,7 @@ export default function RoundCompleteModal({
             {canClaimSeat ? (
               <Text style={styles.spectatorHint}>
                 {botsAutoReady
-                  ? "Bots are ready for the next deal. Tap below to take the dead hand\u2019s seat."
+                  ? "Bots are ready. Tap below to take the dead hand\u2019s seat."
                   : "Tap below to take the dead hand\u2019s seat next round."}
               </Text>
             ) : null}
@@ -568,7 +576,6 @@ export default function RoundCompleteModal({
 function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   const isDark = colors.mode === "dark";
   const readyGreen = isDark ? "#3d9b62" : "#2e7d4f";
-  const readyFill = hexToRgba(readyGreen, isDark ? 0.14 : 0.1);
 
   return StyleSheet.create({
     modalRoot: {
@@ -583,69 +590,57 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       padding: 24,
       zIndex: ROUND_COMPLETE_Z + 1,
     },
-    subtitle: {
-      fontSize: 22,
-      marginBottom: 18,
-    },
     rankings: {
       width: "100%",
-      marginBottom: 14,
+      marginBottom: 12,
       gap: 8,
     },
     rankRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingTop: 18,
-      paddingBottom: 10,
-      paddingHorizontal: 12,
-      borderRadius: 16,
+      borderRadius: 14,
       backgroundColor: colors.btnSecondaryBg,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.panelBorder,
-      overflow: "visible",
+      overflow: "hidden",
     },
     rankRowLocal: {
-      borderColor: hexToRgba(colors.gold, 0.45),
+      borderColor: hexToRgba(colors.gold, 0.5),
     },
     rankRowPresident: {
-      backgroundColor: colors.btnGoldBg,
-      borderColor: colors.gold,
-      shadowColor: colors.gold,
-      shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: isDark ? 0.22 : 0.14,
-      shadowRadius: 8,
-      elevation: 4,
+      backgroundColor: hexToRgba(colors.gold, isDark ? 0.18 : 0.12),
+      borderColor: hexToRgba(colors.gold, isDark ? 0.55 : 0.65),
     },
     rankRowReady: {
-      backgroundColor: readyFill,
-      borderColor: hexToRgba(readyGreen, 0.42),
+      borderColor: hexToRgba(readyGreen, isDark ? 0.45 : 0.4),
     },
-    roleBanner: {
-      position: "absolute",
-      top: -9,
-      left: 12,
-      right: 12,
+    rankMain: {
+      flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 10,
-      paddingVertical: 3,
-      borderRadius: 999,
-      borderWidth: StyleSheet.hairlineWidth,
+      paddingHorizontal: 12,
+      paddingTop: 11,
+      paddingBottom: 10,
     },
-    roleBannerText: {
-      fontSize: 9,
-      fontWeight: "900",
-      letterSpacing: 1.2,
+    roleFooter: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    roleFooterText: {
+      fontSize: 10,
+      fontWeight: "800",
+      letterSpacing: 1.1,
     },
     rankIndex: {
       color: colors.gold,
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: "800",
-      width: 24,
+      width: 22,
       textAlign: "center",
     },
     rankIndexPresident: {
       color: colors.gold,
-      fontSize: 17,
+      fontSize: 16,
     },
     rankBody: {
       flex: 1,
@@ -667,8 +662,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     readyCheck: {
       color: readyGreen,
-      fontSize: 14,
+      fontSize: 11,
       fontWeight: "800",
+      letterSpacing: 0.3,
       marginRight: 2,
     },
     xpBlock: {
@@ -693,28 +689,28 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     readyCount: {
       color: colors.textMuted,
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: "600",
-      letterSpacing: 0.2,
+      letterSpacing: 0.15,
       textAlign: "center",
-      marginBottom: 6,
+      marginBottom: 8,
     },
     botDealTimer: {
       color: colors.gold,
       fontSize: 13,
       fontWeight: "700",
-      letterSpacing: 0.25,
+      letterSpacing: 0.2,
       textAlign: "center",
-      marginBottom: 14,
+      marginBottom: 12,
       fontVariant: ["tabular-nums"],
     },
     spectatorHint: {
       color: colors.textMuted,
-      fontSize: 11,
-      lineHeight: 16,
+      fontSize: 12,
+      lineHeight: 17,
       textAlign: "center",
       marginBottom: 12,
-      paddingHorizontal: 8,
+      paddingHorizontal: 4,
     },
   });
 }

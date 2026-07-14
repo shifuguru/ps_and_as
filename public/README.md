@@ -2,21 +2,6 @@
 
 **[Play the Game](https://shifuguru.github.io/ps_and_as/)** · **[Refresh](https://shifuguru.github.io/ps_and_as/?refresh=1)**
 
-Welcome.
-
-If you've landed on this page unexpectedly, one of the following has probably occurred:
-
-- the game is updating,
-- the server is restarting,
-- your connection has gone wandering,
-- or the application has briefly achieved sentience.
-
-Most issues can be fixed by refreshing the page or restarting the app.
-
-If not, remain calm.
-
-The cards are being aggressively reorganised behind the scenes.
-
 ---
 
 # Contents
@@ -282,11 +267,11 @@ After the first round, player rankings matter.
 
 ### President
 
-The President gives away their worst cards and receives the Asshole's best cards.
+The President receives the Asshole's best card(s), then **chooses** which card(s) from their hand to send back (any cards they hold — not forced to return the 3♣).
 
 ### Asshole
 
-The Asshole gives away their best cards and receives the President's worst cards.
+The Asshole must give their best card(s). They receive whatever the President selected as the return.
 
 ### Five Or More Players
 

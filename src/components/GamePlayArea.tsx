@@ -297,22 +297,67 @@ export default function GamePlayArea({
     [deadHandId],
   );
 
+  const playKeysSig = useMemo(
+    () => plays.map(playDisplayKey).join("|"),
+    [plays],
+  );
+
   useLayoutEffect(() => {
     if (plays.length !== 0) return;
     flightsInitializedRef.current = false;
     prevPlayKeysRef.current = new Set();
     flightsInProgressRef.current = new Set();
-    setLandedKeys(new Set());
-    setActiveFlights([]);
+    // Bail out when already clear — avoid max-update-depth on identity churn.
+    setLandedKeys((prev) => (prev.size === 0 ? prev : new Set()));
+    setActiveFlights((prev) => (prev.length === 0 ? prev : []));
   }, [plays.length]);
 
+  /**
+   * Between-rounds / trick-pause: skip flight anim and treat all plays as landed,
+   * except local hand-capture keys (On Top close — finalize + pause in one update).
+   */
   useLayoutEffect(() => {
     if (!skipPlayFlights) return;
     const currentKeys = new Set(plays.map(playDisplayKey));
-    prevPlayKeysRef.current = currentKeys;
-    setLandedKeys(currentKeys);
-    setActiveFlights([]);
-  }, [skipPlayFlights, plays]);
+    const handCaptureKeys = new Set<string>();
+    for (const play of plays) {
+      const key = playDisplayKey(play);
+      if (resolveLocalHandCapture(key)) handCaptureKeys.add(key);
+    }
+    if (handCaptureKeys.size === 0) {
+      prevPlayKeysRef.current = currentKeys;
+      setLandedKeys((prev) => {
+        if (
+          prev.size === currentKeys.size &&
+          [...currentKeys].every((k) => prev.has(k))
+        ) {
+          return prev;
+        }
+        return currentKeys;
+      });
+      setActiveFlights((prev) => (prev.length === 0 ? prev : []));
+      return;
+    }
+    // Land non-capture keys; leave capture keys free to animate.
+    setLandedKeys((prev) => {
+      const next = new Set(currentKeys);
+      for (const k of handCaptureKeys) next.delete(k);
+      if (
+        prev.size === next.size &&
+        [...next].every((k) => prev.has(k))
+      ) {
+        return prev;
+      }
+      return next;
+    });
+    for (const k of currentKeys) {
+      if (!handCaptureKeys.has(k)) prevPlayKeysRef.current.add(k);
+    }
+    setActiveFlights((prev) =>
+      prev.filter((f) => handCaptureKeys.has(f.id)),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- playKeysSig fingerprints plays
+  }, [skipPlayFlights, playKeysSig, localHandFlight, resolveLocalHandCapture]);
 
   useEffect(() => {
     const currentKeys = new Set(plays.map(playDisplayKey));
@@ -338,10 +383,22 @@ export default function GamePlayArea({
     }
 
     if (skipPlayFlights) {
-      prevPlayKeysRef.current = currentKeys;
-      setLandedKeys(currentKeys);
-      setActiveFlights([]);
-      return;
+      const capturePlays = plays.filter(
+        (p) => resolveLocalHandCapture(playDisplayKey(p)) != null,
+      );
+      for (const p of plays) {
+        const key = playDisplayKey(p);
+        if (resolveLocalHandCapture(key) == null) {
+          prevPlayKeysRef.current.add(key);
+        }
+      }
+      if (capturePlays.length === 0) {
+        prevPlayKeysRef.current = currentKeys;
+        setLandedKeys(currentKeys);
+        setActiveFlights((prev) => (prev.length === 0 ? prev : []));
+        return;
+      }
+      // Fall through: flight builder runs for capture keys still missing from prev.
     }
 
     if (currentKeys.size < prevPlayKeysRef.current.size) {
@@ -357,6 +414,10 @@ export default function GamePlayArea({
 
     const newPlays = plays.filter((p) => {
       const key = playDisplayKey(p);
+      // Trick-pause: only On Top (local hand capture) may still fly.
+      if (skipPlayFlights && resolveLocalHandCapture(key) == null) {
+        return false;
+      }
       return (
         !prevPlayKeysRef.current.has(key) && !flightsInProgressRef.current.has(key)
       );
@@ -507,13 +568,15 @@ export default function GamePlayArea({
 
   /** Hand capture can arrive after plays sync landed early — fly from the hand. */
   useEffect(() => {
-    if (skipPlayFlights || !layout || size.height <= 0) return;
+    if (!layout || size.height <= 0) return;
     const cap = localHandFlight ?? localHandFlightRef?.current ?? null;
     if (!cap) return;
+    // Allow during trick-pause skip when this is the closing On Top hand capture.
+    if (skipPlayFlights && resolveLocalHandCapture(cap.playKey) == null) return;
     const key = cap.playKey;
     if (!plays.some((p) => playDisplayKey(p) === key)) return;
     if (activeFlights.some((f) => f.id === key)) return;
-    if (!landedKeys.has(key)) return;
+    if (!landedKeys.has(key) && !skipPlayFlights) return;
 
     let cancelled = false;
     const play = plays.find((p) => playDisplayKey(p) === key);
@@ -593,6 +656,7 @@ export default function GamePlayArea({
     layout,
     size.height,
     skipPlayFlights,
+    resolveLocalHandCapture,
     stackLayoutState,
     activeFlights,
     landedKeys,

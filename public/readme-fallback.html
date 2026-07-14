@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <script>window.__PS_AND_AS_BASE__=window.__PS_AND_AS_BASE__||"";</script>
+    <script>window.__PS_AND_AS_BASE__="/ps_and_as";</script>
     <title>Read Me · P's &amp; A's</title>
     <link
       rel="stylesheet"
@@ -217,9 +217,101 @@
       .markdown-body blockquote p {
         color: inherit !important;
       }
+
+      .crash-report {
+        margin: 0;
+        padding: 12px 16px;
+        border-bottom: 1px solid #d0d7de;
+        background: #fff8e6;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .crash-report {
+          border-bottom-color: #30363d;
+          background: #2d2410;
+        }
+      }
+
+      .crash-report summary {
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 700;
+        color: #9a6700;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .crash-report summary {
+          color: #f0c14b;
+        }
+      }
+
+      .crash-report-body {
+        margin: 10px 0 0;
+        padding: 10px 12px;
+        overflow: auto;
+        max-height: 40vh;
+        font-size: 11px;
+        line-height: 1.45;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        white-space: pre-wrap;
+        word-break: break-word;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.06);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .crash-report-body {
+          background: rgba(0, 0, 0, 0.35);
+          color: #e6edf3;
+        }
+      }
     </style>
   </head>
   <body>
+    <script>
+      (function () {
+        var KEY = "ps_and_as:last_render_crash";
+        var raw;
+        try {
+          raw = sessionStorage.getItem(KEY);
+        } catch (_) {
+          return;
+        }
+        if (!raw) return;
+
+        var report;
+        try {
+          report = JSON.parse(raw);
+        } catch (_) {
+          return;
+        }
+
+        function esc(s) {
+          return String(s == null ? "" : s)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+          var panel = document.createElement("aside");
+          panel.id = "crash-report";
+          panel.className = "crash-report";
+          panel.innerHTML =
+            '<details open><summary>Render crash captured — copy for investigation</summary>' +
+            '<pre class="crash-report-body">' +
+            esc(report.formatted || raw) +
+            "</pre></details>";
+          var header = document.querySelector(".readme-toolbar");
+          if (header && header.parentNode) {
+            header.parentNode.insertBefore(panel, header.nextSibling);
+          } else {
+            document.body.insertBefore(panel, document.body.firstChild);
+          }
+          console.error("[ROUND-END-CRASH] (from sessionStorage)", report);
+        });
+      })();
+    </script>
     <header class="readme-toolbar">
       <h1 class="readme-toolbar-title">Read Me</h1>
     </header>

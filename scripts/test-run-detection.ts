@@ -71,6 +71,14 @@ function makeAction(
   };
 }
 
+/** Stamp canonical sticky Runs for live legality / XP consumer assertions. */
+function withStickyRun<T extends { trickNumber: number; actions: ReturnType<typeof makeAction>[] }>(
+  trick: T,
+  multiplicity = 1,
+): T & { runActive: true; runMultiplicity: number } {
+  return { ...trick, runActive: true as const, runMultiplicity: multiplicity };
+}
+
 type Case = {
   name: string;
   actions: ReturnType<typeof makeAction>[];
@@ -463,7 +471,7 @@ console.log("\n=== Integration: 3-pass-4-pass-5 run ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 1),
     players,
     [],
   );
@@ -551,7 +559,7 @@ console.log("\n=== Doubles run: extend 33-44-55 with 66 ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 2),
     players,
     [],
   );
@@ -562,7 +570,7 @@ console.log("\n=== Doubles run: extend 33-44-55 with 66 ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 2),
     players,
     [],
   );
@@ -602,7 +610,7 @@ console.log("\n=== Run adjacency: either direction from pile top ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 1),
     players,
     [],
   );
@@ -613,7 +621,7 @@ console.log("\n=== Run adjacency: either direction from pile top ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 1),
     players,
     [],
   );
@@ -624,7 +632,7 @@ console.log("\n=== Run adjacency: either direction from pile top ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 1),
     players,
     [],
   );
@@ -662,7 +670,7 @@ console.log("\n=== Run adjacency: either direction from pile top ===\n");
     historyAfterSeven,
     undefined,
     undefined,
-    trickAfterSeven,
+    withStickyRun(trickAfterSeven, 1),
     players,
     [],
   );
@@ -705,7 +713,7 @@ console.log("\n=== Run direction: bidirectional from pile top ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 2),
     players,
     [],
   );
@@ -716,7 +724,7 @@ console.log("\n=== Run direction: bidirectional from pile top ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 2),
     players,
     [],
   );
@@ -775,7 +783,7 @@ console.log("\n=== Step-back run: 4-5-6-5 accepts 6 on pile top 5 ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 1),
     players,
     [],
   );
@@ -786,7 +794,7 @@ console.log("\n=== Step-back run: 4-5-6-5 accepts 6 on pile top 5 ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 1),
     players,
     [],
   );
@@ -797,7 +805,7 @@ console.log("\n=== Step-back run: 4-5-6-5 accepts 6 on pile top 5 ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 1),
     players,
     [],
   );
@@ -831,7 +839,7 @@ console.log("\n=== Long singles run: 3-4-5-6-7-8 extensions ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 1),
     players,
     [],
   );
@@ -842,7 +850,7 @@ console.log("\n=== Long singles run: 3-4-5-6-7-8 extensions ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 1),
     players,
     [],
   );
@@ -853,7 +861,7 @@ console.log("\n=== Long singles run: 3-4-5-6-7-8 extensions ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 1),
     players,
     [],
   );
@@ -894,7 +902,7 @@ console.log("\n=== Long doubles run: 33-44-55-66-77 extensions ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 2),
     players,
     [],
   );
@@ -905,7 +913,7 @@ console.log("\n=== Long doubles run: 33-44-55-66-77 extensions ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 2),
     players,
     [],
   );
@@ -916,7 +924,7 @@ console.log("\n=== Long doubles run: 33-44-55-66-77 extensions ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 2),
     players,
     [],
   );
@@ -927,7 +935,7 @@ console.log("\n=== Long doubles run: 33-44-55-66-77 extensions ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 2),
     players,
     [],
   );
@@ -971,7 +979,7 @@ console.log("\n=== Doubles step-back: 33-44-55-44 extends with 55 ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 2),
     players,
     [],
   );
@@ -982,7 +990,7 @@ console.log("\n=== Doubles step-back: 33-44-55-44 extends with 55 ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 2),
     players,
     [],
   );
@@ -993,7 +1001,7 @@ console.log("\n=== Doubles step-back: 33-44-55-44 extends with 55 ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 2),
     players,
     [],
   );
@@ -1028,7 +1036,7 @@ console.log("\n=== Triples run: 333-444-555 extends with 666 ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 3),
     players,
     [],
   );
@@ -1039,7 +1047,7 @@ console.log("\n=== Triples run: 333-444-555 extends with 666 ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 3),
     players,
     [],
   );
@@ -1064,19 +1072,26 @@ function minimalRunTrick(opts: {
   owners: string[];
   actions: ReturnType<typeof makeAction>[];
   runLength?: number;
+  multiplicity?: number;
 }): TrickHistory {
+  const mult = opts.multiplicity ?? 1;
   return {
     trickNumber: 1,
     actions: opts.actions,
     winnerId: players[2].id,
     winnerName: players[2].name,
+    runActive: true,
+    runMultiplicity: mult,
     runLength:
       opts.runLength ??
       runCardCountFromState({
         pile: opts.pile,
         pileHistory: opts.history,
         pileOwners: opts.owners,
-        currentTrick: { trickNumber: 1, actions: opts.actions },
+        currentTrick: withStickyRun(
+          { trickNumber: 1, actions: opts.actions },
+          mult,
+        ),
         players,
         finishedOrder: [],
       }),
@@ -1196,7 +1211,7 @@ function minimalRunTrick(opts: {
     pile: [card(6)],
     pileHistory: [[card(3)], [card(4)], [card(5)]],
     pileOwners: [players[0].id, players[1].id, players[2].id],
-    currentTrick: { trickNumber: 1, actions },
+    currentTrick: withStickyRun({ trickNumber: 1, actions }, 1),
     players: players.map((p) => ({ ...p, hand: [card(9)] })),
     finishedOrder: [] as string[],
     lastPlayPlayerIndex: 3,
@@ -1225,7 +1240,7 @@ function minimalRunTrick(opts: {
     pile: [card(7)],
     pileHistory: [[card(3)], [card(4)], [card(5)], [card(6)]],
     pileOwners: [players[0].id, players[1].id, players[2].id, players[3].id],
-    currentTrick: { trickNumber: 1, actions },
+    currentTrick: withStickyRun({ trickNumber: 1, actions }, 1),
     players: players.map((p) => ({ ...p, hand: [card(9)] })),
     finishedOrder: [] as string[],
     lastPlayPlayerIndex: 0,
@@ -1259,7 +1274,7 @@ function minimalRunTrick(opts: {
       players[3].id,
       players[0].id,
     ],
-    currentTrick: { trickNumber: 1, actions },
+    currentTrick: withStickyRun({ trickNumber: 1, actions }, 1),
     players: players.map((p) => ({ ...p, hand: [card(9)] })),
     finishedOrder: [] as string[],
     lastPlayPlayerIndex: 1,
@@ -1345,7 +1360,7 @@ console.log("\n=== Skip-over step-back: J-Q-J-K keeps Runs! context ===\n");
       pile: pileAfterK,
       pileHistory: historyAfterK,
       pileOwners: [players[0].id, players[1].id, players[2].id],
-      currentTrick: trickAfterK,
+      currentTrick: withStickyRun(trickAfterK, 1),
       players,
       finishedOrder: [],
       lastPlayPlayerIndex: 3,
@@ -1378,7 +1393,7 @@ console.log("\n=== Skip-over step-back: J-Q-J-K keeps Runs! context ===\n");
       [card(5), card(5)],
     ],
     pileOwners: [players[0].id, players[1].id, players[2].id],
-    currentTrick: { trickNumber: 1, actions },
+    currentTrick: withStickyRun({ trickNumber: 1, actions }, 2),
     players: players.map((p) => ({ ...p, hand: [card(9)] })),
     finishedOrder: [] as string[],
     lastPlayPlayerIndex: 3,
@@ -1406,6 +1421,7 @@ console.log("\n=== Skip-over step-back: J-Q-J-K keeps Runs! context ===\n");
     history: [[card(3), card(3)], [card(4), card(4)]],
     owners: [players[0].id, players[1].id],
     actions,
+    multiplicity: 2,
   });
   if (
     runLengthFromCompletedTrick(trick, players) === 6 &&
@@ -1437,10 +1453,13 @@ console.log("\n=== Run XP high-water: step-back does not reduce pool ===\n");
     pile: [card(10)],
     pileHistory: [[card(8)], [card(9)]],
     pileOwners: [players[0].id, players[1].id],
-    currentTrick: {
-      trickNumber: 1,
-      actions: trick.actions.slice(0, 3),
-    },
+    currentTrick: withStickyRun(
+      {
+        trickNumber: 1,
+        actions: trick.actions.slice(0, 3),
+      },
+      1,
+    ),
     players: players.map((p) => ({ ...p, hand: [card(3)] })),
     finishedOrder: [] as string[],
     lastPlayPlayerIndex: 2,
@@ -1454,7 +1473,7 @@ console.log("\n=== Run XP high-water: step-back does not reduce pool ===\n");
       players[2].id,
       players[3].id,
     ],
-    currentTrick: trick,
+    currentTrick: withStickyRun(trick, 1),
     players: players.map((p) => ({ ...p, hand: [card(3)] })),
     finishedOrder: [] as string[],
     lastPlayPlayerIndex: 0,
@@ -1496,7 +1515,7 @@ console.log("\n=== Run XP high-water: step-back does not reduce pool ===\n");
       players[2].id,
       players[3].id,
     ],
-    currentTrick: trick,
+    currentTrick: withStickyRun(trick, 1),
     players: players.map((p) => ({ ...p, hand: [card(3)] })),
     finishedOrder: [] as string[],
     lastPlayPlayerIndex: 0,
@@ -1535,7 +1554,7 @@ console.log("\n=== Oscillating step-back: 4-5-6-5-6 keeps Runs! context ===\n");
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 1),
     players,
     [],
   );
@@ -1578,7 +1597,7 @@ console.log("\n=== Oscillating step-back: 10-J-Q-J-Q keeps Runs! context ===\n")
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 1),
     players,
     [],
   );
@@ -1589,7 +1608,7 @@ console.log("\n=== Oscillating step-back: 10-J-Q-J-Q keeps Runs! context ===\n")
     history,
     undefined,
     undefined,
-    trick,
+    withStickyRun(trick, 1),
     players,
     [],
   );
@@ -1665,7 +1684,7 @@ console.log("\n=== Oscillating step-back: 8-9-10-9-8 extension legality (RC P0) 
       history,
       undefined,
       undefined,
-      trick,
+      withStickyRun(trick, 1),
       players,
       [],
     );

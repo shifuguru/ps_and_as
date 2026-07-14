@@ -234,6 +234,7 @@ SKIP_SLOW=0 node scripts/test-multiplayer-matrix.mjs
 | `SERVER_URL` | Default `http://localhost:4000` |
 | `RELEASE_GATE_SPAWN_SERVER=1` | Orchestrator spawns `npm run server` if port closed |
 | `SKIP_LIVE=1` | Skip live BOTOPN stall test (headless still runs) |
+| `SKIP_BOTOPN=1` or `RC_SCOPE=1` | Skip `botopn-lifecycle` (D-010 RC waiver) |
 | `SKIP_OFFLINE=1` | Socket tests only |
 | `ONLY` / `ROUNDS` | Passed through to matrix when run manually |
 

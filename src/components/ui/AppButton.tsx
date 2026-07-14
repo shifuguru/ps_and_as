@@ -62,8 +62,9 @@ export default function AppButton({
 
 function createVariantStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   const isDark = colors.mode === "dark";
-  const destructiveBg = isDark ? "#8b1a1a" : "#c62828";
-  const destructiveText = "#ffffff";
+  const destructiveFill = hexToRgba(isDark ? "#e57373" : "#c62828", isDark ? 0.22 : 0.14);
+  const destructiveBorder = hexToRgba(isDark ? "#ef9a9a" : "#b71c1c", isDark ? 0.4 : 0.28);
+  const destructiveLabel = isDark ? "#ffcdd2" : "#8b1a1a";
 
   return StyleSheet.create({
     primary: {
@@ -71,16 +72,12 @@ function createVariantStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       paddingHorizontal: 14,
       minHeight: 48,
       ...BUTTON_CENTER,
-      backgroundColor: colors.gold,
-      borderWidth: 0,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDark ? 0.28 : 0.12,
-      shadowRadius: 6,
-      elevation: 3,
+      backgroundColor: colors.actionPrimaryBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.actionPrimaryBorder,
     },
     primaryText: buttonLabel(15, {
-      color: colors.textOnGold,
+      color: colors.actionPrimaryText,
       fontWeight: "800",
     }),
     secondary: {
@@ -101,11 +98,12 @@ function createVariantStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       paddingHorizontal: 14,
       minHeight: 48,
       ...BUTTON_CENTER,
-      backgroundColor: destructiveBg,
-      borderWidth: 0,
+      backgroundColor: destructiveFill,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: destructiveBorder,
     },
     destructiveText: buttonLabel(15, {
-      color: destructiveText,
+      color: destructiveLabel,
       fontWeight: "800",
     }),
     tertiary: {

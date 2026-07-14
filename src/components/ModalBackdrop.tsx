@@ -38,7 +38,7 @@ export default function ModalBackdrop({
   const webBlurPx = Math.round(
     Math.min(28, Math.max(16, modalBlur.intensity * 0.46)),
   );
-  const dimOpacity = colors.mode === "light" ? 0.18 : 0.42;
+  const dimOpacity = colors.mode === "light" ? 0.28 : 0.52;
 
   useEffect(() => {
     if (opacityProp) return;
