@@ -32,7 +32,7 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-07-14T18:00"),
+    publishedAt: nzst("2026-07-14T18:17"),
     title: "Sticky Runs, tens & round-end stability",
     items: [
       "Runs — once three ascending ranks lock in, Runs stays on for the whole trick; stepping back (7→6→5) keeps Runs alive until the pile clears",
