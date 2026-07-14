@@ -40,6 +40,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
       "On Top — during a Run, your one On Top play still has to sit next to the pile (±1); after it (or Skip) the trick ends and Runs ends",
       "On Top on a 10 — beating a lone 10 still follows Higher/Lower (On Top is just the extra turn)",
       "Round end — rankings should open cleanly without freezing the table or dumping you to the README",
+      "Quit Game on rankings — Leave game? confirm sits on top so you can cancel or leave",
       "Your plays — cards from your hand shouldn't get stuck floating above the pile",
       "Table & menus — glass overlays, clearer buttons, and smoother turn highlights",
     ],

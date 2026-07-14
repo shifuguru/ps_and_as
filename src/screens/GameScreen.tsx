@@ -5599,6 +5599,9 @@ function GameScreenBoard() {
           state.players.some(isDeadHandPlayer) || openSeatAvailable
         }
         onQuit={requestLeaveGame}
+        leaveConfirmVisible={leaveConfirmVisible}
+        onLeaveCancel={cancelLeaveGame}
+        onLeaveConfirm={confirmLeaveGame}
         onToggleReady={() => {
           const id = myPlayerId;
           if (!id) return;
@@ -5621,7 +5624,7 @@ function GameScreenBoard() {
       />
 
       <LeaveGameConfirmModal
-        visible={leaveConfirmVisible}
+        visible={leaveConfirmVisible && !rankingsModalVisible}
         onCancel={cancelLeaveGame}
         onConfirm={confirmLeaveGame}
       />

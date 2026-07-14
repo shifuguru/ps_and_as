@@ -18,6 +18,7 @@ import { livingFinishedOrder } from "../game/deadHand";
 import { hexToRgba } from "../utils/colorTheory";
 import { isCpuPlayer } from "../utils/localPlayer";
 import { ROUND_COMPLETE_Z } from "../styles/overlayZIndex";
+import LeaveGameConfirmModal from "./LeaveGameConfirmModal";
 
 function rankXpAnimationReady(
   player: { id: string; name: string },
@@ -43,6 +44,10 @@ type Props = {
   onQuit: () => void;
   onToggleReady: () => void;
   xpAnimationReady?: boolean;
+  /** Leave-game confirm (must be embedded — nested RN Modal draws behind this modal). */
+  leaveConfirmVisible?: boolean;
+  onLeaveCancel?: () => void;
+  onLeaveConfirm?: () => void;
 };
 
 const ABSORB_MS = 1500;
@@ -349,6 +354,9 @@ export default function RoundCompleteModal({
   onQuit,
   onToggleReady,
   xpAnimationReady = true,
+  leaveConfirmVisible = false,
+  onLeaveCancel,
+  onLeaveConfirm,
 }: Props) {
   const { colors, ui, blur, palette } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -568,6 +576,14 @@ export default function RoundCompleteModal({
             </View>
           </BlurPanel>
         </Animated.View>
+        {onLeaveCancel && onLeaveConfirm ? (
+          <LeaveGameConfirmModal
+            embedded
+            visible={leaveConfirmVisible}
+            onCancel={onLeaveCancel}
+            onConfirm={onLeaveConfirm}
+          />
+        ) : null}
       </View>
     </Modal>
   );
