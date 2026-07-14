@@ -76,7 +76,6 @@ import {
   logTradesCompleteReceived,
   logPostTradeOpenerReconciled,
 } from "../game/roundTransitionDiagnostics";
-import { roundEndPhase } from "../utils/roundEndCrashTrace";
 import {
   resolveCeremonyLaunchMode,
   resolveSkipDealAnimations,
@@ -992,7 +991,6 @@ function GameScreen({
 
   const finishLastHandReveal = useCallback(() => {
     roundTransitionLog("lastHandReveal finish");
-    roundEndPhase("4.last_hand_unmounts");
     if (betweenRoundsKeyRef.current) {
       lastHandRevealPlayedKeyRef.current = betweenRoundsKeyRef.current;
     }
@@ -1019,10 +1017,6 @@ function GameScreen({
         lastHandRevealPlayedKeyRef.current = key;
       }
       clearLastHandRevealTimer();
-      roundEndPhase("3.last_hand_mounts", {
-        playerId: payload.playerId,
-        cardCount: payload.cards.length,
-      });
       roundTransitionLog("lastHandReveal start", {
         playerId: payload.playerId,
         cardCount: payload.cards.length,
@@ -1989,25 +1983,13 @@ function GameScreen({
       setRankingsModalVisible(false);
       return;
     }
-    roundEndPhase("1.round_completes", {
-      finishedOrderLen: state?.finishedOrder?.length ?? 0,
-      playerCount: state?.players?.length ?? 0,
-      pileLen: state?.pile?.length ?? 0,
-      playsAssumptionCleared: true,
-    });
     setTableSweepOut(false);
     setRankingsModalVisible(false);
     const pauseTimer = setTimeout(() => {
       setTableSweepOut(true);
-      roundEndPhase("2.table_clears", {
-        pauseMs: ROUND_TRANSITION_PAUSE_MS,
-      });
     }, ROUND_TRANSITION_PAUSE_MS);
     const modalTimer = setTimeout(() => {
       setRankingsModalVisible(true);
-      roundEndPhase("5.rankingsModalVisible_true", {
-        delayMs: ROUND_TRANSITION_PAUSE_MS + ROUND_TRANSITION_CLEAR_MS,
-      });
     }, ROUND_TRANSITION_PAUSE_MS + ROUND_TRANSITION_CLEAR_MS);
     return () => {
       clearTimeout(pauseTimer);
