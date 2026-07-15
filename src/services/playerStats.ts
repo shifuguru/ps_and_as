@@ -1,6 +1,18 @@
 import { Platform } from "react-native";
 import { roleForPlacement } from "../utils/roundRoles";
 
+/**
+ * Canonical local career progression (single source of truth).
+ *
+ * - Storage key: `@ps_and_as_player_stats`
+ * - Cloud: `playerStatsCloud` max-merge on restore / push on save
+ * - XP: only `PlayerStats.xp` — never introduce a parallel XP field
+ * - Level: not stored; any UI level is display-derived from `xp`
+ * - Achievements: derived via `ACHIEVEMENTS[].check(stats)` (not a separate unlock store)
+ *
+ * Hub / daily challenge / unlock-event helpers must read or append through this
+ * schema — never replace or reset it on upgrade.
+ */
 const STORAGE_KEY = "@ps_and_as_player_stats";
 
 export type PlayerStats = {
@@ -11,6 +23,7 @@ export type PlayerStats = {
   timesAsshole: number;
   presidentStreak: number;
   bestPresidentStreak: number;
+  /** Career XP — authoritative progression currency. */
   xp: number;
   tricksWon: number;
 };
@@ -212,6 +225,12 @@ async function writeLocalPlayerStats(stats: PlayerStats): Promise<void> {
 
 async function savePlayerStats(stats: PlayerStats): Promise<void> {
   await writeLocalPlayerStats(stats);
+  try {
+    const { syncUnlockSnapshot } = await import("./unlockEvents");
+    void syncUnlockSnapshot(stats);
+  } catch {
+    /* unlock log is non-critical */
+  }
   const playerId = await resolveStatsPlayerId();
   if (playerId) {
     const { pushCloudPlayerStats } = await import("./playerStatsCloud");

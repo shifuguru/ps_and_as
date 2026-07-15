@@ -1286,7 +1286,8 @@ function resolveRunFromChronology(chronology: Card[], pile?: Card[]): Card[] {
 
   let best = longestRunSuffixAtIndex(chronology, n - 1);
 
-  // One-rank step back (e.g. …8 then 7) — run tail is the card before the step.
+  // One-rank step back (e.g. …8 then 7) — keep an already-contiguous ascending
+  // core that ended before the step. Does not invent new ranks.
   if (n >= 2) {
     const prevVal = chronology[n - 2].value;
     if (Math.abs(rankIndex(prevVal) - rankIndex(pileVal)) === 1) {
@@ -1295,29 +1296,10 @@ function resolveRunFromChronology(chronology: Card[], pile?: Card[]): Card[] {
     }
   }
 
-  // Skip-over step-back extension (e.g. J-Q-J then K extends from Q, not pile-top J).
-  // Ascending activation tail only — rejects synthesized descending runs (10-9-10-8).
-  if (n >= 3) {
-    const rVal = chronology[n - 2].value;
-    const tVal = chronology[n - 3].value;
-    if (
-      pileVal !== rVal &&
-      Math.abs(rankIndex(rVal) - rankIndex(tVal)) === 1 &&
-      Math.abs(rankIndex(pileVal) - rankIndex(tVal)) === 1
-    ) {
-      const tailAtT = longestContiguousAscendingSuffix(chronology, n - 3, 2);
-      if (
-        tailAtT.length >= 2 &&
-        tailAtT[tailAtT.length - 1].value === tVal &&
-        rankIndex(pileVal) - rankIndex(tVal) === 1
-      ) {
-        const extended = [...tailAtT, { value: pileVal, suit: pile![0].suit }];
-        if (isRunContextSequence(extended) && extended.length > best.length) {
-          best = extended;
-        }
-      }
-    }
-  }
+  // NOTE: Do NOT synthesize a run by skipping a step-back card and appending the
+  // pile (e.g. 9-10-9-J → invent 9-10-J). That falsely activates sticky Runs.
+  // Skip-over anchors for *extending* an already-active sticky run live in
+  // getRunExtensionAnchorValues / isValidRunExtension only.
 
   // Repeated step-back oscillation (e.g. 4-5-6-5-6, 10-J-Q-J-Q, J-Q-K-J-Q): the pile
   // bounces between adjacent ranks after a monotonic core — keep the longest core that
@@ -2668,8 +2650,10 @@ function finalizeTrickWin(state: GameState, leaderIndex: number): GameState {
       state.currentTrick.runLength = runCardCountAtWin;
       state.currentTrick.winnerId = winnerPlayer.id;
       state.currentTrick.winnerName = winnerPlayer.name;
-      state.trickHistory = state.trickHistory || [];
-      state.trickHistory.push(state.currentTrick);
+      state.trickHistory = [
+        ...(state.trickHistory || []),
+        state.currentTrick,
+      ];
       state.currentTrick = {
         trickNumber: state.trickHistory.length + 1,
         actions: [],

@@ -15,6 +15,8 @@ import {
   WEB_FELT_FIXED_CLASS,
   ensureWebFeltBackdrop,
 } from "../styles/webFullBleed";
+import { resolveFeltEnvironment } from "../styles/feltPalette";
+import { useAppTheme } from "../context/ThemeContext";
 import { isMobileWeb } from "../utils/webViewport";
 
 type Props = {
@@ -23,17 +25,25 @@ type Props = {
   fullBleed?: boolean;
 };
 
+/**
+ * Felt wallpaper hook for App.
+ * Theme mode changes the environment (tint lift, texture, ambient wash),
+ * not panel opacity.
+ */
 export default function FeltBackground({
   tint = DEFAULT_FELT_COLOR,
   fullBleed = true,
 }: Props) {
+  const { mode } = useAppTheme();
+  const env = resolveFeltEnvironment(tint, mode);
+
   useEffect(() => {
     if (Platform.OS === "web" && fullBleed) {
-      ensureWebFeltBackdrop(tint);
+      ensureWebFeltBackdrop(tint, mode);
     }
-  }, [tint, fullBleed]);
+  }, [tint, mode, fullBleed]);
 
-  // Mobile web: dedicated #ps-felt-layer (document.body) covers full shell height.
+  // Mobile web: Environment Layer on document — independent of App shell height.
   if (Platform.OS === "web" && fullBleed && isMobileWeb()) {
     return null;
   }
@@ -42,10 +52,23 @@ export default function FeltBackground({
     <View
       style={[
         StyleSheet.absoluteFill,
-        { backgroundColor: tint, opacity: 0.82 },
+        { backgroundColor: env.displayTint, opacity: env.tintOpacity },
       ]}
     />
   );
+
+  const ambientWash =
+    env.ambientWashOpacity > 0 ? (
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            backgroundColor: `rgba(${env.ambientWashRgb}, ${env.ambientWashOpacity})`,
+          },
+        ]}
+        pointerEvents="none"
+      />
+    ) : null;
 
   if (Platform.OS === "web") {
     const bleed = fullBleed ? WEB_FULL_BLEED_FIXED : null;
@@ -61,7 +84,7 @@ export default function FeltBackground({
             right: 0,
             bottom: 0,
           },
-          { backgroundColor: tint },
+          { backgroundColor: env.displayTint },
         ]}
         pointerEvents="none"
       >
@@ -71,6 +94,7 @@ export default function FeltBackground({
           resizeMode="cover"
         />
         {tintOverlay}
+        {ambientWash}
       </View>
     );
   }
@@ -83,6 +107,7 @@ export default function FeltBackground({
         resizeMode="cover"
       >
         {tintOverlay}
+        {ambientWash}
       </ImageBackground>
     </View>
   );

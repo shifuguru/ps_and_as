@@ -119,7 +119,7 @@ import {
 import { fetchCloudPlayerStats, pushCloudPlayerStats } from "../services/playerStatsCloud";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
-import { resolveHandMetrics, localHandShuffleScreenCenter } from "../utils/compactGameLayout";
+import { resolveHandMetrics, localHandShuffleScreenCenter, resolveHandBaseline, resolveHandFeedbackBottom } from "../utils/compactGameLayout";
 import { useGamePreferences } from "../hooks/useGamePreferences";
 import { getSkipDealAnimationsSync } from "../services/gamePreferences";
 import DebugViewer from "../components/DebugViewer";
@@ -139,6 +139,17 @@ import PlayerHand, {
 } from "../components/PlayerHand";
 import ActionBar from "../components/ActionBar";
 import MenuIcon from "../components/MenuIcon";
+import GameplayHud, {
+  lastTrickFromEntry,
+  lastTrickFromHistory,
+} from "../gameplayPresentation/GameplayHud";
+import type { LastTrickInfo } from "../gameplayPresentation/LastTrickWidget";
+import GameplayHint from "../gameplayPresentation/GameplayHint";
+import { resolveHandGuidance } from "../gameplayPresentation/resolveHandGuidance";
+import GameplayVignette from "../gameplayPresentation/GameplayVignette";
+import { GAMEPLAY_PRESENTATION } from "../gameplayPresentation/featureFlags";
+import { pushGameplayToast } from "../gameplayPresentation/progressionToastBus";
+import { selectNextAchievement } from "../services/nextAchievement";
 import RoundCompleteModal from "../components/RoundCompleteModal";
 import LastHandRevealOverlay from "../components/LastHandRevealOverlay";
 import LeaveGameConfirmModal from "../components/LeaveGameConfirmModal";
@@ -183,7 +194,6 @@ import {
   resolveDealerId,
 } from "../utils/tableSeats";
 import { useSlowTurnBell, TURN_NUDGE_HIGHLIGHT_MS } from "../hooks/useSlowTurnBell";
-import { formatWaitingForTurnHint } from "../utils/playerDisplay";
 import {
   IOS_BOTTOM_GAP_DEBUG,
   IOS_GAP_DEBUG_COLORS,
@@ -1770,7 +1780,18 @@ function GameScreen({
     void getPlayerStats().then((stats) => {
       setLocalAvatarBorder(resolveAvatarBorder(stats));
     });
-  }, [showWinnerBanner, myPlayerId, trickPauseSnapshot?.winnerId]);
+    const xp = TRICK_WIN_XP + (trickPauseSnapshot?.runBonusXp ?? 0);
+    pushGameplayToast({
+      kind: "xp",
+      title: `+${xp} XP`,
+      body: "Trick won",
+    });
+  }, [
+    showWinnerBanner,
+    myPlayerId,
+    trickPauseSnapshot?.winnerId,
+    trickPauseSnapshot?.runBonusXp,
+  ]);
 
   // Detect trick wins (pause briefly) and round completion — layout effect
   // commits the snapshot before paint so the table never freezes on stale plays.
@@ -1824,9 +1845,11 @@ function GameScreen({
     const keepClosingHandFlight =
       !!pendingKey &&
       pausePlays.some((p) => playDisplayKey(p) === pendingKey);
-    trickPauseExtraHoldMsRef.current = keepClosingHandFlight
-      ? PLAY_CARD_FLIGHT_MS
-      : 0;
+    // Instant close on a play (On Top) needs flight time; pass-outs already landed.
+    const closedByPlay =
+      last.actions[last.actions.length - 1]?.type === "play";
+    trickPauseExtraHoldMsRef.current =
+      keepClosingHandFlight || closedByPlay ? PLAY_CARD_FLIGHT_MS : 0;
     if (!keepClosingHandFlight) {
       clearHandPlayFlightRef.current?.();
     }
@@ -4398,6 +4421,8 @@ function GameScreenBoard() {
     );
 
   const isOpeningLead = isRoundOpeningLead(state);
+  const isFirstRoundOfSession =
+    !state.lastRoundOrder || state.lastRoundOrder.length < 2;
 
   const startingCardIndex =
     showActiveTurnUi &&
@@ -4408,11 +4433,54 @@ function GameScreenBoard() {
       ? openingLeadCardIndex(hand, state.players)
       : -1;
 
-  const mustLeadOpening =
+  /** Any empty-pile forced lead (blocks Pass) — true mid-round after a trick win. */
+  const isForcedLead =
     !!state.mustPlay &&
     isTrickOpeningLead(state) &&
     isHumanTurn &&
     !roundOver;
+
+  /**
+   * Opening-3 hint only: first lead of the first round, player holds the
+   * required opener. Must NOT use isTrickOpeningLead alone — that is true for
+   * every post-trick empty pile.
+   */
+  const mustLeadOpeningThree =
+    isForcedLead &&
+    isOpeningLead &&
+    isFirstRoundOfSession &&
+    startingCardIndex >= 0;
+
+  const handGuidanceMessage = useMemo(
+    () =>
+      resolveHandGuidance({
+        isHumanTurn,
+        mustLeadOpening: mustLeadOpeningThree,
+        openingLeadCard:
+          mustLeadOpeningThree
+            ? hand[startingCardIndex] ?? null
+            : null,
+        noValidPlays,
+        onTopTurn: humanRunOnTopTurn,
+        selectedCount: handPlayInFlight ? 0 : selected.length,
+        pileTop:
+          state.pile && state.pile.length > 0
+            ? state.pile[state.pile.length - 1]
+            : null,
+        pileCount: state.pile?.length ?? 0,
+      }),
+    [
+      isHumanTurn,
+      mustLeadOpeningThree,
+      startingCardIndex,
+      hand,
+      noValidPlays,
+      humanRunOnTopTurn,
+      handPlayInFlight,
+      selected.length,
+      state.pile,
+    ],
+  );
 
   const { height: viewportHeight, width: shellWidth } = useVisualViewportSize();
   const windowWidth = useWindowDimensions().width;
@@ -4420,6 +4488,76 @@ function GameScreenBoard() {
     () => resolveHandMetrics(viewportHeight),
     [viewportHeight],
   );
+
+  const [lastTrickInfo, setLastTrickInfo] = useState<LastTrickInfo | null>(null);
+  const prevTrickHistoryLen = useRef(0);
+  const [roundCompleteSignal, setRoundCompleteSignal] = useState(0);
+  const prevRankingsVisible = useRef(false);
+
+  useEffect(() => {
+    if (!roundOver && !lastHandReveal) return;
+    setLastTrickInfo(null);
+  }, [roundOver, lastHandReveal]);
+
+  useEffect(() => {
+    if (rankingsModalVisible && !prevRankingsVisible.current) {
+      setRoundCompleteSignal((n) => n + 1);
+      void getPlayerStats().then((stats) => {
+        const next = selectNextAchievement(stats);
+        if (next && next.fraction > 0) {
+          pushGameplayToast({
+            kind: "achievement",
+            title: next.def.title,
+            body: `${next.current} / ${next.target}`,
+          });
+        }
+      });
+    }
+    prevRankingsVisible.current = rankingsModalVisible;
+  }, [rankingsModalVisible]);
+
+  useEffect(() => {
+    // Authoritative: snapshot is built from the completed trick at pause start.
+    if (trickPauseSnapshot?.trickIndex) {
+      const hist = state.trickHistory ?? [];
+      const entry = hist[trickPauseSnapshot.trickIndex - 1] ?? hist[hist.length - 1];
+      const info = lastTrickFromEntry(entry);
+      if (info) {
+        setLastTrickInfo((prev) =>
+          prev?.trickKey === info.trickKey ? prev : info,
+        );
+        prevTrickHistoryLen.current = Math.max(
+          prevTrickHistoryLen.current,
+          hist.length,
+        );
+        return;
+      }
+    }
+    const hist = state.trickHistory ?? [];
+    // New round / fresh deal: history shrinks or clears — drop stale Winning Play.
+    if (hist.length < prevTrickHistoryLen.current || hist.length === 0) {
+      prevTrickHistoryLen.current = hist.length;
+      setLastTrickInfo(null);
+      return;
+    }
+    if (hist.length > prevTrickHistoryLen.current) {
+      const info = lastTrickFromHistory(hist);
+      if (info) {
+        setLastTrickInfo((prev) =>
+          prev?.trickKey === info.trickKey ? prev : info,
+        );
+      }
+    }
+    prevTrickHistoryLen.current = hist.length;
+  }, [state.trickHistory, trickPauseSnapshot]);
+
+  const suppressLastTrickCard =
+    roundOver ||
+    lastHandReveal ||
+    !!ceremonyPrep ||
+    !!tradePhase ||
+    gameplayLocked ||
+    (!trickPauseActive && (state.pile?.length ?? 0) > 0);
 
   const handleCardPress = (idx: number) => {
     if (trickPauseActive || roundOver || readOnlyGame || presentationHoldActive) {
@@ -4743,20 +4881,37 @@ function GameScreenBoard() {
         : null,
     [localCeremonyDeal, isCeremonyDealer, handMetrics.cardWidth, handMetrics.cardHeight],
   );
-  const bottomBarHeight = reservedBottomHeight(
+  const handBaseline = resolveHandBaseline(
+    viewportHeight,
     insets.bottom || 0,
     handReserveActive,
+    bottomOuterPad(insets.bottom || 0),
+  );
+  const handFeedbackBottom = resolveHandFeedbackBottom(
     viewportHeight,
+    insets.bottom || 0,
+    handReserveActive,
+    bottomOuterPad(insets.bottom || 0),
   );
   const contentTopPadding = insets.top + 8;
   // Rebuild every render — pile / trick / history can update independently.
   const trickPlays = buildTrickPlayDisplays(state);
 
   const displayPlays: TrickPlayDisplay[] = useMemo(() => {
-    const base =
-      trickPauseActive && trickPauseSnapshot
-        ? trickPauseSnapshot.plays
-        : trickPlays;
+    let base: TrickPlayDisplay[];
+    if (trickPauseActive && trickPauseSnapshot) {
+      base = trickPauseSnapshot.plays;
+    } else if (trickPlays.length > 0) {
+      base = trickPlays;
+    } else {
+      // On Top finalize clears the pile before the pause snapshot commits.
+      // Bridge that one frame so the closing card can still fly from its seat.
+      const hist = state.trickHistory;
+      const histLen = hist?.length ?? 0;
+      const lastTrick =
+        histLen > lastTrickLenRef.current ? hist?.[histLen - 1] : null;
+      base = lastTrick ? buildPlaysFromTrick(lastTrick) : trickPlays;
+    }
     if (!handPlayInFlight?.cards.length) return base;
     const key = handPlayInFlight.playKey;
     if (base.some((p) => playDisplayKey(p) === key)) return base;
@@ -4772,6 +4927,7 @@ function GameScreenBoard() {
     trickPauseSnapshot,
     trickPlays,
     handPlayInFlight,
+    state.trickHistory,
   ]);
 
   const tablePlaysForRender =
@@ -5085,32 +5241,6 @@ function GameScreenBoard() {
       ? playTypePills.modifierLabel
       : null;
 
-  const turnHintText =
-    ceremonyPrep && ceremonyStatusText
-      ? ceremonyStatusText
-      : gameplayLocked && !tradePhase
-        ? ceremonyStatusText ?? "Dealing cards…"
-        : showActiveTurnUi &&
-            !tradePhase &&
-            !readOnlyOnline &&
-            !awaitingDealerReshuffle &&
-            !trickPauseActive &&
-            !roundOver
-          ? presentationHoldActive && localPlayPresentationLatch
-            ? holdPlayerId === myPlayerId
-              ? "Your turn"
-              : formatWaitingForTurnHint(localPlayPresentationLatch.playerName)
-            : isHumanTurn
-              ? "Your turn"
-              : isHumanTurnServer && pendingTablePlayFlights
-                ? formatWaitingForTurnHint(
-                    state.players.find((p) => p.id === activeLastPlayId)?.name ??
-                      displayTurnPlayer.name,
-                  )
-                : formatWaitingForTurnHint(displayTurnPlayer.name)
-          : null;
-
-  const turnHintFlash = turnHintText === "Your turn" && !presentationHoldActive;
   const playModifierFlash = humanRunOnTopTurn && !!playModifierLabel;
 
   // Compact structured debug log view (last 20 entries). Produce a concise one-line summary
@@ -5139,6 +5269,8 @@ function GameScreenBoard() {
         logIosBottomGapMetrics([{ label: "gameScreen", width, height }], insets);
       }}
     >
+      {/* Environment: full-screen vignette over felt — below gameplay chrome. */}
+      <GameplayVignette />
       {bannerNotice ? (
         <View
           style={[
@@ -5206,7 +5338,7 @@ function GameScreenBoard() {
         onCancel={pendingTenPlay ? handleTenRuleCancel : undefined}
       />
 
-      {/* Game content — pad for bottom hand sheet */}
+      {/* Game content — pad for bottom hand sheet (HAND_BASELINE) */}
       <View
         ref={playAreaHostRef}
         style={{
@@ -5214,7 +5346,7 @@ function GameScreenBoard() {
           position: "relative",
           paddingHorizontal: 12,
           paddingTop: contentTopPadding,
-          paddingBottom: bottomBarHeight,
+          paddingBottom: handBaseline,
         }}
         onLayout={(e: LayoutChangeEvent) => {
           const { width, height } = e.nativeEvent.layout;
@@ -5242,8 +5374,6 @@ function GameScreenBoard() {
           playCountLabel={playCountLabel}
           playModifierLabel={playModifierLabel}
           runXpPoolAmount={runXpPoolAmount}
-          turnHintText={turnHintText}
-          turnHintFlash={turnHintFlash}
           playModifierFlash={playModifierFlash}
           tableSeatCount={tableSeats.layoutSeatCount}
           deadHandId={tableSeats.deadHandId}
@@ -5295,6 +5425,29 @@ function GameScreenBoard() {
           </View>
         ) : null}
       </View>
+
+      {/* Feedback chrome — anchors to HAND_BASELINE (above hand / hint / actions) */}
+      <GameplayHud
+        topInset={contentTopPadding + 4}
+        feedbackBottom={handFeedbackBottom}
+        players={state.players}
+        localPlayerId={humanPlayer?.id ?? myPlayerId}
+        trickHistory={state.trickHistory}
+        suppressLastTrick={suppressLastTrickCard}
+        roundCompleteSignal={roundCompleteSignal}
+        lastTrick={lastTrickInfo}
+        onOpenAchievements={onNavigateToAchievements}
+        onOpenSettings={onNavigateToSettings}
+        statsRefreshKey={roundCompleteSignal + (state.trickHistory?.length ?? 0)}
+        hide={
+          !!ceremonyPrep ||
+          !!tradePhase ||
+          rankingsModalVisible ||
+          gameplayLocked ||
+          roundOver ||
+          lastHandReveal
+        }
+      />
 
       {/* Player hand + actions — sticky bottom sheet */}
       <BottomBar>
@@ -5350,6 +5503,12 @@ function GameScreenBoard() {
         ) : null}
 
         <BottomBarControls>
+          {GAMEPLAY_PRESENTATION.handGuidance && handInBottomBar ? (
+            <GameplayHint
+              message={handGuidanceMessage}
+              visible={!gameplayLocked && !roundOver && !tradePhase}
+            />
+          ) : null}
           {tradePhase && activeTrade ? (
             <>
               <RoleTradeStrip
@@ -5420,7 +5579,7 @@ function GameScreenBoard() {
               gameplayLocked ||
               !isHumanPassEligible ||
               roundOver ||
-              mustLeadOpening ||
+              isForcedLead ||
               !!(
                 localHumanId &&
                 hasPassedInCurrentTrick(state, localHumanId) &&
@@ -5574,6 +5733,7 @@ function GameScreenBoard() {
         playerRoundXp={scoreboardRoundXpByPlayerId}
         xpAnimationReady={xpAnimationReady}
         localPlayerId={myPlayerId ?? undefined}
+        avatarBordersByPlayerId={avatarBordersByPlayerId}
         spectatorMode={spectatorMode}
         botsAutoReady={isBotOpenTable}
         botNextRoundAt={isBotOpenTable ? botNextRoundAt : null}

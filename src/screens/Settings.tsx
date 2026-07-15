@@ -41,7 +41,7 @@ import {
   type PlayerInfo,
 } from "../services/gameCenter";
 import { getLobbySession } from "../services/lobbySession";
-import { validateDisplayText, displayTextError, isValidDisplayText } from "../utils/profanityFilter";
+import { validateDisplayText, isValidDisplayText } from "../utils/profanityFilter";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import Card from "../components/Card";
@@ -89,10 +89,6 @@ export default function Settings({
   const [playerInfo, setPlayerInfo] = useState<PlayerInfo | null>(null);
   const [playerName, setPlayerName] = useState("");
   const [savedName, setSavedName] = useState("");
-  const [saveFlash, setSaveFlash] = useState(false);
-  const [feltSaveFlash, setFeltSaveFlash] = useState(false);
-  const [saveAllFlash, setSaveAllFlash] = useState(false);
-  const [savedTint, setSavedTint] = useState(DEFAULT_FELT_COLOR);
   const [previewTint, setPreviewTint] = useState(DEFAULT_FELT_COLOR);
   const [hexInput, setHexInput] = useState("");
   const [feltPickerOpen, setFeltPickerOpen] = useState(false);
@@ -118,24 +114,20 @@ export default function Settings({
       setPlayerName(info.displayName);
       setSavedName(info.displayName);
       const resolvedTint = tint ?? DEFAULT_FELT_COLOR;
-      setSavedTint(resolvedTint);
       setPreviewTint(resolvedTint);
       setHexInput(resolvedTint.replace(/^#/, "").slice(0, 6));
     })();
   }, []);
 
   const previewTintNormalized = (previewTint ?? DEFAULT_FELT_COLOR).toLowerCase();
-  const savedTintNormalized = (savedTint ?? DEFAULT_FELT_COLOR).toLowerCase();
-  const tintDirty = previewTintNormalized !== savedTintNormalized;
-
   const nameDirty = playerName.trim() !== savedName.trim();
-  const hasUnsavedChanges = nameDirty || tintDirty;
 
-  const handleSaveName = async () => {
+  const handleSaveName = async (): Promise<boolean> => {
+    if (!nameDirty) return true;
     const check = validateDisplayText(playerName, "Player name");
     if (!isValidDisplayText(check)) {
       Alert.alert("Not Allowed", check.reason);
-      return;
+      return false;
     }
 
     try {
@@ -146,12 +138,17 @@ export default function Settings({
         setPlayerInfo({ ...playerInfo, displayName: check.value });
       }
       await onNameSaved?.(check.value);
-      setSaveFlash(true);
-      setTimeout(() => setSaveFlash(false), 2000);
+      return true;
     } catch (error) {
       console.error("[Settings] Failed to save name:", error);
       Alert.alert("Error", "Failed to save name. Please try again.");
+      return false;
     }
+  };
+
+  const persistFeltColor = async (hex: string) => {
+    await setWallpaperTint(hex);
+    onWallpaperChange?.();
   };
 
   const updatePreview = (hex: string) => {
@@ -161,27 +158,11 @@ export default function Settings({
     setHexInput(normalized.replace(/^#/, ""));
     setFeltTint(normalized);
     onWallpaperPreview?.(normalized);
-  };
-
-  const handleSaveFeltColor = async () => {
-    const normalized = normalizeHexColor(previewTint);
-    if (!normalized) {
-      Alert.alert("Invalid Color", "Enter a 6-digit hex code (e.g. 0f5132).");
-      return;
-    }
-
-    await setWallpaperTint(normalized);
-    setSavedTint(normalized);
-    setPreviewTint(normalized);
-    setHexInput(normalized.replace(/^#/, ""));
-    setFeltSaveFlash(true);
-    setTimeout(() => setFeltSaveFlash(false), 2000);
-    onWallpaperChange?.();
+    void persistFeltColor(normalized);
   };
 
   const handleResetFeltColor = async () => {
     await setWallpaperTint(null);
-    setSavedTint(DEFAULT_FELT_COLOR);
     setPreviewTint(DEFAULT_FELT_COLOR);
     setHexInput(DEFAULT_FELT_COLOR.replace(/^#/, ""));
     onWallpaperPreview?.(DEFAULT_FELT_COLOR);
@@ -197,32 +178,13 @@ export default function Settings({
       setPreviewTint(normalized);
       setFeltTint(normalized);
       onWallpaperPreview?.(normalized);
+      void persistFeltColor(normalized);
     }
   };
 
-  const handleSaveAll = async () => {
-    if (nameDirty) {
-      const check = validateDisplayText(playerName, "Player name");
-      const err = displayTextError(check);
-      if (err) {
-        Alert.alert("Not Allowed", err);
-        return;
-      }
-      await handleSaveName();
-    }
-    if (tintDirty) {
-      await handleSaveFeltColor();
-    }
-    setSaveAllFlash(true);
-    setTimeout(() => setSaveAllFlash(false), 2000);
-  };
-
-  const handleDiscardChanges = () => {
-    setPlayerName(savedName);
-    setPreviewTint(savedTint);
-    setHexInput(savedTint.replace(/^#/, "").slice(0, 6));
-    onWallpaperPreview?.(savedTint);
-    setFeltTint(savedTint);
+  const handleBack = async () => {
+    if (!(await handleSaveName())) return;
+    onBack?.();
   };
 
   return (
@@ -266,32 +228,16 @@ export default function Settings({
               style={[ui.input, { marginBottom: 12 }]}
               value={playerName}
               onChangeText={setPlayerName}
+              onBlur={() => void handleSaveName()}
+              onSubmitEditing={() => void handleSaveName()}
               placeholder="Enter Your Name"
               placeholderTextColor={colors.textMuted}
               maxLength={20}
               autoCapitalize="words"
               autoCorrect={false}
+              returnKeyType="done"
             />
-
-            <TouchableOpacity
-              style={[
-                styles.saveBtn,
-                nameDirty && styles.saveBtnActive,
-                saveFlash && styles.saveBtnSaved,
-              ]}
-              onPress={handleSaveName}
-              disabled={!nameDirty && !saveFlash}
-              activeOpacity={0.85}
-            >
-              <Text
-                style={[
-                  styles.saveBtnText,
-                  (nameDirty || saveFlash) && styles.saveBtnTextActive,
-                ]}
-              >
-                {saveFlash ? "Saved" : "Save Name"}
-              </Text>
-            </TouchableOpacity>
+            <Text style={styles.autoSaveHint}>Changes save automatically.</Text>
           </BlurPanel>
 
           <BlurPanel style={ui.panel} intensity={48}>
@@ -371,7 +317,7 @@ export default function Settings({
             <View style={styles.appearanceSubsection}>
               <Text style={styles.subsectionEyebrow}>Felt tint</Text>
               <Text style={styles.tintHint}>
-                Preview updates live. Tap Set Felt Color to save your preference.
+                Changes preview and save automatically.
               </Text>
               <View style={styles.swatchRow}>
                 {FELT_PRESETS.map((preset) => (
@@ -432,26 +378,6 @@ export default function Settings({
                   colors={colors}
                 />
               ) : null}
-              <TouchableOpacity
-                style={[
-                  styles.saveBtn,
-                  { marginTop: 12 },
-                  (tintDirty || feltSaveFlash) && styles.saveBtnActive,
-                  feltSaveFlash && styles.saveBtnSaved,
-                ]}
-                onPress={() => void handleSaveFeltColor()}
-                disabled={!tintDirty && !feltSaveFlash}
-                activeOpacity={0.85}
-              >
-                <Text
-                  style={[
-                    styles.saveBtnText,
-                    (tintDirty || feltSaveFlash) && styles.saveBtnTextActive,
-                  ]}
-                >
-                  {feltSaveFlash ? "Saved" : "Set Felt Color"}
-                </Text>
-              </TouchableOpacity>
               <TouchableOpacity
                 style={[ui.btnGhost, { marginTop: 10 }]}
                 onPress={() => void handleResetFeltColor()}
@@ -583,30 +509,7 @@ export default function Settings({
         <BottomBar>
           <BottomBarControls style={styles.bottomControls}>
             <View style={{ width: contentMax, alignSelf: "center" }}>
-              {hasUnsavedChanges || saveAllFlash ? (
-                <View style={ui.actionTrack}>
-                  <TouchableOpacity
-                    style={ui.actionSecondary}
-                    onPress={handleDiscardChanges}
-                    disabled={saveAllFlash}
-                  >
-                    <Text style={ui.actionSecondaryText}>Discard</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      ui.actionPrimary,
-                      saveAllFlash && styles.saveAllPrimarySaved,
-                    ]}
-                    onPress={() => void handleSaveAll()}
-                    disabled={saveAllFlash}
-                  >
-                    <Text style={ui.actionPrimaryText}>
-                      {saveAllFlash ? "Saved" : "Save Changes"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-              <BottomBarLeave onPress={onBack} label="Back" />
+              <BottomBarLeave onPress={() => void handleBack()} label="Back" />
             </View>
           </BottomBarControls>
         </BottomBar>
@@ -691,10 +594,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   bottomControls: {
     paddingTop: 18,
   },
-  saveAllPrimarySaved: {
-    borderColor: "rgba(76,175,80,0.6)",
-    backgroundColor: "rgba(76,175,80,0.22)",
-  },
   profileRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -731,6 +630,11 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     marginTop: 2,
     fontWeight: "600",
   },
+  autoSaveHint: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
   saveBtn: {
     borderRadius: 12,
     minHeight: 44,
@@ -742,10 +646,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   saveBtnActive: {
     backgroundColor: colors.gold,
     borderColor: colors.gold,
-  },
-  saveBtnSaved: {
-    backgroundColor: "rgba(76,175,80,0.35)",
-    borderColor: "rgba(76,175,80,0.6)",
   },
   saveBtnText: buttonLabel(14, {
     color: colors.textMuted,

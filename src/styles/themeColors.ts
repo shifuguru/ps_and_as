@@ -1,3 +1,5 @@
+import type { EnvironmentProfile } from "./environmentProfile";
+
 export type ThemeMode = "light" | "dark";
 
 export type BlurPreset = {
@@ -6,6 +8,8 @@ export type BlurPreset = {
   webOpacity: number;
   tint: "dark" | "light";
 };
+
+export type { EnvironmentProfile };
 
 /** Text colors for labels rendered directly on the table felt. */
 export type FeltTextColors = {
@@ -69,6 +73,10 @@ export type AppThemeColors = {
   feltWash: string;
   fullscreenScrim: string;
   statusBarStyle: "light" | "dark";
+  /** Glass frost RGB channel string for BlurPanel (hue-tinted; opacity stays in blur presets). */
+  frostRgb: string;
+  /** Environmental art direction — theme brightness lives here, not in glass opacity. */
+  environment: EnvironmentProfile;
   blur: {
     chrome: BlurPreset;
     panel: BlurPreset;

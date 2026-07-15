@@ -17,11 +17,116 @@ import type {
   FeltTextColors,
   ThemeMode,
 } from "./themeColors";
+import {
+  environmentProfileForMode,
+  type EnvironmentProfile,
+} from "./environmentProfile";
 
 /** Grey felt texture base before tint overlay. */
 export const FELT_TEXTURE_BASE = "#333333";
+/** Canonical dark tint density over texture. */
 export const FELT_TINT_OPACITY = 0.82;
+
 const AUTO_LUMINANCE_THRESHOLD = 0.38;
+
+export type FeltEnvironmentPaint = {
+  displayTint: string;
+  tintOpacity: number;
+  /** Warm ambient wash opacity (environment lighting). */
+  ambientWashOpacity: number;
+  /** CSS rgba channels for warm ambient wash (no alpha). */
+  ambientWashRgb: string;
+  /** CSS/filter strength for felt texture. */
+  textureStrength: number;
+  /** Soft centre light opacity for table glow. */
+  centreLight: number;
+  profile: EnvironmentProfile;
+};
+
+function ambientWashChannels(warmth: number): string {
+  // Higher warmth → amber cream; lower → cooler ivory (still not mint-white).
+  const g = Math.round(250 - warmth * 10);
+  const b = Math.round(238 - warmth * 28);
+  return `255, ${g}, ${b}`;
+}
+
+/**
+ * Environment lighting for the felt — mode changes the table, not the glass.
+ */
+export function resolveFeltEnvironment(
+  tintHex: string,
+  mode: ThemeMode,
+): FeltEnvironmentPaint {
+  const profile = environmentProfileForMode(mode);
+  const washRgb = ambientWashChannels(profile.ambientWarmth);
+  const tint = hexToRgb(tintHex);
+  if (!tint) {
+    return {
+      displayTint: tintHex,
+      tintOpacity: mode === "light" ? 0.66 : FELT_TINT_OPACITY,
+      ambientWashOpacity: mode === "light" ? 0.1 : 0.04,
+      ambientWashRgb: washRgb,
+      textureStrength: profile.feltTextureStrength,
+      centreLight: profile.centreLight,
+      profile,
+    };
+  }
+
+  const { h, s, l } = rgbToHsl(tint);
+  const sat = clamp(s * profile.feltSaturation, 8, 92);
+  // Brightness via HSL lift — not via painting glass.
+  const lightLift =
+    mode === "light"
+      ? (profile.feltBrightness - 0.5) * 28
+      : (profile.feltBrightness - 0.5) * 6;
+  const displayTint = hslToHex(h, sat, clamp(l + lightLift, 8, 72));
+
+  const tintOpacity =
+    mode === "light"
+      ? clamp(0.58 + profile.feltTextureStrength * 0.06, 0.58, 0.72)
+      : FELT_TINT_OPACITY;
+
+  // Dark: tiny warm ambient for casino depth. Light: warmer wash, less white fog.
+  const ambientWashOpacity =
+    mode === "light"
+      ? clamp(
+          0.05 +
+            profile.ambientWarmth * 0.07 +
+            profile.ambientBrightness * 0.04,
+          0.06,
+          0.12,
+        )
+      : clamp(
+          profile.ambientWarmth * 0.04 + profile.ambientBrightness * 0.02,
+          0.02,
+          0.05,
+        );
+
+  return {
+    displayTint,
+    tintOpacity,
+    ambientWashOpacity,
+    ambientWashRgb: washRgb,
+    textureStrength: profile.feltTextureStrength,
+    centreLight: profile.centreLight,
+    profile,
+  };
+}
+
+/** Frost fill RGB for glass — hue of felt, never pure white (reduces mint cast). */
+export function resolveFrostRgb(
+  mode: ThemeMode,
+  feltHue: number,
+): string {
+  if (mode === "dark") {
+    // Deep felt-ink glass
+    const rgb = hslToRgb({ h: feltHue, s: 28, l: 8 });
+    return `${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}`;
+  }
+  // Warm ivory tinted by felt hue — sunlit glass, not mint white
+  const rgb = hslToRgb({ h: feltHue, s: 14, l: 96 });
+  return `${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}`;
+}
 
 /** Monochrome palette derived from the active table felt tint. */
 export type FeltPalette = {
@@ -206,21 +311,26 @@ function buildShellColors(
   onFelt: FeltTextColors,
 ): AppThemeColors {
   const isDark = mode === "dark";
+  const environment = environmentProfileForMode(mode);
   const accent = isDark ? palette.complementBright : palette.complementDim;
   const ink = shellNeutral(mode, palette.feltHue);
+  // Micro-contrast: slightly brighter titles, clearer secondary/muted separation.
   const textPrimary = rgbToHex(ink);
-  const textSecondary = hexToRgba(textPrimary, 0.88);
-  const textMuted = hexToRgba(textPrimary, isDark ? 0.55 : 0.58);
+  const textSecondary = hexToRgba(textPrimary, isDark ? 0.9 : 0.86);
+  const textMuted = hexToRgba(textPrimary, isDark ? 0.5 : 0.62);
 
   const surface = isDark
     ? hslToHex(palette.feltHue, 12, 7)
     : hslToHex(palette.feltHue, 5, 97);
 
-  // Light mode: frosted white glass. Dark mode: frosted light scrim.
-  const frost = isDark ? textPrimary : "#ffffff";
-  const frostLine = isDark ? frost : "#ffffff";
-
-  const glassLine = isDark ? 0.14 : 0.14;
+  // Frost tint by mode + felt hue; opacity stays in the translucent blur band.
+  const frostRgb = resolveFrostRgb(mode, palette.feltHue);
+  const frost = isDark
+    ? textPrimary
+    : hslToHex(palette.feltHue, 14, 96);
+  const frostLine = frost;
+  // Edge highlight — slight separation from felt without raising fill opacity.
+  const glassLine = isDark ? 0.16 : 0.2;
 
   return {
     mode,
@@ -230,82 +340,69 @@ function buildShellColors(
     textSecondary,
     textMuted,
     textOnGold: "#FFFFFF",
-    panelBorder: isDark
-      ? hexToRgba(frostLine, glassLine)
-      : hexToRgba(accent, 0.18),
-    inputBg: isDark ? hexToRgba(frost, 0.08) : hexToRgba(frost, 0.94),
-    inputBorder: isDark
-      ? hexToRgba(frost, 0.16)
-      : hexToRgba(accent, 0.12),
+    panelBorder: hexToRgba(frostLine, glassLine),
+    // Translucent glass fills — never approach card-face brightness.
+    inputBg: hexToRgba(frost, isDark ? 0.1 : 0.28),
+    inputBorder: hexToRgba(frost, isDark ? 0.16 : 0.18),
     inputText: textPrimary,
-    btnGoldBg: hexToRgba(accent, isDark ? 0.16 : 0.1),
-    btnGoldBorder: hexToRgba(accent, isDark ? 0.28 : 0.22),
+    btnGoldBg: hexToRgba(accent, isDark ? 0.16 : 0.12),
+    btnGoldBorder: hexToRgba(accent, isDark ? 0.28 : 0.24),
     btnGoldText: accent,
-    btnSecondaryBg: hexToRgba(frost, isDark ? 0.08 : 0.88),
-    btnSecondaryBorder: isDark
-      ? hexToRgba(frostLine, glassLine)
-      : hexToRgba(accent, 0.14),
+    btnSecondaryBg: hexToRgba(frost, isDark ? 0.1 : 0.22),
+    btnSecondaryBorder: hexToRgba(frostLine, glassLine),
     btnSecondaryText: isDark ? hexToRgba(frost, 0.9) : textPrimary,
-    btnGhostBorder: hexToRgba(isDark ? frost : accent, isDark ? 0.12 : 0.14),
+    btnGhostBorder: hexToRgba(frost, isDark ? 0.12 : 0.16),
     btnGhostText: hexToRgba(textPrimary, isDark ? 0.65 : 0.72),
-    actionTrackBg: hexToRgba(frost, isDark ? 0.06 : 0.52),
-    actionTrackBorder: isDark
-      ? hexToRgba(frost, 0.12)
-      : hexToRgba(accent, 0.14),
-    actionPrimaryBg: hexToRgba(accent, isDark ? 0.18 : 0.12),
-    actionPrimaryBorder: hexToRgba(accent, isDark ? 0.32 : 0.22),
+    actionTrackBg: hexToRgba(frost, isDark ? 0.06 : 0.12),
+    actionTrackBorder: hexToRgba(frost, isDark ? 0.14 : 0.16),
+    actionPrimaryBg: hexToRgba(accent, isDark ? 0.18 : 0.14),
+    actionPrimaryBorder: hexToRgba(accent, isDark ? 0.32 : 0.26),
     actionPrimaryText: accent,
-    actionPrimaryDisabledBg: hexToRgba(frost, isDark ? 0.04 : 0.38),
-    actionPrimaryDisabledBorder: hexToRgba(
-      isDark ? frost : accent,
-      isDark ? 0.1 : 0.1,
-    ),
+    actionPrimaryDisabledBg: hexToRgba(frost, isDark ? 0.04 : 0.12),
+    actionPrimaryDisabledBorder: hexToRgba(frost, isDark ? 0.1 : 0.12),
     actionPrimaryDisabledText: hexToRgba(
       textPrimary,
       isDark ? 0.35 : 0.42,
     ),
-    actionSecondaryBg: hexToRgba(frost, isDark ? 0.06 : 0.46),
-    actionSecondaryBorder: isDark
-      ? hexToRgba(frostLine, glassLine)
-      : hexToRgba(accent, 0.12),
+    actionSecondaryBg: hexToRgba(frost, isDark ? 0.06 : 0.16),
+    actionSecondaryBorder: hexToRgba(frostLine, glassLine),
     actionSecondaryText: isDark ? hexToRgba(frost, 0.88) : textPrimary,
-    leaveButtonBg: hexToRgba(frost, isDark ? 0.12 : 0.9),
-    leaveButtonBorder: isDark
-      ? hexToRgba(frostLine, glassLine)
-      : hexToRgba(accent, 0.16),
+    leaveButtonBg: hexToRgba(frost, isDark ? 0.12 : 0.22),
+    leaveButtonBorder: hexToRgba(frostLine, glassLine),
     leaveButtonText: isDark ? hexToRgba(frost, 0.9) : textPrimary,
-    leaveButtonLiveBg: hexToRgba(accent, isDark ? 0.18 : 0.12),
-    leaveButtonLiveBorder: hexToRgba(accent, isDark ? 0.32 : 0.22),
+    leaveButtonLiveBg: hexToRgba(accent, isDark ? 0.18 : 0.14),
+    leaveButtonLiveBorder: hexToRgba(accent, isDark ? 0.32 : 0.26),
     leaveButtonLiveText: isDark ? hexToRgba(frost, 0.88) : textPrimary,
     leaveText: accent,
-    modalOverlay: hexToRgba("#000000", isDark ? 0.62 : 0.22),
-    modalBorder: isDark
-      ? hexToRgba(frostLine, glassLine)
-      : hexToRgba(accent, 0.14),
+    modalOverlay: hexToRgba("#000000", isDark ? 0.62 : 0.28),
+    modalBorder: hexToRgba(frostLine, glassLine),
     modalBody: textPrimary,
-    emptyTitle: hexToRgba(textPrimary, 0.92),
-    emptyBody: hexToRgba(textPrimary, 0.58),
+    emptyTitle: hexToRgba(textPrimary, 0.96),
+    emptyBody: hexToRgba(textPrimary, isDark ? 0.52 : 0.6),
     surface,
     feltWash: "transparent",
-    fullscreenScrim: hexToRgba(surface, isDark ? 0.58 : 0.4),
+    fullscreenScrim: hexToRgba(surface, isDark ? 0.58 : 0.32),
     statusBarStyle: isDark ? "light" : "dark",
+    frostRgb,
+    environment,
+    // Glass opacity is mode-neutral — environment carries theme brightness.
     blur: {
       chrome: {
-        intensity: isDark ? 48 : 44,
-        scrimOpacity: isDark ? 0.09 : 0.06,
-        webOpacity: isDark ? 0.03 : 0.2,
+        intensity: isDark ? 48 : 46,
+        scrimOpacity: 0.08,
+        webOpacity: 0.1,
         tint: isDark ? "dark" : "light",
       },
       panel: {
-        intensity: isDark ? 48 : 44,
-        scrimOpacity: isDark ? 0.22 : 0.15,
-        webOpacity: isDark ? 0.06 : 0.34,
+        intensity: isDark ? 48 : 46,
+        scrimOpacity: 0.18,
+        webOpacity: 0.2,
         tint: isDark ? "dark" : "light",
       },
       modal: {
-        intensity: isDark ? 72 : 58,
-        scrimOpacity: isDark ? 0.34 : 0.28,
-        webOpacity: isDark ? 0.2 : 0.54,
+        intensity: isDark ? 72 : 64,
+        scrimOpacity: 0.28,
+        webOpacity: 0.28,
         tint: isDark ? "dark" : "light",
       },
     },

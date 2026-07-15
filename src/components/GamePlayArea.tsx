@@ -75,9 +75,6 @@ type Props = RingProps & {
   playCountLabel?: string | null;
   playModifierLabel?: string | null;
   runXpPoolAmount?: number | null;
-  /** "Your turn" / "Waiting for …" below the play-type badge on the table. */
-  turnHintText?: string | null;
-  turnHintFlash?: boolean;
   playModifierFlash?: boolean;
   plays?: TrickPlayDisplay[];
   /** Skip fly-in (trick-end pause snapshot, etc.) */
@@ -134,8 +131,6 @@ export default function GamePlayArea({
   playCountLabel,
   playModifierLabel,
   runXpPoolAmount = null,
-  turnHintText,
-  turnHintFlash,
   playModifierFlash = false,
   plays = [],
   skipPlayFlights = false,
@@ -313,18 +308,28 @@ export default function GamePlayArea({
   }, [plays.length]);
 
   /**
-   * Between-rounds / trick-pause: skip flight anim and treat all plays as landed,
-   * except local hand-capture keys (On Top close — finalize + pause in one update).
+   * Trick-pause / between-rounds: force-land plays that were already on the table.
+   * Brand-new keys and in-flight closing cards (On Top) keep animating.
    */
   useLayoutEffect(() => {
     if (!skipPlayFlights) return;
     const currentKeys = new Set(plays.map(playDisplayKey));
-    const handCaptureKeys = new Set<string>();
+    const animatingKeys = new Set<string>([
+      ...flightsInProgressRef.current,
+      ...activeFlightsRef.current.map((f) => f.id),
+    ]);
+    const closingKeys = new Set<string>();
     for (const play of plays) {
       const key = playDisplayKey(play);
-      if (resolveLocalHandCapture(key)) handCaptureKeys.add(key);
+      if (
+        !prevPlayKeysRef.current.has(key) ||
+        resolveLocalHandCapture(key) != null ||
+        animatingKeys.has(key)
+      ) {
+        closingKeys.add(key);
+      }
     }
-    if (handCaptureKeys.size === 0) {
+    if (closingKeys.size === 0) {
       prevPlayKeysRef.current = currentKeys;
       setLandedKeys((prev) => {
         if (
@@ -338,10 +343,10 @@ export default function GamePlayArea({
       setActiveFlights((prev) => (prev.length === 0 ? prev : []));
       return;
     }
-    // Land non-capture keys; leave capture keys free to animate.
+    // Land already-seen keys; leave closing / in-flight keys free to animate.
     setLandedKeys((prev) => {
       const next = new Set(currentKeys);
-      for (const k of handCaptureKeys) next.delete(k);
+      for (const k of closingKeys) next.delete(k);
       if (
         prev.size === next.size &&
         [...next].every((k) => prev.has(k))
@@ -351,10 +356,10 @@ export default function GamePlayArea({
       return next;
     });
     for (const k of currentKeys) {
-      if (!handCaptureKeys.has(k)) prevPlayKeysRef.current.add(k);
+      if (!closingKeys.has(k)) prevPlayKeysRef.current.add(k);
     }
     setActiveFlights((prev) =>
-      prev.filter((f) => handCaptureKeys.has(f.id)),
+      prev.filter((f) => closingKeys.has(f.id) || currentKeys.has(f.id)),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- playKeysSig fingerprints plays
   }, [skipPlayFlights, playKeysSig, localHandFlight, resolveLocalHandCapture]);
@@ -383,22 +388,22 @@ export default function GamePlayArea({
     }
 
     if (skipPlayFlights) {
-      const capturePlays = plays.filter(
-        (p) => resolveLocalHandCapture(playDisplayKey(p)) != null,
-      );
-      for (const p of plays) {
+      const closingPlays = plays.filter((p) => {
         const key = playDisplayKey(p);
-        if (resolveLocalHandCapture(key) == null) {
-          prevPlayKeysRef.current.add(key);
-        }
-      }
-      if (capturePlays.length === 0) {
+        return (
+          !prevPlayKeysRef.current.has(key) ||
+          resolveLocalHandCapture(key) != null ||
+          flightsInProgressRef.current.has(key) ||
+          activeFlightsRef.current.some((f) => f.id === key)
+        );
+      });
+      if (closingPlays.length === 0) {
         prevPlayKeysRef.current = currentKeys;
         setLandedKeys(currentKeys);
         setActiveFlights((prev) => (prev.length === 0 ? prev : []));
         return;
       }
-      // Fall through: flight builder runs for capture keys still missing from prev.
+      // Fall through: flight builder runs for closing keys still missing from prev.
     }
 
     if (currentKeys.size < prevPlayKeysRef.current.size) {
@@ -414,8 +419,14 @@ export default function GamePlayArea({
 
     const newPlays = plays.filter((p) => {
       const key = playDisplayKey(p);
-      // Trick-pause: only On Top (local hand capture) may still fly.
-      if (skipPlayFlights && resolveLocalHandCapture(key) == null) {
+      // Trick-pause: only brand-new / hand-capture / in-flight closing plays may fly.
+      if (
+        skipPlayFlights &&
+        prevPlayKeysRef.current.has(key) &&
+        resolveLocalHandCapture(key) == null &&
+        !flightsInProgressRef.current.has(key) &&
+        !activeFlightsRef.current.some((f) => f.id === key)
+      ) {
         return false;
       }
       return (
@@ -572,7 +583,13 @@ export default function GamePlayArea({
     const cap = localHandFlight ?? localHandFlightRef?.current ?? null;
     if (!cap) return;
     // Allow during trick-pause skip when this is the closing On Top hand capture.
-    if (skipPlayFlights && resolveLocalHandCapture(cap.playKey) == null) return;
+    if (
+      skipPlayFlights &&
+      resolveLocalHandCapture(cap.playKey) == null &&
+      prevPlayKeysRef.current.has(cap.playKey)
+    ) {
+      return;
+    }
     const key = cap.playKey;
     if (!plays.some((p) => playDisplayKey(p) === key)) return;
     if (activeFlights.some((f) => f.id === key)) return;
@@ -763,11 +780,18 @@ export default function GamePlayArea({
   }, [plays, landedKeys]);
 
   const hasPendingPlayFlights = useMemo(() => {
-    if (skipPlayFlights || plays.length === 0) return false;
+    if (plays.length === 0) return false;
     return plays.some((p) => {
       const key = playDisplayKey(p);
       if (landedKeys.has(key)) return false;
-      if (resolveLocalHandCapture(key) != null) return false;
+      // Closing On Top under skip still counts as pending until it lands.
+      if (
+        skipPlayFlights &&
+        prevPlayKeysRef.current.has(key) &&
+        resolveLocalHandCapture(key) == null
+      ) {
+        return false;
+      }
       return true;
     });
   }, [plays, landedKeys, skipPlayFlights, resolveLocalHandCapture]);
@@ -784,8 +808,6 @@ export default function GamePlayArea({
             playCountLabel?: string | null;
             playModifierLabel?: string | null;
             runXpPoolAmount?: number | null;
-            turnHintText?: string | null;
-            turnHintFlash?: boolean;
             playModifierFlash?: boolean;
             hiddenPlayKeys?: Set<string>;
             playGroupMeasureRefs?: typeof playGroupMeasureRefs;
@@ -796,8 +818,6 @@ export default function GamePlayArea({
             playCountLabel,
             playModifierLabel,
             runXpPoolAmount,
-            turnHintText,
-            turnHintFlash,
             playModifierFlash,
             hiddenPlayKeys,
             playGroupMeasureRefs: ENABLE_FLIGHT_LAND_DIAGNOSTICS

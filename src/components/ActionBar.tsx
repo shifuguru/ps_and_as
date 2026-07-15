@@ -10,7 +10,6 @@ import {
   Easing,
 } from "react-native";
 import { triggerHaptic } from "../utils/haptics";
-import MenuIcon from "./MenuIcon";
 import { useAppTheme } from "../context/ThemeContext";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import { hexToRgba } from "../utils/colorTheory";
@@ -27,9 +26,10 @@ import {
   useTurnIntroAnimation,
 } from "../hooks/useTurnIntroAnimation";
 
-/** Fixed height budget for bottom-bar layout math (see GameScreen). */
-export const ACTION_BAR_HEIGHT = 84;
+/** Fixed height budget for bottom-bar layout math (single action row). */
+export const ACTION_BAR_HEIGHT = 52;
 
+const CAPSULE_RADIUS = 999;
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 type Props = {
@@ -48,7 +48,9 @@ type Props = {
   /** Bot open table — show Skip game in the pass/play row (spectator, etc.). */
   skipGameOnly?: boolean;
   onSkipGame?: () => void;
+  /** @deprecated Utilities live in GameplayHud — kept for call-site compatibility. */
   onNavigateToSettings?: () => void;
+  /** @deprecated Utilities live in GameplayHud — kept for call-site compatibility. */
   onNavigateToAchievements?: () => void;
 };
 
@@ -65,10 +67,8 @@ export default function ActionBar({
   leaveOnly = false,
   skipGameOnly = false,
   onSkipGame,
-  onNavigateToSettings,
-  onNavigateToAchievements,
 }: Props) {
-  const { colors, ui } = useAppTheme();
+  const { colors } = useAppTheme();
   const isLight = colors.mode === "light";
   const gold = colors.gold;
   const goldDim = hexToRgba(gold, isLight ? 0.42 : 0.38);
@@ -78,6 +78,9 @@ export default function ActionBar({
   const playIdleBg = colors.actionPrimaryDisabledBg;
   const playIdleBorder = colors.actionPrimaryDisabledBorder;
   const playIdleText = colors.actionPrimaryDisabledText;
+  const leaveBg = colors.leaveButtonLiveBg;
+  const leaveBorder = colors.leaveButtonLiveBorder;
+  const leaveText = colors.leaveButtonLiveText;
   const playTurnBgLow = hexToRgba(gold, isLight ? 0.1 : 0.14);
   const playTurnBgHigh = hexToRgba(gold, isLight ? 0.18 : 0.28);
   const playTurnBgRest = hexToRgba(gold, isLight ? 0.15 : 0.21);
@@ -96,9 +99,8 @@ export default function ActionBar({
   const viewport = useVisualViewportSize();
   const tier = resolveCompactHeightTier(viewport.height || shellHeight);
   const actionBarHeight = resolveActionBarHeight(tier);
-  const buttonMinHeight = resolveActionButtonMinHeight(tier);
+  const buttonMinHeight = Math.max(44, resolveActionButtonMinHeight(tier));
   const actionTrackGap = resolveActionTrackGap(tier);
-  const containerGap = tier === "veryTight" || tier === "tight" ? 6 : 8;
   const barWidth = Math.min(width - 32, 440);
 
   const turnIntro = useTurnIntroAnimation(isPlayerTurn);
@@ -196,11 +198,34 @@ export default function ActionBar({
 
   const playEnabled = isPlayerTurn && !playDisabled;
 
+  const leaveButton = (
+    <TouchableOpacity
+      style={[
+        styles.leaveButton,
+        {
+          minHeight: buttonMinHeight,
+          backgroundColor: leaveBg,
+          borderColor: leaveBorder,
+          flex: leaveOnly || skipGameOnly ? 1 : 0.95,
+        },
+      ]}
+      onPress={() => {
+        triggerHaptic("light");
+        onQuit();
+      }}
+      accessibilityRole="button"
+      accessibilityLabel="Leave Game"
+      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+    >
+      <Text style={[styles.leaveText, { color: leaveText }]}>Leave</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View
       style={[
         styles.container,
-        { width: barWidth, maxWidth: barWidth, gap: containerGap, minHeight: actionBarHeight },
+        { width: barWidth, maxWidth: barWidth, minHeight: actionBarHeight },
       ]}
     >
       {skipGameOnly && onSkipGame ? (
@@ -208,11 +233,11 @@ export default function ActionBar({
           <TouchableOpacity
             style={[
               styles.passButton,
-              styles.skipGameButton,
               {
                 minHeight: buttonMinHeight,
                 backgroundColor: passIdleBg,
                 borderColor: passIdleBorder,
+                flex: 1,
               },
             ]}
             onPress={() => {
@@ -222,169 +247,94 @@ export default function ActionBar({
             accessibilityRole="button"
             accessibilityLabel="Skip game"
           >
-            <Text style={[styles.passText, { color: passIdleText }]}>Skip game</Text>
+            <Text style={[styles.passText, { color: passIdleText }]}>Skip</Text>
           </TouchableOpacity>
+          {leaveButton}
         </View>
-      ) : !leaveOnly ? (
-      <View style={[styles.actionTrack, { gap: actionTrackGap, minHeight: buttonMinHeight }]}>
-        <AnimatedTouchable
-          style={[
-            styles.passButton,
-            { minHeight: buttonMinHeight },
-            passDisabled && styles.passButtonDisabled,
-            showPassFlash && styles.passButtonFlash,
-            {
-              backgroundColor: passBackground,
-              borderColor: passBorder,
-            },
-          ]}
-          onPress={() => {
-            triggerHaptic("light");
-            onPass();
-          }}
-          disabled={passDisabled}
-          accessibilityRole="button"
-          accessibilityLabel={passAccessibilityLabel}
-          accessibilityState={{ disabled: passDisabled }}
-        >
-          {showPassFlash ? (
-            <Animated.Text style={[styles.passText, { color: passTextColor }]}>
-              {passLabel}
-            </Animated.Text>
-          ) : (
-            <Text style={[styles.passText, { color: passIdleText }]}>
-              {passLabel}
-            </Text>
-          )}
-          {showPassFlash && (
-            <Animated.Text
-              style={[
-                styles.passHint,
-                {
-                  color: passFlash.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [
-                      "rgba(240,240,240,0.55)",
-                      "rgba(17,17,17,0.6)",
-                    ],
-                  }),
-                },
-              ]}
-            >
-              No Valid Plays
-            </Animated.Text>
-          )}
-        </AnimatedTouchable>
-
-        <AnimatedTouchable
-          style={[
-            styles.playButton,
-            { minHeight: buttonMinHeight },
-            playDisabled && styles.playButtonDisabled,
-            playReady && styles.playButtonReady,
-            playEnabled && !playReady && styles.playButtonTurn,
-            {
-              backgroundColor: playBackground,
-              borderColor: playBorderColor,
-              borderWidth: playReady || playEnabled ? 1.5 : 1,
-              ...(playReady || playEnabled
-                ? Platform.select({
-                    ios: { shadowColor: gold },
-                    default: {},
-                  })
-                : null),
-            },
-          ]}
-          onPress={() => {
-            triggerHaptic("medium");
-            onPlay();
-          }}
-          disabled={playDisabled}
-          accessibilityRole="button"
-          accessibilityLabel={playLabel}
-          accessibilityHint={playHint}
-          accessibilityState={{ disabled: playDisabled }}
-        >
-          <Text
+      ) : leaveOnly ? (
+        <View style={[styles.actionTrack, { gap: actionTrackGap, minHeight: buttonMinHeight }]}>
+          {leaveButton}
+        </View>
+      ) : (
+        <View style={[styles.actionTrack, { gap: actionTrackGap, minHeight: buttonMinHeight }]}>
+          <AnimatedTouchable
             style={[
-              styles.playText,
-              { color: playIdleText },
-              playReady && styles.playTextReady,
-              playEnabled &&
-                !playReady && {
-                  color: isLight ? colors.actionPrimaryText : "#f5f0e6",
-                },
+              styles.passButton,
+              { minHeight: buttonMinHeight },
+              passDisabled && styles.passButtonDisabled,
+              showPassFlash && styles.passButtonFlash,
+              {
+                backgroundColor: passBackground,
+                borderColor: passBorder,
+              },
             ]}
+            onPress={() => {
+              triggerHaptic("light");
+              onPass();
+            }}
+            disabled={passDisabled}
+            accessibilityRole="button"
+            accessibilityLabel={passAccessibilityLabel}
+            accessibilityState={{ disabled: passDisabled }}
           >
-            {playLabel}
-          </Text>
-          {isPlayerTurn && !playDisabled && !hasSelection && (
+            {showPassFlash ? (
+              <Animated.Text style={[styles.passText, { color: passTextColor }]}>
+                {passLabel}
+              </Animated.Text>
+            ) : (
+              <Text style={[styles.passText, { color: passIdleText }]}>
+                {passLabel}
+              </Text>
+            )}
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            style={[
+              styles.playButton,
+              { minHeight: buttonMinHeight },
+              playDisabled && styles.playButtonDisabled,
+              playReady && styles.playButtonReady,
+              playEnabled && !playReady && styles.playButtonTurn,
+              {
+                backgroundColor: playBackground,
+                borderColor: playBorderColor,
+                borderWidth: playReady || playEnabled ? 1.5 : 1,
+                ...(playReady || playEnabled
+                  ? Platform.select({
+                      ios: { shadowColor: gold },
+                      default: {},
+                    })
+                  : null),
+              },
+            ]}
+            onPress={() => {
+              triggerHaptic("medium");
+              onPlay();
+            }}
+            disabled={playDisabled}
+            accessibilityRole="button"
+            accessibilityLabel={playLabel}
+            accessibilityHint={playHint}
+            accessibilityState={{ disabled: playDisabled }}
+          >
             <Text
               style={[
-                styles.playSubtext,
-                { color: hexToRgba(gold, isLight ? 0.52 : 0.58) },
+                styles.playText,
+                { color: playIdleText },
+                playReady && styles.playTextReady,
+                playEnabled &&
+                  !playReady && {
+                    color: isLight ? colors.actionPrimaryText : "#f5f0e6",
+                  },
               ]}
             >
-              Select Cards First
+              {playLabel}
             </Text>
-          )}
-        </AnimatedTouchable>
-      </View>
-      ) : null}
+          </AnimatedTouchable>
 
-      <View style={styles.leaveRow}>
-        {onNavigateToSettings ? (
-          <TouchableOpacity
-            style={[
-              styles.circleFab,
-              {
-                backgroundColor: isLight
-                  ? "rgba(255,255,255,0.72)"
-                  : "rgba(255,255,255,0.1)",
-                borderColor: colors.btnGoldBorder,
-              },
-            ]}
-            onPress={onNavigateToSettings}
-            accessibilityRole="button"
-            accessibilityLabel="Settings"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <MenuIcon name="gear" size={18} color={gold} />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.leaveFabSpacer} />
-        )}
-        <TouchableOpacity
-          style={[ui.leaveButtonLive, styles.leaveButtonFlex]}
-          onPress={onQuit}
-          accessibilityRole="button"
-          accessibilityLabel="Leave Game"
-          hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
-        >
-          <Text style={ui.leaveButtonLiveText}>Leave Game</Text>
-        </TouchableOpacity>
-        {onNavigateToAchievements ? (
-          <TouchableOpacity
-            style={[
-              styles.circleFab,
-              {
-                backgroundColor: isLight
-                  ? "rgba(255,255,255,0.72)"
-                  : "rgba(255,255,255,0.1)",
-                borderColor: colors.btnGoldBorder,
-              },
-            ]}
-            onPress={onNavigateToAchievements}
-            accessibilityRole="button"
-            accessibilityLabel="View player stats"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <MenuIcon name="trophy" size={18} color={gold} />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.leaveFabSpacer} />
-        )}
-      </View>
+          {leaveButton}
+        </View>
+      )}
     </View>
   );
 }
@@ -392,47 +342,20 @@ export default function ActionBar({
 const styles = StyleSheet.create({
   container: {
     alignSelf: "center",
-    gap: 8,
-  },
-  leaveRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    width: "100%",
-  },
-  leaveButtonFlex: {
-    flexShrink: 1,
-    marginTop: 4,
-  },
-  leaveFabSpacer: {
-    width: 40,
-    height: 40,
-    flexShrink: 0,
-  },
-  skipGameButton: {
-    flex: 1,
-  },
-  circleFab: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
   },
   actionTrack: {
     flexDirection: "row",
     alignItems: "stretch",
     gap: 10,
-    minHeight: 48,
+    minHeight: 44,
+    width: "100%",
   },
   passButton: {
     flex: 1,
-    borderRadius: 14,
+    borderRadius: CAPSULE_RADIUS,
     borderWidth: 1,
-    paddingHorizontal: 10,
-    minHeight: 48,
+    paddingHorizontal: 12,
+    minHeight: 44,
     ...BUTTON_CENTER,
   },
   passButtonDisabled: {
@@ -450,11 +373,11 @@ const styles = StyleSheet.create({
     }),
   },
   playButton: {
-    flex: 1.45,
-    borderRadius: 14,
+    flex: 1.35,
+    borderRadius: CAPSULE_RADIUS,
     borderWidth: 1,
-    paddingHorizontal: 10,
-    minHeight: 48,
+    paddingHorizontal: 12,
+    minHeight: 44,
     ...BUTTON_CENTER,
   },
   playButtonDisabled: {
@@ -480,16 +403,18 @@ const styles = StyleSheet.create({
       android: { elevation: 8 },
     }),
   },
-  passText: buttonLabel(15, {
+  leaveButton: {
+    borderRadius: CAPSULE_RADIUS,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    minHeight: 44,
+    ...BUTTON_CENTER,
+  },
+  passText: buttonLabel(14, {
     fontWeight: "700",
     letterSpacing: 0.3,
   }),
-  passHint: buttonLabel(9, {
-    fontWeight: "600",
-    marginTop: 3,
-    letterSpacing: 0.2,
-  }),
-  playText: buttonLabel(15, {
+  playText: buttonLabel(14, {
     fontWeight: "800",
     letterSpacing: 0.3,
   }),
@@ -497,9 +422,8 @@ const styles = StyleSheet.create({
     color: "#111",
     fontWeight: "900",
   },
-  playSubtext: buttonLabel(10, {
-    fontWeight: "600",
-    marginTop: 3,
+  leaveText: buttonLabel(14, {
+    fontWeight: "800",
     letterSpacing: 0.2,
   }),
 });

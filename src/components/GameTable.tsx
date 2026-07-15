@@ -29,15 +29,14 @@ import {
   unifiedActivePileGroupZ,
   stageCardRowCenterY,
   stagePlayTypeBadgeTop,
-  stageTurnHintTop,
 } from "../utils/tablePlayLayout";
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
 import type { MeasurableNode } from "../utils/playFlightDiagnostics";
+import TableAmbience from "../gameplayPresentation/TableAmbience";
+import { RunsPill } from "../gameplayPresentation/RunsEffect";
 
 /** z-index stride per play group — cards within use 0..stride-1 by left-to-right order. */
 const GROUP_Z_STRIDE = 100;
-/** Approx. width for "Waiting for " + 24-char name + ellipsis (12px font). */
-const TURN_HINT_PILL_MAX_WIDTH = 268;
 
 function PileContactShadow({
   centerX,
@@ -166,10 +165,6 @@ type Props = {
   fadeOutDurationMs?: number;
   /** Hide plays until their seat-to-table flight finishes. */
   hiddenPlayKeys?: ReadonlySet<string>;
-  /** "Your turn" / "Waiting for …" shown below the play-type badge. */
-  turnHintText?: string | null;
-  /** Pulse the turn hint like the Pass button when it's the local player's turn. */
-  turnHintFlash?: boolean;
   /** Pulse the On top! modifier pill like the Pass button (local on-top beat). */
   playModifierFlash?: boolean;
   /** Temporary flight/pile alignment diagnostics — play group nodes keyed by playDisplayKey. */
@@ -189,8 +184,6 @@ export default function GameTable({
   fadeOut = false,
   fadeOutDurationMs = 200,
   hiddenPlayKeys,
-  turnHintText = null,
-  turnHintFlash = false,
   playModifierFlash = false,
   playGroupMeasureRefs,
   measuredZoneRef,
@@ -198,7 +191,6 @@ export default function GameTable({
   const [zoneSize, setZoneSize] = useState({ width: 0, height: 0 });
   const collectAnim = useRef(new Animated.Value(0)).current;
   const tableFadeAnim = useRef(new Animated.Value(1)).current;
-  const turnHintFlashAnim = useRef(new Animated.Value(0)).current;
   const onTopFlashAnim = useRef(new Animated.Value(0)).current;
   const collectHeldRef = useRef(false);
   const [stackFaceDown, setStackFaceDown] = useState(false);
@@ -398,18 +390,7 @@ export default function GameTable({
     showRunXpPool
   );
 
-  const turnHintTop = useMemo(
-    () => stageTurnHintTop(stageHeight, refCardHeight, showPlayTypePills),
-    [stageHeight, refCardHeight, showPlayTypePills],
-  );
-
-  const turnHintMaxWidth = useMemo(() => {
-    if (stageWidth <= 0) return TURN_HINT_PILL_MAX_WIDTH;
-    return Math.min(TURN_HINT_PILL_MAX_WIDTH, stageWidth - 8);
-  }, [stageWidth]);
-
-  const showBadgeColumn =
-    stageHeight > 0 && (showPlayTypePills || !!turnHintText);
+  const showBadgeColumn = stageHeight > 0 && showPlayTypePills;
 
   const badgeOpacity = collectAnim.interpolate({
     inputRange: [0, 0.35],
@@ -417,33 +398,9 @@ export default function GameTable({
     extrapolate: "clamp",
   });
 
-  useEffect(() => {
-    if (!turnHintFlash) {
-      turnHintFlashAnim.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(turnHintFlashAnim, {
-          toValue: 1,
-          duration: 600,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: false,
-        }),
-        Animated.timing(turnHintFlashAnim, {
-          toValue: 0,
-          duration: 600,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: false,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [turnHintFlash, turnHintFlashAnim]);
-
   const showOnTopModifierFlash =
     playModifierFlash && playModifierLabel === "On top!";
+  const showRunsEffect = playModifierLabel === "Runs!";
 
   useEffect(() => {
     if (!showOnTopModifierFlash) {
@@ -491,27 +448,6 @@ export default function GameTable({
       })
     : undefined;
 
-  const turnHintBackground = turnHintFlash
-    ? turnHintFlashAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["rgba(255, 255, 255, 0.12)", "rgba(255, 255, 255, 0.92)"],
-      })
-    : undefined;
-
-  const turnHintBorder = turnHintFlash
-    ? turnHintFlashAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["rgba(255, 255, 255, 0.18)", "rgba(255, 255, 255, 0.95)"],
-      })
-    : undefined;
-
-  const turnHintTextColor = turnHintFlash
-    ? turnHintFlashAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["rgba(255, 255, 255, 0.85)", "#111111"],
-      })
-    : undefined;
-
   const stageStyle =
     stageWidth > 0 && stageHeight > 0
       ? { width: stageWidth, height: stageHeight }
@@ -528,6 +464,11 @@ export default function GameTable({
       >
         {stageStyle ? (
           <>
+            <TableAmbience
+              width={stageWidth}
+              height={stageHeight}
+              waitingForPlay={plays.length === 0}
+            />
             <PileContactShadow
               centerX={pileSpotlightCenterX}
               centerY={pileSpotlightCenterY}
@@ -736,7 +677,20 @@ export default function GameTable({
                     </View>
                   ) : null}
                   {playModifierLabel ? (
-                    showOnTopModifierFlash ? (
+                    showRunsEffect ? (
+                      <RunsPill
+                        label={playModifierLabel}
+                        pillStyle={[
+                          styles.playTypeBadgeBody,
+                          styles.playTypeBadgeBodyHighlighted,
+                        ]}
+                        textStyle={[
+                          styles.playTypeBadgeText,
+                          styles.playTypeBadgeTextHighlighted,
+                        ]}
+                        active
+                      />
+                    ) : showOnTopModifierFlash ? (
                       <Animated.View
                         style={[
                           styles.playTypeBadgeBody,
@@ -795,58 +749,6 @@ export default function GameTable({
                     </View>
                   ) : null}
                 </View>
-              </Animated.View>
-            ) : null}
-            {turnHintText ? (
-              <Animated.View
-                style={[
-                  styles.turnHintPill,
-                  {
-                    top: turnHintTop,
-                    opacity: collectToStack ? badgeOpacity : 1,
-                  },
-                ]}
-                pointerEvents="none"
-              >
-                {turnHintFlash ? (
-                  <Animated.View
-                    style={[
-                      styles.turnHintPillBody,
-                      styles.turnHintPillFlash,
-                      { maxWidth: turnHintMaxWidth },
-                      {
-                        backgroundColor: turnHintBackground,
-                        borderColor: turnHintBorder,
-                      },
-                    ]}
-                  >
-                    <Animated.Text
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                      style={[
-                        styles.turnHintTextLabel,
-                        { color: turnHintTextColor },
-                      ]}
-                    >
-                      {turnHintText}
-                    </Animated.Text>
-                  </Animated.View>
-                ) : (
-                  <View
-                    style={[
-                      styles.turnHintPillBody,
-                      { maxWidth: turnHintMaxWidth },
-                    ]}
-                  >
-                    <Text
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                      style={styles.turnHintText}
-                    >
-                      {turnHintText}
-                    </Text>
-                  </View>
-                )}
               </Animated.View>
             ) : null}
           </Animated.View>
@@ -1009,52 +911,6 @@ const styles = StyleSheet.create({
   },
   playTypeBadgeTextHighlighted: {
     color: "#111111",
-  },
-  turnHintPill: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  turnHintPillBody: {
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.12)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255, 255, 255, 0.18)",
-    alignSelf: "center",
-    flexShrink: 0,
-    maxWidth: TURN_HINT_PILL_MAX_WIDTH,
-  },
-  turnHintPillFlash: Platform.select({
-    ios: {
-      shadowColor: "#fff",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.35,
-      shadowRadius: 10,
-    },
-    android: { elevation: 5 },
-    default: {},
-  }),
-  turnHintText: {
-    color: "rgba(255, 255, 255, 0.85)",
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-    flexShrink: 0,
-    ...(Platform.OS === "web"
-      ? ({ whiteSpace: "nowrap" } as object)
-      : null),
-  },
-  turnHintTextLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-    flexShrink: 0,
-    ...(Platform.OS === "web"
-      ? ({ whiteSpace: "nowrap" } as object)
-      : null),
   },
   emptyOverlay: {
     ...StyleSheet.absoluteFillObject,

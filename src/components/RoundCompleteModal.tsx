@@ -11,12 +11,17 @@ import {
 import BlurPanel from "./BlurPanel";
 import ModalBackdrop from "./ModalBackdrop";
 import AppButton from "./ui/AppButton";
+import AvatarRewardBorder from "./AvatarRewardBorder";
 import { triggerHaptic } from "../utils/haptics";
 import { useAppTheme } from "../context/ThemeContext";
 import { roleForPlacement, type RoundRoleLabel } from "../utils/roundRoles";
 import { livingFinishedOrder } from "../game/deadHand";
 import { hexToRgba } from "../utils/colorTheory";
 import { isCpuPlayer } from "../utils/localPlayer";
+import { playerInitials } from "../utils/playerDisplay";
+import { playerAvatarBackgroundColor } from "../utils/playerAvatarColor";
+import { levelFromXp } from "../services/playerLevel";
+import type { AvatarBorderDesign } from "../rewards/avatarBorders";
 import { ROUND_COMPLETE_Z } from "../styles/overlayZIndex";
 import LeaveGameConfirmModal from "./LeaveGameConfirmModal";
 
@@ -41,6 +46,8 @@ type Props = {
   botsAutoReady?: boolean;
   botNextRoundAt?: number | null;
   deadHandSeatOpen?: boolean;
+  /** Achievement borders — same map used on the table seats. */
+  avatarBordersByPlayerId?: Record<string, AvatarBorderDesign>;
   onQuit: () => void;
   onToggleReady: () => void;
   xpAnimationReady?: boolean;
@@ -50,7 +57,7 @@ type Props = {
   onLeaveConfirm?: () => void;
 };
 
-const ABSORB_MS = 1500;
+const AVATAR_SIZE = 40;
 const ROW_STAGGER_MS = 50;
 const OPEN_DELAY_MS = 180;
 const MODAL_SCALE_MS = 320;
@@ -59,129 +66,113 @@ function roleBannerLabel(role: RoundRoleLabel): string {
   return role.toUpperCase();
 }
 
-function RankXpDisplay({
+function RankAvatar({
+  player,
+  border,
+  styles,
+}: {
+  player: Player;
+  border?: AvatarBorderDesign | null;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  const bg = playerAvatarBackgroundColor(player.id, null, {
+    isCpu: isCpuPlayer(player),
+  });
+  return (
+    <View style={styles.avatarWrap}>
+      <View
+        style={[
+          styles.avatar,
+          { backgroundColor: bg },
+          !border && styles.avatarBare,
+        ]}
+      >
+        <Text style={styles.avatarText}>{playerInitials(player.name)}</Text>
+      </View>
+      {border ? (
+        <AvatarRewardBorder design={border} avatarSize={AVATAR_SIZE} />
+      ) : null}
+    </View>
+  );
+}
+
+/** Round XP (prominent) — lifetime sits with Level under the name. */
+function RankXpBlock({
   visible,
-  animationReady,
   boardDisplayed,
+  animationReady,
   rowDelay,
-  finalTotal,
   roundEarned,
   feltGreen,
   styles,
 }: {
   visible: boolean;
-  animationReady: boolean;
   boardDisplayed: boolean;
+  animationReady: boolean;
   rowDelay: number;
-  finalTotal: number;
   roundEarned: number;
   feltGreen: string;
   styles: ReturnType<typeof createStyles>;
 }) {
-  const progress = useRef(new Animated.Value(0)).current;
-  const absorbPlayedRef = useRef<string | null>(null);
-  const startTotal = Math.max(0, finalTotal - roundEarned);
-  const absorbKey = `${finalTotal}:${roundEarned}:${rowDelay}`;
-  const [displayTotal, setDisplayTotal] = useState(startTotal);
-  const [displayRound, setDisplayRound] = useState(roundEarned);
-  const [showRoundXp, setShowRoundXp] = useState(false);
-
-  const roundOpacity = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 0],
-    extrapolate: "clamp",
-  });
+  const roundOpacity = useRef(new Animated.Value(0)).current;
+  const roundScale = useRef(new Animated.Value(0.92)).current;
 
   useEffect(() => {
-    if (!visible || !boardDisplayed) {
-      progress.stopAnimation();
-      progress.setValue(0);
-      absorbPlayedRef.current = null;
-      setDisplayTotal(startTotal);
-      setDisplayRound(roundEarned);
-      setShowRoundXp(false);
+    if (!visible || !boardDisplayed || roundEarned <= 0) {
+      roundOpacity.setValue(roundEarned > 0 && boardDisplayed ? 1 : 0);
+      roundScale.setValue(1);
       return;
     }
-
-    if (roundEarned <= 0) {
-      progress.setValue(1);
-      setDisplayTotal(finalTotal);
-      setDisplayRound(0);
-      setShowRoundXp(false);
-      return;
-    }
-
-    if (absorbPlayedRef.current === absorbKey) {
-      progress.setValue(1);
-      setDisplayTotal(finalTotal);
-      setDisplayRound(0);
-      setShowRoundXp(false);
-      return;
-    }
-
     if (!animationReady) {
-      progress.setValue(0);
-      setDisplayTotal(startTotal);
-      setDisplayRound(roundEarned);
-      setShowRoundXp(roundEarned > 0);
+      roundOpacity.setValue(1);
+      roundScale.setValue(1);
       return;
     }
-
-    progress.setValue(0);
-    setDisplayTotal(startTotal);
-    setDisplayRound(roundEarned);
-    setShowRoundXp(true);
-    const listener = progress.addListener(({ value }) => {
-      setDisplayTotal(Math.round(startTotal + roundEarned * value));
-      setDisplayRound(Math.round(roundEarned * (1 - value)));
-    });
-
-    const anim = Animated.timing(progress, {
-      toValue: 1,
-      duration: ABSORB_MS,
-      delay: OPEN_DELAY_MS + rowDelay,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    });
-    anim.start(({ finished }) => {
-      if (finished) {
-        absorbPlayedRef.current = absorbKey;
-        setDisplayRound(0);
-        setShowRoundXp(false);
-        setDisplayTotal(finalTotal);
-      }
-    });
-
-    return () => {
-      anim.stop();
-      progress.removeListener(listener);
-    };
+    roundOpacity.setValue(0);
+    roundScale.setValue(0.92);
+    Animated.parallel([
+      Animated.timing(roundOpacity, {
+        toValue: 1,
+        duration: 320,
+        delay: OPEN_DELAY_MS + rowDelay,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(roundScale, {
+        toValue: 1,
+        duration: 360,
+        delay: OPEN_DELAY_MS + rowDelay,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, [
     visible,
     boardDisplayed,
     animationReady,
-    finalTotal,
     roundEarned,
     rowDelay,
-    startTotal,
-    absorbKey,
-    progress,
+    roundOpacity,
+    roundScale,
   ]);
 
+  if (roundEarned <= 0) {
+    return <Text style={styles.rankXpRoundMuted}>—</Text>;
+  }
+
   return (
-    <View style={styles.xpBlock}>
-      {showRoundXp ? (
-        <Animated.Text
-          style={[
-            styles.rankXpRound,
-            { color: feltGreen, opacity: roundOpacity },
-          ]}
-        >
-          + {displayRound.toLocaleString()} XP
-        </Animated.Text>
-      ) : null}
-      <Text style={styles.rankXpTotal}>{displayTotal.toLocaleString()} XP</Text>
-    </View>
+    <Animated.Text
+      style={[
+        styles.rankXpRound,
+        {
+          color: feltGreen,
+          opacity: roundOpacity,
+          transform: [{ scale: roundScale }],
+        },
+      ]}
+    >
+      +{roundEarned.toLocaleString()} XP
+    </Animated.Text>
   );
 }
 
@@ -194,6 +185,7 @@ function RankingRow({
   isPresident,
   finalTotal,
   roundEarned,
+  avatarBorder,
   visible,
   boardDisplayed,
   xpAnimationReady,
@@ -209,6 +201,7 @@ function RankingRow({
   isPresident: boolean;
   finalTotal: number;
   roundEarned: number;
+  avatarBorder?: AvatarBorderDesign | null;
   visible: boolean;
   boardDisplayed: boolean;
   xpAnimationReady: boolean;
@@ -219,6 +212,7 @@ function RankingRow({
   const rowOpacity = useRef(new Animated.Value(0)).current;
   const rowTranslate = useRef(new Animated.Value(8)).current;
   const banner = roleBannerStyle(role, colors);
+  const level = levelFromXp(finalTotal);
 
   useEffect(() => {
     if (!visible || !boardDisplayed) {
@@ -250,7 +244,6 @@ function RankingRow({
         styles.rankRow,
         isLocal && styles.rankRowLocal,
         isPresident && styles.rankRowPresident,
-        ready && styles.rankRowReady,
         {
           opacity: rowOpacity,
           transform: [{ translateY: rowTranslate }],
@@ -258,29 +251,52 @@ function RankingRow({
       ]}
     >
       <View style={styles.rankMain}>
-        <Text style={[styles.rankIndex, isPresident && styles.rankIndexPresident]}>
-          {index + 1}
-        </Text>
+        <RankAvatar player={player} border={avatarBorder} styles={styles} />
         <View style={styles.rankBody}>
           <View style={styles.rankTopRow}>
-            <Text style={styles.rankName} numberOfLines={1}>
-              {player.name}
-            </Text>
-            {ready ? (
-              <Text style={styles.readyCheck} accessibilityLabel="Ready">
-                Ready
+            <View style={styles.identityCol}>
+              <View style={styles.nameRow}>
+                <Text style={styles.rankName} numberOfLines={1}>
+                  {player.name}
+                </Text>
+                {isLocal ? (
+                  <View style={styles.youPill}>
+                    <Text style={styles.youPillText}>YOU</Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={styles.identityMeta} numberOfLines={1}>
+                Level {level} · {finalTotal.toLocaleString()} XP
               </Text>
-            ) : null}
-            <RankXpDisplay
-              visible={visible}
-              animationReady={rankXpAnimationReady(player, xpAnimationReady)}
-              boardDisplayed={boardDisplayed}
-              rowDelay={index * ROW_STAGGER_MS}
-              finalTotal={finalTotal}
-              roundEarned={roundEarned}
-              feltGreen={feltGreen}
-              styles={styles}
-            />
+            </View>
+            <View style={styles.statusCol}>
+              <RankXpBlock
+                visible={visible}
+                boardDisplayed={boardDisplayed}
+                animationReady={rankXpAnimationReady(player, xpAnimationReady)}
+                rowDelay={index * ROW_STAGGER_MS}
+                roundEarned={roundEarned}
+                feltGreen={feltGreen}
+                styles={styles}
+              />
+              <View style={styles.readyRow}>
+                <View
+                  style={[
+                    styles.readyDot,
+                    ready ? styles.readyDotOn : styles.readyDotOff,
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.readyLabel,
+                    ready ? styles.readyLabelOn : styles.readyLabelOff,
+                  ]}
+                  accessibilityLabel={ready ? "Ready" : "Waiting"}
+                >
+                  {ready ? "Ready" : "Waiting"}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
       </View>
@@ -351,6 +367,7 @@ export default function RoundCompleteModal({
   botsAutoReady = false,
   botNextRoundAt = null,
   deadHandSeatOpen = false,
+  avatarBordersByPlayerId = {},
   onQuit,
   onToggleReady,
   xpAnimationReady = true,
@@ -374,8 +391,7 @@ export default function RoundCompleteModal({
   }, [readyStates, players]);
   const isReady = localPlayerId ? !!displayReadyStates[localPlayerId] : false;
   const seatedForReady = useMemo(
-    () =>
-      players.filter((p) => !p.isDeadHand && p.id !== "__dead_hand__"),
+    () => players.filter((p) => !p.isDeadHand && p.id !== "__dead_hand__"),
     [players],
   );
   const readyDenominator =
@@ -394,7 +410,9 @@ export default function RoundCompleteModal({
     () => livingFinishedOrder(players, finishedOrder),
     [players, finishedOrder],
   );
-  const livingCount = players.filter((p) => !p.isDeadHand && p.id !== "__dead_hand__").length;
+  const livingCount = players.filter(
+    (p) => !p.isDeadHand && p.id !== "__dead_hand__",
+  ).length;
   const [boardDisplayed, setBoardDisplayed] = useState(false);
   const [botDealSecondsLeft, setBotDealSecondsLeft] = useState<number | null>(
     null,
@@ -490,7 +508,10 @@ export default function RoundCompleteModal({
                   return null;
                 }
 
-                const role = roleForPlacement(index, livingCount || rankedOrder.length);
+                const role = roleForPlacement(
+                  index,
+                  livingCount || rankedOrder.length,
+                );
                 const ready = !!displayReadyStates[playerId];
                 const isLocal = playerId === localPlayerId;
                 const finalTotal = playerXp[playerId] ?? 0;
@@ -508,6 +529,7 @@ export default function RoundCompleteModal({
                     isPresident={isPresident}
                     finalTotal={finalTotal}
                     roundEarned={roundEarned}
+                    avatarBorder={avatarBordersByPlayerId[playerId] ?? null}
                     visible={visible}
                     boardDisplayed={boardDisplayed}
                     xpAnimationReady={xpAnimationReady}
@@ -544,7 +566,7 @@ export default function RoundCompleteModal({
               </Text>
             ) : null}
 
-            <View style={ui.actionTrack}>
+            <View style={styles.footerActions}>
               <AppButton
                 label="Quit Game"
                 variant="destructive"
@@ -619,21 +641,48 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       overflow: "hidden",
     },
     rankRowLocal: {
-      borderColor: hexToRgba(colors.gold, 0.5),
+      borderColor: hexToRgba(colors.gold, isDark ? 0.48 : 0.42),
+      backgroundColor: hexToRgba(
+        colors.mode === "dark" ? "#0c1c14" : "#ffffff",
+        isDark ? 0.42 : 0.14,
+      ),
     },
     rankRowPresident: {
-      backgroundColor: hexToRgba(colors.gold, isDark ? 0.18 : 0.12),
-      borderColor: hexToRgba(colors.gold, isDark ? 0.55 : 0.65),
-    },
-    rankRowReady: {
-      borderColor: hexToRgba(readyGreen, isDark ? 0.45 : 0.4),
+      borderColor: hexToRgba(colors.gold, isDark ? 0.55 : 0.55),
     },
     rankMain: {
       flexDirection: "row",
       alignItems: "center",
       paddingHorizontal: 12,
-      paddingTop: 11,
-      paddingBottom: 10,
+      paddingTop: 12,
+      paddingBottom: 11,
+      gap: 10,
+    },
+    avatarWrap: {
+      width: AVATAR_SIZE,
+      height: AVATAR_SIZE,
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+      overflow: "visible",
+    },
+    avatar: {
+      width: AVATAR_SIZE,
+      height: AVATAR_SIZE,
+      borderRadius: AVATAR_SIZE / 2,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+    },
+    avatarBare: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hexToRgba(colors.gold, 0.35),
+    },
+    avatarText: {
+      color: "#fff",
+      fontSize: 13,
+      fontWeight: "800",
+      letterSpacing: 0.3,
     },
     roleFooter: {
       alignItems: "center",
@@ -647,61 +696,99 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "800",
       letterSpacing: 1.1,
     },
-    rankIndex: {
-      color: colors.gold,
-      fontSize: 15,
-      fontWeight: "800",
-      width: 22,
-      textAlign: "center",
-    },
-    rankIndexPresident: {
-      color: colors.gold,
-      fontSize: 16,
-    },
     rankBody: {
       flex: 1,
       minWidth: 0,
-      marginLeft: 8,
     },
     rankTopRow: {
       flexDirection: "row",
-      alignItems: "baseline",
-      gap: 8,
+      alignItems: "flex-start",
+      gap: 10,
+      minWidth: 0,
+    },
+    identityCol: {
+      flex: 1,
+      minWidth: 0,
+      gap: 3,
+    },
+    nameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
       minWidth: 0,
     },
     rankName: {
-      flex: 1,
+      flexShrink: 1,
       minWidth: 0,
       color: colors.textPrimary,
       fontSize: 15,
       fontWeight: "700",
     },
-    readyCheck: {
-      color: readyGreen,
-      fontSize: 11,
-      fontWeight: "800",
-      letterSpacing: 0.3,
-      marginRight: 2,
-    },
-    xpBlock: {
-      flexDirection: "row",
-      flexWrap: "nowrap",
-      alignItems: "baseline",
-      gap: 6,
+    youPill: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 8,
+      backgroundColor: hexToRgba(colors.gold, isDark ? 0.2 : 0.16),
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hexToRgba(colors.gold, 0.4),
       flexShrink: 0,
     },
-    rankXpTotal: {
-      color: colors.textPrimary,
-      fontSize: 13,
+    youPillText: {
+      color: colors.gold,
+      fontSize: 9,
+      fontWeight: "800",
+      letterSpacing: 0.6,
+    },
+    identityMeta: {
+      color: colors.textMuted,
+      fontSize: 11,
+      fontWeight: "600",
+      letterSpacing: 0.1,
+      fontVariant: ["tabular-nums"],
+    },
+    statusCol: {
+      alignItems: "flex-end",
+      gap: 4,
+      flexShrink: 0,
+      paddingTop: 1,
+    },
+    rankXpRound: {
+      fontSize: 16,
       fontWeight: "800",
       letterSpacing: 0.15,
       fontVariant: ["tabular-nums"],
     },
-    rankXpRound: {
-      fontSize: 12,
-      fontWeight: "800",
-      letterSpacing: 0.12,
-      fontVariant: ["tabular-nums"],
+    rankXpRoundMuted: {
+      color: colors.textMuted,
+      fontSize: 13,
+      fontWeight: "600",
+    },
+    readyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+    },
+    readyDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+    },
+    readyDotOn: {
+      backgroundColor: readyGreen,
+    },
+    readyDotOff: {
+      backgroundColor: hexToRgba(colors.textMuted, 0.55),
+    },
+    readyLabel: {
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 0.2,
+    },
+    readyLabelOn: {
+      color: readyGreen,
+    },
+    readyLabelOff: {
+      color: colors.textMuted,
     },
     readyCount: {
       color: colors.textMuted,
@@ -727,6 +814,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       textAlign: "center",
       marginBottom: 12,
       paddingHorizontal: 4,
+    },
+    footerActions: {
+      flexDirection: "row",
+      alignItems: "stretch",
+      gap: 10,
+      width: "100%",
+      minHeight: 48,
     },
   });
 }

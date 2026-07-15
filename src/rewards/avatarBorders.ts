@@ -63,7 +63,9 @@ const BORDER_BY_ACHIEVEMENT: Record<
   },
 };
 
-/** Highest-priority unlocked achievement border (best reward shown). */
+/** Highest-priority unlocked achievement border (best reward shown).
+ * Prestige / cosmetics packs can insert ahead of this list later without
+ * changing PlayerStats — resolve remains achievement-id driven. */
 const BORDER_PRIORITY = [
   "dynasty",
   "hot_streak",

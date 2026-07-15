@@ -32,12 +32,7 @@ import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import { resolveHandMetrics } from "../utils/compactGameLayout";
 import { buttonLabel } from "../styles/buttonStyles";
 import { useAppTheme } from "../context/ThemeContext";
-import type { BlurPreset, ThemeMode } from "../styles/themeColors";
-
-/** Match `BlurPanel` scrim tint — keeps hand-edge glass aligned with bottom bar chrome. */
-function blurScrimRgb(mode: ThemeMode): string {
-  return mode === "light" ? "255, 255, 255" : "8, 28, 18";
-}
+import type { BlurPreset } from "../styles/themeColors";
 
 function scrollHintEdgeOpacity(preset: BlurPreset): number {
   return Math.min(0.82, preset.webOpacity + preset.scrimOpacity * 3.2);
@@ -598,7 +593,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   const cardHeight = handMetrics.cardHeight;
   const fanHeight = handMetrics.fanHeight;
   const handZoneHeight = fanHeight + handMetrics.handZoneTopClearance;
-  const scrollHintScrimRgb = blurScrimRgb(colors.mode);
+  const scrollHintScrimRgb = colors.frostRgb;
   const hintEdgeOpacity = scrollHintEdgeOpacity(blur.chrome);
   const fanHeadroom = fanHeight - cardHeight;
   const maxCenterLift = Math.round(

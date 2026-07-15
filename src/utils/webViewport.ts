@@ -24,7 +24,11 @@ export const APP_SHELL_TOP_VAR = "--app-shell-top";
 export const WEB_SHELL_STYLE_ID = "ps-web-shell";
 export const WEB_BODY_PORTAL_ID = "ps-body-portal";
 export const WEB_OVERLAY_PORTAL_ID = "ps-overlay-portal";
+/** Environment layer root — owns felt / ambient paint (not interactive shell). */
 export const WEB_FELT_LAYER_ID = "ps-felt-layer";
+/** Alias for the environment layer class (same node as WEB_FELT_LAYER_ID). */
+export const WEB_ENVIRONMENT_LAYER_CLASS = "ps-environment-layer";
+export const WEB_ENV_READY_CLASS = "ps-env-ready";
 export const WEB_BOTTOM_BAR_SHELL_CLASS = "ps-bottom-bar-shell";
 export const WEB_FELT_FIXED_CLASS = "ps-felt-fixed";
 
@@ -163,6 +167,10 @@ export function clampDocumentScroll(): void {
   doc.body.scrollTop = 0;
 }
 
+/**
+ * Interactive shell geometry only.
+ * Never resize html/body or the environment layer — those own the paint viewport.
+ */
 function applyShellGeometry(doc: any, heightPx: number, topPx: number): void {
   const h = `${heightPx}px`;
   const top = `${topPx}px`;
@@ -171,12 +179,20 @@ function applyShellGeometry(doc: any, heightPx: number, topPx: number): void {
   doc.documentElement.style.setProperty(APP_HEIGHT_VAR, h);
   doc.documentElement.style.setProperty(APP_SHELL_TOP_VAR, top);
 
+  // Clear legacy inline clamps that previously tied wallpaper/document to shell.
+  for (const el of [doc.documentElement, doc.body, doc.getElementById(WEB_FELT_LAYER_ID)]) {
+    if (!el?.style) continue;
+    el.style.removeProperty("height");
+    el.style.removeProperty("max-height");
+    el.style.removeProperty("min-height");
+    if (el !== doc.documentElement) {
+      el.style.removeProperty("top");
+    }
+  }
+
   const targets = [
-    doc.documentElement,
-    doc.body,
     doc.getElementById("root"),
     doc.getElementById(WEB_BODY_PORTAL_ID),
-    doc.getElementById(WEB_FELT_LAYER_ID),
     doc.getElementById(WEB_OVERLAY_PORTAL_ID),
   ];
 
@@ -185,7 +201,6 @@ function applyShellGeometry(doc: any, heightPx: number, topPx: number): void {
     el.style.height = h;
     el.style.maxHeight = h;
     el.style.minHeight = "0";
-    if (el === doc.documentElement) continue;
     el.style.top = top;
   }
 }
@@ -199,9 +214,9 @@ export function keyboardLikelyOpen(win: WebWindow): boolean {
 }
 
 /**
- * Height for the mobile web shell. Prefer layout viewport (innerHeight) over dvh —
- * on iOS Safari/PWA, 100dvh often lags behind chrome expand/collapse and leaves a
- * theme-color strip below fixed shells and bottom bars.
+ * Height for the interactive application shell only.
+ * Prefer layout viewport (innerHeight) over dvh so keyboard / Safari chrome
+ * resize #root and portals — never the Environment wallpaper layer.
  */
 export function readWebShellHeight(win: WebWindow): number {
   const vv = win.visualViewport;
@@ -231,7 +246,10 @@ export function readWebShellTop(win: WebWindow): number {
   return Math.max(0, Math.round(win.visualViewport.offsetTop));
 }
 
-/** Sync html/body/#root/#ps-body-portal/#ps-felt-layer to the visible viewport. */
+/**
+ * Sync interactive shell (#root + portals) to the visible layout viewport.
+ * Environment wallpaper is intentionally excluded.
+ */
 export function applyMobileWebShellHeight(win: WebWindow): number {
   if (Platform.OS !== "web" || !isMobileWeb()) return readWebShellHeight(win);
 
@@ -294,8 +312,7 @@ export function installWebMobileViewportGuard(): () => void {
 }
 
 /**
- * Global mobile-web shell CSS: full device viewport (not 100vh), viewport-fit safe
- * areas, and bottom-bar extension into the home-indicator band.
+ * Global mobile-web CSS: Environment Layer (viewport) + Application shell vars.
  */
 export function installWebShellCss(feltTint: string): () => void {
   if (Platform.OS !== "web") return () => undefined;

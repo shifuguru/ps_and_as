@@ -5,11 +5,13 @@ import {
   Text,
   TextStyle,
   TouchableOpacity,
+  View,
   ViewStyle,
 } from "react-native";
 import { useAppTheme } from "../../context/ThemeContext";
 import { BUTTON_CENTER, buttonLabel } from "../../styles/buttonStyles";
 import { hexToRgba } from "../../utils/colorTheory";
+import MenuIcon from "../MenuIcon";
 
 export type AppButtonVariant = "primary" | "secondary" | "destructive" | "tertiary";
 
@@ -22,6 +24,8 @@ type Props = {
   textStyle?: StyleProp<TextStyle>;
   activeOpacity?: number;
   accessibilityLabel?: string;
+  /** Optional leading glyph from MenuIcon. */
+  icon?: React.ComponentProps<typeof MenuIcon>["name"];
 };
 
 export default function AppButton({
@@ -33,6 +37,7 @@ export default function AppButton({
   textStyle,
   activeOpacity = 0.82,
   accessibilityLabel,
+  icon,
 }: Props) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createVariantStyles(colors), [colors]);
@@ -43,6 +48,12 @@ export default function AppButton({
     destructive: styles.destructiveText,
     tertiary: styles.tertiaryText,
   } as const;
+  const iconColor =
+    variant === "primary"
+      ? colors.actionPrimaryText
+      : variant === "destructive"
+        ? (styles.destructiveText.color as string)
+        : (colors.btnSecondaryText as string);
 
   return (
     <TouchableOpacity
@@ -53,9 +64,12 @@ export default function AppButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
     >
-      <Text style={[labelStyles[variant], disabled && styles.disabledText, textStyle]}>
-        {label}
-      </Text>
+      <View style={styles.contentRow}>
+        {icon ? <MenuIcon name={icon} size={18} color={iconColor} /> : null}
+        <Text style={[labelStyles[variant], disabled && styles.disabledText, textStyle]}>
+          {label}
+        </Text>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -67,6 +81,12 @@ function createVariantStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   const destructiveLabel = isDark ? "#ffcdd2" : "#8b1a1a";
 
   return StyleSheet.create({
+    contentRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
     primary: {
       borderRadius: 14,
       paddingHorizontal: 14,

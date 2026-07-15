@@ -9,6 +9,7 @@ import {
   isValidPlay,
   isValidRunExtension,
   resolveRunContext,
+  playWouldActivateRun,
   createGame,
   playCards,
   passTurn,
@@ -370,7 +371,7 @@ const cases: Case[] = [
     expectValues: [3, 4, 5],
   },
   {
-    name: "skip-over step-back J-Q-J-K keeps run context",
+    name: "skip-over play J-Q-J-K does NOT invent a run (no sticky yet)",
     actions: [
       makeAction("play", 0, [card(11)]),
       makeAction("play", 1, [card(12)]),
@@ -378,8 +379,18 @@ const cases: Case[] = [
       makeAction("play", 3, [card(13)]),
     ],
     pile: [card(13)],
-    expectRun: true,
-    expectValues: [11, 12, 13],
+    expectRun: false,
+  },
+  {
+    name: "9-10-9-J must NOT invent a run (live false-run regression)",
+    actions: [
+      makeAction("play", 0, [card(9)]),
+      makeAction("play", 1, [card(10)]),
+      makeAction("play", 2, [card(9)]),
+      makeAction("play", 3, [card(11)]),
+    ],
+    pile: [card(11)],
+    expectRun: false,
   },
   {
     name: "J-Q-J before K — not yet a 3-card run",
@@ -1289,7 +1300,7 @@ function minimalRunTrick(opts: {
   }
 }
 
-console.log("\n=== Skip-over step-back: J-Q-J-K keeps Runs! context ===\n");
+console.log("\n=== Skip-over without sticky: J-Q-J-K must NOT invent Runs ===\n");
 {
   const trickBeforeK = {
     trickNumber: 1,
@@ -1308,6 +1319,7 @@ console.log("\n=== Skip-over step-back: J-Q-J-K keeps Runs! context ===\n");
     players,
     [],
   );
+  // K still beats J on normal rank rules — that is not the same as Runs.
   const kingAsRun = isValidPlay(
     [card(13)],
     pileBeforeK,
@@ -1342,38 +1354,58 @@ console.log("\n=== Skip-over step-back: J-Q-J-K keeps Runs! context ===\n");
   if (
     !ctxBeforeK.inRunContext &&
     kingAsRun &&
-    ctxAfterK.inRunContext &&
-    ctxAfterK.runSeq.map((c) => c.value).join(",") === "11,12,13"
+    !ctxAfterK.inRunContext
   ) {
     passed++;
-    console.log("PASS  J-Q-J-K: K extends from Q; Runs! stays active after K");
+    console.log("PASS  J-Q-J-K: K is a legal beat; Runs stays inactive (no invented J-Q-K)");
   } else {
     failed++;
-    console.log("FAIL  J-Q-J-K skip-over run");
+    console.log("FAIL  J-Q-J-K skip-over must not invent a run");
     console.log(
       `      beforeInRun=${ctxBeforeK.inRunContext} kingValid=${kingAsRun} afterInRun=${ctxAfterK.inRunContext} runSeq=${ctxAfterK.runSeq.map((c) => c.value)}`,
     );
   }
+}
 
-  const poolAfterK = activeRunXpPoolInfo(
-    {
-      pile: pileAfterK,
-      pileHistory: historyAfterK,
-      pileOwners: [players[0].id, players[1].id, players[2].id],
-      currentTrick: withStickyRun(trickAfterK, 1),
-      players,
-      finishedOrder: [],
-      lastPlayPlayerIndex: 3,
-    } as GameState,
-    5,
+console.log("\n=== Live false-run regression: 9-10-9-J must NOT activate Runs ===\n");
+{
+  const trickBeforeJ = {
+    trickNumber: 1,
+    actions: [
+      makeAction("play", 0, [card(9)]),
+      makeAction("play", 1, [card(10)]),
+      makeAction("play", 2, [card(9)]),
+    ],
+  };
+  const pileBeforeJ = [card(9)];
+  const historyBeforeJ: Card[][] = [[card(9)], [card(10)], [card(9)]];
+  const would = playWouldActivateRun(
+    [card(11)],
+    pileBeforeJ,
+    historyBeforeJ,
+    trickBeforeJ,
+    players,
+    [],
+    { id: players[3].id, name: players[3].name },
   );
-  if (poolAfterK.poolXp === 15 && poolAfterK.runLength === 3) {
+  const trickAfterJ = {
+    trickNumber: 1,
+    actions: [...trickBeforeJ.actions, makeAction("play", 3, [card(11)])],
+  };
+  const ctx = resolveRunContext(
+    [card(11)],
+    historyBeforeJ,
+    trickAfterJ,
+    players,
+    [],
+  );
+  if (!would && !ctx.inRunContext) {
     passed++;
-    console.log("PASS  J-Q-J-K: active run pool shows 15 XP (3 singles)");
+    console.log("PASS  9-10-9-J: playWouldActivateRun=false; resolveRunContext inactive");
   } else {
     failed++;
     console.log(
-      `FAIL  J-Q-J-K run pool: pool=${poolAfterK.poolXp} len=${poolAfterK.runLength}`,
+      `FAIL  9-10-9-J: wouldActivate=${would} inRun=${ctx.inRunContext} seq=${ctx.runSeq.map((c) => c.value)}`,
     );
   }
 }

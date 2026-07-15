@@ -32,6 +32,20 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-15T21:56"),
+    title: "New home screen, table UI & Runs/tens fixes",
+    items: [
+      "Home — a new Player Hub with your profile, progress, goals, and Offline / Online play",
+      "Table — refreshed felt, glass panels, ambient lighting, and clearer in-game HUD widgets",
+      "Runs! — when a run locks in, the pill gets a subtle warm energy effect around the glass",
+      "Runs — false activations from messy play order (like 9→10→9→J) should no longer light up Runs",
+      "Opening lead — hints no longer say open with a 3 when you’re just leading after winning a trick",
+      "On Top — cards should land cleanly when a trick closes on an On Top play",
+      "Winning play — last-trick info clears correctly between rounds so stale labels don’t linger",
+      "Theme — light and dark environments tune felt and frost together without changing glass strength",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-14T18:22"),
     title: "Sticky Runs, tens & round-end stability",
     items: [

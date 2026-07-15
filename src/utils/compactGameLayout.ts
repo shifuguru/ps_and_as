@@ -20,10 +20,14 @@ const BASE_HAND_CARD_W = 86;
 const BASE_HAND_CARD_H = 124;
 /** Keep in sync with PlayerHand.tsx fan headroom math. */
 const MAX_CENTER_LIFT = 14;
-const BASE_FAN_HEADROOM = HAND_SELECT_LIFT + MAX_CENTER_LIFT + 24;
+/** Fan headroom — trimmed vs old glass BottomBar (was +24 spare). */
+const BASE_FAN_HEADROOM = HAND_SELECT_LIFT + MAX_CENTER_LIFT + 16;
 /** Bottom clearance for fan tilt — keep in sync with PlayerHand fanBottomInset(). */
 const BASE_FAN_BOTTOM_CLEARANCE =
-  Math.ceil((BASE_HAND_CARD_W / 2) * 1.1 * Math.sin((18 * Math.PI) / 180)) + 4;
+  Math.ceil((BASE_HAND_CARD_W / 2) * 1.1 * Math.sin((18 * Math.PI) / 180)) + 2;
+
+/** Hint / instruction bar between hand and action track. */
+export const HAND_HINT_SLOT = 46;
 
 export function resolveCompactHeightTier(shellHeight: number): CompactHeightTier {
   if (shellHeight >= 900) return "comfortable";
@@ -81,6 +85,7 @@ export type HandLayoutMetrics = {
   cardWidth: number;
   cardHeight: number;
   fanHeight: number;
+  /** Gap between hand fan bottom and hint / controls. */
   handControlsGap: number;
   handZoneTopClearance: number;
   /** Inset above the hand→controls gap — keeps lifted/selected cards off the buttons. */
@@ -97,12 +102,12 @@ export function resolveHandMetrics(shellHeight: number): HandLayoutMetrics {
     Math.round(BASE_FAN_HEADROOM * fanHeadroomScale(tier)) +
     Math.round(BASE_FAN_BOTTOM_CLEARANCE * fanHeadroomScale(tier));
 
+  // Hand → hint/controls: tight stack (no glass plate breathing room).
   const handControlsGap =
-    tier === "veryTight" ? 8 : tier === "tight" ? 12 : tier === "compact" ? 14 : 18;
-  const handZoneTopClearance =
-    tier === "veryTight" || tier === "tight" ? 2 : 4;
+    tier === "veryTight" ? 2 : tier === "tight" ? 3 : tier === "compact" ? 4 : 4;
+  const handZoneTopClearance = 0;
   const handZoneBottomPad =
-    tier === "veryTight" ? 2 : tier === "tight" ? 3 : 4;
+    tier === "veryTight" ? 1 : tier === "tight" ? 1 : 2;
 
   return {
     tier,
@@ -120,13 +125,13 @@ export function resolveActionBarHeight(tier: CompactHeightTier): number {
   switch (tier) {
     case "comfortable":
     case "standard":
-      return 84;
+      return 52;
     case "compact":
-      return 78;
+      return 50;
     case "tight":
-      return 72;
+      return 48;
     case "veryTight":
-      return 66;
+      return 46;
   }
 }
 
@@ -134,13 +139,13 @@ export function resolveActionButtonMinHeight(tier: CompactHeightTier): number {
   switch (tier) {
     case "comfortable":
     case "standard":
-      return 48;
+      return 46;
     case "compact":
       return 44;
     case "tight":
-      return 42;
+      return 44;
     case "veryTight":
-      return 40;
+      return 44;
   }
 }
 
@@ -150,18 +155,18 @@ export function resolveActionTrackGap(tier: CompactHeightTier): number {
 
 /** Space above Pass / Play inside the bottom bar (tier-aware). */
 export function resolveControlsTopPad(tier: CompactHeightTier): number {
-  if (tier === "veryTight") return 6;
-  if (tier === "tight") return 8;
-  return 8;
+  if (tier === "veryTight") return 2;
+  if (tier === "tight") return 3;
+  return 4;
 }
 
 /** Top padding inside the opponent ring play area. */
 export function resolveOpponentTopPad(shellHeight: number): number {
   const tier = resolveCompactHeightTier(shellHeight);
-  if (tier === "veryTight") return 14;
-  if (tier === "tight") return 18;
-  if (tier === "compact") return 22;
-  return 30;
+  if (tier === "veryTight") return 12;
+  if (tier === "tight") return 16;
+  if (tier === "compact") return 20;
+  return 26;
 }
 
 export type BottomChromeMetrics = HandLayoutMetrics & {
@@ -169,6 +174,59 @@ export type BottomChromeMetrics = HandLayoutMetrics & {
   actionBarPadding: number;
   reservedHeight: number;
 };
+
+/**
+ * Gap between the feedback anchor and resting card tops.
+ * Kept tight — panels sit in the fan headroom band, not a full zone above it.
+ */
+export const HAND_FEEDBACK_GAP = 4;
+
+/**
+ * HAND_BASELINE — distance from the screen bottom to the top edge of the
+ * player hand / controls stack (includes fan headroom for selected lift).
+ * Play-area padding uses this so input never clips.
+ */
+export function resolveHandBaseline(
+  shellHeight: number,
+  safeBottom: number,
+  handVisible: boolean,
+  outerPad: number,
+): number {
+  return resolveBottomChromeMetrics(
+    shellHeight,
+    safeBottom,
+    handVisible,
+    outerPad,
+  ).reservedHeight;
+}
+
+/** Empty band above resting cards reserved for arc / select lift. */
+export function resolveHandFanHeadroom(shellHeight: number): number {
+  const tier = resolveCompactHeightTier(shellHeight);
+  return Math.round(BASE_FAN_HEADROOM * fanHeadroomScale(tier));
+}
+
+/**
+ * Bottom inset for Tricks / Winning Play / XP toasts.
+ * Sits just above resting card tops (inside fan headroom), still clear of
+ * hint + action buttons. Tracks hand metrics when tiers change.
+ */
+export function resolveHandFeedbackBottom(
+  shellHeight: number,
+  safeBottom: number,
+  handVisible: boolean,
+  outerPad: number,
+): number {
+  const baseline = resolveHandBaseline(
+    shellHeight,
+    safeBottom,
+    handVisible,
+    outerPad,
+  );
+  if (!handVisible) return Math.max(0, baseline + HAND_FEEDBACK_GAP);
+  const headroom = resolveHandFanHeadroom(shellHeight);
+  return Math.max(0, baseline - headroom + HAND_FEEDBACK_GAP);
+}
 
 /** Total bottom chrome reserved above the play-area host (matches BottomBar math). */
 export function resolveBottomChromeMetrics(
@@ -180,21 +238,21 @@ export function resolveBottomChromeMetrics(
   const hand = resolveHandMetrics(shellHeight);
   const actionBarHeight = resolveActionBarHeight(hand.tier);
   const controlsTopPad = resolveControlsTopPad(hand.tier);
-  const actionBarPadding = hand.tier === "veryTight" ? 8 : 12;
+  // Was 8/12 for frosted BottomBar breathing room — no longer needed.
+  const actionBarPadding = hand.tier === "veryTight" ? 4 : 6;
   const handSection = handVisible
     ? hand.fanHeight +
       hand.handZoneTopClearance +
       hand.handZoneBottomPad +
       hand.handControlsGap +
-      2
+      HAND_HINT_SLOT
     : 0;
   const reservedHeight =
-    8 +
+    2 +
     handSection +
     controlsTopPad +
     actionBarHeight +
     actionBarPadding +
-    4 +
     bottomOuterPad;
 
   return {
@@ -219,8 +277,9 @@ export function localHandShuffleScreenCenter(
   );
   const handZoneHeight =
     chrome.fanHeight + chrome.handZoneTopClearance + chrome.handZoneBottomPad;
-  const controlsBlock = chrome.actionBarHeight + chrome.actionBarPadding + 4;
-  const gapBlock = chrome.handControlsGap + 2;
+  const controlsBlock =
+    chrome.actionBarHeight + chrome.actionBarPadding + HAND_HINT_SLOT;
+  const gapBlock = chrome.handControlsGap;
   const centerFromBottom =
     bottomOuterPad + controlsBlock + gapBlock + handZoneHeight / 2;
   return {

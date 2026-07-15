@@ -1,6 +1,6 @@
 {
   "name": "ps_and_as",
-  "version": "1.0.63",
+  "version": "1.1.0",
   "main": "index.ts",
   "scripts": {
     "start": "node ./scripts/expo-dev-env.js",
@@ -15,6 +15,8 @@
     "test-runs": "npx tsx ./scripts/test-run-detection.ts",
     "test-run-house-rules": "npx tsx ./scripts/test-run-house-rules.ts",
     "test-ten-lower-on-top": "npx tsx ./scripts/test-ten-lower-on-top.ts",
+    "test-player-level": "npx tsx ./scripts/test-player-level.ts",
+    "test-daily-challenge": "npx tsx ./scripts/test-daily-challenge.ts",
     "bump-version": "node ./scripts/bump-version.js",
     "test-multiplayer": "node ./scripts/test-multiplayer.mjs",
     "qa-chaos": "node ./scripts/qa/run-chaos.mjs",

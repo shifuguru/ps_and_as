@@ -21,13 +21,13 @@ export const LOCAL_SEAT_TABLE_LIFT = LOCAL_SEAT_TABLE_LIFT_MAX;
 
 /** Height-aware lift — less on compact play areas so the seat stays below table pills. */
 export function resolveLocalSeatTableLift(playAreaHeight: number): number {
-  if (playAreaHeight <= 0) return 24;
-  if (playAreaHeight < 360) return 6;
-  if (playAreaHeight < 420) return 10;
-  if (playAreaHeight < 500) return 16;
-  if (playAreaHeight < 580) return 24;
-  if (playAreaHeight < 660) return 30;
-  return LOCAL_SEAT_TABLE_LIFT_MAX;
+  if (playAreaHeight <= 0) return 12;
+  if (playAreaHeight < 360) return 2;
+  if (playAreaHeight < 420) return 4;
+  if (playAreaHeight < 500) return 8;
+  if (playAreaHeight < 580) return 12;
+  if (playAreaHeight < 660) return 16;
+  return 20;
 }
 export const PLAY_TYPE_PILL_BAND = 12;
 /** @deprecated Use layout seat footprint from computePlayAreaLayout. */
@@ -37,7 +37,8 @@ export const SEAT_FOOTPRINT_W = 76;
 export const OPPONENT_TOP_PAD = 30;
 /** How far a seat avatar extends toward the table center from its ring position. */
 export const RING_SEAT_INSET = 0.5;
-export const RING_BOTTOM_PAD = 8;
+/** Bottom inset inside the play arena — keep local seat near the hand edge. */
+export const RING_BOTTOM_PAD = 2;
 
 /** Local seat sits at the bottom of the ring (6 o'clock). */
 export const LOCAL_RING_ANGLE = 180;
@@ -196,7 +197,7 @@ function maxSafeRingRadius(
   sideMargin: number,
 ): number {
   const roleBadgeTop = 8;
-  const nameStackBelow = 20;
+  const nameStackBelow = 12;
   const maxFromTop = ringCy - minTop - roleBadgeTop - seat.footprintH * 0.48;
   const maxFromBottom =
     ringBandBottom - ringCy - seat.footprintH * 0.52 - nameStackBelow;
@@ -228,13 +229,21 @@ export function computePlayAreaLayout(
   const minTop =
     shellHeight != null ? resolveOpponentTopPad(shellHeight) : OPPONENT_TOP_PAD;
   const ringBottomPad =
-    tier === "veryTight" ? 4 : tier === "tight" ? 6 : RING_BOTTOM_PAD;
+    tier === "veryTight" ? 1 : tier === "tight" ? 2 : RING_BOTTOM_PAD;
   const ringBandBottom = height - ringBottomPad;
   const verticalBudget = ringBandBottom - minTop;
 
-  const ringTopY = minTop + seat.footprintH * 0.25;
-  const ringBottomY = ringBandBottom - seat.footprintH * 0.38;
-  const ringCy = (ringTopY + ringBottomY) / 2;
+  const ringTopY = minTop + seat.footprintH * 0.22;
+  const ringBottomY = ringBandBottom - seat.footprintH * 0.28;
+  const seatBandCy = (ringTopY + ringBottomY) / 2;
+  /**
+   * Optical centre = current trick (primary anchor).
+   * Ring cy follows this centre — seats orbit the trick, not the reverse.
+   * Slightly below geometric mid so full-screen composition (with bottom hand)
+   * reads the pile as the stage focus.
+   */
+  const viewportCy = height * 0.52;
+  const ringCy = seatBandCy * 0.1 + viewportCy * 0.9;
 
   const seatReach =
     Math.max(seat.footprintW, seat.footprintH) * RING_SEAT_INSET;
@@ -258,12 +267,12 @@ export function computePlayAreaLayout(
     maxCardZoneH,
   );
 
-  const cardZoneTop = clamp(
+  let cardZoneTop = clamp(
     ringCy - cardZoneHeight / 2,
     minTop + 4,
     ringBandBottom - cardZoneHeight - 4,
   );
-  const cardZoneCenterY = cardZoneTop + cardZoneHeight / 2;
+  let cardZoneCenterY = cardZoneTop + cardZoneHeight / 2;
 
   const maxRingRadius = maxSafeRingRadius(
     cardZoneCenterY,
@@ -294,6 +303,13 @@ export function computePlayAreaLayout(
     cardZoneWidth = Math.max(minCardZone, Math.round(cardZoneWidth * scale));
     cardZoneHeight = Math.max(minCardZone, Math.round(cardZoneHeight * scale));
     cardClearRadius = Math.hypot(cardZoneWidth / 2, cardZoneHeight / 2);
+    // Keep shared centre coherent after clearance shrink.
+    cardZoneTop = clamp(
+      ringCy - cardZoneHeight / 2,
+      minTop + 4,
+      ringBandBottom - cardZoneHeight - 4,
+    );
+    cardZoneCenterY = cardZoneTop + cardZoneHeight / 2;
   }
 
   const desiredRingRadius = cardClearRadius + seatReach + seatTableGap;
@@ -302,7 +318,7 @@ export function computePlayAreaLayout(
   const cardZoneLeft = cx - cardZoneWidth / 2;
 
   const playAnchorX = cx;
-  const playAnchorY = cardZoneTop + cardZoneHeight * 0.44;
+  const playAnchorY = cardZoneTop + cardZoneHeight * 0.5;
   const isStretchy = cardZoneHeight > 240;
   const sideAnchorMargin = sideAnchorMarginForWidth(width, isWide);
 

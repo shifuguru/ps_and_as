@@ -34,7 +34,7 @@ export default function ModalBackdrop({
   const internalOpacity = useRef(new Animated.Value(0)).current;
   const opacity = opacityProp ?? internalOpacity;
   const modalBlur = blur.modal;
-  const scrimRgb = colors.mode === "light" ? "255, 255, 255" : "8, 28, 18";
+  const scrimRgb = colors.frostRgb;
   const webBlurPx = Math.round(
     Math.min(28, Math.max(16, modalBlur.intensity * 0.46)),
   );

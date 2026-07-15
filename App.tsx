@@ -8,7 +8,7 @@ import Achievements from "./src/screens/Achievements";
 import Settings from "./src/screens/Settings";
 import UpdateLog from "./src/screens/UpdateLog";
 import ReadMeScreen from "./src/screens/ReadMeScreen";
-import MainMenu from "./src/screens/MainMenu";
+import PlayerHub from "./src/screens/PlayerHub";
 import ScreenContainer from "./src/components/ScreenContainer";
 import BlurPanel from "./src/components/BlurPanel";
 import { ThemeProvider, useAppTheme } from "./src/context/ThemeContext";
@@ -242,64 +242,22 @@ function AppContent() {
     setScreen("game");
   };
 
-  const primaryButtons: {
-    label: string;
-    icon: "plus" | "shuffle" | "person" | "globe" | "multiplayer" | "trophy" | "gear" | "list";
-    action: () => void;
-  }[] = [
-    {
-      label: "Create Game",
-      icon: "plus",
-      action: () => {
-        disconnectRoom();
-        setIsOnlineGame(false);
-        setRoomAdapter(null);
-        setJoinedRoomId(null);
-        setScreen("create");
-      },
-    },
-    {
-      label: "Quick Game",
-      icon: "shuffle",
-      action: () => {
-        void startRandomGame();
-      },
-    },
-    {
-      label: "Multiplayer",
-      icon: "multiplayer",
-      action: () => {
-        disconnectRoom();
-        setIsOnlineGame(false);
-        setRoomAdapter(null);
-        setJoinedRoomId(null);
-        setScreen("find");
-      },
-    },
-    {
-      label: "Achievements",
-      icon: "trophy",
-      action: () => openAchievements(),
-    },
-    {
-      label: "What's New",
-      icon: "list",
-      action: () => openUpdateLog(),
-    },
-    {
-      label: "Settings",
-      icon: "gear",
-      action: () => openSettings(),
-    },
-    {
-      label: "Read Me",
-      icon: "globe",
-      action: () => openReadMe(),
-    },
-  ];
+  const [hubRefreshKey, setHubRefreshKey] = useState(0);
   const [wallpaperSource, setWallpaperSource] = useState<any>(require("./assets/ps_and_as_bg.png"));
   const [wallpaperRawUri, setWallpaperRawUri] = useState<string | null>(null);
   const [pendingRejoin, setPendingRejoin] = useState<LobbySession | null>(null);
+
+  useEffect(() => {
+    if (menuVisible && screen === "menu") {
+      setHubRefreshKey((k) => k + 1);
+      if (!localPlayerName) {
+        void getOrCreatePlayerId().then((profile) => {
+          setLocalPlayerName(profile.displayName || "Player");
+          setLocalPlayerId(profile.id);
+        });
+      }
+    }
+  }, [menuVisible, screen, localPlayerName]);
 
   useEffect(() => {
     console.log("[App] screen state", {
@@ -638,14 +596,15 @@ function AppContent() {
               }),
       ]}
     >
-        {/* Persistent felt wallpaper — one instance for the whole app */}
+        {/* Environment Layer — mobile web paints #ps-felt-layer; RN uses in-tree felt.
+            Wallpaper geometry is independent of interactive shell height. */}
         <FeltBackground
           fullBleed
           tint={feltTint}
         />
 
         <View style={appStyles.appContent}>
-        {/* Menu / lobby background — game & menu use their own felt layer */}
+        {/* Ambient accent behind secondary screens only — game/menu use Environment felt */}
         {screen !== "game" &&
           screen !== "create" &&
           screen !== "find" &&
@@ -722,28 +681,34 @@ function AppContent() {
                 </View>
               </View>
             ) : null}
-            <MainMenu
-              buttons={primaryButtons.map((btn) => {
-                if (btn.label === "What's New") {
-                  return {
-                    ...btn,
-                    badgeCount: updateLogUnreadCount,
-                    badgeA11yLabel: `${updateLogUnreadCount} new updates`,
-                  };
-                }
-                if (btn.label === "Multiplayer") {
-                  return {
-                    ...btn,
-                    badgeCount: onlinePlayerCount,
-                    badgeCap: 99,
-                    badgeA11yLabel: `${onlinePlayerCount} players online`,
-                  };
-                }
-                return btn;
-              })}
-              onButtonPress={(action) => {
-                playEffect("click");
-                action();
+            <PlayerHub
+              displayName={localPlayerName ?? "Player"}
+              whatsNewUnread={updateLogUnreadCount}
+              onlinePlayerCount={onlinePlayerCount}
+              refreshKey={hubRefreshKey}
+              onNavigateSound={() => playEffect("click")}
+              actions={{
+                onQuickGame: () => {
+                  void startRandomGame();
+                },
+                onHostLobby: () => {
+                  disconnectRoom();
+                  setIsOnlineGame(false);
+                  setRoomAdapter(null);
+                  setJoinedRoomId(null);
+                  setScreen("create");
+                },
+                onJoinLobby: () => {
+                  disconnectRoom();
+                  setIsOnlineGame(false);
+                  setRoomAdapter(null);
+                  setJoinedRoomId(null);
+                  setScreen("find");
+                },
+                onOpenAchievements: openAchievements,
+                onOpenWhatsNew: openUpdateLog,
+                onOpenSettings: openSettings,
+                onOpenReadMe: openReadMe,
               }}
             />
           </Animated.View>

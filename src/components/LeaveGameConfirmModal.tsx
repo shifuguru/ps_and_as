@@ -47,7 +47,7 @@ export default function LeaveGameConfirmModal({
           {message}
         </Text>
 
-        <View style={ui.actionTrack}>
+        <View style={styles.footerActions}>
           <AppButton
             label="Cancel"
             variant="secondary"
@@ -98,5 +98,12 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: LEAVE_CONFIRM_Z,
     elevation: LEAVE_CONFIRM_Z,
+  },
+  footerActions: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 10,
+    width: "100%",
+    minHeight: 48,
   },
 });

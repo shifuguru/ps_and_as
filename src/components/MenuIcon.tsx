@@ -13,7 +13,11 @@ type IconName =
   | "gear"
   | "ellipsis"
   | "list"
-  | "palette";
+  | "palette"
+  | "bolt"
+  | "calendar"
+  | "pencil"
+  | "bulb";
 
 type Props = {
   name: IconName;
@@ -142,6 +146,60 @@ export default function MenuIcon({ name, size = 20, color = GOLD }: Props) {
           <Circle cx="12" cy="8" r="1" fill={c} />
           <Circle cx="15.5" cy="10" r="1" fill={c} />
           <Circle cx="10" cy="13.5" r="1" fill={c} />
+        </Svg>
+      );
+    case "bolt":
+      return (
+        <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M13 2L4 14h7l-1 8 10-14h-7l1-6z"
+            stroke={c}
+            strokeWidth={sw}
+            strokeLinejoin="round"
+            fill={c}
+            fillOpacity={0.22}
+          />
+        </Svg>
+      );
+    case "calendar":
+      return (
+        <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+          <Rect x="3.5" y="5" width="17" height="15.5" rx="2" stroke={c} strokeWidth={sw} />
+          <Path d="M3.5 9.5h17" stroke={c} strokeWidth={sw} />
+          <Path d="M8 3.5v3" stroke={c} strokeWidth={sw} strokeLinecap="round" />
+          <Path d="M16 3.5v3" stroke={c} strokeWidth={sw} strokeLinecap="round" />
+          <Circle cx="8" cy="13" r="1" fill={c} />
+          <Circle cx="12" cy="13" r="1" fill={c} />
+          <Circle cx="16" cy="13" r="1" fill={c} />
+        </Svg>
+      );
+    case "pencil":
+      return (
+        <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M14.5 5.5l4 4L8 20H4v-4L14.5 5.5z"
+            stroke={c}
+            strokeWidth={sw}
+            strokeLinejoin="round"
+          />
+          <Path d="M12.5 7.5l4 4" stroke={c} strokeWidth={sw} strokeLinecap="round" />
+        </Svg>
+      );
+    case "bulb":
+      return (
+        <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M9 18h6M10 21h4"
+            stroke={c}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+          <Path
+            d="M12 3a6 6 0 0 0-3.5 10.7c.6.5 1 1.2 1.1 2H14.4c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3z"
+            stroke={c}
+            strokeWidth={sw}
+            strokeLinejoin="round"
+          />
         </Svg>
       );
     default:

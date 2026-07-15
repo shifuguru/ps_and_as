@@ -9,13 +9,12 @@ import {
 } from "react-native";
 import { createPortal } from "react-dom";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
-import BlurPanel from "./BlurPanel";
 import { ACTION_BAR_HEIGHT } from "./ActionBar";
 import { HAND_FAN_HEIGHT as DEFAULT_HAND_FAN_HEIGHT } from "./PlayerHand";
 import {
-  resolveBottomChromeMetrics,
   resolveControlsTopPad,
   resolveCompactHeightTier,
+  resolveHandBaseline,
 } from "../utils/compactGameLayout";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import { getWebBodyPortalHost } from "../utils/webBodyPortal";
@@ -28,22 +27,22 @@ import { useAppTheme } from "../context/ThemeContext";
 import { useInWebOverlayPortal } from "./WebModalPortal";
 
 /** Space between the top of the bottom bar and the Pass / Play row */
-export const BOTTOM_CONTROLS_TOP_PAD = 8;
+export const BOTTOM_CONTROLS_TOP_PAD = 4;
 
 /** Height of controls below the hand (ActionBar + padding). Keep in sync with ActionBar. */
 export const BOTTOM_CONTROLS_HEIGHT =
-  ACTION_BAR_HEIGHT + BOTTOM_CONTROLS_TOP_PAD + 12;
+  ACTION_BAR_HEIGHT + BOTTOM_CONTROLS_TOP_PAD + 6;
 
 /** Space for the centered leave pill below an action track (gap + button). */
-export const BOTTOM_LEAVE_ROW_HEIGHT = 48;
+export const BOTTOM_LEAVE_ROW_HEIGHT = 44;
 
 /** Gap between the hand fan and the action buttons */
-export const HAND_CONTROLS_GAP = 18;
+export const HAND_CONTROLS_GAP = 4;
 
 /** Empty space above the fan inside the hand zone. */
-export const HAND_ZONE_TOP_CLEARANCE = 4;
+export const HAND_ZONE_TOP_CLEARANCE = 0;
 
-const CONTENT_MARGIN = 8;
+const CONTENT_MARGIN = 4;
 
 function useWebBottomBarShell(): boolean {
   return Platform.OS === "web" && isMobileWeb();
@@ -57,9 +56,9 @@ export function bottomContentInset(safeBottom = 0): number {
   }
   const chrome = resolveWebBottomInset(safeBottom);
   if (Platform.OS === "ios") {
-    return Math.max(chrome, 12) + CONTENT_MARGIN;
+    return Math.max(chrome, 8) + CONTENT_MARGIN;
   }
-  return chrome + 12;
+  return chrome + 8;
 }
 
 /** Total bottom chrome height for layout reservation above the screen edge. */
@@ -75,7 +74,7 @@ export function menuBottomReserve(safeBottom = 0): number {
   return ACTION_BAR_HEIGHT + 18 + BOTTOM_LEAVE_ROW_HEIGHT + bottomOuterPad(safeBottom) + 8;
 }
 
-/** Vertical space to reserve above the bottom sheet — keep in sync with GameScreen padding. */
+/** Vertical space to reserve above the bottom sheet — HAND_BASELINE. */
 export function reservedBottomHeight(
   safeBottom = 0,
   handVisible = true,
@@ -83,17 +82,12 @@ export function reservedBottomHeight(
 ): number {
   const outerPad = bottomOuterPad(safeBottom);
   if (shellHeight != null && shellHeight > 0) {
-    return resolveBottomChromeMetrics(
-      shellHeight,
-      safeBottom,
-      handVisible,
-      outerPad,
-    ).reservedHeight;
+    return resolveHandBaseline(shellHeight, safeBottom, handVisible, outerPad);
   }
   const handSection = handVisible
     ? DEFAULT_HAND_FAN_HEIGHT + HAND_ZONE_TOP_CLEARANCE + HAND_CONTROLS_GAP + 2
     : 0;
-  return 8 + handSection + BOTTOM_CONTROLS_HEIGHT + 4 + outerPad;
+  return 4 + handSection + BOTTOM_CONTROLS_HEIGHT + 2 + outerPad;
 }
 
 type Props = {
@@ -103,12 +97,15 @@ type Props = {
   minHeight?: number;
 };
 
+/**
+ * Bottom chrome host — layout / safe-area only.
+ * No glass plate: felt + table vignette provide separation.
+ */
 export default function BottomBar({
   children,
   style,
   minHeight,
 }: Props) {
-  const { colors, blur } = useAppTheme();
   const insets = useLayoutInsets();
   const contentInset = bottomContentInset(insets.bottom);
   const webShell = useWebBottomBarShell();
@@ -117,11 +114,11 @@ export default function BottomBar({
     webShell && !inOverlayPortal ? getWebBodyPortalHost() : null;
 
   const bar = (
-    <BlurPanel
+    <View
+      // @ts-expect-error className is supported on RN Web
       className={webShell ? WEB_BOTTOM_BAR_SHELL_CLASS : undefined}
       style={[
         styles.bar,
-        { borderTopColor: colors.panelBorder },
         style,
         minHeight ? { minHeight } : undefined,
         webShell ? (styles.webShell as object) : null,
@@ -129,15 +126,12 @@ export default function BottomBar({
           ? { paddingBottom: insets.bottom }
           : null,
       ]}
-      preset={blur.chrome}
-      intensity={blur.chrome.intensity + 6}
-      scrimOpacity={blur.chrome.scrimOpacity * 0.72}
-      webOpacity={blur.chrome.webOpacity * 0.82}
+      pointerEvents="box-none"
     >
       <View style={[styles.inner, { paddingBottom: contentInset }]}>
         {children}
       </View>
-    </BlurPanel>
+    </View>
   );
 
   if (webShell && portalHost) {
@@ -226,7 +220,7 @@ export function BottomBarLeave({
   );
 }
 
-const FLOAT_INSET = 10;
+const FLOAT_INSET = 0;
 
 const styles = StyleSheet.create({
   bar: {
@@ -236,20 +230,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 50,
     elevation: 50,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    overflow: "hidden",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(255,255,255,0.1)",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.16,
-        shadowRadius: 14,
-      },
-      android: { elevation: 16 },
-    }),
+    backgroundColor: "transparent",
+    overflow: "visible",
   },
   webShell: {
     position: "absolute",
@@ -263,13 +245,13 @@ const styles = StyleSheet.create({
   },
   handZone: {
     width: "100%",
-    overflow: "hidden",
+    overflow: "visible",
     justifyContent: "flex-end",
     paddingTop: 0,
   },
   controls: {
     width: "100%",
     paddingHorizontal: 16,
-    paddingBottom: 2,
+    paddingBottom: 0,
   },
 });

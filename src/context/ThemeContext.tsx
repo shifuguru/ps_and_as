@@ -36,6 +36,7 @@ type ThemeContextValue = {
   colors: AppThemeColors;
   ui: UiStyles;
   blur: AppThemeColors["blur"];
+  environment: AppThemeColors["environment"];
   setAppearancePreference: (preference: AppearancePreference) => Promise<void>;
   setTextContrastPreference: (preference: TextContrastPreference) => Promise<void>;
   setFeltTint: (hex: string) => void;
@@ -80,6 +81,7 @@ function buildValue(
     colors,
     ui: createUiStyles(colors),
     blur: colors.blur,
+    environment: colors.environment,
     ...setters,
   };
 }
@@ -196,6 +198,7 @@ export function useAppTheme(): ThemeContextValue {
       colors: fallback.colors,
       ui: createUiStyles(fallback.colors),
       blur: fallback.colors.blur,
+      environment: fallback.colors.environment,
       setAppearancePreference: async () => {},
       setTextContrastPreference: async () => {},
       setFeltTint: () => {},

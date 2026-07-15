@@ -4,7 +4,11 @@ import {
   DEFAULT_FELT_COLOR,
   FELT_WALLPAPER,
 } from "../services/wallpaper";
+import { resolveFeltEnvironment } from "./feltPalette";
+import type { ThemeMode } from "./themeColors";
 import {
+  WEB_ENVIRONMENT_LAYER_CLASS,
+  WEB_ENV_READY_CLASS,
   WEB_FELT_FIXED_CLASS,
   WEB_FELT_LAYER_ID,
   applyMobileWebShellHeight,
@@ -12,7 +16,10 @@ import {
 
 export { WEB_FELT_FIXED_CLASS } from "../utils/webViewport";
 
-/** Fixed layer that paints edge-to-edge on mobile Safari / standalone PWA. */
+/**
+ * Fixed full-viewport box for RN Web wallpaper (desktop / non-mobile path).
+ * Uses inset:0 — never shell height.
+ */
 export const WEB_FULL_BLEED_FIXED =
   Platform.OS === "web"
     ? ({
@@ -23,6 +30,7 @@ export const WEB_FULL_BLEED_FIXED =
         right: 0,
         bottom: 0,
         width: "100%",
+        height: "100%",
       } as object)
     : null;
 
@@ -70,37 +78,70 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
-function getOrCreateFeltLayer(doc: WebDocument): any {
-  let layer = doc.getElementById(WEB_FELT_LAYER_ID);
-  if (layer) return layer;
-
-  layer = doc.createElement("div");
-  layer.id = WEB_FELT_LAYER_ID;
-  layer.setAttribute("aria-hidden", "true");
-
-  const texture = doc.createElement("div");
-  texture.className = "ps-felt-layer-texture";
-  layer.appendChild(texture);
-
-  const tint = doc.createElement("div");
-  tint.className = "ps-felt-layer-tint";
-  layer.appendChild(tint);
-
-  const root = doc.getElementById("root");
-  if (root?.parentNode) {
-    root.parentNode.insertBefore(layer, root);
-  } else {
-    doc.body.insertBefore(layer, doc.body.firstChild);
-  }
-
-  return layer;
+function clearShellInlineGeometry(el: any): void {
+  if (!el?.style) return;
+  el.style.removeProperty("height");
+  el.style.removeProperty("max-height");
+  el.style.removeProperty("min-height");
+  el.style.removeProperty("top");
+  el.style.removeProperty("bottom");
 }
 
 /**
- * Dedicated fixed felt layer — avoids iOS background-attachment:fixed clipping.
- * Height is synced to --app-shell-h via applyMobileWebShellHeight().
+ * Permanent Environment Layer under `#root`.
+ * Planes: texture → tint → (future lighting / vignette / crest / decor).
+ * Geometry is always viewport-owned; never mirrored to --app-height.
  */
-export function ensureWebFeltBackdrop(tint = DEFAULT_FELT_COLOR): void {
+function getOrCreateEnvironmentLayer(doc: WebDocument): any {
+  let layer = doc.getElementById(WEB_FELT_LAYER_ID);
+  if (!layer) {
+    layer = doc.createElement("div");
+    layer.id = WEB_FELT_LAYER_ID;
+
+    const texture = doc.createElement("div");
+    texture.className = "ps-felt-layer-texture ps-env-plane";
+    texture.setAttribute("data-env", "texture");
+    layer.appendChild(texture);
+
+    const tint = doc.createElement("div");
+    tint.className = "ps-felt-layer-tint ps-env-plane";
+    tint.setAttribute("data-env", "tint");
+    layer.appendChild(tint);
+
+    // Reserved planes — empty until ambience content ships.
+    for (const name of ["lighting", "vignette", "crest", "decor"] as const) {
+      const plane = doc.createElement("div");
+      plane.className = `ps-env-${name}`;
+      plane.setAttribute("data-env", name);
+      layer.appendChild(plane);
+    }
+
+    const root = doc.getElementById("root");
+    if (root?.parentNode) {
+      root.parentNode.insertBefore(layer, root);
+    } else {
+      doc.body.insertBefore(layer, doc.body.firstChild);
+    }
+  }
+
+  layer.classList.add(WEB_ENVIRONMENT_LAYER_CLASS);
+  layer.setAttribute("aria-hidden", "true");
+  clearShellInlineGeometry(layer);
+  return layer;
+}
+
+function markEnvironmentReady(doc: WebDocument): void {
+  doc.documentElement?.classList?.add(WEB_ENV_READY_CLASS);
+}
+
+/**
+ * Mount / refresh the Environment Layer (felt texture + tint + ambient lighting).
+ * Mode brightens the table — glass stays translucent elsewhere.
+ */
+export function ensureWebFeltBackdrop(
+  tint = DEFAULT_FELT_COLOR,
+  mode: ThemeMode = "dark",
+): void {
   if (Platform.OS !== "web") return;
 
   const doc = (globalThis as { document?: WebDocument }).document;
@@ -114,11 +155,13 @@ export function ensureWebFeltBackdrop(tint = DEFAULT_FELT_COLOR): void {
   }
   if (!url) return;
 
-  const layer = getOrCreateFeltLayer(doc);
-  const tintRgb = hexToRgb(tint) ?? { r: 15, g: 93, b: 47 };
+  const layer = getOrCreateEnvironmentLayer(doc);
+  const env = resolveFeltEnvironment(tint, mode);
+  const tintRgb = hexToRgb(env.displayTint) ?? { r: 15, g: 93, b: 47 };
 
   const texture = layer.querySelector(".ps-felt-layer-texture");
   const tintEl = layer.querySelector(".ps-felt-layer-tint");
+  const lighting = layer.querySelector(".ps-env-lighting");
 
   const staleDepth = layer.querySelector(".ps-felt-layer-depth");
   if (staleDepth) staleDepth.remove();
@@ -128,15 +171,35 @@ export function ensureWebFeltBackdrop(tint = DEFAULT_FELT_COLOR): void {
     texture.style.backgroundSize = "cover";
     texture.style.backgroundPosition = "center center";
     texture.style.backgroundRepeat = "no-repeat";
-    texture.style.filter = "";
+    const ts = env.textureStrength;
+    texture.style.filter =
+      mode === "light"
+        ? `brightness(${(1.04 + (ts - 1) * 0.35).toFixed(3)}) contrast(${(1.02 + (ts - 1) * 0.2).toFixed(3)})`
+        : `contrast(${(1 + (ts - 1) * 0.1).toFixed(3)}) saturate(${(1 + (ts - 1) * 0.25).toFixed(3)})`;
   }
 
   if (tintEl) {
-    tintEl.style.backgroundColor = `rgba(${tintRgb.r}, ${tintRgb.g}, ${tintRgb.b}, 0.82)`;
+    tintEl.style.backgroundColor = `rgba(${tintRgb.r}, ${tintRgb.g}, ${tintRgb.b}, ${env.tintOpacity})`;
   }
 
-  doc.documentElement.style.setProperty("--ps-felt-tint", tint);
+  if (lighting) {
+    if (env.ambientWashOpacity > 0) {
+      const wash = env.ambientWashRgb;
+      const mid = Math.max(env.ambientWashOpacity * 0.35, 0.02);
+      lighting.style.background =
+        `radial-gradient(ellipse 85% 70% at 50% 42%, rgba(${wash},${env.ambientWashOpacity}) 0%, rgba(${wash},${mid}) 55%, transparent 78%)`;
+      lighting.style.opacity = "1";
+    } else {
+      lighting.style.background = "transparent";
+      lighting.style.opacity = "0";
+    }
+  }
 
+  doc.documentElement.style.setProperty("--ps-felt-tint", env.displayTint);
+  doc.documentElement.style.setProperty("--ps-theme-mode", mode);
+  markEnvironmentReady(doc);
+
+  // Shell layout only — never pass height to the environment layer.
   const win = (globalThis as {
     window?: Parameters<typeof applyMobileWebShellHeight>[0];
   }).window;
@@ -144,3 +207,6 @@ export function ensureWebFeltBackdrop(tint = DEFAULT_FELT_COLOR): void {
     applyMobileWebShellHeight(win);
   }
 }
+
+/** @deprecated Prefer ensureWebFeltBackdrop — identical entry for Environment Layer. */
+export const ensureEnvironmentLayer = ensureWebFeltBackdrop;

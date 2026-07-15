@@ -26,6 +26,53 @@ type Props = {
   onLayout?: (event: LayoutChangeEvent) => void;
 };
 
+type PaddingKeys =
+  | "padding"
+  | "paddingTop"
+  | "paddingBottom"
+  | "paddingLeft"
+  | "paddingRight"
+  | "paddingHorizontal"
+  | "paddingVertical"
+  | "paddingStart"
+  | "paddingEnd";
+
+const PADDING_KEYS: PaddingKeys[] = [
+  "padding",
+  "paddingTop",
+  "paddingBottom",
+  "paddingLeft",
+  "paddingRight",
+  "paddingHorizontal",
+  "paddingVertical",
+  "paddingStart",
+  "paddingEnd",
+];
+
+/**
+ * Split visual chrome (border, radius, shadow) from layout padding.
+ * Padding on the painted surface makes AbsoluteFill children inset and
+ * read as a nested rectangular plate — keep paint on the outer surface only.
+ */
+function splitPadding(style: StyleProp<ViewStyle>): {
+  surface: ViewStyle;
+  contentPad: ViewStyle;
+} {
+  const flat = (StyleSheet.flatten(style) ?? {}) as ViewStyle;
+  const contentPad: ViewStyle = {};
+  const surface: ViewStyle = { ...flat };
+  for (const key of PADDING_KEYS) {
+    if (surface[key] != null) {
+      (contentPad as Record<string, unknown>)[key] = surface[key];
+      delete surface[key];
+    }
+  }
+  // Nested AbsoluteFill layers must never inherit a second background.
+  // Callers paint via BlurPanel's single glass fill only.
+  delete surface.backgroundColor;
+  return { surface, contentPad };
+}
+
 export default function BlurPanel({
   children,
   style,
@@ -42,10 +89,11 @@ export default function BlurPanel({
   const resolvedScrim = scrimOpacity ?? blur.scrimOpacity;
   const resolvedWebOpacity = webOpacity ?? blur.webOpacity;
   const webBlurPx = Math.round(Math.min(28, Math.max(16, resolvedIntensity * 0.46)));
-  const scrimRgb = colors.mode === "light" ? "255, 255, 255" : "8, 28, 18";
-  const webTintStrength = colors.mode === "light" ? 0.2 : 0.42;
+  const scrimRgb = colors.frostRgb;
+  const { surface, contentPad } = splitPadding(style);
 
   if (Platform.OS === "web") {
+    // Single painted surface. No nested tint View — that was the inset plate.
     return (
       <View
         // @ts-expect-error className is supported on RN Web
@@ -58,38 +106,29 @@ export default function BlurPanel({
             backdropFilter: `blur(${webBlurPx}px) saturate(1.35)`,
             WebkitBackdropFilter: `blur(${webBlurPx}px) saturate(1.35)`,
           } as ViewStyle,
-          style,
+          surface,
         ]}
       >
-        <View
-          style={[
-            styles.fallbackTint,
-            {
-              backgroundColor: `rgba(${scrimRgb}, ${resolvedWebOpacity * webTintStrength})`,
-            },
-          ]}
-          pointerEvents="none"
-        />
-        <View style={styles.content}>{children}</View>
+        <View style={[styles.content, contentPad]}>{children}</View>
       </View>
     );
   }
 
+  // Native: single BlurView surface. Scrim is the BlurView backgroundColor —
+  // never a nested AbsoluteFill sibling (that became an inset plate when
+  // callers put padding on the BlurView).
   return (
     <BlurView
       intensity={resolvedIntensity}
       tint={blur.tint}
       onLayout={onLayout}
-      style={[styles.blur, style]}
+      style={[
+        styles.blur,
+        { backgroundColor: `rgba(${scrimRgb}, ${resolvedScrim})` },
+        surface,
+      ]}
     >
-      <View
-        style={[
-          styles.scrim,
-          { backgroundColor: `rgba(${scrimRgb}, ${resolvedScrim})` },
-        ]}
-        pointerEvents="none"
-      />
-      <View style={styles.content}>{children}</View>
+      <View style={[styles.content, contentPad]}>{children}</View>
     </BlurView>
   );
 }
@@ -97,9 +136,6 @@ export default function BlurPanel({
 const styles = StyleSheet.create({
   blur: {
     overflow: "hidden",
-  },
-  scrim: {
-    ...StyleSheet.absoluteFillObject,
   },
   content: {
     position: "relative",
@@ -109,8 +145,5 @@ const styles = StyleSheet.create({
   },
   fallback: {
     overflow: "hidden",
-  },
-  fallbackTint: {
-    ...StyleSheet.absoluteFillObject,
   },
 });

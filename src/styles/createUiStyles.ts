@@ -1,7 +1,22 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet, type ViewStyle } from "react-native";
 import type { AppThemeColors } from "./themeColors";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
 import { BUTTON_CENTER, buttonLabel } from "./buttonStyles";
+
+/** Soft floating shadow — iOS liquid-glass style lift over content behind. */
+const leaveButtonShadow = Platform.select({
+  ios: {
+    shadowColor: "#000",
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  android: { elevation: 6 },
+  default: {
+    // Web / others — soft ambient drop, not a hard edge.
+    boxShadow: "0 4px 18px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.12)",
+  },
+}) as ViewStyle;
 
 export function createUiStyles(c: AppThemeColors) {
   return StyleSheet.create({
@@ -27,6 +42,7 @@ export function createUiStyles(c: AppThemeColors) {
       backgroundColor: c.leaveButtonBg,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.leaveButtonBorder,
+      ...leaveButtonShadow,
       ...BUTTON_CENTER,
     },
     leaveButtonText: buttonLabel(14, {
@@ -43,6 +59,7 @@ export function createUiStyles(c: AppThemeColors) {
       backgroundColor: c.leaveButtonLiveBg,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.leaveButtonLiveBorder,
+      ...leaveButtonShadow,
       ...BUTTON_CENTER,
     },
     leaveButtonLiveText: buttonLabel(14, {
@@ -75,11 +92,11 @@ export function createUiStyles(c: AppThemeColors) {
       color: c.gold,
       fontSize: 11,
       fontWeight: "800",
-      letterSpacing: 0.4,
+      letterSpacing: 0.5,
       marginBottom: 10,
     },
     fieldLabel: {
-      color: c.textMuted,
+      color: c.textSecondary,
       fontSize: 11,
       fontWeight: "700",
       letterSpacing: 0.2,

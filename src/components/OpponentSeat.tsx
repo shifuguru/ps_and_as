@@ -15,6 +15,8 @@ import TrickWinShout from "./TrickWinShout";
 import AvatarRewardBorder from "./AvatarRewardBorder";
 import type { AvatarBorderDesign } from "../rewards/avatarBorders";
 import Card from "./Card";
+import AvatarAmbientEffect from "../gameplayPresentation/AvatarAmbientEffect";
+import { GAMEPLAY_PRESENTATION } from "../gameplayPresentation/featureFlags";
 import {
   avatarSizeForSeat,
   COUNT_BADGE_OUTSET_BOTTOM,
@@ -129,6 +131,33 @@ export default function OpponentSeat({
   const dims = seatDimsProp ?? hookDims;
   const turnIntro = useTurnIntroAnimation(isActive, isOut);
   const nudgePulse = useRef(new Animated.Value(0)).current;
+  const turnBreath = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!isActive || isOut) {
+      turnBreath.stopAnimation();
+      turnBreath.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(turnBreath, {
+          toValue: 1,
+          duration: 1600,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(turnBreath, {
+          toValue: 0,
+          duration: 1600,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isActive, isOut, turnBreath]);
   const initials = playerInitials(player.name);
   const role = roleEmoji(player.role);
 
@@ -168,33 +197,42 @@ export default function OpponentSeat({
   });
   const ringOpacity = turnIntro.interpolate({
     inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
-    outputRange: [0, 0.74, 0.88, 0.78],
+    outputRange: [0, 0.8, 0.95, 0.86],
     extrapolate: "clamp",
   });
   const coreOpacity = turnIntro.interpolate({
     inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
-    outputRange: [0, 0.5, 0.64, 0.54],
+    outputRange: [0, 0.55, 0.72, 0.62],
     extrapolate: "clamp",
   });
   const glowScale = turnIntro.interpolate({
     inputRange: [...introRange],
-    outputRange: [0.98, 1.02, 1.05, 1.02, 1],
+    outputRange: [0.98, 1.03, 1.07, 1.03, 1.02],
     extrapolate: "clamp",
   });
   const glowOpacity = turnIntro.interpolate({
     inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
-    outputRange: [0, 0.22, 0.36, 0.28],
+    outputRange: [0, 0.28, 0.45, 0.34],
     extrapolate: "clamp",
   });
   const haloScale = turnIntro.interpolate({
     inputRange: [...introRange],
-    outputRange: [0.97, 1.02, 1.08, 1.03, 1],
+    outputRange: [0.97, 1.03, 1.1, 1.04, 1.02],
     extrapolate: "clamp",
   });
   const haloOpacity = turnIntro.interpolate({
     inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
-    outputRange: [0, 0.12, 0.24, 0.16],
+    outputRange: [0, 0.16, 0.32, 0.22],
     extrapolate: "clamp",
+  });
+
+  const breathScale = turnBreath.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.04],
+  });
+  const breathOpacityBoost = turnBreath.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.12],
   });
 
   const nudgeRingScale = nudgePulse.interpolate({
@@ -226,13 +264,34 @@ export default function OpponentSeat({
     outputRange: [0.28, 0.52],
   });
 
-  const activeHaloScale = nudgeHighlighted ? nudgeHaloScale : haloScale;
-  const activeHaloOpacity = nudgeHighlighted ? nudgeHaloOpacity : haloOpacity;
-  const activeGlowScale = nudgeHighlighted ? nudgeGlowScale : glowScale;
-  const activeGlowOpacity = nudgeHighlighted ? nudgeGlowOpacity : glowOpacity;
-  const activeRingScale = nudgeHighlighted ? nudgeRingScale : ringScale;
-  const activeRingOpacity = nudgeHighlighted ? nudgeRingOpacity : ringOpacity;
-  const activeCoreOpacity = nudgeHighlighted ? nudgeCoreOpacity : coreOpacity;
+  const activeHaloScale = Animated.multiply(
+    nudgeHighlighted ? nudgeHaloScale : haloScale,
+    breathScale,
+  );
+  const activeHaloOpacity = Animated.add(
+    nudgeHighlighted ? nudgeHaloOpacity : haloOpacity,
+    breathOpacityBoost,
+  );
+  const activeGlowScale = Animated.multiply(
+    nudgeHighlighted ? nudgeGlowScale : glowScale,
+    breathScale,
+  );
+  const activeGlowOpacity = Animated.add(
+    nudgeHighlighted ? nudgeGlowOpacity : glowOpacity,
+    breathOpacityBoost,
+  );
+  const activeRingScale = Animated.multiply(
+    nudgeHighlighted ? nudgeRingScale : ringScale,
+    breathScale,
+  );
+  const activeRingOpacity = Animated.add(
+    nudgeHighlighted ? nudgeRingOpacity : ringOpacity,
+    breathOpacityBoost,
+  );
+  const activeCoreOpacity = Animated.add(
+    nudgeHighlighted ? nudgeCoreOpacity : coreOpacity,
+    breathOpacityBoost,
+  );
 
   const avatarSize = avatarSizeForSeat(dims, { compact, isLocal });
   const turnHaloPad = 30;
@@ -578,6 +637,12 @@ export default function OpponentSeat({
             celebrateTrickWin && styles.avatarWrapCelebrate,
           ]}
         >
+          <AvatarAmbientEffect
+            size={avatarSize}
+            accentColor={celebrationPalette.complementBright || colors.gold}
+            enabled={GAMEPLAY_PRESENTATION.avatarAmbient && !isOut}
+            turnActive={isActive && !isOut}
+          />
           {avatarBlock}
           {avatarBorder ? (
             <AvatarRewardBorder design={avatarBorder} avatarSize={avatarSize} />
@@ -591,6 +656,14 @@ export default function OpponentSeat({
             celebrateTrickWin && styles.avatarWrapCelebrate,
           ]}
         >
+          {!isDeadHand ? (
+            <AvatarAmbientEffect
+              size={avatarSize}
+              accentColor={celebrationPalette.complementBright || colors.gold}
+              enabled={GAMEPLAY_PRESENTATION.avatarAmbient && !isOut}
+              turnActive={isActive && !isOut}
+            />
+          ) : null}
           {avatarBlock}
           {avatarBorder ? (
             <AvatarRewardBorder design={avatarBorder} avatarSize={avatarSize} />
@@ -768,6 +841,8 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
     justifyContent: "center",
     marginBottom: 4,
     overflow: "visible",
+    position: "relative",
+    zIndex: 2,
   },
   avatarWrapCelebrate: {
     zIndex: 12,
@@ -822,8 +897,11 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   },
   roleBadge: {
     position: "absolute",
-    top: -6,
-    left: -4,
+    top: -8,
+    left: 0,
+    right: 0,
+    textAlign: "center",
+    zIndex: 12,
   },
   readyBadge: {
     position: "absolute",
