@@ -1,7 +1,10 @@
 /**
  * iOS PWA / mobile Safari shell — loaded LAST in production index.html so it
  * overrides Expo's #expo-reset (height: 100% breaks viewport-fit=cover).
- * Shell height/top are driven by --app-shell-h / --app-height (JS innerHeight) and --app-shell-top.
+ *
+ * Ownership split (do not reunify):
+ * - Environment layer (#ps-felt-layer): full device paint rect — never shell height
+ * - Application shell (#root + portals): --app-height / --app-shell-top for keyboard/chrome
  */
 :root {
   --ps-felt-tint: #0f5132;
@@ -10,47 +13,82 @@
   --app-shell-top: 0px;
 }
 
+/* Document chrome fills the paint viewport so overflow:hidden cannot clip
+ * the environment layer. Flat tint is boot-only (cleared when .ps-env-ready). */
 html,
 body {
   position: fixed !important;
-  top: var(--app-shell-top, 0px) !important;
+  inset: 0 !important;
+  top: 0 !important;
   left: 0 !important;
   right: 0 !important;
+  bottom: 0 !important;
   width: 100% !important;
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
   overscroll-behavior: none !important;
   touch-action: manipulation !important;
-  height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
-  max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
-  min-height: 0 !important;
+  height: 100% !important;
+  max-height: none !important;
+  min-height: 100% !important;
+  min-height: 100dvh !important;
+  min-height: -webkit-fill-available !important;
   background-color: var(--ps-felt-tint) !important;
 }
 
-#ps-felt-layer {
+html.ps-env-ready,
+html.ps-env-ready body {
+  background-color: transparent !important;
+}
+
+/**
+ * Environment Layer — sole owner of felt / ambient paint.
+ * Fixed to the viewport; independent of interactive shell geometry.
+ */
+#ps-felt-layer,
+.ps-environment-layer {
   position: fixed !important;
-  top: var(--app-shell-top, 0px) !important;
+  inset: 0 !important;
+  top: 0 !important;
   left: 0 !important;
   right: 0 !important;
+  bottom: 0 !important;
   width: 100% !important;
-  height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
-  max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
-  min-height: 0 !important;
-  z-index: -1 !important;
+  height: 100% !important;
+  max-height: none !important;
+  min-height: 100% !important;
+  min-height: 100dvh !important;
+  min-height: -webkit-fill-available !important;
+  z-index: 0 !important;
   pointer-events: none !important;
   overflow: hidden !important;
 }
 
+#ps-felt-layer .ps-env-plane,
 #ps-felt-layer .ps-felt-layer-texture,
-#ps-felt-layer .ps-felt-layer-tint {
+#ps-felt-layer .ps-felt-layer-tint,
+.ps-environment-layer .ps-env-plane {
   position: absolute;
+  inset: 0;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   width: 100%;
   height: 100%;
+}
+
+/* Reserved stacking planes for future ambience (unused until content ships). */
+#ps-felt-layer .ps-env-lighting,
+#ps-felt-layer .ps-env-vignette,
+#ps-felt-layer .ps-env-crest,
+#ps-felt-layer .ps-env-decor {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 #root {
@@ -69,6 +107,7 @@ body {
   max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
   min-height: 0 !important;
   background-color: transparent !important;
+  z-index: 1 !important;
 }
 
 #ps-body-portal {
@@ -107,24 +146,33 @@ body {
   pointer-events: auto;
 }
 
+/* Desktop / non-mobile RN wallpaper helper — also viewport-owned, not shell-sized. */
 .ps-felt-fixed {
   position: fixed !important;
-  top: var(--app-shell-top, 0px) !important;
-  left: 0 !important;
-  right: 0 !important;
-  width: 100% !important;
-  height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
-  max-height: var(--app-height, var(--app-shell-h, 100dvh)) !important;
-  min-height: 0 !important;
-}
-
-/* Bottom bar: portal shell sits flush to viewport bottom; safe area via env() */
-.ps-bottom-bar-shell {
-  position: absolute !important;
+  inset: 0 !important;
+  top: 0 !important;
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  min-height: 100% !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Bottom bar: sits in the application shell; safe area via env() */
+.ps-bottom-bar-shell {
+  position: absolute !important;
+  left: 10px !important;
+  right: 10px !important;
+  width: auto !important;
+  bottom: 0 !important;
   box-sizing: border-box !important;
+  border-top-left-radius: 22px !important;
+  border-top-right-radius: 22px !important;
+  overflow: hidden !important;
   padding-bottom: constant(safe-area-inset-bottom) !important;
   padding-bottom: env(safe-area-inset-bottom, 0px) !important;
 }
