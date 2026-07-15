@@ -65,6 +65,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.0.63": "Dealer's Remorse",
   "1.1.0": "Glass Table Glow",
   "1.1.1": "Misdeal Mayhem",
+  "1.1.2": "Run It Back",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
