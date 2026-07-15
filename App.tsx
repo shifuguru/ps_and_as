@@ -50,6 +50,12 @@ import {
 } from "./src/utils/cpuNames";
 import AppErrorBoundary from "./src/components/AppErrorBoundary";
 import { StatusBar } from "expo-status-bar";
+import { isViewportDebugEnabled } from "./src/debug/viewportDebug";
+
+const ViewportDebugOverlay =
+  Platform.OS === "web" && isViewportDebugEnabled()
+    ? require("./src/debug/ViewportDebugOverlay").default
+    : null;
 
 function AppContent() {
   const { colors, ui, blur, feltTint, setFeltTint, refreshFeltTint } = useAppTheme();
@@ -570,6 +576,12 @@ function AppContent() {
     };
   }, [roomAdapter, enterOnlineGame]);
 
+  useEffect(() => {
+    if (Platform.OS !== "web" || !isViewportDebugEnabled()) return;
+    (globalThis as { __PS_RN_SHELL_HEIGHT__?: number }).__PS_RN_SHELL_HEIGHT__ =
+      shell.height;
+  }, [shell.height]);
+
   return (
     <>
       <StatusBar style={colors.statusBarStyle} />
@@ -584,6 +596,7 @@ function AppContent() {
                 left: 0,
                 right: 0,
                 width: "100%",
+                // Same source as --app-height: useWebShellLayout → readWebShellHeight
                 height: shell.height,
                 maxHeight: shell.height,
                 overflow: "hidden",
@@ -993,6 +1006,7 @@ function AppContent() {
         ) : null}
         </View>
     </View>
+    {ViewportDebugOverlay ? <ViewportDebugOverlay /> : null}
     </>
   );
 }

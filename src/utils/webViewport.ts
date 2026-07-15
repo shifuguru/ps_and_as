@@ -1,6 +1,10 @@
 import { Platform } from "react-native";
 import { isStandaloneWebApp } from "./safariChrome";
 import { getWebShellCssText } from "./webShellCssContent";
+import {
+  isViewportDebugEnabled,
+  recordAppHeightWrite,
+} from "../debug/viewportDebug";
 
 type WebWindow = {
   innerWidth?: number;
@@ -167,14 +171,60 @@ export function clampDocumentScroll(): void {
   doc.body.scrollTop = 0;
 }
 
+type ShellHeightCalc = {
+  inner: number;
+  outer: number | null;
+  client: number;
+  vvHeight: number | null;
+  vvOffsetTop: number | null;
+  visualBottom: number;
+  keyboardLikelyOpen: boolean;
+  chosen: number;
+  chosenBy: string;
+};
+
+function captureStack(): string {
+  try {
+    return (new Error("app-height apply")).stack ?? "(no stack)";
+  } catch {
+    return "(no stack)";
+  }
+}
+
+function traceAppHeightApply(
+  heightPx: number,
+  topPx: number,
+  calc: ShellHeightCalc,
+  caller: string,
+  appliedTo: string[],
+): void {
+  if (!isViewportDebugEnabled()) return;
+  recordAppHeightWrite({
+    at: new Date().toISOString(),
+    heightPx,
+    topPx,
+    caller,
+    calc,
+    appliedTo,
+    stack: captureStack(),
+  });
+}
+
 /**
  * Interactive shell geometry only.
  * Never resize html/body or the environment layer — those own the paint viewport.
  */
-function applyShellGeometry(doc: any, heightPx: number, topPx: number): void {
+function applyShellGeometry(
+  doc: any,
+  heightPx: number,
+  topPx: number,
+  calc: ShellHeightCalc | null,
+  caller: string,
+): void {
   const h = `${heightPx}px`;
   const top = `${topPx}px`;
 
+  // Exact CSS var writes for --app-height / aliases
   doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, h);
   doc.documentElement.style.setProperty(APP_HEIGHT_VAR, h);
   doc.documentElement.style.setProperty(APP_SHELL_TOP_VAR, top);
@@ -196,12 +246,28 @@ function applyShellGeometry(doc: any, heightPx: number, topPx: number): void {
     doc.getElementById(WEB_OVERLAY_PORTAL_ID),
   ];
 
+  const debugEnabled = isViewportDebugEnabled();
+  const appliedTo: string[] | null = debugEnabled
+    ? [
+        `documentElement.style ${APP_HEIGHT_VAR}=${h}`,
+        `documentElement.style ${APP_SHELL_HEIGHT_VAR}=${h}`,
+        `documentElement.style ${APP_SHELL_TOP_VAR}=${top}`,
+      ]
+    : null;
+
   for (const el of targets) {
     if (!el) continue;
     el.style.height = h;
     el.style.maxHeight = h;
     el.style.minHeight = "0";
     el.style.top = top;
+    if (appliedTo) {
+      appliedTo.push(`#${el.id} inline height/maxHeight/top`);
+    }
+  }
+
+  if (appliedTo && calc) {
+    traceAppHeightApply(heightPx, topPx, calc, caller, appliedTo);
   }
 }
 
@@ -240,6 +306,42 @@ export function readWebShellHeight(win: WebWindow): number {
   return h;
 }
 
+/** Capture provenance only when viewport diagnostics are enabled. */
+function captureShellHeightCalc(
+  win: WebWindow,
+  chosen: number,
+): ShellHeightCalc {
+  const vv = win.visualViewport;
+  const doc = (globalThis as { document?: { documentElement?: { clientHeight?: number } } })
+    .document;
+  const g = globalThis as { window?: { outerHeight?: number } };
+  const inner = Math.round(win.innerHeight ?? 0);
+  const client = Math.round(doc?.documentElement?.clientHeight ?? 0);
+  const vvHeight = vv ? Math.round(vv.height) : null;
+  const vvOffsetTop = vv ? Math.round(vv.offsetTop ?? 0) : null;
+  const keyboardOpen = !!(vv && keyboardLikelyOpen(win));
+  const visualBottom = vv
+    ? Math.round(vv.height + (vv.offsetTop ?? 0))
+    : 0;
+
+  return {
+    inner,
+    outer:
+      typeof g.window?.outerHeight === "number"
+        ? Math.round(g.window.outerHeight)
+        : null,
+    client,
+    vvHeight,
+    vvOffsetTop,
+    visualBottom,
+    keyboardLikelyOpen: keyboardOpen,
+    chosen,
+    chosenBy: keyboardOpen
+      ? `keyboardLikelyOpen → Math.round(visualViewport.height) = ${chosen}`
+      : `Math.max(innerHeight=${inner}, documentElement.clientHeight=${client}, visualBottom(vv.height+offsetTop)=${visualBottom}) = ${chosen}`,
+  };
+}
+
 /** Top offset for the shell — only when the keyboard is open. */
 export function readWebShellTop(win: WebWindow): number {
   if (!win.visualViewport || !keyboardLikelyOpen(win)) return 0;
@@ -250,17 +352,22 @@ export function readWebShellTop(win: WebWindow): number {
  * Sync interactive shell (#root + portals) to the visible layout viewport.
  * Environment wallpaper is intentionally excluded.
  */
-export function applyMobileWebShellHeight(win: WebWindow): number {
+export function applyMobileWebShellHeight(
+  win: WebWindow,
+  caller = "applyMobileWebShellHeight",
+): number {
   if (Platform.OS !== "web" || !isMobileWeb()) return readWebShellHeight(win);
 
   const doc = (globalThis as { document?: any }).document;
   if (!doc) return readWebShellHeight(win);
 
-  const vv = win.visualViewport;
   const topPx = readWebShellTop(win);
   const h = readWebShellHeight(win);
+  const calc = isViewportDebugEnabled()
+    ? captureShellHeightCalc(win, h)
+    : null;
 
-  applyShellGeometry(doc, h, topPx);
+  applyShellGeometry(doc, h, topPx, calc, caller);
   return h;
 }
 
@@ -282,7 +389,7 @@ export function installWebMobileViewportGuard(): () => void {
 
   const sync = () => {
     clampDocumentScroll();
-    applyMobileWebShellHeight(win);
+    applyMobileWebShellHeight(win, "installWebMobileViewportGuard.sync");
   };
 
   sync();
@@ -333,7 +440,7 @@ export function installWebShellCss(feltTint: string): () => void {
 
   const win = (globalThis as { window?: WebWindow }).window;
   if (win && isMobileWeb()) {
-    applyMobileWebShellHeight(win);
+    applyMobileWebShellHeight(win, "installWebShellCss");
   }
 
   return () => {

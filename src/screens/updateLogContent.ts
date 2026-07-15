@@ -32,6 +32,13 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-16T09:55"),
+    title: "Viewport diagnostics",
+    items: [
+      "iPhone web — add ?viewportDebug=1 to the URL for a live viewport overlay when troubleshooting Safari or Home Screen display issues",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-15T21:56"),
     title: "New home screen, table UI & Runs/tens fixes",
     items: [

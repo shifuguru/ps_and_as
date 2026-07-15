@@ -22,7 +22,7 @@ export function getWebOverlayPortalHost(): any {
     window?: Parameters<typeof applyMobileWebShellHeight>[0];
   }).window;
   if (win) {
-    applyMobileWebShellHeight(win);
+    applyMobileWebShellHeight(win, "getWebOverlayPortalHost");
   }
 
   return host;
