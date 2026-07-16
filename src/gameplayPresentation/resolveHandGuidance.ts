@@ -63,7 +63,7 @@ export function resolveHandGuidance(input: HandGuidanceInput): string {
   }
 
   if (input.selectedCount > 0) {
-    return `Ready — tap Play (${input.selectedCount})`;
+    return "Ready — tap Play";
   }
 
   if (input.pileCount <= 0) {

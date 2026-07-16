@@ -1,12 +1,9 @@
 /**
  * Player Hub home — presentation layer over canonical PlayerStats.
  *
- * Section responsibilities:
- * - Profile: identity, level, XP bar (only place for XP progress)
- * - Journey: achievement / unlock milestones (level only as scarcity fallback)
- * - Next Achievement: rarity-colored hero for the nearest unlock
- * - Recent Unlock: celebration of last unlock event
- * - Daily / Play / Stats / What's New / Support / footer nav: as labeled
+ * Panel order (player interest):
+ * Identity → Play → Daily → Next Achievement → Recent Unlock →
+ * Journey → Friends → Stats → What's New → Support → footer nav
  *
  * Deferred (need telemetry or session handoff — not built here):
  * - Last Match panel after round complete
@@ -227,11 +224,10 @@ export default function PlayerHub({
         contentContainerStyle={[
           styles.scrollContent,
           {
-            // Full-viewport composition. Bottom pad only clears the home
-            // indicator for the last controls — no extra dead "footer" band.
+            // Centered hub — top pad clears status bar; bottom is breathing room only.
             minHeight: height,
             paddingTop: insets.top + 12,
-            paddingBottom: Math.max(insets.bottom, 12),
+            paddingBottom: 12,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -328,36 +324,42 @@ export default function PlayerHub({
             </BlurPanel>
           </TouchableOpacity>
 
-          {/* Next Achievement — rarity hero (before Journey roadmap) */}
-          {nextAch ? (
-            <NextAchievementCard
-              next={nextAch}
-              onPress={() => run(actions.onOpenAchievements)}
+          {/* Play — primary visit intent */}
+          <BlurPanel intensity={52} style={[styles.card, styles.cardDepth]}>
+            <Text style={styles.sectionEyebrow}>Play</Text>
+            <AppButton
+              label="Quick Game"
+              icon="bolt"
+              variant="primary"
+              onPress={() => run(actions.onQuickGame)}
+              accessibilityLabel="Quick Game"
+              style={styles.primaryCta}
             />
-          ) : null}
+            <View style={styles.secondaryRow}>
+              <AppButton
+                label="Offline"
+                icon="multiplayer"
+                variant="secondary"
+                style={{ flex: 1 }}
+                onPress={() => run(actions.onHostLobby)}
+              />
+              <AppButton
+                label="Online"
+                icon="multiplayer"
+                variant="secondary"
+                style={{ flex: 1 }}
+                onPress={() => run(actions.onJoinLobby)}
+              />
+            </View>
+            {onlinePlayerCount > 0 ? (
+              <Text style={styles.onlineHint}>
+                {onlinePlayerCount} player{onlinePlayerCount === 1 ? "" : "s"}{" "}
+                online
+              </Text>
+            ) : null}
+          </BlurPanel>
 
-          {/* Continue Your Journey — unlock milestones only (no duplicate XP bar) */}
-          {goals.length > 0 ? (
-            <BlurPanel intensity={52} style={[styles.card, styles.cardDepth]}>
-              <Text style={styles.sectionEyebrow}>Continue Your Journey</Text>
-              <View style={styles.goalStack}>
-                {goals.map((g, idx) => (
-                  <View key={g.id}>
-                    {idx > 0 ? <View style={styles.goalDivider} /> : null}
-                    <View style={styles.goalRow}>
-                      <View style={styles.goalTextCol}>
-                        <Text style={styles.goalTitle}>{g.title}</Text>
-                        <Text style={styles.goalSub}>{g.subtitle}</Text>
-                      </View>
-                      <ProgressMeter progress={g.fraction} height={7} />
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </BlurPanel>
-          ) : null}
-
-          {/* Daily Challenge */}
+          {/* Daily Challenge — time-sensitive */}
           {dailyDef && dailyProgress ? (
             <BlurPanel
               intensity={52}
@@ -397,54 +399,15 @@ export default function PlayerHub({
             </BlurPanel>
           ) : null}
 
-          {/* Play */}
-          <BlurPanel intensity={52} style={[styles.card, styles.cardDepth]}>
-            <Text style={styles.sectionEyebrow}>Play</Text>
-            <AppButton
-              label="Quick Game"
-              icon="bolt"
-              variant="primary"
-              onPress={() => run(actions.onQuickGame)}
-              accessibilityLabel="Quick Game"
-              style={styles.primaryCta}
+          {/* Next Achievement — short-term chase */}
+          {nextAch ? (
+            <NextAchievementCard
+              next={nextAch}
+              onPress={() => run(actions.onOpenAchievements)}
             />
-            <View style={styles.secondaryRow}>
-              <AppButton
-                label="Offline"
-                icon="multiplayer"
-                variant="secondary"
-                style={{ flex: 1 }}
-                onPress={() => run(actions.onHostLobby)}
-              />
-              <AppButton
-                label="Online"
-                icon="multiplayer"
-                variant="secondary"
-                style={{ flex: 1 }}
-                onPress={() => run(actions.onJoinLobby)}
-              />
-            </View>
-            {onlinePlayerCount > 0 ? (
-              <Text style={styles.onlineHint}>
-                {onlinePlayerCount} player{onlinePlayerCount === 1 ? "" : "s"}{" "}
-                online
-              </Text>
-            ) : null}
-          </BlurPanel>
-
-          {/* Friends placeholder — wide layouts only (slot for Join / Spectate later) */}
-          {showFriendsPlaceholder ? (
-            <BlurPanel intensity={48} style={[styles.card, styles.friendsCard]}>
-              <Text style={styles.sectionEyebrow}>Friends</Text>
-              <Text style={styles.friendsTease}>Coming soon</Text>
-              <Text style={styles.goalSub}>
-                See who&apos;s in lobbies, join or spectate, and open profiles —
-                without leaving Home.
-              </Text>
-            </BlurPanel>
           ) : null}
 
-          {/* Recent Unlock */}
+          {/* Recent Unlock — celebration when fresh */}
           {recent && recentRarity ? (
             <BlurPanel
               intensity={56}
@@ -494,6 +457,39 @@ export default function PlayerHub({
               >
                 <Text style={styles.linkBtnText}>View Achievements</Text>
               </TouchableOpacity>
+            </BlurPanel>
+          ) : null}
+
+          {/* Continue Your Journey — longer-arc goals */}
+          {goals.length > 0 ? (
+            <BlurPanel intensity={52} style={[styles.card, styles.cardDepth]}>
+              <Text style={styles.sectionEyebrow}>Continue Your Journey</Text>
+              <View style={styles.goalStack}>
+                {goals.map((g, idx) => (
+                  <View key={g.id}>
+                    {idx > 0 ? <View style={styles.goalDivider} /> : null}
+                    <View style={styles.goalRow}>
+                      <View style={styles.goalTextCol}>
+                        <Text style={styles.goalTitle}>{g.title}</Text>
+                        <Text style={styles.goalSub}>{g.subtitle}</Text>
+                      </View>
+                      <ProgressMeter progress={g.fraction} height={7} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </BlurPanel>
+          ) : null}
+
+          {/* Friends placeholder — wide layouts only (slot for Join / Spectate later) */}
+          {showFriendsPlaceholder ? (
+            <BlurPanel intensity={48} style={[styles.card, styles.friendsCard]}>
+              <Text style={styles.sectionEyebrow}>Friends</Text>
+              <Text style={styles.friendsTease}>Coming soon</Text>
+              <Text style={styles.goalSub}>
+                See who&apos;s in lobbies, join or spectate, and open profiles —
+                without leaving Home.
+              </Text>
             </BlurPanel>
           ) : null}
 

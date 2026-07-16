@@ -42,7 +42,7 @@ export const HAND_CONTROLS_GAP = 4;
 /** Empty space above the fan inside the hand zone. */
 export const HAND_ZONE_TOP_CLEARANCE = 0;
 
-const CONTENT_MARGIN = 4;
+const CONTENT_MARGIN = 12;
 
 function useWebBottomBarShell(): boolean {
   return Platform.OS === "web" && isMobileWeb();

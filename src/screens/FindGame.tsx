@@ -48,6 +48,7 @@ import {
 } from "../utils/roomCode";
 import { contentMaxWidth } from "../styles/uiStandards";
 import { useAppTheme } from "../context/ThemeContext";
+import { hexToRgba } from "../utils/colorTheory";
 
 interface AvailableRoom {
   roomId: string;
@@ -294,14 +295,14 @@ export default function FindGame({
           contentContainerStyle={{
             paddingTop: topBarHeight + 12,
             paddingBottom: bottomBarHeight,
-            paddingHorizontal: 12,
+            paddingHorizontal: 16,
             alignItems: "center",
           }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View style={{ width: contentMax }}>
-            <BlurPanel style={[ui.panel, { marginBottom: 14 }]}>
+            <BlurPanel style={[ui.panel, styles.glassCard, { marginBottom: 14 }]}>
               <View style={styles.profileRow}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
@@ -309,7 +310,7 @@ export default function FindGame({
                   </Text>
                 </View>
                 <View style={styles.profileCopy}>
-                  <Text style={ui.fieldLabel}>Playing As</Text>
+                  <Text style={styles.sectionEyebrow}>Playing As</Text>
                   <Text style={styles.playerName} numberOfLines={1}>
                     {playerName || "…"}
                   </Text>
@@ -425,7 +426,7 @@ export default function FindGame({
 
             <View style={styles.listHeader}>
               <View style={styles.listHeaderLeft}>
-                <Text style={styles.listTitle}>Open Games</Text>
+                <Text style={styles.sectionEyebrow}>Open Games</Text>
                 <View style={styles.listHeaderSpinnerSlot}>
                   {isSearching ? (
                     <ActivityIndicator size="small" color={colors.gold} />
@@ -457,7 +458,8 @@ export default function FindGame({
             ) : null}
 
             {publicRooms.length === 0 && roomsLoaded ? (
-              <BlurPanel style={ui.panel} intensity={44}>
+              <BlurPanel style={[ui.panel, styles.glassCard]} intensity={44}>
+                <Text style={styles.sectionEyebrow}>Open Lobbies</Text>
                 <Text style={ui.emptyTitle}>No Public Games Available</Text>
                 <Text style={ui.emptyBody}>
                   Host a game above and share the room code, or browse again
@@ -491,7 +493,11 @@ export default function FindGame({
                 return (
                   <BlurPanel
                     key={room.roomId}
-                    style={[ui.panel, { padding: 14, marginBottom: 10 }]}
+                    style={[
+                      ui.panel,
+                      styles.glassCard,
+                      { padding: 14, marginBottom: 10 },
+                    ]}
                     intensity={46}
                   >
                     <View style={styles.roomRow}>
@@ -600,9 +606,36 @@ export default function FindGame({
 }
 
 function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+  const isDark = colors.mode === "dark";
+  const goldRim = hexToRgba(colors.gold, isDark ? 0.22 : 0.18);
+  const cardDepth = Platform.select({
+    ios: {
+      shadowColor: "#000",
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+    },
+    android: { elevation: 3 },
+    default: {},
+  });
+
   return StyleSheet.create({
   bottomControls: {
     paddingTop: 18,
+  },
+  glassCard: {
+    borderColor: goldRim,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+    ...cardDepth,
+  },
+  sectionEyebrow: {
+    color: colors.gold,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.9,
+    textTransform: "uppercase",
+    marginBottom: 4,
   },
   profileRow: {
     flexDirection: "row",
@@ -613,9 +646,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.btnGoldBg,
+    backgroundColor: hexToRgba(colors.gold, isDark ? 0.14 : 0.12),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.btnGoldBorder,
+    borderColor: hexToRgba(colors.gold, isDark ? 0.45 : 0.35),
     alignItems: "center",
     justifyContent: "center",
   },
@@ -657,6 +690,10 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     padding: 14,
     minHeight: 168,
     flex: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: goldRim,
+    overflow: "hidden",
+    ...cardDepth,
   },
   actionTileHostLayout: {
     flex: 1,
@@ -673,6 +710,10 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     alignItems: "stretch",
     minHeight: 168,
     flex: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: goldRim,
+    overflow: "hidden",
+    ...cardDepth,
   },
   actionTileIconHost: {
     flex: 1,
@@ -695,23 +736,24 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     flexShrink: 1,
   },
   actionTileHint: {
-    color: colors.textMuted,
-    fontSize: 11,
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "600",
     textAlign: "center",
-    lineHeight: 15,
+    lineHeight: 16,
   },
   codeInputWrap: {
     width: "100%",
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.inputBorder,
-    backgroundColor: colors.inputBg,
+    borderColor: hexToRgba(colors.gold, isDark ? 0.2 : 0.16),
+    backgroundColor: hexToRgba("#ffffff", isDark ? 0.08 : 0.55),
     paddingHorizontal: 10,
     paddingVertical: Platform.OS === "ios" ? 10 : 6,
     marginTop: 12,
   },
   codeInputWrapFocused: {
-    borderColor: colors.btnGoldBorder,
+    borderColor: hexToRgba(colors.gold, isDark ? 0.45 : 0.36),
   },
   codeInput: {
     color: colors.inputText,
@@ -745,12 +787,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     alignItems: "center",
     justifyContent: "center",
   },
-  listTitle: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    fontWeight: "700",
-    flexShrink: 0,
-  },
   refreshBtn: {
     minWidth: 72,
     marginLeft: 12,
@@ -768,13 +804,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     padding: 12,
     marginBottom: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,100,100,0.35)",
-    backgroundColor: "rgba(120,20,20,0.25)",
+    borderColor: hexToRgba("#ff8a8a", 0.4),
   },
   errorText: {
     color: "#ff8a8a",
     fontSize: 13,
     lineHeight: 18,
+    fontWeight: "600",
   },
   roomRow: {
     flexDirection: "row",
@@ -827,8 +863,8 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     marginHorizontal: 6,
   },
   joinBtnDisabled: {
-    backgroundColor: colors.btnSecondaryBg,
-    borderColor: colors.panelBorder,
+    backgroundColor: hexToRgba(colors.gold, 0.06),
+    borderColor: hexToRgba(colors.gold, 0.18),
   },
   joinBtnText: {
     color: colors.gold,

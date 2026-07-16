@@ -7,7 +7,7 @@ import { computePlayAreaLayout } from "./tableLayout";
 
 /** Mirrors `BottomBar.bottomOuterPad` for iOS-style budget presets (Node-safe). */
 function budgetBottomOuterPad(safeBottom = 0): number {
-  const CONTENT_MARGIN = 8;
+  const CONTENT_MARGIN = 12;
   return Math.max(safeBottom, 12) + CONTENT_MARGIN;
 }
 

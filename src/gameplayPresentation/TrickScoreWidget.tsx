@@ -17,7 +17,7 @@ type Props = {
   rows: TrickScoreRow[];
 };
 
-/** Visual standings for tricks won this round. */
+/** Visual standings for tricks won this round — compact corner chip. */
 export default function TrickScoreWidget({ rows }: Props) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -30,7 +30,7 @@ export default function TrickScoreWidget({ rows }: Props) {
     <GameplayGlassPanel compact style={styles.panel}>
       <View style={styles.header}>
         <Text style={styles.trophy}>🏆</Text>
-        <Text style={styles.eyebrow}>Tricks This Round</Text>
+        <Text style={styles.eyebrow}>Tricks</Text>
       </View>
       {sorted.map((r) => {
         const accent = r.accent ?? (r.isYou ? colors.gold : colors.textMuted);
@@ -42,7 +42,7 @@ export default function TrickScoreWidget({ rows }: Props) {
               styles.row,
               leading && {
                 backgroundColor: hexToRgba(colors.gold, 0.1),
-                borderRadius: 10,
+                borderRadius: 8,
               },
             ]}
           >
@@ -90,49 +90,50 @@ export default function TrickScoreWidget({ rows }: Props) {
 function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   return StyleSheet.create({
     panel: {
-      width: 176,
+      width: 148,
       maxWidth: "100%",
-      gap: 4,
+      gap: 2,
+      padding: 8,
     },
     header: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 4,
-      marginBottom: 4,
+      gap: 3,
+      marginBottom: 2,
     },
-    trophy: { fontSize: 11 },
+    trophy: { fontSize: 9 },
     eyebrow: {
       color: colors.gold,
-      fontSize: 9,
+      fontSize: 8,
       fontWeight: "800",
-      letterSpacing: 0.6,
+      letterSpacing: 0.5,
       textTransform: "uppercase",
     },
     row: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 6,
-      paddingVertical: 3,
-      paddingHorizontal: 4,
+      gap: 4,
+      paddingVertical: 1,
+      paddingHorizontal: 2,
     },
     dot: {
-      width: 20,
-      height: 20,
-      borderRadius: 10,
+      width: 16,
+      height: 16,
+      borderRadius: 8,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: StyleSheet.hairlineWidth,
     },
     dotText: {
       color: "#fff",
-      fontSize: 7,
+      fontSize: 6,
       fontWeight: "800",
     },
     name: {
       color: colors.textPrimary,
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: "700",
-      width: 42,
+      width: 36,
     },
     nameYou: {
       color: colors.gold,
@@ -141,26 +142,26 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       flex: 1,
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 3,
+      gap: 2,
       alignItems: "center",
-      minHeight: 10,
+      minHeight: 8,
     },
     trickChip: {
-      width: 8,
-      height: 8,
-      borderRadius: 3,
+      width: 6,
+      height: 6,
+      borderRadius: 2,
     },
     zero: {
       color: colors.textMuted,
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: "600",
     },
     count: {
       color: colors.textPrimary,
-      fontSize: 13,
+      fontSize: 12,
       fontWeight: "800",
       fontVariant: ["tabular-nums"],
-      minWidth: 16,
+      minWidth: 14,
       textAlign: "right",
     },
     countLead: {

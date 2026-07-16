@@ -104,11 +104,11 @@ export default function MainMenu({ buttons, onButtonPress, style }: Props) {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            // Full-viewport composition. Bottom pad only clears the home
-            // indicator for the last controls — no extra dead "footer" band.
+            // Centered menu — top pad clears status bar; bottom is breathing room only
+            // (SwiftDev: safe-area on footer/controls, not scroll shell).
             minHeight: height,
             paddingTop: insets.top + 16,
-            paddingBottom: Math.max(insets.bottom, 12),
+            paddingBottom: 12,
           },
         ]}
         showsVerticalScrollIndicator={false}

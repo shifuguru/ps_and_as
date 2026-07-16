@@ -32,6 +32,18 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-16T23:40"),
+    title: "Home Hub, lobbies & table polish",
+    items: [
+      "Home — panels reordered so Play sits under your profile, then Daily, achievements, and the rest",
+      "Offline & Online lobbies — glass rims, gold labels, and cleaner status chrome to match Home",
+      "In-game — Round Streak top-left; Next Prestige hidden for now; table sits a bit lower",
+      "In-game — bigger Play button (no card count on the label); tricks panel more compact; hand lifted a little",
+      "Achievements — President Streak pills use cool platinum, not orange; flame rises from the bottom of the pill",
+      "iPhone Home Screen — felt fills edge-to-edge under the notch and home indicator",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-16T18:15"),
     title: "Home Screen fills the whole iPhone display",
     items: [

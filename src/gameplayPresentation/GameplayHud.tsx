@@ -6,7 +6,7 @@ import MenuIcon from "../components/MenuIcon";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
 import { GAMEPLAY_PRESENTATION } from "./featureFlags";
-import { HUD_CLUSTER_GAP } from "./hudLayout";
+import { HUD_CARD_HEIGHT, HUD_CLUSTER_GAP } from "./hudLayout";
 import GameplayAchievementWidget from "./GameplayAchievementWidget";
 import RoundsInRowWidget from "./RoundsInRowWidget";
 import TrickScoreWidget, { type TrickScoreRow } from "./TrickScoreWidget";
@@ -93,7 +93,8 @@ export function lastTrickFromEntry(
  * Full-screen feedback chrome.
  * Bottom widgets share feedbackBottom (just above resting hand cards).
  *
- *   Upcoming Achievement          Round Streak   [Stats] [Settings]
+ *   Round Streak                              [Stats] [Settings]
+ *              (Next Prestige — centered, off by default)
  *                    GAMEPLAY
  *   Winning Play               Tricks This Round
  *   ──────────── feedbackBottom (resting card tops) ────────────
@@ -164,43 +165,45 @@ export default function GameplayHud({
     >
       <View style={styles.topRow} pointerEvents="box-none">
         <View style={styles.corner} pointerEvents="box-none">
-          {GAMEPLAY_PRESENTATION.upcomingAchievements ? (
-            <GameplayAchievementWidget
-              onOpenAchievements={onOpenAchievements}
-              refreshKey={statsRefreshKey}
-            />
-          ) : null}
-        </View>
-        <View style={styles.topRightCluster} pointerEvents="box-none">
           {GAMEPLAY_PRESENTATION.roundsInRow ? (
             <RoundsInRowWidget current={roundsCurrent} best={roundsBest} />
           ) : null}
-          <View style={styles.utilRow}>
-            {onOpenAchievements ? (
-              <TouchableOpacity
-                style={styles.utilBtn}
-                onPress={onOpenAchievements}
-                accessibilityRole="button"
-                accessibilityLabel="Achievements and statistics"
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <MenuIcon name="trophy" size={16} color={colors.gold} />
-              </TouchableOpacity>
-            ) : null}
-            {onOpenSettings ? (
-              <TouchableOpacity
-                style={styles.utilBtn}
-                onPress={onOpenSettings}
-                accessibilityRole="button"
-                accessibilityLabel="Settings"
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <MenuIcon name="gear" size={16} color={colors.gold} />
-              </TouchableOpacity>
-            ) : null}
-          </View>
+        </View>
+        <View style={styles.utilRow}>
+          {onOpenAchievements ? (
+            <TouchableOpacity
+              style={styles.utilBtn}
+              onPress={onOpenAchievements}
+              accessibilityRole="button"
+              accessibilityLabel="Achievements and statistics"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MenuIcon name="trophy" size={16} color={colors.gold} />
+            </TouchableOpacity>
+          ) : null}
+          {onOpenSettings ? (
+            <TouchableOpacity
+              style={styles.utilBtn}
+              onPress={onOpenSettings}
+              accessibilityRole="button"
+              accessibilityLabel="Settings"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MenuIcon name="gear" size={16} color={colors.gold} />
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
+
+      {/* Centered prestige — off by default; reserved for in-game notifications. */}
+      {GAMEPLAY_PRESENTATION.upcomingAchievements ? (
+        <View style={styles.prestigeCenter} pointerEvents="box-none">
+          <GameplayAchievementWidget
+            onOpenAchievements={onOpenAchievements}
+            refreshKey={statsRefreshKey}
+          />
+        </View>
+      ) : null}
 
       <View style={styles.bottomRow} pointerEvents="box-none">
         <View style={styles.corner} pointerEvents="none">
@@ -239,11 +242,12 @@ function createStyles(
       alignItems: "flex-start",
       gap: HUD_CLUSTER_GAP,
     },
-    topRightCluster: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: HUD_CLUSTER_GAP,
-      maxWidth: "54%",
+    prestigeCenter: {
+      position: "absolute",
+      left: 8,
+      right: 8,
+      top: HUD_CARD_HEIGHT + HUD_CLUSTER_GAP + 4,
+      alignItems: "center",
     },
     utilRow: {
       flexDirection: "row",

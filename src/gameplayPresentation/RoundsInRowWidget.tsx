@@ -16,8 +16,7 @@ type Props = {
 };
 
 /**
- * Session round streak — hierarchy matches concept:
- * icon → title → count → descriptor → rarity pips.
+ * Session round streak — glass card with flame as fuel at the bottom edge.
  * Accent follows achievement rarity palette by streak threshold.
  */
 export default function RoundsInRowWidget({ current, best }: Props) {
@@ -42,34 +41,38 @@ export default function RoundsInRowWidget({ current, best }: Props) {
 
   return (
     <GameplayGlassPanel compact accentColor={accent} style={styles.panel}>
-      <View style={styles.header}>
-        <Text style={styles.fire}>🔥</Text>
+      {/* Fuel flame — base sits in the bottom edge, rises behind copy. */}
+      <View style={styles.flameFuel} pointerEvents="none">
+        <Text style={styles.flame}>🔥</Text>
+      </View>
+
+      <View style={styles.body}>
         <Text style={styles.eyebrow}>Round Streak</Text>
-      </View>
-      <Text style={styles.count}>
-        {current}
-        <Text style={styles.countUnit}>
-          {current === 1 ? " Round" : " Rounds"}
+        <Text style={styles.count}>
+          {current}
+          <Text style={styles.countUnit}>
+            {current === 1 ? " Round" : " Rounds"}
+          </Text>
         </Text>
-      </Text>
-      <Text style={styles.descriptor} numberOfLines={1}>
-        {current <= 0 ? "Start a run" : bestLine ?? "Keep it going"}
-      </Text>
-      <View style={styles.pipRow}>
-        {Array.from({ length: pipCount }).map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.pip,
-              {
-                backgroundColor:
-                  i < filled ? accent : hexToRgba(accent, 0.22),
-              },
-            ]}
-          />
-        ))}
+        <Text style={styles.descriptor} numberOfLines={1}>
+          {current <= 0 ? "Start a run" : bestLine ?? "Keep it going"}
+        </Text>
+        <View style={styles.pipRow}>
+          {Array.from({ length: pipCount }).map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.pip,
+                {
+                  backgroundColor:
+                    i < filled ? accent : hexToRgba(accent, 0.22),
+                },
+              ]}
+            />
+          ))}
+        </View>
+        <Text style={styles.rarityLabel}>{RARITY_LABEL[progress.rarity]}</Text>
       </View>
-      <Text style={styles.rarityLabel}>{RARITY_LABEL[progress.rarity]}</Text>
     </GameplayGlassPanel>
   );
 }
@@ -83,17 +86,32 @@ function createStyles(
       minWidth: 118,
       maxWidth: 148,
       height: HUD_CARD_HEIGHT,
-      alignSelf: "flex-end",
+      alignSelf: "flex-start",
+      justifyContent: "flex-end",
+      gap: 0,
+      overflow: "hidden",
+    },
+    flameFuel: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: -10,
+      alignItems: "center",
+      justifyContent: "flex-end",
+      zIndex: 0,
+      opacity: 0.72,
+    },
+    flame: {
+      fontSize: 34,
+      lineHeight: 38,
+      textAlign: "center",
+    },
+    body: {
+      zIndex: 1,
       justifyContent: "space-between",
+      flex: 1,
       gap: 0,
     },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      marginBottom: 0,
-    },
-    fire: { fontSize: 12 },
     eyebrow: {
       color: accent,
       fontSize: 9,

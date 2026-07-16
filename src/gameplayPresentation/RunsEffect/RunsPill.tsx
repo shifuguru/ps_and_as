@@ -94,7 +94,7 @@ export default function RunsPill({
       transform: [
         { scaleX: 0.6 + anim.ignition.value * 0.55 },
         { scaleY: 0.5 + anim.ignition.value * 0.9 },
-        { translateY: -2 - anim.ignition.value * 4 },
+        { translateY: 2 + anim.ignition.value * 4 },
       ],
     } as ViewStyle;
   });
@@ -122,14 +122,7 @@ export default function RunsPill({
         </View>
       ) : null}
 
-      <View style={[styles.glassPill, pillStyle]}>
-        {children ?? (
-          <Text numberOfLines={1} style={[styles.label, textStyle]}>
-            {label}
-          </Text>
-        )}
-      </View>
-
+      {/* Flames behind the glass so the pill reads as the fuel source. */}
       {flamesOn ? (
         <View
           style={[
@@ -161,6 +154,14 @@ export default function RunsPill({
           />
         </View>
       ) : null}
+
+      <View style={[styles.glassPill, pillStyle]}>
+        {children ?? (
+          <Text numberOfLines={1} style={[styles.label, textStyle]}>
+            {label}
+          </Text>
+        )}
+      </View>
 
       <View style={styles.sparkleAccent} pointerEvents="none">
         <EmberLayer
@@ -205,9 +206,10 @@ const styles = StyleSheet.create({
       ? ({ whiteSpace: "nowrap" } as object)
       : null),
   },
+  /** Behind glass — base of the flame sits in the pill (fuel), tips rise up. */
   flameAccent: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 3,
+    zIndex: 1,
     overflow: "visible",
   },
   flameAccentContained: {
@@ -223,7 +225,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: "18%",
     right: "18%",
-    top: -6,
+    bottom: -4,
     height: 10,
     borderRadius: 999,
     shadowOffset: { width: 0, height: 0 },

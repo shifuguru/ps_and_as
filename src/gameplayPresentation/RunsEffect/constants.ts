@@ -15,16 +15,16 @@ export const RUNS_COLORS = {
 
 /** Cool platinum / silver energy for President streak prestige. */
 export const PLATINUM_STREAK_COLORS = {
-  core: "#E8EEF8",
-  hot: "#C5D0E6",
-  edge: "#9AA8C4",
-  glow: "rgba(210,220,240,0.28)",
-  glowSoft: "rgba(180,195,220,0.16)",
-  glowCore: "rgba(240,245,255,0.45)",
-  ember: "rgba(230,238,255,0.92)",
-  flameA: "rgba(220,230,245,0.78)",
-  flameB: "rgba(170,190,220,0.58)",
-  flameC: "rgba(140,160,195,0.42)",
+  core: "#F2F5FA",
+  hot: "#D4DCE8",
+  edge: "#8E9BB0",
+  glow: "rgba(220,230,245,0.32)",
+  glowSoft: "rgba(190,205,225,0.18)",
+  glowCore: "rgba(245,248,255,0.55)",
+  ember: "rgba(235,242,255,0.95)",
+  flameA: "rgba(230,236,248,0.82)",
+  flameB: "rgba(180,195,220,0.62)",
+  flameC: "rgba(150,165,195,0.45)",
 } as const;
 
 export type RunsPalette = {

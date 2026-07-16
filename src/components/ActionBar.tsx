@@ -27,7 +27,7 @@ import {
 } from "../hooks/useTurnIntroAnimation";
 
 /** Fixed height budget for bottom-bar layout math (single action row). */
-export const ACTION_BAR_HEIGHT = 52;
+export const ACTION_BAR_HEIGHT = 58;
 
 const CAPSULE_RADIUS = 999;
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
@@ -99,7 +99,7 @@ export default function ActionBar({
   const viewport = useVisualViewportSize();
   const tier = resolveCompactHeightTier(viewport.height || shellHeight);
   const actionBarHeight = resolveActionBarHeight(tier);
-  const buttonMinHeight = Math.max(44, resolveActionButtonMinHeight(tier));
+  const buttonMinHeight = Math.max(48, resolveActionButtonMinHeight(tier));
   const actionTrackGap = resolveActionTrackGap(tier);
   const barWidth = Math.min(width - 32, 440);
 
@@ -107,7 +107,7 @@ export default function ActionBar({
   const passFlash = useRef(new Animated.Value(0)).current;
 
   const hasSelection = selectedCount > 0;
-  const playLabel = hasSelection ? `Play (${selectedCount})` : "Play";
+  const playLabel = "Play";
   const playHint = hasSelection
     ? "Tap to play selected cards"
     : "Select Cards From Your Hand";
@@ -347,15 +347,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "stretch",
     gap: 10,
-    minHeight: 44,
+    minHeight: 48,
     width: "100%",
   },
   passButton: {
     flex: 1,
     borderRadius: CAPSULE_RADIUS,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    minHeight: 44,
+    paddingHorizontal: 14,
+    minHeight: 48,
     ...BUTTON_CENTER,
   },
   passButtonDisabled: {
@@ -373,11 +373,11 @@ const styles = StyleSheet.create({
     }),
   },
   playButton: {
-    flex: 1.35,
+    flex: 1.45,
     borderRadius: CAPSULE_RADIUS,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    minHeight: 44,
+    paddingHorizontal: 16,
+    minHeight: 48,
     ...BUTTON_CENTER,
   },
   playButtonDisabled: {
@@ -406,15 +406,15 @@ const styles = StyleSheet.create({
   leaveButton: {
     borderRadius: CAPSULE_RADIUS,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    minHeight: 44,
+    paddingHorizontal: 14,
+    minHeight: 48,
     ...BUTTON_CENTER,
   },
-  passText: buttonLabel(14, {
+  passText: buttonLabel(15, {
     fontWeight: "700",
     letterSpacing: 0.3,
   }),
-  playText: buttonLabel(14, {
+  playText: buttonLabel(16, {
     fontWeight: "800",
     letterSpacing: 0.3,
   }),
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
     color: "#111",
     fontWeight: "900",
   },
-  leaveText: buttonLabel(14, {
+  leaveText: buttonLabel(15, {
     fontWeight: "800",
     letterSpacing: 0.2,
   }),

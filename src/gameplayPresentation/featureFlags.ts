@@ -3,7 +3,8 @@
  * Presentation-only — does not affect rules, networking, or XP.
  */
 export const GAMEPLAY_PRESENTATION = {
-  upcomingAchievements: true,
+  /** Hidden by default — revisit as centered in-game notifications. */
+  upcomingAchievements: false,
   roundsInRow: true,
   avatarAmbient: true,
   lastTrick: true,

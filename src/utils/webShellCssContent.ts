@@ -9,12 +9,12 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  * - Environment layer (#ps-felt-layer): enhancement only (lighting / vignette / crest / decor)
  * - Application shell (#root / portals): --app-height / --app-shell-top for layout
  *
- * Edge-to-edge rule:
- * - Shell height tracks the viewport (never viewport minus safe-area).
- * - Safe-area is applied only as padding on interactive chrome (e.g. .ps-bottom-bar-shell).
+ * Edge-to-edge rule (SwiftDev / CSS-Tricks — viewport-fit=cover):
+ * https://theswiftdev.com/progressive-web-apps-on-ios/
+ * - Document: full bleed — no safe-area padding on html/body.
+ * - Safe-area on content (.ps-safe-area-h) and bottom chrome (.ps-bottom-bar-shell).
  * - Do not shrink #root / screens with env(safe-area-inset-*) — that invents a footer.
- * - html uses min-height: calc(100% + safe-area-inset-top) so iOS black-translucent
- *   PWAs do not leave an empty bottom bar (dev.to/karmasakshi PWA iOS guide).
+ * - html min-height: calc(100% + safe-area-inset-top) for iOS black-translucent PWAs.
  */
 export function getWebShellCssText(feltTint: string): string {
   return `
@@ -30,10 +30,7 @@ export function getWebShellCssText(feltTint: string): string {
       position: relative !important;
       width: 100% !important;
       margin: 0 !important;
-      padding: constant(safe-area-inset-top) constant(safe-area-inset-right)
-        constant(safe-area-inset-bottom) constant(safe-area-inset-left) !important;
-      padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
-        env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px) !important;
+      padding: 0 !important;
       box-sizing: border-box !important;
       overflow-x: hidden !important;
       overflow-y: hidden !important;
@@ -211,6 +208,12 @@ export function getWebShellCssText(feltTint: string): string {
       min-height: 100% !important;
       z-index: 0 !important;
       pointer-events: none !important;
+    }
+    .ps-safe-area-h {
+      margin-left: constant(safe-area-inset-left) !important;
+      margin-left: env(safe-area-inset-left, 0px) !important;
+      margin-right: constant(safe-area-inset-right) !important;
+      margin-right: env(safe-area-inset-right, 0px) !important;
     }
     .ps-bottom-bar-shell {
       position: absolute !important;

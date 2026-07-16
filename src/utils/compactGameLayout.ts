@@ -125,13 +125,13 @@ export function resolveActionBarHeight(tier: CompactHeightTier): number {
   switch (tier) {
     case "comfortable":
     case "standard":
-      return 52;
+      return 58;
     case "compact":
-      return 50;
+      return 56;
     case "tight":
-      return 48;
+      return 54;
     case "veryTight":
-      return 46;
+      return 52;
   }
 }
 
@@ -139,13 +139,13 @@ export function resolveActionButtonMinHeight(tier: CompactHeightTier): number {
   switch (tier) {
     case "comfortable":
     case "standard":
-      return 46;
+      return 52;
     case "compact":
-      return 44;
+      return 50;
     case "tight":
-      return 44;
+      return 48;
     case "veryTight":
-      return 44;
+      return 48;
   }
 }
 

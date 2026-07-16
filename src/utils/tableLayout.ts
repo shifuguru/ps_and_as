@@ -239,10 +239,10 @@ export function computePlayAreaLayout(
   /**
    * Optical centre = current trick (primary anchor).
    * Ring cy follows this centre — seats orbit the trick, not the reverse.
-   * Slightly below geometric mid so full-screen composition (with bottom hand)
-   * reads the pile as the stage focus.
+   * Biased below geometric mid so pile + avatars sit lower in the play band
+   * (more air under the HUD, closer to the hand).
    */
-  const viewportCy = height * 0.52;
+  const viewportCy = height * 0.58;
   const ringCy = seatBandCy * 0.1 + viewportCy * 0.9;
 
   const seatReach =

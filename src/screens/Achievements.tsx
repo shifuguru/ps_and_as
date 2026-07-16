@@ -43,8 +43,6 @@ import AchievementPrestigeFrame from "../components/AchievementPrestigeFrame";
 import { hexToRgba } from "../utils/colorTheory";
 import {
   RunsPill,
-  RUNS_COLORS,
-  FLAME_SEEDS,
   PLATINUM_STREAK_COLORS,
   PLATINUM_FLAME_SEEDS,
 } from "../gameplayPresentation/RunsEffect";
@@ -216,7 +214,7 @@ export default function Achievements({
                 <StreakEnergyPill
                   label="Best Streak"
                   count={bestPresidentStreak}
-                  live={streakLive && bestPresidentStreak > 0}
+                  live={false}
                 />
               </View>
             ) : null}
@@ -350,7 +348,7 @@ function RolePill({
   );
 }
 
-/** Role-matched streak pill — hot while live, sparkles-only when interrupted. */
+/** Platinum President streak pill — metallic silver, never warm orange. */
 function StreakEnergyPill({
   label,
   count,
@@ -364,7 +362,8 @@ function StreakEnergyPill({
 }) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const fill = live ? "#FFB200" : "#C0C7D4";
+  // Live = brighter platinum; broken = cooler muted silver. Never RUNS orange.
+  const fill = live ? "#E8EEF8" : "#A8B4C8";
 
   return (
     <RunsPill
@@ -375,13 +374,13 @@ function StreakEnergyPill({
       containFlames={live}
       emberSpread="around"
       maxFlameHeight={16}
-      palette={live ? RUNS_COLORS : PLATINUM_STREAK_COLORS}
-      flameSeeds={live ? FLAME_SEEDS : PLATINUM_FLAME_SEEDS}
+      palette={PLATINUM_STREAK_COLORS}
+      flameSeeds={PLATINUM_FLAME_SEEDS}
       pillStyle={[
         styles.streakPill,
         {
-          backgroundColor: hexToRgba(fill, live ? 0.4 : 0.28),
-          borderColor: hexToRgba(fill, live ? 0.85 : 0.55),
+          backgroundColor: hexToRgba(fill, live ? 0.38 : 0.26),
+          borderColor: hexToRgba(fill, live ? 0.9 : 0.5),
         },
       ]}
     >
@@ -392,7 +391,9 @@ function StreakEnergyPill({
         {label}
         {live && liveLabel ? "  ·  Live" : ""}
       </Text>
-      <Text style={[styles.rolePillValue, { color: fill }]}>{count}</Text>
+      <Text style={[styles.rolePillValue, { color: live ? "#F2F5FA" : fill }]}>
+        {count}
+      </Text>
     </RunsPill>
   );
 }

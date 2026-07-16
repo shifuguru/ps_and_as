@@ -20,7 +20,7 @@ type Props = {
   effectOpacity: SharedValue<number>;
   seeds?: FlameSeed[];
   maxFlameHeight?: number;
-  /** Keep wisps inside the pill (sit on the inner top edge). */
+  /** Keep wisps mostly inside the pill (rise from the inner bottom edge). */
   contained?: boolean;
 };
 
@@ -70,9 +70,10 @@ function FlameWisp({
     const baseH = seed.height * (0.35 + intensity * 0.65 + burst * 0.35);
     const scaleY = 0.55 + flicker.value * 0.55 + burst * 0.4;
     const scaleX = 0.75 + (1 - flicker.value) * 0.35;
+    // Rise upward from the fuel line (negative Y). Contained = subtler lift.
     const lift = contained
-      ? -1 - burst * 3 - flicker.value * 2 * intensity
-      : -4 - burst * 10 - flicker.value * 5 * intensity;
+      ? -2 - burst * 4 - flicker.value * 3 * intensity
+      : -6 - burst * 12 - flicker.value * 6 * intensity;
     const opacity =
       effectOpacity.value *
       intensity *
@@ -80,7 +81,10 @@ function FlameWisp({
 
     return {
       opacity,
-      height: Math.min(maxFlameHeight + 4, baseH * (maxFlameHeight / RUNS_LAYOUT.maxFlameHeight)),
+      height: Math.min(
+        maxFlameHeight + 4,
+        baseH * (maxFlameHeight / RUNS_LAYOUT.maxFlameHeight),
+      ),
       transform: [
         { translateY: lift },
         { scaleY },
@@ -109,8 +113,8 @@ function FlameWisp({
 }
 
 /**
- * Soft energy wisps rising from the top edge of the pill only.
- * Rounded blobs — not comic fire.
+ * Soft energy wisps rising from the bottom edge of the pill (fuel source).
+ * Wisp bases sit on the fuel line; tips rise upward. Soft blobs — not comic fire.
  */
 export default function FlameLayer({
   width,
@@ -129,13 +133,13 @@ export default function FlameLayer({
         styles.row,
         contained
           ? {
-              height: maxFlameHeight + 6,
-              top: 2,
-              bottom: undefined,
+              height: maxFlameHeight + 8,
+              bottom: 1,
             }
           : {
-              height: maxFlameHeight + 20,
-              top: -(maxFlameHeight + 4),
+              height: maxFlameHeight + 18,
+              // Slight overhang so the base reads as inside the pill edge.
+              bottom: -(maxFlameHeight * 0.12),
             },
       ]}
       pointerEvents="none"
@@ -165,6 +169,7 @@ const styles = StyleSheet.create({
   },
   wisp: {
     position: "absolute",
+    // Anchor on the fuel line at the bottom of the flame row.
     bottom: 0,
   },
 });

@@ -8,6 +8,15 @@
  * - Application shell (#root + portals): --app-height / --app-shell-top for keyboard/chrome
  *
  * Edge-to-edge: shell fills the display. Safe-area pads interactive chrome only.
+ *
+ * Safe-area model (SwiftDev + CSS-Tricks — viewport-fit=cover):
+ * https://theswiftdev.com/progressive-web-apps-on-ios/
+ * - Document (html): full bleed under notch/home indicator — NO safe-area padding.
+ * - Wallpaper paints edge-to-edge (html::before at 100lvh).
+ * - Header/footer pattern: .ps-bottom-bar-shell ≈ footer with
+ *   padding-bottom: env(safe-area-inset-bottom); felt shows through, controls lift.
+ * - .ps-safe-area-h: horizontal margins for in-flow content (their .safe-area class).
+ *
  * html min-height adds top safe-area so iOS black-translucent PWAs do not leave
  * an empty bottom bar (https://dev.to/karmasakshi/make-your-pwas-look-handsome-on-ios-1o08).
  */
@@ -38,12 +47,7 @@ html {
   position: relative !important;
   width: 100% !important;
   margin: 0 !important;
-  /* Article: pad all sides so in-flow content clears notches; background still
-     paints under padding. Fixed #root/body cover the viewport on top. */
-  padding: constant(safe-area-inset-top) constant(safe-area-inset-right)
-    constant(safe-area-inset-bottom) constant(safe-area-inset-left) !important;
-  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
-    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px) !important;
+  padding: 0 !important;
   box-sizing: border-box !important;
   overflow-x: hidden !important;
   overflow-y: hidden !important;
@@ -248,7 +252,15 @@ body {
   pointer-events: none !important;
 }
 
-/* Bottom bar: interaction chrome only — transparent over felt, full width. */
+/* In-flow content horizontal safe area (SwiftDev .safe-area — not on html/body). */
+.ps-safe-area-h {
+  margin-left: constant(safe-area-inset-left) !important;
+  margin-left: env(safe-area-inset-left, 0px) !important;
+  margin-right: constant(safe-area-inset-right) !important;
+  margin-right: env(safe-area-inset-right, 0px) !important;
+}
+
+/* Bottom bar ≈ SwiftDev footer: full-bleed over felt, controls lifted by env(). */
 .ps-bottom-bar-shell {
   position: absolute !important;
   left: 0 !important;

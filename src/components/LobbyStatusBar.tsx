@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import BlurPanel from "./BlurPanel";
 import { useAppTheme } from "../context/ThemeContext";
+import { hexToRgba } from "../utils/colorTheory";
 
 export const LOBBY_STATUS_BAR_HEIGHT = 58;
 
@@ -34,11 +35,12 @@ export default function LobbyStatusBar({
       <View style={styles.container}>
         <View style={styles.centerSection}>
           <View style={styles.statsRow}>
-            <View style={styles.statCard}>
+            <View style={styles.statCol}>
               <Text style={styles.label}>{countLabel}</Text>
               <Text style={styles.value}>{playerCount}</Text>
             </View>
-            <View style={[styles.statCard, styles.roomCard]}>
+            <View style={styles.statDivider} />
+            <View style={[styles.statCol, styles.roomCol]}>
               <Text style={styles.label}>Room</Text>
               <Text style={styles.value} numberOfLines={1}>
                 {roomName || "—"}
@@ -59,6 +61,7 @@ export default function LobbyStatusBar({
 }
 
 function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+  const isDark = colors.mode === "dark";
   return StyleSheet.create({
     panel: {
       position: "absolute",
@@ -68,14 +71,14 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       zIndex: 40,
       elevation: 40,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.panelBorder,
+      borderBottomColor: hexToRgba(colors.gold, isDark ? 0.22 : 0.16),
     },
     container: {
       width: "100%",
       flexDirection: "row",
       alignItems: "center",
       paddingVertical: 8,
-      paddingHorizontal: 12,
+      paddingHorizontal: 14,
     },
     centerSection: {
       flex: 1,
@@ -94,28 +97,28 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      gap: 6,
+      gap: 10,
     },
-    statCard: {
+    statCol: {
       alignItems: "center",
       justifyContent: "center",
-      minWidth: 56,
+      minWidth: 48,
       maxWidth: 88,
-      paddingVertical: 8,
-      paddingHorizontal: 8,
-      borderRadius: 14,
-      backgroundColor: colors.btnSecondaryBg,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.panelBorder,
     },
-    roomCard: {
-      maxWidth: 120,
+    roomCol: {
+      maxWidth: 140,
+    },
+    statDivider: {
+      width: StyleSheet.hairlineWidth,
+      height: 28,
+      backgroundColor: hexToRgba(colors.gold, isDark ? 0.28 : 0.2),
     },
     label: {
-      color: colors.textMuted,
+      color: colors.gold,
       fontSize: 10,
-      fontWeight: "700",
-      letterSpacing: 0.2,
+      fontWeight: "800",
+      letterSpacing: 0.7,
+      textTransform: "uppercase",
       marginBottom: 2,
       textAlign: "center",
     },
