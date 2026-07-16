@@ -35,7 +35,7 @@ import { MODAL_OVERLAY_Z } from "./src/styles/overlayZIndex";
 import WebModalPortal from "./src/components/WebModalPortal";
 import { DEFAULT_FELT_COLOR, getWallpaperTint } from "./src/services/wallpaper";
 import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
-import { tryCollapseSafariChrome } from "./src/utils/safariChrome";
+import { tryCollapseSafariChrome, isStandaloneWebApp } from "./src/utils/safariChrome";
 import { useVisualViewportSize, useWebShellLayout } from "./src/hooks/useVisualViewportSize";
 import { isMobileWeb, installWebShellCss } from "./src/utils/webViewport";
 import { useAppFonts } from "./src/hooks/useAppFonts";
@@ -601,17 +601,29 @@ function AppContent() {
         { flex: 1 },
         Platform.OS === "web" &&
           (isMobileWeb()
-            ? ({
-                position: "fixed",
-                top: shell.shellTop,
-                left: 0,
-                right: 0,
-                width: "100%",
-                // Same source as --app-height: useWebShellLayout → readWebShellHeight
-                height: shell.height,
-                maxHeight: shell.height,
-                overflow: "hidden",
-              } as object)
+            ? isStandaloneWebApp()
+              ? ({
+                  // Home Screen: pin to the real display. Pixel shell heights
+                  // can undershoot and leave a felt "footer" under the app.
+                  position: "fixed",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: "100%",
+                  overflow: "hidden",
+                } as object)
+              : ({
+                  position: "fixed",
+                  top: shell.shellTop,
+                  left: 0,
+                  right: 0,
+                  width: "100%",
+                  // Safari tab: track visualViewport for toolbar/keyboard.
+                  height: shell.height,
+                  maxHeight: shell.height,
+                  overflow: "hidden",
+                } as object)
             : {
                 width: "100%",
                 height: viewport.height,

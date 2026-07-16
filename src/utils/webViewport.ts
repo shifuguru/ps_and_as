@@ -214,6 +214,11 @@ function traceAppHeightApply(
 /**
  * Interactive shell geometry only.
  * Never resize html/body or the environment layer — those own the paint viewport.
+ *
+ * Home Screen (standalone): pin #root/portals to the display with inset:0.
+ * Pixel heights from innerHeight can undershoot the real screen and leave a
+ * felt-colored "footer" strip below the app — that is the PWA bug.
+ * Safari tab: keep pixel height so the shell tracks the toolbar/keyboard.
  */
 function applyShellGeometry(
   doc: any,
@@ -222,13 +227,11 @@ function applyShellGeometry(
   calc: ShellHeightCalc | null,
   caller: string,
 ): void {
-  const h = `${heightPx}px`;
-  const top = `${topPx}px`;
-
-  // Exact CSS var writes for --app-height / aliases
-  doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, h);
-  doc.documentElement.style.setProperty(APP_HEIGHT_VAR, h);
-  doc.documentElement.style.setProperty(APP_SHELL_TOP_VAR, top);
+  const targets = [
+    doc.getElementById("root"),
+    doc.getElementById(WEB_BODY_PORTAL_ID),
+    doc.getElementById(WEB_OVERLAY_PORTAL_ID),
+  ];
 
   // Clear legacy inline clamps that previously tied wallpaper/document to shell.
   for (const el of [doc.documentElement, doc.body, doc.getElementById(WEB_FELT_LAYER_ID)]) {
@@ -241,11 +244,41 @@ function applyShellGeometry(
     }
   }
 
-  const targets = [
-    doc.getElementById("root"),
-    doc.getElementById(WEB_BODY_PORTAL_ID),
-    doc.getElementById(WEB_OVERLAY_PORTAL_ID),
-  ];
+  const pinToDisplay =
+    isStandaloneWebApp() && topPx === 0 && !keyboardLikelyOpen(
+      (globalThis as { window?: WebWindow }).window ?? {},
+    );
+
+  if (pinToDisplay) {
+    doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, "100%");
+    doc.documentElement.style.setProperty(APP_HEIGHT_VAR, "100%");
+    doc.documentElement.style.setProperty(APP_SHELL_TOP_VAR, "0px");
+
+    for (const el of targets) {
+      if (!el?.style) continue;
+      el.style.top = "0px";
+      el.style.left = "0px";
+      el.style.right = "0px";
+      el.style.bottom = "0px";
+      el.style.removeProperty("height");
+      el.style.removeProperty("max-height");
+      el.style.minHeight = "0";
+    }
+
+    if (isViewportDebugEnabled() && calc) {
+      traceAppHeightApply(heightPx, 0, calc, `${caller}+standalonePin`, [
+        "standalone → #root/portals inset:0 (no pixel height)",
+      ]);
+    }
+    return;
+  }
+
+  const h = `${heightPx}px`;
+  const top = `${topPx}px`;
+
+  doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, h);
+  doc.documentElement.style.setProperty(APP_HEIGHT_VAR, h);
+  doc.documentElement.style.setProperty(APP_SHELL_TOP_VAR, top);
 
   const debugEnabled = isViewportDebugEnabled();
   const appliedTo: string[] | null = debugEnabled
@@ -258,6 +291,8 @@ function applyShellGeometry(
 
   for (const el of targets) {
     if (!el) continue;
+    el.style.bottom = "";
+    el.style.removeProperty("bottom");
     el.style.height = h;
     el.style.maxHeight = h;
     el.style.minHeight = "0";
