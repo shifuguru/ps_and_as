@@ -32,11 +32,11 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-07-16T17:45"),
+    publishedAt: nzst("2026-07-16T18:02"),
     title: "True fullscreen on iPhone",
     items: [
-      "iPhone web & Home Screen — the app fills the whole display edge to edge; the home indicator sits over the felt instead of a green footer band",
-      "Menus and profile — screens use the full viewport; only buttons and controls clear the home indicator",
+      "iPhone Home Screen — the app fills the whole display; the home indicator sits over the felt instead of a green footer band",
+      "Menus and profile — no extra empty strip under the buttons; only enough space so controls clear the home indicator",
     ],
   },
   {

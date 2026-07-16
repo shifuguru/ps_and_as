@@ -4,6 +4,10 @@ import { Platform } from "react-native";
  * Best-effort nudge for mobile Safari to collapse the URL bar.
  * Apple does not expose a supported API to hide browser chrome in a normal tab.
  * This often no-ops when overflow is hidden or on recent iOS versions.
+ *
+ * Product target: installed Home Screen (standalone) — no Safari toolbar.
+ * Design for the full display with the home indicator over the felt; do not
+ * invent Safari-toolbar "safe space" footers in the PWA.
  */
 export function tryCollapseSafariChrome(): void {
   if (Platform.OS !== "web") return;

@@ -284,6 +284,9 @@ export function keyboardLikelyOpen(win: WebWindow): boolean {
  * Height for the interactive application shell only.
  * Prefer layout viewport (innerHeight) over dvh so keyboard / Safari chrome
  * resize #root and portals — never the Environment wallpaper layer.
+ *
+ * Product target is the installed Home Screen app (full display, no browser
+ * toolbar). Never shrink this by safe-area — that invents a footer over the felt.
  */
 export function readWebShellHeight(win: WebWindow): number {
   const vv = win.visualViewport;

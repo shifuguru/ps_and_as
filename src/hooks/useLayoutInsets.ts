@@ -108,8 +108,8 @@ export function useLayoutInsets() {
   const mergedCss = isMobileWeb() ? cssSafe : { top: 0, bottom: 0, left: 0, right: 0 };
 
   if (isStandaloneWebApp()) {
-    // Home-screen PWA: react-native-safe-area-context often reports 0 on web.
-    // Merge CSS env(safe-area-inset-*) so bottom bars clear the home indicator.
+    // Home Screen app: full display is the canvas. Safe-area only lifts
+    // interactive controls above the home indicator — never a visual footer.
     return {
       ...insets,
       top: Math.max(insets.top, mergedCss.top),

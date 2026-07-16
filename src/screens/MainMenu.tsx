@@ -104,10 +104,11 @@ export default function MainMenu({ buttons, onButtonPress, style }: Props) {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            // Full-viewport composition; safe-area only pads interactive content.
+            // Full-viewport composition. Bottom pad only clears the home
+            // indicator for the last controls — no extra dead "footer" band.
             minHeight: height,
             paddingTop: insets.top + 16,
-            paddingBottom: Math.max(insets.bottom, 16) + 20,
+            paddingBottom: Math.max(insets.bottom, 12),
           },
         ]}
         showsVerticalScrollIndicator={false}

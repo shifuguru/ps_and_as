@@ -227,10 +227,11 @@ export default function PlayerHub({
         contentContainerStyle={[
           styles.scrollContent,
           {
-            // Full-viewport composition; safe-area only pads interactive content.
+            // Full-viewport composition. Bottom pad only clears the home
+            // indicator for the last controls — no extra dead "footer" band.
             minHeight: height,
             paddingTop: insets.top + 12,
-            paddingBottom: Math.max(insets.bottom, 16) + 24,
+            paddingBottom: Math.max(insets.bottom, 12),
           },
         ]}
         showsVerticalScrollIndicator={false}
