@@ -250,8 +250,8 @@ function applyShellGeometry(
     );
 
   if (pinToDisplay) {
-    doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, "100%");
-    doc.documentElement.style.setProperty(APP_HEIGHT_VAR, "100%");
+    doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, "100lvh");
+    doc.documentElement.style.setProperty(APP_HEIGHT_VAR, "100lvh");
     doc.documentElement.style.setProperty(APP_SHELL_TOP_VAR, "0px");
 
     for (const el of targets) {
@@ -260,14 +260,14 @@ function applyShellGeometry(
       el.style.left = "0px";
       el.style.right = "0px";
       el.style.bottom = "0px";
-      el.style.removeProperty("height");
-      el.style.removeProperty("max-height");
+      el.style.height = "100lvh";
+      el.style.maxHeight = "none";
       el.style.minHeight = "0";
     }
 
     if (isViewportDebugEnabled() && calc) {
       traceAppHeightApply(heightPx, 0, calc, `${caller}+standalonePin`, [
-        "standalone → #root/portals inset:0 (no pixel height)",
+        "standalone → #root/portals 100lvh + inset 0",
       ]);
     }
     return;

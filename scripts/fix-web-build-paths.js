@@ -249,8 +249,8 @@ function injectEarlyShellHeight(html) {
   function sync(){
     var r=document.documentElement.style;
     if(isStandalone()){
-      r.setProperty("--app-shell-h","100%");
-      r.setProperty("--app-height","100%");
+      r.setProperty("--app-shell-h","100lvh");
+      r.setProperty("--app-height","100lvh");
       r.setProperty("--app-shell-top","0px");
       return;
     }

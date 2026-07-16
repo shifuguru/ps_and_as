@@ -32,11 +32,11 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-07-16T18:12"),
+    publishedAt: nzst("2026-07-16T18:15"),
     title: "Home Screen fills the whole iPhone display",
     items: [
-      "iPhone Home Screen — fixed the empty footer band under the felt when the app is added to your Home Screen",
-      "Felt wallpaper now covers the full display; the home indicator sits over the table instead of a blank strip",
+      "iPhone Home Screen — wallpaper covers the full display height, including under the home indicator",
+      "Empty footer band under the felt should be gone — force-close and reopen the Home Screen app after updating",
     ],
   },
   {

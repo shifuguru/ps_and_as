@@ -603,14 +603,15 @@ function AppContent() {
           (isMobileWeb()
             ? isStandaloneWebApp()
               ? ({
-                  // Home Screen: pin to the real display. Pixel shell heights
-                  // can undershoot and leave a felt "footer" under the app.
+                  // Home Screen: largest viewport (100lvh) so nothing sits under a footer gap.
                   position: "fixed",
                   top: 0,
                   left: 0,
                   right: 0,
                   bottom: 0,
                   width: "100%",
+                  height: "100lvh",
+                  maxHeight: "none",
                   overflow: "hidden",
                 } as object)
               : ({

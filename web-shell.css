@@ -15,7 +15,7 @@
   --ps-felt-tint: #0f5132;
   --ps-felt-tint-overlay: transparent;
   --ps-felt-texture: none;
-  --app-shell-h: 100dvh;
+  --app-shell-h: 100lvh;
   --app-height: var(--app-shell-h);
   --app-shell-top: 0px;
 }
@@ -23,30 +23,62 @@
 /* Document owns wallpaper permanently — never cleared after env ready.
  *
  * iOS PWA (black-translucent + viewport-fit=cover) moves the document under the
- * status bar. Without the min-height compensation below, Apple leaves an empty
- * bar at the bottom. See:
- * https://dev.to/karmasakshi/make-your-pwas-look-handsome-on-ios-1o08
+ * status bar and leaves an empty bottom band unless html is allowed to extend.
+ * Guide: https://dev.to/karmasakshi/make-your-pwas-look-handsome-on-ios-1o08
  *
- * Do NOT lock html with position:fixed + inset:0 — that clips to the limited
- * viewport and recreates the footer. Wallpaper paints on html; #root is the
- * interactive shell. Safe-area pads controls only, not this document height.
+ * Rules that break the fix (do not reintroduce):
+ * - position:fixed + inset:0 on html (clips to the limited viewport)
+ * - height:100% fighting min-height expansion
+ * - overflow:hidden on html (clips the extended paint surface)
+ *
+ * ::before is a 100lvh fixed wallpaper so texture covers the full display
+ * (including home-indicator), not only the layout viewport.
  */
 html {
   position: relative !important;
   width: 100% !important;
   margin: 0 !important;
-  padding: 0 !important;
-  overflow: hidden !important;
+  /* Article: pad all sides so in-flow content clears notches; background still
+     paints under padding. Fixed #root/body cover the viewport on top. */
+  padding: constant(safe-area-inset-top) constant(safe-area-inset-right)
+    constant(safe-area-inset-bottom) constant(safe-area-inset-left) !important;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px) !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
   overscroll-behavior: none !important;
   touch-action: manipulation !important;
-  height: 100% !important;
+  height: auto !important;
   max-height: none !important;
   min-height: 100% !important;
   min-height: 100dvh !important;
+  min-height: 100lvh !important;
   min-height: -webkit-fill-available !important;
   /* Critical: extend by top safe-area so iOS does not invent a bottom bar. */
   min-height: calc(100% + constant(safe-area-inset-top)) !important;
   min-height: calc(100% + env(safe-area-inset-top, 0px)) !important;
+  background-color: var(--ps-felt-tint) !important;
+  background-image: none !important; /* painted by ::before at 100lvh */
+}
+
+/* Full-display wallpaper — largest viewport so Home Screen has no footer gap. */
+html::before {
+  content: "" !important;
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  height: 100dvh !important;
+  height: 100lvh !important;
+  min-height: 100% !important;
+  min-height: 100dvh !important;
+  min-height: 100lvh !important;
+  min-height: -webkit-fill-available !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
   background-color: var(--ps-felt-tint) !important;
   background-image:
     linear-gradient(
@@ -57,7 +89,7 @@ html {
   background-size: 100% 100%, cover !important;
   background-position: center center, center center !important;
   background-repeat: no-repeat, no-repeat !important;
-  background-attachment: fixed, fixed !important;
+  background-attachment: scroll, scroll !important;
 }
 
 body {
@@ -74,9 +106,12 @@ body {
   overscroll-behavior: none !important;
   touch-action: manipulation !important;
   height: 100% !important;
+  height: 100dvh !important;
+  height: 100lvh !important;
   max-height: none !important;
   min-height: 100% !important;
   min-height: 100dvh !important;
+  min-height: 100lvh !important;
   min-height: -webkit-fill-available !important;
   background-color: transparent !important;
   background-image: none !important;
