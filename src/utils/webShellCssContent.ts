@@ -8,6 +8,11 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  * - Document (html): permanent felt wallpaper + tint — fills the browser paint surface
  * - Environment layer (#ps-felt-layer): enhancement only (lighting / vignette / crest / decor)
  * - Application shell (#root / portals): --app-height / --app-shell-top for layout
+ *
+ * Edge-to-edge rule:
+ * - Shell height tracks the viewport (never viewport minus safe-area).
+ * - Safe-area is applied only as padding on interactive chrome (e.g. .ps-bottom-bar-shell).
+ * - Do not shrink #root / screens with env(safe-area-inset-*) — that invents a footer.
  */
 export function getWebShellCssText(feltTint: string): string {
   return `

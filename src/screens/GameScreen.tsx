@@ -5338,7 +5338,11 @@ function GameScreenBoard() {
         onCancel={pendingTenPlay ? handleTenRuleCancel : undefined}
       />
 
-      {/* Game content — pad for bottom hand sheet (HAND_BASELINE) */}
+      {/*
+        Edge-to-edge visual host. Safe-area / hand clearance is content padding
+        only - it must not shrink the screen shell. Wallpaper continues under
+        the home indicator; BottomBar lifts interactive controls above it.
+      */}
       <View
         ref={playAreaHostRef}
         style={{

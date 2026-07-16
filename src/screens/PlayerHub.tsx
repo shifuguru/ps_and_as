@@ -227,9 +227,10 @@ export default function PlayerHub({
         contentContainerStyle={[
           styles.scrollContent,
           {
+            // Full-viewport composition; safe-area only pads interactive content.
+            minHeight: height,
             paddingTop: insets.top + 12,
             paddingBottom: Math.max(insets.bottom, 16) + 24,
-            minHeight: height - insets.top - insets.bottom,
           },
         ]}
         showsVerticalScrollIndicator={false}

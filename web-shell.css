@@ -6,6 +6,9 @@
  * - Document (html): permanent felt wallpaper + tint — fills the browser paint surface
  * - Environment layer (#ps-felt-layer): enhancement only (lighting / vignette / crest / decor)
  * - Application shell (#root + portals): --app-height / --app-shell-top for keyboard/chrome
+ *
+ * Edge-to-edge: shell height is the full viewport. Safe-area is padding on
+ * interactive chrome only (.ps-bottom-bar-shell) — never shrink #root.
  */
 :root {
   --ps-felt-tint: #0f5132;

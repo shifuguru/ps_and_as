@@ -98,8 +98,14 @@ type Props = {
 };
 
 /**
- * Bottom chrome host — layout / safe-area only.
- * No glass plate: felt + table vignette provide separation.
+ * Bottom chrome host — interaction / safe-area only.
+ *
+ * Architecture (do not reunify):
+ * - Visual composition (wallpaper, table, screen shell) is always edge-to-edge.
+ * - This bar lifts *interactive* controls above the home indicator via
+ *   padding (CSS env on web, insets on native) — it must never shrink #root
+ *   or the screen shell height.
+ * - No glass plate: felt + table vignette provide separation.
  */
 export default function BottomBar({
   children,

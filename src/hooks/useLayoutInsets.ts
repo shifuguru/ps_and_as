@@ -36,7 +36,12 @@ function readWebChromeInsets(win: {
   return { top, bottom };
 }
 
-/** Safe-area + mobile browser chrome (Safari address bar, etc.) on web. */
+/** Safe-area + mobile browser chrome (Safari address bar, etc.) on web.
+ *
+ * Insets pad interactive controls and scroll content. They must never be used
+ * to shrink screen / shell / minHeight composition (that creates the false
+ * iOS “footer” band). Visual layers stay edge-to-edge; only hit targets move.
+ */
 export function useLayoutInsets() {
   const insets = useSafeAreaInsets();
   const [webChrome, setWebChrome] = useState<ChromeInsets>({ top: 0, bottom: 0 });
