@@ -70,6 +70,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.4": "Run It Back",
   "1.1.5": "Table Stakes Tantrum",
   "1.1.6": "Ten High Drama",
+  "1.1.7": "Empty Hand Heroics",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
