@@ -32,7 +32,7 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-07-16T23:40"),
+    publishedAt: nzst("2026-07-16T23:41"),
     title: "Home Hub, lobbies & table polish",
     items: [
       "Home — panels reordered so Play sits under your profile, then Daily, achievements, and the rest",
