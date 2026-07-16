@@ -1,7 +1,9 @@
 import {
   ACHIEVEMENTS,
+  achievementPrestigeProgress,
+  formatAchievementPrestige,
+  type AchievementDef,
   type PlayerStats,
-  unlockedAchievements,
 } from "./playerStats";
 import { levelProgressFromXp } from "./playerLevel";
 
@@ -15,45 +17,40 @@ export type HubGoal = {
   fraction: number;
   kind: "level" | "achievement";
   achievementId?: string;
+  prestige?: number;
+  nextPrestige?: number;
 };
 
-/** Counter-backed targets for existing binary achievements. */
-export const ACHIEVEMENT_PROGRESS: Record<
-  string,
-  { field: keyof PlayerStats; target: number }
-> = {
-  debut: { field: "roundsPlayed", target: 1 },
-  president: { field: "timesPresident", target: 1 },
-  asshole: { field: "timesAsshole", target: 1 },
-  vice_president: { field: "timesVicePresident", target: 1 },
-  vice_asshole: { field: "timesViceAsshole", target: 1 },
-  hot_streak: { field: "bestPresidentStreak", target: 2 },
-  veteran: { field: "roundsPlayed", target: 10 },
-  dynasty: { field: "timesPresident", target: 5 },
-};
-
+/**
+ * Progress toward the next prestige rank for an achievement.
+ * Fully retroactive from career counters — no separate unlock store.
+ */
 export function achievementProgress(
-  def: { id: string; check: (stats: PlayerStats) => boolean },
+  def: AchievementDef,
   stats: PlayerStats,
-): { current: number; target: number; fraction: number; unlocked: boolean } {
-  const meta = ACHIEVEMENT_PROGRESS[def.id];
-  const unlocked = def.check(stats);
-  if (!meta) {
-    return { current: unlocked ? 1 : 0, target: 1, fraction: unlocked ? 1 : 0, unlocked };
-  }
-  const current = Math.min(Number(stats[meta.field]) || 0, meta.target);
+): {
+  current: number;
+  target: number;
+  fraction: number;
+  unlocked: boolean;
+  prestige: number;
+  nextPrestige: number;
+} {
+  const p = achievementPrestigeProgress(stats, def);
   return {
-    current,
-    target: meta.target,
-    fraction: meta.target > 0 ? current / meta.target : 0,
-    unlocked,
+    current: p.current,
+    target: p.target,
+    fraction: p.fraction,
+    unlocked: p.unlocked,
+    prestige: p.prestige,
+    nextPrestige: p.nextPrestige,
   };
 }
 
 /**
- * Journey roadmap — achievement milestones first (unique vs Profile XP).
- * Level is Profile-owned; only fill Journey with Level when no locked achievements remain
- * (or none remain after skipping the Next Achievement hero id).
+ * Journey roadmap — nearest next-prestige milestones.
+ * Achievements stay on the board forever; each rank-up is a new goal.
+ * Level fills only when we somehow have no achievement rows (should not happen).
  */
 export function selectHubGoals(
   stats: PlayerStats,
@@ -61,26 +58,33 @@ export function selectHubGoals(
   skipAchievementId?: string,
 ): HubGoal[] {
   const goals: HubGoal[] = [];
-  const unlockedIds = new Set(unlockedAchievements(stats).map((a) => a.id));
-  const locked = ACHIEVEMENTS.filter((a) => !unlockedIds.has(a.id))
-    .map((a) => {
-      const p = achievementProgress(a, stats);
-      return { def: a, ...p };
-    })
-    .sort((a, b) => b.fraction - a.fraction || a.target - b.target);
+  const ranked = ACHIEVEMENTS.map((a) => {
+    const p = achievementProgress(a, stats);
+    return { def: a, ...p };
+  }).sort(
+    (a, b) =>
+      b.fraction - a.fraction ||
+      a.target - b.target ||
+      a.nextPrestige - b.nextPrestige,
+  );
 
-  for (const row of locked) {
+  for (const row of ranked) {
     if (goals.length >= maxGoals) break;
     if (skipAchievementId && row.def.id === skipAchievementId) continue;
     goals.push({
-      id: `ach:${row.def.id}`,
+      id: `ach:${row.def.id}:p${row.nextPrestige}`,
       title: row.def.title,
-      subtitle: `${row.current} / ${row.target}`,
+      subtitle:
+        row.prestige >= 1
+          ? `Next Prestige ${formatAchievementPrestige(row.nextPrestige)} · ${row.current} / ${row.target}`
+          : `${row.current} / ${row.target}`,
       current: row.current,
       target: row.target,
       fraction: row.fraction,
       kind: "achievement",
       achievementId: row.def.id,
+      prestige: row.prestige,
+      nextPrestige: row.nextPrestige,
     });
   }
 
@@ -102,3 +106,11 @@ export function selectHubGoals(
 
 /** Alias matching the UX “roadmap” naming. */
 export const selectJourneyGoals = selectHubGoals;
+
+/** @deprecated Prefer AchievementDef.field / .step — kept for any external imports. */
+export const ACHIEVEMENT_PROGRESS: Record<
+  string,
+  { field: keyof PlayerStats; target: number }
+> = Object.fromEntries(
+  ACHIEVEMENTS.map((a) => [a.id, { field: a.field, target: a.step }]),
+);

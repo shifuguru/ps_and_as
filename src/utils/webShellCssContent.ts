@@ -4,18 +4,22 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
 /**
  * Runtime shell CSS (dev + production fallback). Keep in sync with web-shell.css.
  *
- * Environment layer fills the viewport forever.
- * Application shell (#root / portals) alone uses --app-height / --app-shell-top.
+ * Ownership split (do not reunify):
+ * - Document (html): permanent felt wallpaper + tint — fills the browser paint surface
+ * - Environment layer (#ps-felt-layer): enhancement only (lighting / vignette / crest / decor)
+ * - Application shell (#root / portals): --app-height / --app-shell-top for layout
  */
 export function getWebShellCssText(feltTint: string): string {
   return `
     :root {
       --ps-felt-tint: ${feltTint};
+      --ps-felt-tint-overlay: transparent;
+      --ps-felt-texture: none;
       --app-shell-h: 100dvh;
       --app-height: var(--app-shell-h);
       --app-shell-top: 0px;
     }
-    html, body {
+    html {
       position: fixed !important;
       inset: 0 !important;
       top: 0 !important;
@@ -34,10 +38,36 @@ export function getWebShellCssText(feltTint: string): string {
       min-height: 100dvh !important;
       min-height: -webkit-fill-available !important;
       background-color: var(--ps-felt-tint) !important;
+      background-image:
+        linear-gradient(
+          var(--ps-felt-tint-overlay),
+          var(--ps-felt-tint-overlay)
+        ),
+        var(--ps-felt-texture) !important;
+      background-size: 100% 100%, cover !important;
+      background-position: center center, center center !important;
+      background-repeat: no-repeat, no-repeat !important;
     }
-    html.ps-env-ready,
-    html.ps-env-ready body {
+    body {
+      position: fixed !important;
+      inset: 0 !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      overscroll-behavior: none !important;
+      touch-action: manipulation !important;
+      height: 100% !important;
+      max-height: none !important;
+      min-height: 100% !important;
+      min-height: 100dvh !important;
+      min-height: -webkit-fill-available !important;
       background-color: transparent !important;
+      background-image: none !important;
     }
     #ps-felt-layer,
     .ps-environment-layer {
@@ -56,6 +86,7 @@ export function getWebShellCssText(feltTint: string): string {
       z-index: 0 !important;
       pointer-events: none !important;
       overflow: hidden !important;
+      background: transparent !important;
     }
     #ps-felt-layer .ps-env-plane,
     #ps-felt-layer .ps-felt-layer-texture,
@@ -69,6 +100,11 @@ export function getWebShellCssText(feltTint: string): string {
       bottom: 0;
       width: 100%;
       height: 100%;
+    }
+    /* Legacy wallpaper planes — document owns wallpaper; keep nodes inert if present. */
+    #ps-felt-layer .ps-felt-layer-texture,
+    #ps-felt-layer .ps-felt-layer-tint {
+      display: none !important;
     }
     #ps-felt-layer .ps-env-lighting,
     #ps-felt-layer .ps-env-vignette,

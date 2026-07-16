@@ -28,10 +28,11 @@ export const APP_SHELL_TOP_VAR = "--app-shell-top";
 export const WEB_SHELL_STYLE_ID = "ps-web-shell";
 export const WEB_BODY_PORTAL_ID = "ps-body-portal";
 export const WEB_OVERLAY_PORTAL_ID = "ps-overlay-portal";
-/** Environment layer root — owns felt / ambient paint (not interactive shell). */
+/** Environment layer root — enhancement planes only (not wallpaper, not shell). */
 export const WEB_FELT_LAYER_ID = "ps-felt-layer";
 /** Alias for the environment layer class (same node as WEB_FELT_LAYER_ID). */
 export const WEB_ENVIRONMENT_LAYER_CLASS = "ps-environment-layer";
+/** Marks that document wallpaper vars have been applied (does not clear backgrounds). */
 export const WEB_ENV_READY_CLASS = "ps-env-ready";
 export const WEB_BOTTOM_BAR_SHELL_CLASS = "ps-bottom-bar-shell";
 export const WEB_FELT_FIXED_CLASS = "ps-felt-fixed";
@@ -419,7 +420,7 @@ export function installWebMobileViewportGuard(): () => void {
 }
 
 /**
- * Global mobile-web CSS: Environment Layer (viewport) + Application shell vars.
+ * Global mobile-web CSS: document wallpaper + Environment Layer + Application shell vars.
  */
 export function installWebShellCss(feltTint: string): () => void {
   if (Platform.OS !== "web") return () => undefined;

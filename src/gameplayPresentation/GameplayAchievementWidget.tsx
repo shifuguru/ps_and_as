@@ -5,6 +5,7 @@ import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
 import {
   getPlayerStats,
+  formatAchievementPrestige,
   type PlayerStats,
 } from "../services/playerStats";
 import { selectNextAchievement } from "../services/nextAchievement";
@@ -71,12 +72,19 @@ export default function GameplayAchievementWidget({
         disabled={!onOpenAchievements}
         style={styles.panel}
       >
-        <Text style={[styles.eyebrow, { color: accent }]}>Upcoming</Text>
+        <Text style={[styles.eyebrow, { color: accent }]}>
+          {next.prestige >= 1
+            ? `Next Prestige ${formatAchievementPrestige(next.nextPrestige)}`
+            : "Upcoming"}
+        </Text>
         <View style={styles.row}>
           <Text style={styles.emoji}>{next.def.emoji}</Text>
           <View style={styles.body}>
             <Text style={styles.title} numberOfLines={1}>
               {next.def.title}
+              {next.prestige >= 1
+                ? ` · ${formatAchievementPrestige(next.prestige)}`
+                : ""}
             </Text>
             <Text style={styles.desc} numberOfLines={2}>
               {next.def.description}

@@ -11,10 +11,19 @@ import BlurPanel from "./BlurPanel";
 import { playerInitials } from "../utils/playerDisplay";
 import {
   ACHIEVEMENTS,
+  achievementPrestige,
+  achievementPrestigeProgress,
+  formatAchievementPrestige,
   getPlayerStats,
+  totalAchievementPrestige,
   unlockedAchievements,
   type PlayerStats,
 } from "../services/playerStats";
+import {
+  RARITY_COLOR,
+  rarityForAchievementId,
+} from "../services/achievementRarity";
+import AchievementPrestigeFrame from "./AchievementPrestigeFrame";
 import { getCpuPlayerStats } from "../rewards/cpuProfiles";
 import type { AppThemeColors } from "../styles/themeColors";
 import type { UiStyles } from "../styles/createUiStyles";
@@ -65,7 +74,6 @@ export default function LobbyPlayerModal({
   }, [visible, player?.id, player?.isLocalPlayer, player?.isCPU, player?.name]);
 
   const unlocked = stats ? unlockedAchievements(stats) : [];
-  const unlockedIds = new Set(unlocked.map((a) => a.id));
   const canShowStats =
     !!stats && (!!player?.isCPU || (!!player?.isLocalPlayer && !player?.isCPU));
 
@@ -119,16 +127,34 @@ export default function LobbyPlayerModal({
                 showsVerticalScrollIndicator={false}
               >
                 {ACHIEVEMENTS.map((achievement) => {
-                  const earned = canShowStats && unlockedIds.has(achievement.id);
+                  const prestige =
+                    canShowStats && stats
+                      ? achievementPrestige(stats, achievement)
+                      : 0;
+                  const progress =
+                    canShowStats && stats
+                      ? achievementPrestigeProgress(stats, achievement)
+                      : null;
+                  const earned = prestige >= 1;
+                  const rarity = rarityForAchievementId(achievement.id);
+                  const accent = RARITY_COLOR[rarity];
                   return (
-                    <View
+                    <AchievementPrestigeFrame
                       key={achievement.id}
+                      progress={progress?.fraction ?? 0}
+                      rarityColor={accent}
+                      borderRadius={12}
                       style={[
                         styles.achievementRow,
-                        earned && styles.achievementRowEarned,
+                        {
+                          opacity: earned || !canShowStats ? 1 : 0.72,
+                        },
                       ]}
+                      contentStyle={styles.achievementRowInner}
                     >
-                      <Text style={styles.achievementEmoji}>{achievement.emoji}</Text>
+                      <Text style={styles.achievementEmoji}>
+                        {achievement.emoji}
+                      </Text>
                       <View style={styles.achievementBody}>
                         <Text
                           style={[
@@ -145,12 +171,12 @@ export default function LobbyPlayerModal({
                       <Text
                         style={[
                           styles.achievementStatus,
-                          earned && styles.achievementStatusEarned,
+                          { color: earned ? accent : colors.textMuted },
                         ]}
                       >
-                        {earned ? "✓" : "—"}
+                        {formatAchievementPrestige(prestige)}
                       </Text>
-                    </View>
+                    </AchievementPrestigeFrame>
                   );
                 })}
               </ScrollView>
@@ -158,8 +184,8 @@ export default function LobbyPlayerModal({
               {canShowStats && stats ? (
                 <Text style={styles.statsSummary}>
                   {unlocked.length} / {ACHIEVEMENTS.length} unlocked ·{" "}
-                  {stats.roundsPlayed} rounds played ·{" "}
-                  {stats.xp.toLocaleString()} XP
+                  {totalAchievementPrestige(stats)} prestige ·{" "}
+                  {stats.roundsPlayed} rounds · {stats.xp.toLocaleString()} XP
                 </Text>
               ) : null}
             </>
@@ -237,19 +263,12 @@ function createStyles(colors: AppThemeColors) {
       paddingBottom: 4,
     },
     achievementRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
       borderRadius: 12,
+    },
+    achievementRowInner: {
       paddingVertical: 10,
       paddingHorizontal: 10,
-      backgroundColor: colors.btnSecondaryBg,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.panelBorder,
-    },
-    achievementRowEarned: {
-      borderColor: colors.btnGoldBorder,
-      backgroundColor: colors.btnGoldBg,
+      gap: 10,
     },
     achievementEmoji: {
       fontSize: 22,
@@ -275,14 +294,10 @@ function createStyles(colors: AppThemeColors) {
       marginTop: 2,
     },
     achievementStatus: {
-      color: colors.textMuted,
       fontSize: 14,
       fontWeight: "800",
-      width: 18,
+      minWidth: 22,
       textAlign: "center",
-    },
-    achievementStatusEarned: {
-      color: colors.gold,
     },
     statsSummary: {
       color: colors.textMuted,

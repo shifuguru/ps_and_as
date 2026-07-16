@@ -50,10 +50,14 @@ import {
 } from "./src/utils/cpuNames";
 import AppErrorBoundary from "./src/components/AppErrorBoundary";
 import { StatusBar } from "expo-status-bar";
-import { isViewportDebugEnabled } from "./src/debug/viewportDebug";
+import {
+  getViewportExperiment,
+  isViewportDebugEnabled,
+} from "./src/debug/viewportDebug";
 
 const ViewportDebugOverlay =
-  Platform.OS === "web" && isViewportDebugEnabled()
+  Platform.OS === "web" &&
+  (isViewportDebugEnabled() || getViewportExperiment() > 0)
     ? require("./src/debug/ViewportDebugOverlay").default
     : null;
 
@@ -582,6 +586,13 @@ function AppContent() {
       shell.height;
   }, [shell.height]);
 
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const teardown =
+      require("./src/debug/viewportExperiments").applyViewportExperimentFromQuery();
+    return teardown;
+  }, []);
+
   return (
     <>
       <StatusBar style={colors.statusBarStyle} />
@@ -609,8 +620,7 @@ function AppContent() {
               }),
       ]}
     >
-        {/* Environment Layer — mobile web paints #ps-felt-layer; RN uses in-tree felt.
-            Wallpaper geometry is independent of interactive shell height. */}
+        {/* Document wallpaper (web) / in-tree felt (native). Shell layout is independent. */}
         <FeltBackground
           fullBleed
           tint={feltTint}

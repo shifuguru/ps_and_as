@@ -47,6 +47,7 @@ import { hexToRgba } from "../utils/colorTheory";
 import {
   getPlayerStats,
   winRate,
+  formatAchievementPrestige,
   type PlayerStats,
   type AchievementDef,
 } from "../services/playerStats";
@@ -135,6 +136,7 @@ export default function PlayerHub({
   const [recent, setRecent] = useState<{
     def: AchievementDef;
     age: string;
+    prestige: number;
   } | null>(null);
   const [dailyDef, setDailyDef] = useState<DailyChallengeDef | null>(null);
   const [dailyState, setDailyState] = useState<DailyChallengeState | null>(null);
@@ -175,6 +177,7 @@ export default function PlayerHub({
       setRecent({
         def: recentUnlock.def,
         age: formatUnlockAge(recentUnlock.unlockedAt),
+        prestige: recentUnlock.prestige,
       });
     } else {
       setRecent(null);
@@ -449,7 +452,9 @@ export default function PlayerHub({
               ]}
             >
               <View style={styles.unlockHeader}>
-                <Text style={styles.sectionEyebrow}>Recent Unlock</Text>
+                <Text style={styles.sectionEyebrow}>
+                  {recent.prestige > 1 ? "Recent Prestige" : "Recent Unlock"}
+                </Text>
                 <View
                   style={[
                     styles.rarityPill,
@@ -469,11 +474,16 @@ export default function PlayerHub({
                 <View style={styles.unlockBody}>
                   <Text style={[styles.unlockTitle, { color: recentAccent }]}>
                     {recent.def.title}
+                    {recent.prestige > 1
+                      ? ` · ${formatAchievementPrestige(recent.prestige)}`
+                      : ""}
                   </Text>
                   <Text style={styles.goalSub} numberOfLines={2}>
                     {recent.def.description}
                   </Text>
-                  <Text style={styles.unlockAge}>Unlocked {recent.age}</Text>
+                  <Text style={styles.unlockAge}>
+                    {recent.prestige > 1 ? "Prestiged" : "Unlocked"} {recent.age}
+                  </Text>
                 </View>
               </View>
               <TouchableOpacity

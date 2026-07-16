@@ -4,22 +4,24 @@ import Animated, {
   useAnimatedStyle,
   type SharedValue,
 } from "react-native-reanimated";
-import { RUNS_COLORS, RUNS_LAYOUT } from "./constants";
+import { RUNS_COLORS, RUNS_LAYOUT, type RunsPalette } from "./constants";
 
 type Props = {
   glowOpacity: SharedValue<number>;
   glowScale: SharedValue<number>;
   effectOpacity: SharedValue<number>;
+  palette?: RunsPalette;
 };
 
 /**
- * Soft warm bloom behind the glass pill — illuminates felt, never overpowers UI.
+ * Soft bloom behind the glass pill — illuminates felt, never overpowers UI.
  * Scale/opacity only (no animated blur).
  */
 export default function GlowLayer({
   glowOpacity,
   glowScale,
   effectOpacity,
+  palette = RUNS_COLORS,
 }: Props) {
   const glowStyle = useAnimatedStyle(() => ({
     opacity: glowOpacity.value * 0.55 * effectOpacity.value,
@@ -33,8 +35,19 @@ export default function GlowLayer({
 
   return (
     <View style={styles.wrap} pointerEvents="none">
-      <Animated.View style={[styles.halo, glowStyle]} />
-      <Animated.View style={[styles.core, coreStyle]} />
+      <Animated.View
+        style={[styles.halo, { backgroundColor: palette.glow }, glowStyle]}
+      />
+      <Animated.View
+        style={[
+          styles.core,
+          {
+            backgroundColor: palette.glowSoft,
+            shadowColor: palette.core,
+          },
+          coreStyle,
+        ]}
+      />
     </View>
   );
 }
@@ -51,15 +64,12 @@ const styles = StyleSheet.create({
     width: "112%",
     height: "130%",
     borderRadius: 999,
-    backgroundColor: RUNS_COLORS.glow,
   },
   core: {
     position: "absolute",
     width: "100%",
     height: "108%",
     borderRadius: 999,
-    backgroundColor: RUNS_COLORS.glowSoft,
-    shadowColor: RUNS_COLORS.core,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.28,
     shadowRadius: RUNS_LAYOUT.glowPad,

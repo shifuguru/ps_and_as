@@ -32,6 +32,17 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-16T14:18"),
+    title: "Felt wallpaper, prestige achievements & streak pills",
+    items: [
+      "iPhone web — felt wallpaper fills behind Safari’s toolbar and Home Screen edges without white or flat green strips",
+      "Achievements — every achievement can prestige (Roman numerals); progress carries over from your existing stats",
+      "Achievements — rarity-tinted progress fills each card as you climb toward the next prestige",
+      "Profile — Current and Best President Streak pills glow hot while your streak is live, and calm to sparkles when it’s broken",
+      "Profile — role counts (President through Asshole) sit in clearer coloured pills",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-16T09:55"),
     title: "Viewport diagnostics",
     items: [

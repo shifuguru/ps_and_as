@@ -12,6 +12,7 @@ import HubProgressRing from "./HubProgressRing";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
 import type { NextAchievement } from "../services/nextAchievement";
+import { formatAchievementPrestige } from "../services/playerStats";
 import {
   RARITY_COLOR,
   RARITY_LABEL,
@@ -38,7 +39,11 @@ export default function NextAchievementCard({ next, onPress, style }: Props) {
       {/* Single visual surface = BlurPanel. No glowWash / nested plates. */}
       <BlurPanel intensity={56} style={[styles.card, style]}>
         <View style={styles.headerRow}>
-          <Text style={styles.eyebrow}>Next Achievement</Text>
+          <Text style={styles.eyebrow}>
+            {next.prestige >= 1
+              ? `Next Prestige ${formatAchievementPrestige(next.nextPrestige)}`
+              : "Next Achievement"}
+          </Text>
           <View style={styles.rarityPill}>
             <Text style={styles.rarityPillText}>{RARITY_LABEL[rarity]}</Text>
           </View>
@@ -56,6 +61,9 @@ export default function NextAchievementCard({ next, onPress, style }: Props) {
           <View style={styles.body}>
             <Text style={styles.title} numberOfLines={2}>
               {next.def.title}
+              {next.prestige >= 1
+                ? ` · ${formatAchievementPrestige(next.prestige)}`
+                : ""}
             </Text>
             <Text style={styles.description} numberOfLines={3}>
               {next.def.description}

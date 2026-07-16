@@ -9,34 +9,52 @@ import Animated, {
   cancelAnimation,
   type SharedValue,
 } from "react-native-reanimated";
-import { RUNS_COLORS, RUNS_LAYOUT, RUNS_TIMING } from "./constants";
+import {
+  RUNS_COLORS,
+  RUNS_LAYOUT,
+  RUNS_TIMING,
+  type RunsPalette,
+} from "./constants";
+
+export type EmberSpread = "top" | "around";
 
 type Ember = {
   id: number;
+  /** Spawn origin inside the layer (absolute). */
   x: number;
+  y: number;
   size: number;
-  driftX: number;
-  rise: number;
+  /** Outward / drift deltas over lifetime. */
+  dx: number;
+  dy: number;
   duration: number;
-  delay: number;
 };
 
 type Props = {
   width: number;
+  height?: number;
   /** Higher during ignition → more spawn; idle uses sparse cadence. */
   ignition: SharedValue<number>;
   flameIntensity: SharedValue<number>;
   effectOpacity: SharedValue<number>;
   active: boolean;
+  palette?: RunsPalette;
+  /**
+   * `top` — classic rise from the top edge (Runs!).
+   * `around` — tiny sparkles inside and outside on all sides.
+   */
+  spread?: EmberSpread;
 };
 
 function EmberParticle({
   ember,
   effectOpacity,
+  emberColor,
   onDone,
 }: {
   ember: Ember;
   effectOpacity: SharedValue<number>;
+  emberColor: string;
   onDone: (id: number) => void;
 }) {
   const progress = useSharedValue(0);
@@ -58,14 +76,16 @@ function EmberParticle({
 
   const style = useAnimatedStyle(() => {
     const t = progress.value;
-    const y = -ember.rise * t;
-    const x = ember.driftX * Math.sin(t * Math.PI);
     const opacity =
-      effectOpacity.value * (t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85);
+      effectOpacity.value * (t < 0.12 ? t / 0.12 : 1 - (t - 0.12) / 0.88);
 
     return {
       opacity: Math.max(0, opacity),
-      transform: [{ translateX: x }, { translateY: y }, { scale: 1 - t * 0.35 }],
+      transform: [
+        { translateX: ember.dx * t },
+        { translateY: ember.dy * t },
+        { scale: 1 - t * 0.4 },
+      ],
     } as ViewStyle;
   });
 
@@ -75,9 +95,12 @@ function EmberParticle({
         styles.ember,
         {
           left: ember.x,
+          top: ember.y,
           width: ember.size,
           height: ember.size,
           borderRadius: ember.size / 2,
+          backgroundColor: emberColor,
+          shadowColor: emberColor,
         },
         style,
       ]}
@@ -85,23 +108,102 @@ function EmberParticle({
   );
 }
 
+function spawnAroundEmber(width: number, height: number, id: number): Ember {
+  const [minLife, maxLife] = RUNS_TIMING.emberLifetimeMs;
+  const duration = minLife * 0.7 + Math.random() * (maxLife - minLife * 0.5);
+  const size = 1.6 + Math.random() * 2.4;
+  const pad = 10;
+  const roll = Math.random();
+
+  // ~35% spawn inside the pill and drift outward; rest spawn on an edge.
+  if (roll < 0.35) {
+    const x = width * (0.12 + Math.random() * 0.76);
+    const y = height * (0.2 + Math.random() * 0.6);
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 10 + Math.random() * 18;
+    return {
+      id,
+      x,
+      y,
+      size,
+      dx: Math.cos(angle) * dist,
+      dy: Math.sin(angle) * dist,
+      duration,
+    };
+  }
+
+  const edge = Math.floor(Math.random() * 4);
+  let x = 0;
+  let y = 0;
+  let dx = 0;
+  let dy = 0;
+  const outward = 12 + Math.random() * 16;
+  const tangential = (Math.random() - 0.5) * 14;
+
+  if (edge === 0) {
+    // top
+    x = width * Math.random();
+    y = -pad * Math.random();
+    dx = tangential;
+    dy = -outward * (0.55 + Math.random() * 0.45);
+  } else if (edge === 1) {
+    // right
+    x = width + pad * Math.random();
+    y = height * Math.random();
+    dx = outward * (0.55 + Math.random() * 0.45);
+    dy = tangential;
+  } else if (edge === 2) {
+    // bottom
+    x = width * Math.random();
+    y = height + pad * Math.random();
+    dx = tangential;
+    dy = outward * (0.55 + Math.random() * 0.45);
+  } else {
+    // left
+    x = -pad * Math.random();
+    y = height * Math.random();
+    dx = -outward * (0.55 + Math.random() * 0.45);
+    dy = tangential;
+  }
+
+  return { id, x, y, size, dx, dy, duration };
+}
+
+function spawnTopEmber(width: number, id: number): Ember {
+  const [minLife, maxLife] = RUNS_TIMING.emberLifetimeMs;
+  const duration = minLife + Math.random() * (maxLife - minLife);
+  return {
+    id,
+    x: width * (0.15 + Math.random() * 0.7),
+    y: 0,
+    size: 2 + Math.random() * 2.2,
+    dx: (Math.random() - 0.5) * 14,
+    dy: -(18 + Math.random() * 16),
+    duration,
+  };
+}
+
 /**
- * Tiny glowing particles drifting up from the pill top.
- * Cap concurrent count; spawn via lightweight interval (motion is Reanimated).
+ * Tiny glowing sparkles.
+ * Default rises from the top; `around` scatters inside + outside all sides.
  */
 export default function EmberLayer({
   width,
+  height = 28,
   ignition,
   flameIntensity,
   effectOpacity,
   active,
+  palette = RUNS_COLORS,
+  spread = "top",
 }: Props) {
   const [embers, setEmbers] = useState<Ember[]>([]);
   const nextId = useRef(0);
   const ignitionRef = useRef(0);
   const intensityRef = useRef(0);
+  const maxEmbers =
+    spread === "around" ? RUNS_LAYOUT.maxEmbers + 4 : RUNS_LAYOUT.maxEmbers;
 
-  // Mirror shared values for spawn decisions (spawn is rare; UI-thread motion elsewhere).
   useEffect(() => {
     if (!active) return;
     const id = setInterval(() => {
@@ -118,22 +220,15 @@ export default function EmberLayer({
   const spawn = useCallback(() => {
     if (width <= 0) return;
     setEmbers((prev) => {
-      if (prev.length >= RUNS_LAYOUT.maxEmbers) return prev;
+      if (prev.length >= maxEmbers) return prev;
       const id = nextId.current++;
-      const [minLife, maxLife] = RUNS_TIMING.emberLifetimeMs;
-      const duration = minLife + Math.random() * (maxLife - minLife);
-      const ember: Ember = {
-        id,
-        x: width * (0.15 + Math.random() * 0.7),
-        size: 2 + Math.random() * 2.2,
-        driftX: (Math.random() - 0.5) * 14,
-        rise: 18 + Math.random() * 16,
-        duration,
-        delay: 0,
-      };
+      const ember =
+        spread === "around"
+          ? spawnAroundEmber(width, Math.max(18, height), id)
+          : spawnTopEmber(width, id);
       return [...prev, ember];
     });
-  }, [width]);
+  }, [width, height, spread, maxEmbers]);
 
   useEffect(() => {
     if (!active) {
@@ -141,32 +236,59 @@ export default function EmberLayer({
       return;
     }
 
-    // Ignition burst: a few quick embers
-    const burstTimers = [40, 120, 220, 360].map((ms) =>
-      setTimeout(() => spawn(), ms),
-    );
+    const burstMs =
+      spread === "around" ? [30, 90, 160, 240, 340, 480] : [40, 120, 220, 360];
+    const burstTimers = burstMs.map((ms) => setTimeout(() => spawn(), ms));
 
-    // Idle sparse spawn
+    const idleMs =
+      spread === "around"
+        ? RUNS_TIMING.emberSpawnIdleMs * 0.65
+        : RUNS_TIMING.emberSpawnIdleMs;
     const idle = setInterval(() => {
-      const chance = ignitionRef.current > 0.2 ? 0.85 : 0.55;
-      if (Math.random() < chance && intensityRef.current > 0.15) spawn();
-    }, RUNS_TIMING.emberSpawnIdleMs);
+      const chance =
+        spread === "around"
+          ? ignitionRef.current > 0.2
+            ? 0.9
+            : 0.7
+          : ignitionRef.current > 0.2
+            ? 0.85
+            : 0.55;
+      if (Math.random() < chance && intensityRef.current > 0.12) spawn();
+    }, idleMs);
 
     return () => {
       burstTimers.forEach(clearTimeout);
       clearInterval(idle);
     };
-  }, [active, spawn]);
+  }, [active, spawn, spread]);
 
   if (width <= 0) return null;
 
+  const layerStyle =
+    spread === "around"
+      ? [
+          styles.aroundLayer,
+          {
+            left: -18,
+            right: -18,
+            top: -18,
+            bottom: -18,
+          },
+        ]
+      : styles.topLayer;
+
   return (
-    <View style={styles.layer} pointerEvents="none">
+    <View style={layerStyle} pointerEvents="none">
       {embers.map((ember) => (
         <EmberParticle
           key={ember.id}
-          ember={ember}
+          ember={
+            spread === "around"
+              ? { ...ember, x: ember.x + 18, y: ember.y + 18 }
+              : ember
+          }
           effectOpacity={effectOpacity}
+          emberColor={palette.ember}
           onDone={removeEmber}
         />
       ))}
@@ -175,21 +297,22 @@ export default function EmberLayer({
 }
 
 const styles = StyleSheet.create({
-  layer: {
+  topLayer: {
     position: "absolute",
     left: 0,
     right: 0,
-    top: -4,
-    height: 40,
+    top: -8,
+    height: 48,
+    overflow: "visible",
+  },
+  aroundLayer: {
+    position: "absolute",
     overflow: "visible",
   },
   ember: {
     position: "absolute",
-    bottom: 0,
-    backgroundColor: RUNS_COLORS.ember,
-    shadowColor: RUNS_COLORS.core,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
+    shadowOpacity: 0.85,
     shadowRadius: 3,
   },
 });

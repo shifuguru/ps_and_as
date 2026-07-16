@@ -7,14 +7,14 @@ import { BUTTON_CENTER, buttonLabel } from "./buttonStyles";
 const leaveButtonShadow = Platform.select({
   ios: {
     shadowColor: "#000",
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 5 },
   },
-  android: { elevation: 6 },
+  android: { elevation: 8 },
   default: {
     // Web / others — soft ambient drop, not a hard edge.
-    boxShadow: "0 4px 18px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.12)",
+    boxShadow: "0 5px 24px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.14)",
   },
 }) as ViewStyle;
 

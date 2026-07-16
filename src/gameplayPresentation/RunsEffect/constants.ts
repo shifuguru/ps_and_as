@@ -13,6 +13,33 @@ export const RUNS_COLORS = {
   flameC: "rgba(255,90,10,0.4)",
 } as const;
 
+/** Cool platinum / silver energy for President streak prestige. */
+export const PLATINUM_STREAK_COLORS = {
+  core: "#E8EEF8",
+  hot: "#C5D0E6",
+  edge: "#9AA8C4",
+  glow: "rgba(210,220,240,0.28)",
+  glowSoft: "rgba(180,195,220,0.16)",
+  glowCore: "rgba(240,245,255,0.45)",
+  ember: "rgba(230,238,255,0.92)",
+  flameA: "rgba(220,230,245,0.78)",
+  flameB: "rgba(170,190,220,0.58)",
+  flameC: "rgba(140,160,195,0.42)",
+} as const;
+
+export type RunsPalette = {
+  core: string;
+  hot: string;
+  edge: string;
+  glow: string;
+  glowSoft: string;
+  glowCore: string;
+  ember: string;
+  flameA: string;
+  flameB: string;
+  flameC: string;
+};
+
 export const RUNS_TIMING = {
   /** Ignition bloom + burst (ms). */
   ignitionMs: 850,
@@ -45,14 +72,21 @@ export type FlameSeed = {
   color: string;
 };
 
+function makeFlameSeeds(palette: RunsPalette): FlameSeed[] {
+  return [
+    { id: 0, x: 0.12, width: 7, height: 16, delayMs: 0, periodMs: 920, rotDeg: -8, color: palette.flameA },
+    { id: 1, x: 0.24, width: 9, height: 20, delayMs: 40, periodMs: 1100, rotDeg: -3, color: palette.flameB },
+    { id: 2, x: 0.36, width: 8, height: 18, delayMs: 90, periodMs: 980, rotDeg: 4, color: palette.flameA },
+    { id: 3, x: 0.48, width: 10, height: 22, delayMs: 20, periodMs: 1050, rotDeg: 0, color: palette.hot },
+    { id: 4, x: 0.58, width: 8, height: 19, delayMs: 70, periodMs: 1140, rotDeg: 5, color: palette.flameB },
+    { id: 5, x: 0.68, width: 7, height: 17, delayMs: 110, periodMs: 1000, rotDeg: -5, color: palette.flameC },
+    { id: 6, x: 0.78, width: 9, height: 21, delayMs: 50, periodMs: 1180, rotDeg: 7, color: palette.flameA },
+    { id: 7, x: 0.88, width: 6, height: 15, delayMs: 130, periodMs: 960, rotDeg: 2, color: palette.flameC },
+  ];
+}
+
 /** Deterministic soft seeds — avoids re-randomising every render. */
-export const FLAME_SEEDS: FlameSeed[] = [
-  { id: 0, x: 0.12, width: 7, height: 16, delayMs: 0, periodMs: 920, rotDeg: -8, color: RUNS_COLORS.flameA },
-  { id: 1, x: 0.24, width: 9, height: 20, delayMs: 40, periodMs: 1100, rotDeg: -3, color: RUNS_COLORS.flameB },
-  { id: 2, x: 0.36, width: 8, height: 18, delayMs: 90, periodMs: 980, rotDeg: 4, color: RUNS_COLORS.flameA },
-  { id: 3, x: 0.48, width: 10, height: 22, delayMs: 20, periodMs: 1050, rotDeg: 0, color: RUNS_COLORS.hot },
-  { id: 4, x: 0.58, width: 8, height: 19, delayMs: 70, periodMs: 1140, rotDeg: 5, color: RUNS_COLORS.flameB },
-  { id: 5, x: 0.68, width: 7, height: 17, delayMs: 110, periodMs: 1000, rotDeg: -5, color: RUNS_COLORS.flameC },
-  { id: 6, x: 0.78, width: 9, height: 21, delayMs: 50, periodMs: 1180, rotDeg: 7, color: RUNS_COLORS.flameA },
-  { id: 7, x: 0.88, width: 6, height: 15, delayMs: 130, periodMs: 960, rotDeg: 2, color: RUNS_COLORS.flameC },
-];
+export const FLAME_SEEDS: FlameSeed[] = makeFlameSeeds(RUNS_COLORS);
+export const PLATINUM_FLAME_SEEDS: FlameSeed[] = makeFlameSeeds(
+  PLATINUM_STREAK_COLORS,
+);

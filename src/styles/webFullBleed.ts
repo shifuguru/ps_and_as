@@ -17,7 +17,7 @@ import {
 export { WEB_FELT_FIXED_CLASS } from "../utils/webViewport";
 
 /**
- * Fixed full-viewport box for RN Web wallpaper (desktop / non-mobile path).
+ * Fixed full-viewport box for RN Web wallpaper (non-fullBleed path).
  * Uses inset:0 — never shell height.
  */
 export const WEB_FULL_BLEED_FIXED =
@@ -68,6 +68,7 @@ type WebDocument = {
   body: any;
   createElement: (tag: string) => any;
   documentElement: any;
+  querySelector?: (selector: string) => any;
 };
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -88,9 +89,8 @@ function clearShellInlineGeometry(el: any): void {
 }
 
 /**
- * Permanent Environment Layer under `#root`.
- * Planes: texture → tint → (future lighting / vignette / crest / decor).
- * Geometry is always viewport-owned; never mirrored to --app-height.
+ * Environment Layer under `#root` — enhancement planes only.
+ * Wallpaper lives on `html`. Geometry is viewport-owned; never shell height.
  */
 function getOrCreateEnvironmentLayer(doc: WebDocument): any {
   let layer = doc.getElementById(WEB_FELT_LAYER_ID);
@@ -98,17 +98,6 @@ function getOrCreateEnvironmentLayer(doc: WebDocument): any {
     layer = doc.createElement("div");
     layer.id = WEB_FELT_LAYER_ID;
 
-    const texture = doc.createElement("div");
-    texture.className = "ps-felt-layer-texture ps-env-plane";
-    texture.setAttribute("data-env", "texture");
-    layer.appendChild(texture);
-
-    const tint = doc.createElement("div");
-    tint.className = "ps-felt-layer-tint ps-env-plane";
-    tint.setAttribute("data-env", "tint");
-    layer.appendChild(tint);
-
-    // Reserved planes — empty until ambience content ships.
     for (const name of ["lighting", "vignette", "crest", "decor"] as const) {
       const plane = doc.createElement("div");
       plane.className = `ps-env-${name}`;
@@ -127,6 +116,21 @@ function getOrCreateEnvironmentLayer(doc: WebDocument): any {
   layer.classList.add(WEB_ENVIRONMENT_LAYER_CLASS);
   layer.setAttribute("aria-hidden", "true");
   clearShellInlineGeometry(layer);
+
+  // Retire any legacy wallpaper planes from earlier architecture.
+  for (const sel of [
+    ".ps-felt-layer-texture",
+    ".ps-felt-layer-tint",
+    ".ps-felt-layer-depth",
+  ]) {
+    const stale = layer.querySelector(sel);
+    if (!stale) continue;
+    stale.style.backgroundImage = "none";
+    stale.style.backgroundColor = "transparent";
+    stale.style.filter = "none";
+    stale.style.display = "none";
+  }
+
   return layer;
 }
 
@@ -135,8 +139,10 @@ function markEnvironmentReady(doc: WebDocument): void {
 }
 
 /**
- * Mount / refresh the Environment Layer (felt texture + tint + ambient lighting).
- * Mode brightens the table — glass stays translucent elsewhere.
+ * Paint felt wallpaper on the document and refresh enhancement planes.
+ *
+ * Document (html) permanently owns texture + tint — Safari composites from here.
+ * #ps-felt-layer owns ambient lighting / future effects only.
  */
 export function ensureWebFeltBackdrop(
   tint = DEFAULT_FELT_COLOR,
@@ -145,7 +151,7 @@ export function ensureWebFeltBackdrop(
   if (Platform.OS !== "web") return;
 
   const doc = (globalThis as { document?: WebDocument }).document;
-  if (!doc?.body) return;
+  if (!doc?.body || !doc.documentElement) return;
 
   let url: string | undefined;
   try {
@@ -155,32 +161,19 @@ export function ensureWebFeltBackdrop(
   }
   if (!url) return;
 
-  const layer = getOrCreateEnvironmentLayer(doc);
   const env = resolveFeltEnvironment(tint, mode);
   const tintRgb = hexToRgb(env.displayTint) ?? { r: 15, g: 93, b: 47 };
+  const tintOverlay = `rgba(${tintRgb.r}, ${tintRgb.g}, ${tintRgb.b}, ${env.tintOpacity})`;
 
-  const texture = layer.querySelector(".ps-felt-layer-texture");
-  const tintEl = layer.querySelector(".ps-felt-layer-tint");
+  // Document wallpaper — permanent; never cleared by ps-env-ready.
+  const rootStyle = doc.documentElement.style;
+  rootStyle.setProperty("--ps-felt-tint", env.displayTint);
+  rootStyle.setProperty("--ps-felt-tint-overlay", tintOverlay);
+  rootStyle.setProperty("--ps-felt-texture", `url("${url}")`);
+  rootStyle.setProperty("--ps-theme-mode", mode);
+
+  const layer = getOrCreateEnvironmentLayer(doc);
   const lighting = layer.querySelector(".ps-env-lighting");
-
-  const staleDepth = layer.querySelector(".ps-felt-layer-depth");
-  if (staleDepth) staleDepth.remove();
-
-  if (texture) {
-    texture.style.backgroundImage = `url("${url}")`;
-    texture.style.backgroundSize = "cover";
-    texture.style.backgroundPosition = "center center";
-    texture.style.backgroundRepeat = "no-repeat";
-    const ts = env.textureStrength;
-    texture.style.filter =
-      mode === "light"
-        ? `brightness(${(1.04 + (ts - 1) * 0.35).toFixed(3)}) contrast(${(1.02 + (ts - 1) * 0.2).toFixed(3)})`
-        : `contrast(${(1 + (ts - 1) * 0.1).toFixed(3)}) saturate(${(1 + (ts - 1) * 0.25).toFixed(3)})`;
-  }
-
-  if (tintEl) {
-    tintEl.style.backgroundColor = `rgba(${tintRgb.r}, ${tintRgb.g}, ${tintRgb.b}, ${env.tintOpacity})`;
-  }
 
   if (lighting) {
     if (env.ambientWashOpacity > 0) {
@@ -195,11 +188,9 @@ export function ensureWebFeltBackdrop(
     }
   }
 
-  doc.documentElement.style.setProperty("--ps-felt-tint", env.displayTint);
-  doc.documentElement.style.setProperty("--ps-theme-mode", mode);
   markEnvironmentReady(doc);
 
-  // Shell layout only — never pass height to the environment layer.
+  // Shell layout only — wallpaper does not depend on this.
   const win = (globalThis as {
     window?: Parameters<typeof applyMobileWebShellHeight>[0];
   }).window;

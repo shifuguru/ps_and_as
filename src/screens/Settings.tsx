@@ -217,9 +217,7 @@ export default function Settings({
                 <Text style={styles.profileName} numberOfLines={1}>
                   {savedName || "Player"}
                 </Text>
-                <Text style={styles.profileHint}>
-                  {playerInfo?.isAuthenticated ? "Game Center" : "Local Profile"}
-                </Text>
+                <Text style={styles.profileHint}>Local Profile</Text>
               </View>
             </View>
 

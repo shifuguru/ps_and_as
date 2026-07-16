@@ -18,6 +18,10 @@ type Props = {
   flameIntensity: SharedValue<number>;
   ignition: SharedValue<number>;
   effectOpacity: SharedValue<number>;
+  seeds?: FlameSeed[];
+  maxFlameHeight?: number;
+  /** Keep wisps inside the pill (sit on the inner top edge). */
+  contained?: boolean;
 };
 
 function FlameWisp({
@@ -26,12 +30,16 @@ function FlameWisp({
   flameIntensity,
   ignition,
   effectOpacity,
+  maxFlameHeight,
+  contained,
 }: {
   seed: FlameSeed;
   pillWidth: number;
   flameIntensity: SharedValue<number>;
   ignition: SharedValue<number>;
   effectOpacity: SharedValue<number>;
+  maxFlameHeight: number;
+  contained: boolean;
 }) {
   const flicker = useSharedValue(0);
 
@@ -62,7 +70,9 @@ function FlameWisp({
     const baseH = seed.height * (0.35 + intensity * 0.65 + burst * 0.35);
     const scaleY = 0.55 + flicker.value * 0.55 + burst * 0.4;
     const scaleX = 0.75 + (1 - flicker.value) * 0.35;
-    const lift = -2 - burst * 6 - flicker.value * 3 * intensity;
+    const lift = contained
+      ? -1 - burst * 3 - flicker.value * 2 * intensity
+      : -4 - burst * 10 - flicker.value * 5 * intensity;
     const opacity =
       effectOpacity.value *
       intensity *
@@ -70,7 +80,7 @@ function FlameWisp({
 
     return {
       opacity,
-      height: Math.min(RUNS_LAYOUT.maxFlameHeight + 2, baseH),
+      height: Math.min(maxFlameHeight + 4, baseH * (maxFlameHeight / RUNS_LAYOUT.maxFlameHeight)),
       transform: [
         { translateY: lift },
         { scaleY },
@@ -107,12 +117,30 @@ export default function FlameLayer({
   flameIntensity,
   ignition,
   effectOpacity,
+  seeds = FLAME_SEEDS,
+  maxFlameHeight = RUNS_LAYOUT.maxFlameHeight,
+  contained = false,
 }: Props) {
   if (width <= 0) return null;
 
   return (
-    <View style={styles.row} pointerEvents="none">
-      {FLAME_SEEDS.map((seed) => (
+    <View
+      style={[
+        styles.row,
+        contained
+          ? {
+              height: maxFlameHeight + 6,
+              top: 2,
+              bottom: undefined,
+            }
+          : {
+              height: maxFlameHeight + 20,
+              top: -(maxFlameHeight + 4),
+            },
+      ]}
+      pointerEvents="none"
+    >
+      {seeds.map((seed) => (
         <FlameWisp
           key={seed.id}
           seed={seed}
@@ -120,6 +148,8 @@ export default function FlameLayer({
           flameIntensity={flameIntensity}
           ignition={ignition}
           effectOpacity={effectOpacity}
+          maxFlameHeight={maxFlameHeight}
+          contained={contained}
         />
       ))}
     </View>
@@ -131,8 +161,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    top: -2,
-    height: RUNS_LAYOUT.maxFlameHeight + 8,
     overflow: "visible",
   },
   wisp: {

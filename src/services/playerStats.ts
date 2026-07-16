@@ -8,7 +8,9 @@ import { roleForPlacement } from "../utils/roundRoles";
  * - Cloud: `playerStatsCloud` max-merge on restore / push on save
  * - XP: only `PlayerStats.xp` — never introduce a parallel XP field
  * - Level: not stored; any UI level is display-derived from `xp`
- * - Achievements: derived via `ACHIEVEMENTS[].check(stats)` (not a separate unlock store)
+ * - Achievements: derived via counters on `PlayerStats` (not a separate unlock store)
+ * - Prestige: repeatable ranks; rank R unlocks at `step * fib(R)`
+ *   (Fibonacci 1, 2, 3, 5, 8…) so existing counters apply retroactively
  *
  * Hub / daily challenge / unlock-event helpers must read or append through this
  * schema — never replace or reset it on upgrade.
@@ -28,13 +30,126 @@ export type PlayerStats = {
   tricksWon: number;
 };
 
+/** Stats fields that can drive achievement / prestige progress. */
+export type AchievementCounterField = keyof Pick<
+  PlayerStats,
+  | "roundsPlayed"
+  | "timesPresident"
+  | "timesVicePresident"
+  | "timesViceAsshole"
+  | "timesAsshole"
+  | "bestPresidentStreak"
+  | "tricksWon"
+  | "xp"
+>;
+
 export type AchievementDef = {
   id: string;
   title: string;
   description: string;
   emoji: string;
+  /** Career counter that advances this achievement. */
+  field: AchievementCounterField;
+  /**
+   * Scale for Fibonacci prestige thresholds.
+   * Prestige rank R unlocks when counter >= step * fibonacci(R)
+   * (sequence: 1, 2, 3, 5, 8, 13…). Rank I = first unlock at `step`.
+   */
+  step: number;
   check: (stats: PlayerStats) => boolean;
 };
+
+/**
+ * Prestige Fibonacci sequence (1-based): 1, 2, 3, 5, 8, 13, 21…
+ * Skips the duplicate leading 1 from classic Fib so each rank has a distinct bar.
+ */
+export function prestigeFibonacci(rank: number): number {
+  const n = Math.max(1, Math.floor(rank));
+  if (n === 1) return 1;
+  if (n === 2) return 2;
+  let a = 1;
+  let b = 2;
+  for (let i = 3; i <= n; i++) {
+    const next = a + b;
+    a = b;
+    b = next;
+  }
+  return b;
+}
+
+/** Absolute counter required to hold prestige rank `rank` (1-based). */
+export function prestigeThreshold(step: number, rank: number): number {
+  const s = Math.max(1, Math.floor(step));
+  return s * prestigeFibonacci(rank);
+}
+
+export function achievementPrestigeFromValue(
+  value: number,
+  step: number,
+): number {
+  const s = Math.max(1, Math.floor(step));
+  const v = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
+  if (v < s) return 0;
+  let rank = 0;
+  // Soft cap — fib grows fast; 80 ranks is far beyond any career.
+  for (let r = 1; r <= 80; r++) {
+    if (v >= prestigeThreshold(s, r)) rank = r;
+    else break;
+  }
+  return rank;
+}
+
+function makeCheck(
+  field: AchievementCounterField,
+  step: number,
+): (stats: PlayerStats) => boolean {
+  return (stats) =>
+    achievementPrestigeFromValue(Number(stats[field]) || 0, step) >= 1;
+}
+
+/** Completed prestige ranks for an achievement (0 = still locked). Retroactive. */
+export function achievementPrestige(
+  stats: PlayerStats,
+  def: Pick<AchievementDef, "field" | "step">,
+): number {
+  return achievementPrestigeFromValue(Number(stats[def.field]) || 0, def.step);
+}
+
+/**
+ * Progress toward the *next* prestige rank (Fibonacci-spaced thresholds).
+ * When value sits exactly on a boundary, current=0 (just ranked up).
+ */
+export function achievementPrestigeProgress(
+  stats: PlayerStats,
+  def: Pick<AchievementDef, "field" | "step">,
+): {
+  prestige: number;
+  value: number;
+  current: number;
+  target: number;
+  fraction: number;
+  unlocked: boolean;
+  nextPrestige: number;
+} {
+  const step = Math.max(1, Math.floor(def.step));
+  const value = Math.max(0, Math.floor(Number(stats[def.field]) || 0));
+  const prestige = achievementPrestigeFromValue(value, step);
+  const nextPrestige = prestige + 1;
+  const prevThreshold = prestige >= 1 ? prestigeThreshold(step, prestige) : 0;
+  const nextThreshold = prestigeThreshold(step, nextPrestige);
+  const span = Math.max(1, nextThreshold - prevThreshold);
+  const into = Math.min(span, Math.max(0, value - prevThreshold));
+
+  return {
+    prestige,
+    value,
+    current: into,
+    target: span,
+    fraction: into / span,
+    unlocked: prestige >= 1,
+    nextPrestige,
+  };
+}
 
 export const DEFAULT_PLAYER_STATS: PlayerStats = {
   roundsPlayed: 0,
@@ -57,59 +172,75 @@ export const RUN_STEP_XP = RUN_CARD_XP;
 export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: "debut",
-    title: "First Round",
-    description: "Complete your first round",
+    title: "Another Round",
+    description: "Complete rounds — prestiged the more you play",
     emoji: "🎮",
-    check: (s) => s.roundsPlayed >= 1,
+    field: "roundsPlayed",
+    step: 1,
+    check: makeCheck("roundsPlayed", 1),
   },
   {
     id: "president",
     title: "Mr. President",
     description: "Finish first in a round",
     emoji: "👑",
-    check: (s) => s.timesPresident >= 1,
+    field: "timesPresident",
+    step: 1,
+    check: makeCheck("timesPresident", 1),
   },
   {
     id: "asshole",
     title: "Bottom of the Deck",
     description: "Finish last in a round",
     emoji: "💩",
-    check: (s) => s.timesAsshole >= 1,
+    field: "timesAsshole",
+    step: 1,
+    check: makeCheck("timesAsshole", 1),
   },
   {
     id: "vice_president",
     title: "Running Mate",
     description: "Finish as Vice President",
     emoji: "⭐",
-    check: (s) => s.timesVicePresident >= 1,
+    field: "timesVicePresident",
+    step: 1,
+    check: makeCheck("timesVicePresident", 1),
   },
   {
     id: "vice_asshole",
     title: "Almost Last",
     description: "Finish as Vice Asshole",
     emoji: "😬",
-    check: (s) => s.timesViceAsshole >= 1,
+    field: "timesViceAsshole",
+    step: 1,
+    check: makeCheck("timesViceAsshole", 1),
   },
   {
     id: "hot_streak",
     title: "Hot Streak",
     description: "Become President twice in a row",
     emoji: "🔥",
-    check: (s) => s.bestPresidentStreak >= 2,
+    field: "bestPresidentStreak",
+    step: 2,
+    check: makeCheck("bestPresidentStreak", 2),
   },
   {
     id: "veteran",
     title: "Veteran",
     description: "Complete 10 rounds",
     emoji: "🏆",
-    check: (s) => s.roundsPlayed >= 10,
+    field: "roundsPlayed",
+    step: 10,
+    check: makeCheck("roundsPlayed", 10),
   },
   {
     id: "dynasty",
     title: "Dynasty",
     description: "Become President 5 times",
     emoji: "👑",
-    check: (s) => s.timesPresident >= 5,
+    field: "timesPresident",
+    step: 5,
+    check: makeCheck("timesPresident", 5),
   },
 ];
 
@@ -175,7 +306,7 @@ async function resolveStatsPlayerId(): Promise<string | null> {
 
 let restorePromise: Promise<PlayerStats> | null = null;
 
-/** Pull cloud backup (keyed by Game Center / player id) and merge into local storage. */
+/** Pull cloud backup (keyed by player id) and merge into local storage. */
 export async function restorePlayerStatsFromCloud(): Promise<PlayerStats> {
   const local = await readLocalPlayerStats();
   const playerId = await resolveStatsPlayerId();
@@ -207,7 +338,7 @@ export function ensurePlayerStatsRestored(): Promise<PlayerStats> {
   return restorePromise;
 }
 
-/** Call after Game Center sign-in so cloud restore uses the linked account id. */
+/** Call after account link so cloud restore uses the linked account id. */
 export function resetPlayerStatsRestore(): void {
   restorePromise = null;
 }
@@ -313,6 +444,54 @@ export async function commitRoundXpEarned(
 
 export function unlockedAchievements(stats: PlayerStats): AchievementDef[] {
   return ACHIEVEMENTS.filter((a) => a.check(stats));
+}
+
+/** Sum of prestige ranks across all achievements (retroactive from counters). */
+export function totalAchievementPrestige(stats: PlayerStats): number {
+  return ACHIEVEMENTS.reduce(
+    (sum, def) => sum + achievementPrestige(stats, def),
+    0,
+  );
+}
+
+/** Convert a positive integer to Roman numerals (I…MMMCMXCIX). */
+export function toRomanNumeral(value: number): string {
+  const n = Math.floor(value);
+  if (n <= 0) return "";
+  if (n >= 4000) return String(n);
+
+  const table: Array<[number, string]> = [
+    [1000, "M"],
+    [900, "CM"],
+    [500, "D"],
+    [400, "CD"],
+    [100, "C"],
+    [90, "XC"],
+    [50, "L"],
+    [40, "XL"],
+    [10, "X"],
+    [9, "IX"],
+    [5, "V"],
+    [4, "IV"],
+    [1, "I"],
+  ];
+
+  let remaining = n;
+  let out = "";
+  for (const [amount, glyph] of table) {
+    while (remaining >= amount) {
+      out += glyph;
+      remaining -= amount;
+    }
+  }
+  return out;
+}
+
+/** Prestige badge label — Roman numerals (e.g. III). Locked → em dash. */
+export function formatAchievementPrestige(prestige: number): string {
+  const p = Math.max(0, Math.floor(prestige));
+  if (p <= 0) return "—";
+  return toRomanNumeral(p);
 }
 
 export function winRate(stats: PlayerStats): number {

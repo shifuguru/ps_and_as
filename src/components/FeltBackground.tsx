@@ -17,7 +17,6 @@ import {
 } from "../styles/webFullBleed";
 import { resolveFeltEnvironment } from "../styles/feltPalette";
 import { useAppTheme } from "../context/ThemeContext";
-import { isMobileWeb } from "../utils/webViewport";
 
 type Props = {
   tint?: string;
@@ -43,8 +42,8 @@ export default function FeltBackground({
     }
   }, [tint, mode, fullBleed]);
 
-  // Mobile web: Environment Layer on document — independent of App shell height.
-  if (Platform.OS === "web" && fullBleed && isMobileWeb()) {
+  // Web full-bleed: document (html) owns wallpaper; App shell stays transparent.
+  if (Platform.OS === "web" && fullBleed) {
     return null;
   }
 

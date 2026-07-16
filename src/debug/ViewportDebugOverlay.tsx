@@ -21,10 +21,12 @@ import {
 import { isStandaloneWebApp } from "../utils/safariChrome";
 import {
   getAppHeightWriteLog,
+  getViewportExperiment,
   isViewportDebugEnabled,
   subscribeAppHeightWrites,
   type AppHeightWriteLog,
 } from "./viewportDebug";
+import { measureSafeAreaByPadding } from "./viewportExperiments";
 
 declare const window: any;
 declare const document: any;
@@ -74,6 +76,7 @@ export function captureViewportDiagnostics(): ViewportDiagnostics {
   const vv = window.visualViewport;
   const standalone = isStandaloneWebApp();
   const writes = getAppHeightWriteLog();
+  const safeArea = measureSafeAreaByPadding();
 
   return {
     capturedAt: new Date().toISOString(),
@@ -93,12 +96,17 @@ export function captureViewportDiagnostics(): ViewportDiagnostics {
       "computed 100dvh": measureCssLength("100dvh"),
       "computed 100svh": measureCssLength("100svh"),
       "computed 100lvh": measureCssLength("100lvh"),
-      "env(safe-area-inset-top)": measureCssLength(
+      "env(safe-area-inset-top) [height probe]": measureCssLength(
         "env(safe-area-inset-top, 0px)",
       ),
-      "env(safe-area-inset-bottom)": measureCssLength(
+      "env(safe-area-inset-bottom) [height probe]": measureCssLength(
         "env(safe-area-inset-bottom, 0px)",
       ),
+      "safe-area-top [padding probe]": safeArea.top,
+      "safe-area-bottom [padding probe]": safeArea.bottom,
+      "safe-area-left [padding probe]": safeArea.left,
+      "safe-area-right [padding probe]": safeArea.right,
+      "active experiment": getViewportExperiment() || "none",
       "#root height": boxHeight("root"),
       "application shell --app-height": cssVar(APP_HEIGHT_VAR),
       "application shell --app-shell-h": cssVar(APP_SHELL_HEIGHT_VAR),
@@ -165,7 +173,11 @@ export default function ViewportDebugOverlay() {
   const [copyState, setCopyState] = useState("Copy Diagnostics");
 
   useEffect(() => {
-    if (Platform.OS !== "web" || !isViewportDebugEnabled()) return;
+    if (
+      Platform.OS !== "web" ||
+      (!isViewportDebugEnabled() && getViewportExperiment() === 0)
+    )
+      return;
 
     const refresh = () => setSnapshot(captureViewportDiagnostics());
     refresh();

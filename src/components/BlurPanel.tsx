@@ -24,6 +24,8 @@ type Props = {
   /** Override blur preset (chrome / panel / modal). */
   preset?: BlurPreset;
   onLayout?: (event: LayoutChangeEvent) => void;
+  /** Allow children (e.g. flame accents) to paint outside the panel. */
+  overflowVisible?: boolean;
 };
 
 type PaddingKeys =
@@ -82,6 +84,7 @@ export default function BlurPanel({
   webOpacity,
   preset,
   onLayout,
+  overflowVisible = false,
 }: Props) {
   const { colors } = useAppTheme();
   const blur = preset ?? colors.blur.panel;
@@ -91,6 +94,9 @@ export default function BlurPanel({
   const webBlurPx = Math.round(Math.min(28, Math.max(16, resolvedIntensity * 0.46)));
   const scrimRgb = colors.frostRgb;
   const { surface, contentPad } = splitPadding(style);
+  const overflowStyle = {
+    overflow: overflowVisible ? ("visible" as const) : ("hidden" as const),
+  };
 
   if (Platform.OS === "web") {
     // Single painted surface. No nested tint View — that was the inset plate.
@@ -101,6 +107,7 @@ export default function BlurPanel({
         onLayout={onLayout}
         style={[
           styles.fallback,
+          overflowStyle,
           {
             backgroundColor: `rgba(${scrimRgb}, ${resolvedWebOpacity})`,
             backdropFilter: `blur(${webBlurPx}px) saturate(1.35)`,
@@ -109,7 +116,15 @@ export default function BlurPanel({
           surface,
         ]}
       >
-        <View style={[styles.content, contentPad]}>{children}</View>
+        <View
+          style={[
+            styles.content,
+            overflowStyle,
+            contentPad,
+          ]}
+        >
+          {children}
+        </View>
       </View>
     );
   }
@@ -124,11 +139,14 @@ export default function BlurPanel({
       onLayout={onLayout}
       style={[
         styles.blur,
+        overflowStyle,
         { backgroundColor: `rgba(${scrimRgb}, ${resolvedScrim})` },
         surface,
       ]}
     >
-      <View style={[styles.content, contentPad]}>{children}</View>
+      <View style={[styles.content, overflowStyle, contentPad]}>
+        {children}
+      </View>
     </BlurView>
   );
 }

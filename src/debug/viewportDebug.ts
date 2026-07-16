@@ -50,6 +50,26 @@ export function isViewportDebugEnabled(): boolean {
   return cachedEnabled;
 }
 
+/**
+ * Active experiment id from `?viewportExperiment=N` (1–5). 0 = none.
+ * Used by the reversible experiment harness to prove Safari's compositing path.
+ */
+export function getViewportExperiment(): number {
+  const win = (
+    globalThis as { window?: { location?: { search?: string } } }
+  ).window;
+  if (!win) return 0;
+  try {
+    const raw = new URLSearchParams(win.location?.search ?? "").get(
+      "viewportExperiment",
+    );
+    const n = raw == null ? 0 : parseInt(raw, 10);
+    return Number.isFinite(n) && n >= 1 && n <= 5 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export function getAppHeightWriteLog(): AppHeightWriteLog[] {
   return writeLog.slice();
 }
