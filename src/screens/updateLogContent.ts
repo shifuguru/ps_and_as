@@ -32,6 +32,14 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-16T14:21"),
+    title: "Achievements list polish",
+    items: [
+      "Achievements — listed from most exclusive to most common (Dynasty down to Bottom of the Deck)",
+      "Achievements — each card shows your career total in small faded text (for example, times as President)",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-16T14:18"),
     title: "Felt wallpaper, prestige achievements & streak pills",
     items: [

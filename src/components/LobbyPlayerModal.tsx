@@ -13,6 +13,7 @@ import {
   ACHIEVEMENTS,
   achievementPrestige,
   achievementPrestigeProgress,
+  formatAchievementCareerTotal,
   formatAchievementPrestige,
   getPlayerStats,
   totalAchievementPrestige,
@@ -21,6 +22,7 @@ import {
 } from "../services/playerStats";
 import {
   RARITY_COLOR,
+  orderAchievementsByExclusivity,
   rarityForAchievementId,
 } from "../services/achievementRarity";
 import AchievementPrestigeFrame from "./AchievementPrestigeFrame";
@@ -74,6 +76,10 @@ export default function LobbyPlayerModal({
   }, [visible, player?.id, player?.isLocalPlayer, player?.isCPU, player?.name]);
 
   const unlocked = stats ? unlockedAchievements(stats) : [];
+  const achievementsByExclusivity = useMemo(
+    () => orderAchievementsByExclusivity(ACHIEVEMENTS),
+    [],
+  );
   const canShowStats =
     !!stats && (!!player?.isCPU || (!!player?.isLocalPlayer && !player?.isCPU));
 
@@ -126,7 +132,7 @@ export default function LobbyPlayerModal({
                 contentContainerStyle={styles.achievementScrollContent}
                 showsVerticalScrollIndicator={false}
               >
-                {ACHIEVEMENTS.map((achievement) => {
+                {achievementsByExclusivity.map((achievement) => {
                   const prestige =
                     canShowStats && stats
                       ? achievementPrestige(stats, achievement)
@@ -167,6 +173,11 @@ export default function LobbyPlayerModal({
                         <Text style={styles.achievementDesc}>
                           {achievement.description}
                         </Text>
+                        {canShowStats && stats ? (
+                          <Text style={styles.achievementTotal}>
+                            {formatAchievementCareerTotal(stats, achievement)}
+                          </Text>
+                        ) : null}
                       </View>
                       <Text
                         style={[
@@ -292,6 +303,13 @@ function createStyles(colors: AppThemeColors) {
       fontSize: 11,
       lineHeight: 15,
       marginTop: 2,
+    },
+    achievementTotal: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: "500",
+      marginTop: 2,
+      opacity: 0.72,
     },
     achievementStatus: {
       fontSize: 14,

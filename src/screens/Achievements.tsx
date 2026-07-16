@@ -26,6 +26,7 @@ import {
   DEFAULT_PLAYER_STATS,
   achievementPrestige,
   achievementPrestigeProgress,
+  formatAchievementCareerTotal,
   formatAchievementPrestige,
   getPlayerStats,
   totalAchievementPrestige,
@@ -35,6 +36,7 @@ import {
 } from "../services/playerStats";
 import {
   RARITY_COLOR,
+  orderAchievementsByExclusivity,
   rarityForAchievementId,
 } from "../services/achievementRarity";
 import AchievementPrestigeFrame from "../components/AchievementPrestigeFrame";
@@ -86,6 +88,10 @@ export default function Achievements({
   }, [loadAll]);
 
   const unlocked = stats ? unlockedAchievements(stats) : [];
+  const achievementsByExclusivity = useMemo(
+    () => orderAchievementsByExclusivity(ACHIEVEMENTS),
+    [],
+  );
   const prestigeTotal = stats ? totalAchievementPrestige(stats) : 0;
   const bestPresidentStreak = stats?.bestPresidentStreak ?? 0;
   const currentPresidentStreak = stats?.presidentStreak ?? 0;
@@ -219,7 +225,7 @@ export default function Achievements({
           <BlurPanel style={ui.panel} intensity={48}>
             <Text style={ui.panelEyebrow}>Achievements</Text>
             <View style={styles.achievementList}>
-              {ACHIEVEMENTS.map((achievement) => {
+              {achievementsByExclusivity.map((achievement) => {
                 const prestige = stats
                   ? achievementPrestige(stats, achievement)
                   : 0;
@@ -266,6 +272,11 @@ export default function Achievements({
                           {earned
                             ? `Next Prestige ${formatAchievementPrestige(progress.nextPrestige)} · ${progress.current}/${progress.target}`
                             : `${progress.current}/${progress.target}`}
+                        </Text>
+                      ) : null}
+                      {stats ? (
+                        <Text style={styles.achievementTotal}>
+                          {formatAchievementCareerTotal(stats, achievement)}
                         </Text>
                       ) : null}
                     </View>
@@ -575,6 +586,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontSize: 10,
       fontWeight: "700",
       marginTop: 4,
+    },
+    achievementTotal: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: "500",
+      marginTop: 2,
+      opacity: 0.72,
     },
     achievementStatus: {
       fontSize: 14,

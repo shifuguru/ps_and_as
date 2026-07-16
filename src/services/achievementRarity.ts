@@ -29,19 +29,46 @@ export const RARITY_COLOR: Record<AchievementRarity, string> = {
   secret: "#E879A9",
 };
 
+/** Higher = more exclusive. Used to sort achievement lists. */
+export const RARITY_RANK: Record<AchievementRarity, number> = {
+  common: 0,
+  uncommon: 1,
+  rare: 2,
+  epic: 3,
+  legendary: 4,
+  secret: 5,
+};
+
 const BY_ID: Record<string, AchievementRarity> = {
   debut: "common",
   asshole: "common",
   vice_asshole: "uncommon",
   vice_president: "uncommon",
   president: "rare",
-  hot_streak: "epic",
   veteran: "rare",
+  hot_streak: "epic",
   dynasty: "legendary",
 };
 
 export function rarityForAchievementId(id: string): AchievementRarity {
   return BY_ID[id] ?? "common";
+}
+
+/** Most exclusive first (legendary → common). Stable within a tier. */
+export function compareAchievementsByExclusivity(
+  a: { id: string },
+  b: { id: string },
+): number {
+  return (
+    RARITY_RANK[rarityForAchievementId(b.id)] -
+    RARITY_RANK[rarityForAchievementId(a.id)]
+  );
+}
+
+export function orderAchievementsByExclusivity<T extends { id: string }>(
+  list: readonly T[],
+): T[] {
+  return [...list].sort(compareAchievementsByExclusivity);
 }
 
 /** Session round-streak → rarity accent (display only). */

@@ -115,6 +115,43 @@ export function achievementPrestige(
   return achievementPrestigeFromValue(Number(stats[def.field]) || 0, def.step);
 }
 
+/** Career counter for an achievement, e.g. total times President. */
+export function achievementCareerTotal(
+  stats: PlayerStats,
+  def: Pick<AchievementDef, "field">,
+): number {
+  return Math.max(0, Math.floor(Number(stats[def.field]) || 0));
+}
+
+/** Small faded label: "12 times President", "24 rounds total", etc. */
+export function formatAchievementCareerTotal(
+  stats: PlayerStats,
+  def: Pick<AchievementDef, "field">,
+): string {
+  const n = achievementCareerTotal(stats, def);
+  const times = `${n} time${n === 1 ? "" : "s"}`;
+  switch (def.field) {
+    case "roundsPlayed":
+      return `${n} round${n === 1 ? "" : "s"} total`;
+    case "timesPresident":
+      return `${times} President`;
+    case "timesVicePresident":
+      return `${times} Vice President`;
+    case "timesViceAsshole":
+      return `${times} Vice Asshole`;
+    case "timesAsshole":
+      return `${times} Asshole`;
+    case "bestPresidentStreak":
+      return `Best streak ${n}`;
+    case "tricksWon":
+      return `${n} trick${n === 1 ? "" : "s"} won`;
+    case "xp":
+      return `${n.toLocaleString()} XP`;
+    default:
+      return `${n} total`;
+  }
+}
+
 /**
  * Progress toward the *next* prestige rank (Fibonacci-spaced thresholds).
  * When value sits exactly on a boundary, current=0 (just ranked up).
@@ -169,15 +206,25 @@ export const RUN_CARD_XP = 5;
 /** @deprecated Use RUN_CARD_XP — kept for imports that still reference the old name. */
 export const RUN_STEP_XP = RUN_CARD_XP;
 
+/** Ordered most exclusive → least (legendary → common). */
 export const ACHIEVEMENTS: AchievementDef[] = [
   {
-    id: "debut",
-    title: "Another Round",
-    description: "Complete rounds — prestiged the more you play",
-    emoji: "🎮",
-    field: "roundsPlayed",
-    step: 1,
-    check: makeCheck("roundsPlayed", 1),
+    id: "dynasty",
+    title: "Dynasty",
+    description: "Become President 5 times",
+    emoji: "👑",
+    field: "timesPresident",
+    step: 5,
+    check: makeCheck("timesPresident", 5),
+  },
+  {
+    id: "hot_streak",
+    title: "Hot Streak",
+    description: "Become President twice in a row",
+    emoji: "🔥",
+    field: "bestPresidentStreak",
+    step: 2,
+    check: makeCheck("bestPresidentStreak", 2),
   },
   {
     id: "president",
@@ -189,13 +236,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     check: makeCheck("timesPresident", 1),
   },
   {
-    id: "asshole",
-    title: "Bottom of the Deck",
-    description: "Finish last in a round",
-    emoji: "💩",
-    field: "timesAsshole",
-    step: 1,
-    check: makeCheck("timesAsshole", 1),
+    id: "veteran",
+    title: "Veteran",
+    description: "Complete 10 rounds",
+    emoji: "🏆",
+    field: "roundsPlayed",
+    step: 10,
+    check: makeCheck("roundsPlayed", 10),
   },
   {
     id: "vice_president",
@@ -216,31 +263,22 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     check: makeCheck("timesViceAsshole", 1),
   },
   {
-    id: "hot_streak",
-    title: "Hot Streak",
-    description: "Become President twice in a row",
-    emoji: "🔥",
-    field: "bestPresidentStreak",
-    step: 2,
-    check: makeCheck("bestPresidentStreak", 2),
-  },
-  {
-    id: "veteran",
-    title: "Veteran",
-    description: "Complete 10 rounds",
-    emoji: "🏆",
+    id: "debut",
+    title: "Another Round",
+    description: "Complete rounds — prestiged the more you play",
+    emoji: "🎮",
     field: "roundsPlayed",
-    step: 10,
-    check: makeCheck("roundsPlayed", 10),
+    step: 1,
+    check: makeCheck("roundsPlayed", 1),
   },
   {
-    id: "dynasty",
-    title: "Dynasty",
-    description: "Become President 5 times",
-    emoji: "👑",
-    field: "timesPresident",
-    step: 5,
-    check: makeCheck("timesPresident", 5),
+    id: "asshole",
+    title: "Bottom of the Deck",
+    description: "Finish last in a round",
+    emoji: "💩",
+    field: "timesAsshole",
+    step: 1,
+    check: makeCheck("timesAsshole", 1),
   },
 ];
 
