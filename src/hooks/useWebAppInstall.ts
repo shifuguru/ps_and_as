@@ -5,6 +5,7 @@ import {
   ensureWebInstallPromptListener,
   getAddToHomeScreenInstructions,
   getInstallButtonLabel,
+  isSocialInAppBrowser,
   shouldOfferAddToHomeScreen,
   triggerNativeWebInstall,
   type AddToHomeScreenInstructions,
@@ -12,6 +13,7 @@ import {
 
 export function useWebAppInstall() {
   const [canInstall, setCanInstall] = useState(false);
+  const [inAppBrowser, setInAppBrowser] = useState(() => isSocialInAppBrowser());
   const [instructions, setInstructions] = useState<AddToHomeScreenInstructions>(() =>
     getAddToHomeScreenInstructions(),
   );
@@ -19,6 +21,7 @@ export function useWebAppInstall() {
   const refreshInstallAvailability = useCallback(() => {
     const available = canNativeWebInstallPrompt();
     setCanInstall(available);
+    setInAppBrowser(isSocialInAppBrowser());
     setInstructions(getAddToHomeScreenInstructions());
   }, []);
 
@@ -47,7 +50,7 @@ export function useWebAppInstall() {
 
   /** Android Chrome: native install prompt when available. Otherwise show manual steps. */
   const requestInstall = useCallback(async (): Promise<"accepted" | "manual"> => {
-    if (canNativeWebInstallPrompt()) {
+    if (!isSocialInAppBrowser() && canNativeWebInstallPrompt()) {
       const outcome = await installNative();
       if (outcome === "accepted") return "accepted";
     }
@@ -56,7 +59,8 @@ export function useWebAppInstall() {
 
   return {
     showOffer: shouldOfferAddToHomeScreen(),
-    canInstall,
+    inAppBrowser,
+    canInstall: !inAppBrowser && canInstall,
     installButtonLabel: getInstallButtonLabel(),
     instructions,
     installNative,

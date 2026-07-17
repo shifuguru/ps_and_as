@@ -32,6 +32,16 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-17T14:53"),
+    title: "Dark mode, Instagram browser & in-game unlocks",
+    items: [
+      "Appearance — dark mode is the default for new visitors (you can still pick System or Light in Settings)",
+      "Instagram — tap ⋯ top right, then Open in browser / Safari / Chrome for the best experience",
+      "In-game — new unlocks and prestige ranks show a short toast that fades away",
+      "Runs — the tip shows Play X or Y for the adjacent ranks (±1) while a run is live",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-17T14:11"),
     title: "Deal chrome, hand polish & Instagram links",
     items: [

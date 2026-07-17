@@ -44,7 +44,9 @@ export default function AddToHomeScreenModal({ visible, onClose }: Props) {
       style={[ui.panel, styles.panel, { width: cardWidth, maxWidth: cardWidth }]}
       intensity={56}
     >
-      <Text style={ui.panelEyebrow}>Mobile</Text>
+      <Text style={ui.panelEyebrow}>
+        {instructions.kind === "external-browser" ? "External browser" : "Mobile"}
+      </Text>
       <Text style={styles.title}>{instructions.title}</Text>
       <Text style={styles.intro}>{instructions.intro}</Text>
 

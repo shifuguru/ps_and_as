@@ -89,7 +89,7 @@ function buildValue(
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useColorScheme();
   const [appearancePreference, setAppearancePreferenceState] =
-    useState<AppearancePreference>("system");
+    useState<AppearancePreference>("dark");
   const [textContrastPreference, setTextContrastPreferenceState] =
     useState<TextContrastPreference>("auto");
   const [feltTint, setFeltTintState] = useState(DEFAULT_FELT_COLOR);
@@ -191,7 +191,7 @@ export function useAppTheme(): ThemeContextValue {
     const fallback = buildThemeBundle(DEFAULT_FELT_COLOR, "dark", "auto");
     return {
       mode: "dark",
-      appearancePreference: "system",
+      appearancePreference: "dark",
       textContrastPreference: "auto",
       feltTint: DEFAULT_FELT_COLOR,
       palette: fallback.palette,

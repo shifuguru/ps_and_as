@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { useAppTheme } from "../context/ThemeContext";
 import GameplayGlassPanel from "./GameplayGlassPanel";
@@ -8,7 +8,8 @@ import {
 } from "./progressionToastBus";
 
 const MAX_VISIBLE = 3;
-const LIFE_MS = 2800;
+const LIFE_MS = 3200;
+const FADE_OUT_MS = 420;
 
 type Item = GameplayToast & { key: string };
 
@@ -19,8 +20,8 @@ type Props = {
 };
 
 /**
- * Stacking glass toasts for XP / achievement progress during play.
- * Anchored above HAND_BASELINE via `bottomInset`.
+ * Stacking glass toasts for XP / achievement unlocks during play.
+ * Anchored above HAND_BASELINE via `bottomInset`. Auto-fades out.
  */
 export default function ProgressionToastHost({
   enabled = true,
@@ -33,6 +34,10 @@ export default function ProgressionToastHost({
   );
   const [items, setItems] = useState<Item[]>([]);
 
+  const removeToast = useCallback((id: string) => {
+    setItems((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
   useEffect(() => {
     if (!enabled) return;
     return subscribeGameplayToasts((toast) => {
@@ -40,9 +45,6 @@ export default function ProgressionToastHost({
         const next = [...prev, { ...toast, key: toast.id }].slice(-MAX_VISIBLE);
         return next;
       });
-      setTimeout(() => {
-        setItems((prev) => prev.filter((p) => p.id !== toast.id));
-      }, LIFE_MS);
     });
   }, [enabled]);
 
@@ -51,43 +53,78 @@ export default function ProgressionToastHost({
   return (
     <View style={styles.host} pointerEvents="none">
       {items.map((item) => (
-        <ToastRow key={item.key} item={item} />
+        <ToastRow key={item.key} item={item} onDone={removeToast} />
       ))}
     </View>
   );
 }
 
-function ToastRow({ item }: { item: Item }) {
+function ToastRow({
+  item,
+  onDone,
+}: {
+  item: Item;
+  onDone: (id: string) => void;
+}) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const opacity = useRef(new Animated.Value(0)).current;
-  const y = useRef(new Animated.Value(8)).current;
+  const y = useRef(new Animated.Value(10)).current;
 
   useEffect(() => {
+    let cancelled = false;
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
-        duration: 220,
+        duration: 240,
         useNativeDriver: true,
       }),
       Animated.timing(y, {
         toValue: 0,
-        duration: 220,
+        duration: 240,
         useNativeDriver: true,
       }),
     ]).start();
-  }, [opacity, y]);
+
+    const fadeTimer = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: FADE_OUT_MS,
+          useNativeDriver: true,
+        }),
+        Animated.timing(y, {
+          toValue: -6,
+          duration: FADE_OUT_MS,
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (finished && !cancelled) onDone(item.id);
+      });
+    }, LIFE_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(fadeTimer);
+    };
+  }, [item.id, onDone, opacity, y]);
 
   const accent =
     item.kind === "xp"
       ? colors.gold
       : item.kind === "streak"
         ? "#ff8a4c"
-        : "#7B6CF0";
+        : "#c9a227";
+
+  const isAchievement = item.kind === "achievement";
 
   return (
     <Animated.View style={{ opacity, transform: [{ translateY: y }] }}>
-      <GameplayGlassPanel compact accentColor={accent} style={styles.toast}>
+      <GameplayGlassPanel
+        compact
+        accentColor={accent}
+        style={[styles.toast, isAchievement && styles.toastAchievement]}
+      >
         <Text style={[styles.title, { color: accent }]} numberOfLines={1}>
           {item.title}
         </Text>
@@ -113,13 +150,18 @@ function createStyles(
       bottom: bottomInset,
       gap: 6,
       zIndex: 55,
+      elevation: 55,
       maxWidth: "100%",
       alignItems: "center",
       paddingHorizontal: 16,
     },
     toast: {
       minWidth: 120,
-      maxWidth: 190,
+      maxWidth: 220,
+    },
+    toastAchievement: {
+      minWidth: 160,
+      maxWidth: 260,
     },
     title: {
       fontSize: 12,
@@ -128,7 +170,7 @@ function createStyles(
     body: {
       marginTop: 2,
       color: colors.textMuted,
-      fontSize: 10,
+      fontSize: 11,
       fontWeight: "600",
     },
   });

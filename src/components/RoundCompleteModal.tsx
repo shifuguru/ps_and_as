@@ -24,6 +24,7 @@ import { levelFromXp } from "../services/playerLevel";
 import type { AvatarBorderDesign } from "../rewards/avatarBorders";
 import { ROUND_COMPLETE_Z } from "../styles/overlayZIndex";
 import LeaveGameConfirmModal from "./LeaveGameConfirmModal";
+import ProgressionToastHost from "../gameplayPresentation/ProgressionToastHost";
 
 function rankXpAnimationReady(
   player: { id: string; name: string },
@@ -606,6 +607,10 @@ export default function RoundCompleteModal({
             onConfirm={onLeaveConfirm}
           />
         ) : null}
+        {/* Unlock toasts — inside this Modal so they aren't covered by rankings. */}
+        <View style={styles.toastHost} pointerEvents="none">
+          <ProgressionToastHost enabled={visible} bottomInset={28} />
+        </View>
       </View>
     </Modal>
   );
@@ -627,6 +632,11 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       justifyContent: "center",
       padding: 24,
       zIndex: ROUND_COMPLETE_Z + 1,
+    },
+    toastHost: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: ROUND_COMPLETE_Z + 5,
+      elevation: ROUND_COMPLETE_Z + 5,
     },
     rankings: {
       width: "100%",

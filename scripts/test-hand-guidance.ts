@@ -85,4 +85,47 @@ assert.strictEqual(
   "never fall back to 'opening 3' without a held card",
 );
 
+const runHint = resolveHandGuidance({
+  isHumanTurn: true,
+  mustLeadOpening: false,
+  openingLeadCard: null,
+  noValidPlays: false,
+  onTopTurn: false,
+  inRun: true,
+  selectedCount: 0,
+  pileTop: { suit: "hearts", value: 8 },
+  pileCount: 1,
+});
+assert.strictEqual(runHint, "Play 7 or 9");
+
+const runHintWithSelection = resolveHandGuidance({
+  isHumanTurn: true,
+  mustLeadOpening: false,
+  openingLeadCard: null,
+  noValidPlays: false,
+  onTopTurn: false,
+  inRun: true,
+  selectedCount: 1,
+  pileTop: { suit: "hearts", value: 8 },
+  pileCount: 1,
+});
+assert.strictEqual(
+  runHintWithSelection,
+  "Play 7 or 9",
+  "sticky run tip stays adjacent ranks even with a selection",
+);
+
+const runEdgeHint = resolveHandGuidance({
+  isHumanTurn: true,
+  mustLeadOpening: false,
+  openingLeadCard: null,
+  noValidPlays: false,
+  onTopTurn: false,
+  inRun: true,
+  selectedCount: 0,
+  pileTop: { suit: "clubs", value: 3 },
+  pileCount: 1,
+});
+assert.strictEqual(runEdgeHint, "Play 4");
+
 console.log("test-hand-guidance: ok");

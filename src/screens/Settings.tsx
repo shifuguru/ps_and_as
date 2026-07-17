@@ -94,8 +94,12 @@ export default function Settings({
   const [feltPickerOpen, setFeltPickerOpen] = useState(false);
   const [onlineGuest, setOnlineGuest] = useState(false);
   const [addToHomeOpen, setAddToHomeOpen] = useState(false);
-  const { showOffer: showAddToHomeOffer, installButtonLabel, requestInstall } =
-    useWebAppInstall();
+  const {
+    showOffer: showAddToHomeOffer,
+    inAppBrowser,
+    installButtonLabel,
+    requestInstall,
+  } = useWebAppInstall();
   const [addToHomeWorking, setAddToHomeWorking] = useState(false);
 
   useEffect(() => {
@@ -441,10 +445,13 @@ export default function Settings({
 
           {Platform.OS === "web" && showAddToHomeOffer ? (
             <BlurPanel style={ui.panel} intensity={48}>
-              <Text style={ui.panelEyebrow}>Full screen</Text>
+              <Text style={ui.panelEyebrow}>
+                {inAppBrowser ? "Mobile browser" : "Full screen"}
+              </Text>
               <Text style={styles.tintHint}>
-                Add the game to your homescreen for full-screen play without the browser toolbar taking up space.
-                Use the Share button from the toolbar, or menu button and choose Add to Home screen.
+                {inAppBrowser
+                  ? "You're in Instagram's (or another app's) built-in browser. Tap ⋯ in the top right, choose Open in browser, then play from Safari or Chrome."
+                  : "Add the game to your home screen for full-screen play without the browser toolbar. Use Share or your browser menu, then Add to Home Screen."}
               </Text>
               <TouchableOpacity
                 style={[styles.saveBtn, styles.saveBtnActive, { marginTop: 12 }]}

@@ -149,7 +149,6 @@ import { resolveHandGuidance } from "../gameplayPresentation/resolveHandGuidance
 import GameplayVignette from "../gameplayPresentation/GameplayVignette";
 import { GAMEPLAY_PRESENTATION } from "../gameplayPresentation/featureFlags";
 import { pushGameplayToast } from "../gameplayPresentation/progressionToastBus";
-import { selectNextAchievement } from "../services/nextAchievement";
 import RoundCompleteModal from "../components/RoundCompleteModal";
 import LastHandRevealOverlay from "../components/LastHandRevealOverlay";
 import LeaveGameConfirmModal from "../components/LeaveGameConfirmModal";
@@ -4462,6 +4461,7 @@ function GameScreenBoard() {
             : null,
         noValidPlays,
         onTopTurn: humanRunOnTopTurn,
+        inRun: !!state.currentTrick?.runActive,
         selectedCount: handPlayInFlight ? 0 : selected.length,
         pileTop:
           state.pile && state.pile.length > 0
@@ -4479,6 +4479,7 @@ function GameScreenBoard() {
       handPlayInFlight,
       selected.length,
       state.pile,
+      state.currentTrick?.runActive,
     ],
   );
 
@@ -4502,16 +4503,6 @@ function GameScreenBoard() {
   useEffect(() => {
     if (rankingsModalVisible && !prevRankingsVisible.current) {
       setRoundCompleteSignal((n) => n + 1);
-      void getPlayerStats().then((stats) => {
-        const next = selectNextAchievement(stats);
-        if (next && next.fraction > 0) {
-          pushGameplayToast({
-            kind: "achievement",
-            title: next.def.title,
-            body: `${next.current} / ${next.target}`,
-          });
-        }
-      });
     }
     prevRankingsVisible.current = rankingsModalVisible;
   }, [rankingsModalVisible]);
@@ -5453,6 +5444,9 @@ function GameScreenBoard() {
           gameplayLocked ||
           roundOver ||
           lastHandReveal
+        }
+        hideToasts={
+          !!ceremonyPrep || !!tradePhase || rankingsModalVisible
         }
       />
 

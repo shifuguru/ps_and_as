@@ -19,7 +19,8 @@ export async function getAppearancePreference(): Promise<AppearancePreference> {
   } catch {
     // ignore
   }
-  return "system";
+  /** First visit / unset — dark felt by default; Settings can still pick System or Light. */
+  return "dark";
 }
 
 export async function setAppearancePreference(

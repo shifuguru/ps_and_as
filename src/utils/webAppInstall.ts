@@ -4,6 +4,8 @@ import { isMobileWeb } from "./webViewport";
 
 export type WebInstallPlatform = "ios" | "android" | "other";
 
+export type WebInstallOfferKind = "external-browser" | "add-to-home";
+
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
@@ -36,6 +38,16 @@ export function getWebInstallPlatform(): WebInstallPlatform {
   return "other";
 }
 
+/**
+ * Instagram / Facebook / similar in-app browsers — limited WebViews that
+ * break install prompts, cookies, and often full-screen play.
+ */
+export function isSocialInAppBrowser(): boolean {
+  if (Platform.OS !== "web") return false;
+  const ua = readNavigator()?.userAgent ?? "";
+  return /Instagram|FBAN|FBAV|FB_IAB|Messenger|Line\//i.test(ua);
+}
+
 /** Mobile browser tab — not already launched from the home screen. */
 export function shouldOfferAddToHomeScreen(): boolean {
   return Platform.OS === "web" && isMobileWeb() && !isStandaloneWebApp();
@@ -62,6 +74,7 @@ export function ensureWebInstallPromptListener(): void {
 }
 
 export function getInstallButtonLabel(): string {
+  if (isSocialInAppBrowser()) return "How to open";
   if (canNativeWebInstallPrompt()) return "Install app";
   return "Add to Home Screen";
 }
@@ -80,6 +93,7 @@ export async function triggerNativeWebInstall(): Promise<"accepted" | "dismissed
 }
 
 export type AddToHomeScreenInstructions = {
+  kind: WebInstallOfferKind;
   platform: WebInstallPlatform;
   title: string;
   intro: string;
@@ -90,35 +104,54 @@ export type AddToHomeScreenInstructions = {
 export function getAddToHomeScreenInstructions(): AddToHomeScreenInstructions {
   const platform = getWebInstallPlatform();
 
+  if (isSocialInAppBrowser()) {
+    return {
+      kind: "external-browser",
+      platform,
+      title: "Open in your browser",
+      intro:
+        "You're in Instagram's (or another app's) built-in browser. For the best experience, open P's & A's in Safari or Chrome on your phone first.",
+      steps: [
+        "Tap the ⋯ (three dots) in the top-right corner of this screen.",
+        'Choose "Open in browser", "Open in Safari", or "Open in Chrome".',
+        "Play from that browser — you can Add to Home Screen from there for full-screen play.",
+      ],
+      footnote:
+        "In-app browsers are limited. Opening in your normal mobile browser fixes refresh loops and unlocks install / full-screen options.",
+    };
+  }
+
   if (platform === "ios") {
     return {
+      kind: "add-to-home",
       platform,
       title: "Add to Home Screen",
       intro:
-        "Safari can't hide its address bar in a normal tab. Add P's & A's to your home screen for full-screen play.",
+        "For full-screen play without the browser bar, add P's & A's to your home screen from Safari or Chrome.",
       steps: [
-        "In Safari, tap Share in the bottom toolbar — the square icon with an arrow pointing up.",
+        "In your browser, tap Share — the square icon with an arrow pointing up (often in the bottom toolbar).",
         'Scroll the menu if needed, tap "Add to Home Screen", then tap Add.',
       ],
       footnote:
-        "Use Safari's toolbar Share button. In-page share menus do not include Add to Home Screen. Open the new home screen icon each time — not a Safari bookmark.",
+        "Use the browser's own Share / menu button — not an in-page share sheet. Open the new home screen icon each time.",
     };
   }
 
   if (platform === "android") {
     return {
+      kind: "add-to-home",
       platform,
       title: "Install for full screen",
       intro:
-        "Install the app to your home screen to hide Chrome's address bar while you play.",
+        "Install the app to your home screen to hide the browser address bar while you play.",
       steps: canNativeWebInstallPrompt()
         ? [
             "Tap Install App below if Chrome offers it.",
-            "Or open Chrome's menu (⋮) and choose Install app or Add to Home screen.",
+            "Or open the browser menu (⋮) and choose Install app or Add to Home screen.",
             "Launch from the new home screen icon.",
           ]
         : [
-            "Open Chrome's menu (⋮) in the top corner.",
+            "Open the browser menu (⋮) in the top corner.",
             "Tap Install app or Add to Home screen.",
             "Confirm, then open the new icon on your home screen.",
           ],
@@ -126,6 +159,7 @@ export function getAddToHomeScreenInstructions(): AddToHomeScreenInstructions {
   }
 
   return {
+    kind: "add-to-home",
     platform,
     title: "Add to Home Screen",
     intro:

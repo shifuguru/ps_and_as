@@ -395,10 +395,25 @@ async function writeLocalPlayerStats(stats: PlayerStats): Promise<void> {
 async function savePlayerStats(stats: PlayerStats): Promise<void> {
   await writeLocalPlayerStats(stats);
   try {
-    const { syncUnlockSnapshot } = await import("./unlockEvents");
-    void syncUnlockSnapshot(stats);
+    const { syncPrestigeSnapshot } = await import("./unlockEvents");
+    const gains = await syncPrestigeSnapshot(stats);
+    if (gains.length > 0) {
+      const { pushGameplayToast } = await import(
+        "../gameplayPresentation/progressionToastBus"
+      );
+      for (const g of gains) {
+        const prestiged = g.from >= 1;
+        pushGameplayToast({
+          kind: "achievement",
+          title: prestiged ? "Prestiged!" : "Unlocked!",
+          body: `${g.def.emoji} ${g.def.title}${
+            g.to > 1 ? ` · ${formatAchievementPrestige(g.to)}` : ""
+          }`,
+        });
+      }
+    }
   } catch {
-    /* unlock log is non-critical */
+    /* unlock toast / log is non-critical */
   }
   const playerId = await resolveStatsPlayerId();
   if (playerId) {

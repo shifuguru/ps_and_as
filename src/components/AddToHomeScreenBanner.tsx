@@ -19,7 +19,8 @@ import {
 export default function AddToHomeScreenBanner() {
   const { colors, ui } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { showOffer, installButtonLabel, requestInstall } = useWebAppInstall();
+  const { showOffer, inAppBrowser, installButtonLabel, requestInstall } =
+    useWebAppInstall();
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -60,12 +61,18 @@ export default function AddToHomeScreenBanner() {
   return (
     <>
       <BlurPanel style={styles.banner} intensity={54}>
-        <Text style={styles.eyebrow}>Full screen</Text>
-        <Text style={styles.title}>Play without the browser bar</Text>
+        <Text style={styles.eyebrow}>
+          {inAppBrowser ? "Mobile browser" : "Full screen"}
+        </Text>
+        <Text style={styles.title}>
+          {inAppBrowser
+            ? "Open in Safari or Chrome"
+            : "Play without the browser bar"}
+        </Text>
         <Text style={styles.body}>
-          Add P&apos;s & A&apos;s to your home screen for a full-screen app
-          experience. On iPhone, use Safari&apos;s Share button in the bottom
-          toolbar — we&apos;ll walk you through it.
+          {inAppBrowser
+            ? "Instagram and similar apps use a limited built-in browser. Tap ⋯ in the top right, choose Open in browser, then play from Safari or Chrome."
+            : "Add P's & A's to your home screen for a full-screen app. We'll show the steps for your phone."}
         </Text>
         <View style={styles.actions}>
           <TouchableOpacity

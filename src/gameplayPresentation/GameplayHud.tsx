@@ -35,10 +35,12 @@ type Props = {
   onOpenAchievements?: () => void;
   onOpenSettings?: () => void;
   /**
-   * Hide tricks / winning play / toasts / prestige — not Round Streak or util buttons.
+   * Hide tricks / winning play / prestige — not Round Streak, util buttons, or unlock toasts.
    * Persist chrome stays visible during deal (under seats / deal flights).
    */
   hideFeedback?: boolean;
+  /** Suppress XP / unlock toasts (e.g. deal ceremony). Rankings still allow unlock toasts. */
+  hideToasts?: boolean;
   /** Refresh upcoming achievement snapshot */
   statsRefreshKey?: number;
 };
@@ -120,6 +122,7 @@ export default function GameplayHud({
   onOpenAchievements,
   onOpenSettings,
   hideFeedback = false,
+  hideToasts = false,
   statsRefreshKey = 0,
 }: Props) {
   const { colors } = useAppTheme();
@@ -241,10 +244,13 @@ export default function GameplayHud({
               ) : null}
             </View>
           </View>
-
-          <ProgressionToastHost enabled bottomInset={bottom} />
         </View>
       ) : null}
+
+      {/* Unlock / XP toasts — stay up during rankings so completions can notify. */}
+      <View style={styles.toastLayer} pointerEvents="box-none">
+        <ProgressionToastHost enabled={!hideToasts} bottomInset={bottom} />
+      </View>
     </>
   );
 }
@@ -266,6 +272,11 @@ function createStyles(
       zIndex: 40,
       elevation: 40,
       paddingHorizontal: 8,
+    },
+    toastLayer: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 55,
+      elevation: 55,
     },
     topRow: {
       flexDirection: "row",
