@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-title" content="P's &amp; A's" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <script>window.__PS_AND_AS_BUILD__={"version":"1.1.8","buildId":"a09905c8224f4839b788629f46c9a96363ae009c","builtAt":"2026-07-16T11:44:22.952Z","codename":"Four Of A Kind Mind","channel":"production"};</script>
+    <script>window.__PS_AND_AS_BUILD__={"version":"1.1.9","buildId":"f59e1f152c01c7a10237812dcc14f4ce55c365fb","builtAt":"2026-07-17T02:13:03.783Z","codename":"President's Day Off","channel":"production"};</script>
     <script>
 (function(){
   function isStandalone(){
@@ -69,27 +69,59 @@
   </head>
 
   <body>
-    <script>
+    <script data-ps-boot-guard="1">
 (function(){
   var base="/ps_and_as";
   var fallback=base+"/readme-fallback.html";
-  var reloadAttempts=0;
-  var maxReloads=5;
-  function toFallback(){location.replace(fallback+"?_="+Date.now());}
-  function retryBoot(){
-    if(reloadAttempts>=maxReloads){toFallback();return;}
-    reloadAttempts+=1;
-    setTimeout(function(){location.reload();},700*reloadAttempts);
+  var KEY="ps_and_as:boot_reloads";
+  var maxReloads=3;
+  var armed=true;
+  function getAttempts(){
+    try{return parseInt(sessionStorage.getItem(KEY)||"0",10)||0;}catch(e){return 0;}
   }
-  window.addEventListener("error",function(ev){
+  function setAttempts(n){
+    try{sessionStorage.setItem(KEY,String(n));}catch(e){}
+  }
+  function clearAttempts(){
+    try{sessionStorage.removeItem(KEY);}catch(e){}
+  }
+  function toFallback(){
+    clearAttempts();
+    location.replace(fallback+"?_="+Date.now());
+  }
+  function isBootScript(src){
+    if(!src) return false;
+    try{
+      var u=new URL(src,location.href);
+      if(u.origin!==location.origin) return false;
+      var p=u.pathname||"";
+      return p.indexOf(base+"/")===0 || p.indexOf("/_expo/")>=0;
+    }catch(e){ return false; }
+  }
+  function retryBoot(){
+    if(!armed) return;
+    var n=getAttempts();
+    if(n>=maxReloads){toFallback();return;}
+    setAttempts(n+1);
+    setTimeout(function(){location.reload();},700*(n+1));
+  }
+  function onError(ev){
+    if(!armed) return;
     var el=ev.target;
-    if(el&&el.tagName==="SCRIPT"&&el.src) retryBoot();
-  },true);
+    if(el&&el.tagName==="SCRIPT"&&isBootScript(el.src)) retryBoot();
+  }
+  window.addEventListener("error",onError,true);
   var timer=window.setTimeout(function(){
+    if(!armed) return;
     var root=document.getElementById("root");
     if(!root||!root.firstElementChild) retryBoot();
   },20000);
-  window.__PS_AND_AS_CANCEL_BOOT_GUARD__=function(){window.clearTimeout(timer);};
+  window.__PS_AND_AS_CANCEL_BOOT_GUARD__=function(){
+    armed=false;
+    window.clearTimeout(timer);
+    window.removeEventListener("error",onError,true);
+    clearAttempts();
+  };
 })();
 </script>
     <!-- Use static rendering with Expo Router to support running without JavaScript. -->
@@ -98,6 +130,6 @@
     </noscript>
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
-  <script src="/ps_and_as/_expo/static/js/web/index-71ac30adadc716d1c489bce8dc6bb30d.js" defer></script>
+  <script src="/ps_and_as/_expo/static/js/web/index-45d19c8241d0ef2b936d31d5ceb8e327.js" defer></script>
 </body>
 </html>
