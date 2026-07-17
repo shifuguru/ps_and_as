@@ -32,6 +32,13 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-17T15:09"),
+    title: "See the last play before round end",
+    items: [
+      "In-game — after the finishing play, the table holds for a few seconds so you can see it before Asshole’s last cards and rankings",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-17T14:53"),
     title: "Dark mode, Instagram browser & in-game unlocks",
     items: [

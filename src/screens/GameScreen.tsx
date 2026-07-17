@@ -231,6 +231,8 @@ function serverShowsNewRoundInProgress(state: GameState): boolean {
 }
 
 const LAST_HAND_REVEAL_MS = 4000;
+/** Let the finishing play land and stay readable before Asshole reveal / rankings. */
+const ROUND_END_LAST_PLAY_HOLD_MS = 4000;
 const ROUND_TRANSITION_PAUSE_MS = 175;
 const ROUND_TRANSITION_CLEAR_MS = 320;
 const TRADE_RETURN_FLIGHT_MS = 520;
@@ -591,6 +593,16 @@ function GameScreen({
   const [lastHandReveal, setLastHandReveal] = useState<LastHandRevealPayload | null>(
     null,
   );
+  /** Freeze finishing play on the table before Asshole reveal / rankings. */
+  const [roundEndLastPlayHold, setRoundEndLastPlayHold] = useState(false);
+  const [roundEndHoldSnapshot, setRoundEndHoldSnapshot] = useState<{
+    plays: TrickPlayDisplay[];
+    passedPlayerIds: string[];
+  } | null>(null);
+  const roundEndHoldTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const roundEndHoldScheduledRef = useRef(false);
 
   /** DEV: force round-end ceremony from Playwright (? / console). */
   useEffect(() => {
@@ -601,6 +613,13 @@ function GameScreen({
     };
     g.__PS_FORCE_ROUND_END = () => {
       console.log("[RC-CRASH-TRACE] GameScreen.__PS_FORCE_ROUND_END");
+      roundEndHoldScheduledRef.current = false;
+      if (roundEndHoldTimerRef.current) {
+        clearTimeout(roundEndHoldTimerRef.current);
+        roundEndHoldTimerRef.current = null;
+      }
+      setRoundEndLastPlayHold(false);
+      setRoundEndHoldSnapshot(null);
       setLastHandReveal(null);
       setRoundOver(true);
     };
@@ -731,6 +750,8 @@ function GameScreen({
   const rankingsVisiblePrevRef = useRef(false);
   const trickPauseActiveRef = useRef(trickPauseActive);
   trickPauseActiveRef.current = trickPauseActive;
+  const trickPauseSnapshotRef = useRef(trickPauseSnapshot);
+  trickPauseSnapshotRef.current = trickPauseSnapshot;
   const clearHandPlayFlightRef = useRef<(() => void) | null>(null);
   /** Board mirrors handPlayInFlight.playKey so trick-pause can keep On Top capture. */
   const handPlayInFlightKeyRef = useRef<string | null>(null);
@@ -986,11 +1007,26 @@ function GameScreen({
     setLastHandReveal(null);
   }, [clearLastHandRevealTimer]);
 
+  const clearRoundEndHoldTimer = useCallback(() => {
+    if (roundEndHoldTimerRef.current) {
+      clearTimeout(roundEndHoldTimerRef.current);
+      roundEndHoldTimerRef.current = null;
+    }
+  }, []);
+
+  const clearRoundEndLastPlayHold = useCallback(() => {
+    clearRoundEndHoldTimer();
+    roundEndHoldScheduledRef.current = false;
+    setRoundEndLastPlayHold(false);
+    setRoundEndHoldSnapshot(null);
+  }, [clearRoundEndHoldTimer]);
+
   const resetBetweenRoundsUi = useCallback(() => {
     betweenRoundsKeyRef.current = null;
     lastHandRevealPlayedKeyRef.current = null;
+    clearRoundEndLastPlayHold();
     clearLastHandReveal();
-  }, [clearLastHandReveal]);
+  }, [clearLastHandReveal, clearRoundEndLastPlayHold]);
 
   const markBetweenRounds = useCallback((gameState: GameState) => {
     if (isBetweenRoundsState(gameState)) {
@@ -1037,6 +1073,69 @@ function GameScreen({
       }, LAST_HAND_REVEAL_MS);
     },
     [clearLastHandRevealTimer, finishLastHandReveal],
+  );
+
+  /**
+   * After the finishing play, hold the table briefly so everyone can see it,
+   * then Asshole last-hand reveal (if any) and rankings.
+   */
+  const scheduleRoundEndPresentation = useCallback(
+    (opts: {
+      reveal: LastHandRevealPayload | null;
+      source: string;
+      markState?: GameState;
+    }) => {
+      if (roundOverRef.current || roundEndHoldScheduledRef.current) return;
+      roundEndHoldScheduledRef.current = true;
+      clearRoundEndHoldTimer();
+
+      const live = stateRef.current;
+      const pauseSnap = trickPauseSnapshotRef.current;
+      let plays: TrickPlayDisplay[] = [];
+      let passedPlayerIds: string[] = [];
+      if (pauseSnap?.plays?.length) {
+        plays = pauseSnap.plays;
+        passedPlayerIds = pauseSnap.passedPlayerIds ?? [];
+      } else if (live) {
+        plays = buildTrickPlayDisplays(live);
+        if (!plays.length && live.trickHistory?.length) {
+          const last = live.trickHistory[live.trickHistory.length - 1];
+          plays = buildPlaysFromTrick(last);
+          passedPlayerIds = passedIdsFromTrick(last);
+        }
+      }
+
+      setRoundEndHoldSnapshot({ plays, passedPlayerIds });
+      setRoundEndLastPlayHold(true);
+      roundTransitionLog("roundEnd last-play hold start", {
+        source: opts.source,
+        holdMs: ROUND_END_LAST_PLAY_HOLD_MS,
+        playCount: plays.length,
+        lastHandCards: opts.reveal?.cards?.length ?? 0,
+      });
+
+      roundEndHoldTimerRef.current = setTimeout(() => {
+        roundEndHoldTimerRef.current = null;
+        setRoundEndLastPlayHold(false);
+        setRoundEndHoldSnapshot(null);
+        if (opts.markState) {
+          markBetweenRounds(opts.markState);
+        }
+        if (opts.reveal?.playerId && opts.reveal.cards?.length) {
+          maybeStartLastHandReveal(opts.reveal);
+        } else {
+          finishLastHandReveal();
+        }
+        roundTransitionLog("setRoundOver(true)", { source: opts.source });
+        setRoundOver(true);
+      }, ROUND_END_LAST_PLAY_HOLD_MS);
+    },
+    [
+      clearRoundEndHoldTimer,
+      markBetweenRounds,
+      maybeStartLastHandReveal,
+      finishLastHandReveal,
+    ],
   );
 
   /** Fallback — web timers can stall; scoreboard must not stay behind the reveal overlay. */
@@ -1492,14 +1591,28 @@ function GameScreen({
 
   const maybeStartNextOfflineRound = useCallback(
     (readyMap: Record<string, boolean>) => {
-      if (onlineMultiplayer || lastHandReveal || !roundOver || !state) return;
+      if (
+        onlineMultiplayer ||
+        lastHandReveal ||
+        roundEndLastPlayHold ||
+        !roundOver ||
+        !state
+      ) {
+        return;
+      }
       const living = state.players.filter((p) => !isDeadHandPlayer(p));
       if (living.length === 0) return;
       if (living.every((p) => !!readyMap[p.id])) {
         startNextRoundRef.current();
       }
     },
-    [onlineMultiplayer, lastHandReveal, roundOver, state],
+    [
+      onlineMultiplayer,
+      lastHandReveal,
+      roundEndLastPlayHold,
+      roundOver,
+      state,
+    ],
   );
 
   startNextRoundRef.current = startNextRound;
@@ -1925,12 +2038,11 @@ function GameScreen({
     if (allPlayersFinished && !roundOver) {
       if (!onlineMultiplayer) {
         const reveal = lastPlayerHandFromState(state);
-        if (reveal) {
-          markBetweenRounds(state);
-          maybeStartLastHandReveal(reveal);
-        }
-        roundTransitionLog("setRoundOver(true)", { source: "offline-useEffect" });
-        setRoundOver(true);
+        scheduleRoundEndPresentation({
+          reveal,
+          source: "offline-useEffect",
+          markState: state,
+        });
       }
       if (!onlineMultiplayer && !roundStatsRecordedRef.current) {
         roundStatsRecordedRef.current = true;
@@ -1970,13 +2082,20 @@ function GameScreen({
     localPlayerId,
     localPlayerName,
     onlineMultiplayer,
-    maybeStartLastHandReveal,
-    markBetweenRounds,
+    scheduleRoundEndPresentation,
     networkAdapter,
     forfeitedXpPlayerIds,
   ]);
 
-  /** Clear selection and trick pause as soon as the round ends. */
+  // If trick-pause snapshot lands after hold started, upgrade the freeze.
+  useEffect(() => {
+    if (!roundEndLastPlayHold || !trickPauseSnapshot?.plays?.length) return;
+    setRoundEndHoldSnapshot({
+      plays: trickPauseSnapshot.plays,
+      passedPlayerIds: trickPauseSnapshot.passedPlayerIds ?? [],
+    });
+  }, [roundEndLastPlayHold, trickPauseSnapshot]);
+
   useEffect(() => {
     if (!roundOver && !lastHandReveal) return;
     clearHandPlayFlightRef.current?.();
@@ -2735,27 +2854,25 @@ function GameScreen({
             current ? { ...current, finishedOrder: finishOrder } : current,
           );
         }
-        if (lph?.playerId && lph.cards?.length) {
-          const sameReveal =
-            lastHandRevealRef.current?.playerId === lph.playerId &&
-            (lastHandRevealRef.current?.cards?.length ?? 0) === lph.cards.length;
-          if (!sameReveal) {
-            const gs = stateRef.current;
-            if (gs) {
-              markBetweenRounds(
-                finishOrder?.length
-                  ? { ...gs, finishedOrder: finishOrder }
-                  : gs,
-              );
-            }
-            maybeStartLastHandReveal({
-              playerId: lph.playerId,
-              playerName: lph.playerName || "Player",
-              cards: lph.cards,
-            });
-          }
-        } else {
-          finishLastHandReveal();
+        {
+          const gs = stateRef.current;
+          const markState =
+            gs && finishOrder?.length
+              ? { ...gs, finishedOrder: finishOrder }
+              : gs ?? undefined;
+          const reveal =
+            lph?.playerId && lph.cards?.length
+              ? {
+                  playerId: lph.playerId,
+                  playerName: lph.playerName || "Player",
+                  cards: lph.cards,
+                }
+              : null;
+          scheduleRoundEndPresentation({
+            reveal,
+            source: "roundEnded",
+            markState,
+          });
         }
         if (
           isBotOpenTable &&
@@ -2769,8 +2886,6 @@ function GameScreen({
           setRoundXpByPlayerId(serverRoundXp);
           setGameXpByPlayerId(serverRoundXp);
         }
-        roundTransitionLog("setRoundOver(true)", { source: "roundEnded" });
-        setRoundOver(true);
         if (isBotOpenTable) {
           applyBotNextRoundDeadline(ev.state.botNextRoundAt);
         }
@@ -2927,6 +3042,7 @@ function GameScreen({
     preferencesLoaded,
     maybeStartLastHandReveal,
     finishLastHandReveal,
+    scheduleRoundEndPresentation,
     markBetweenRounds,
     resetBetweenRoundsUi,
     clearLastHandReveal,
@@ -3058,7 +3174,15 @@ function GameScreen({
 
   // CPU auto-play effect (offline only — online uses authoritative server state)
   useEffect(() => {
-    if (!state || trickPauseActive || gameplayLocked || roundOver) return;
+    if (
+      !state ||
+      trickPauseActive ||
+      gameplayLocked ||
+      roundOver ||
+      roundEndLastPlayHold
+    ) {
+      return;
+    }
     if (onlineMultiplayer) return;
 
     if (state.tenRulePending) {
@@ -3107,7 +3231,15 @@ function GameScreen({
       const timers = ackCpus.map((cpu, i) =>
         setTimeout(() => {
           const live = stateRef.current;
-          if (!live || trickPauseActiveRef.current || gameplayLockedRef.current || roundOverRef.current) {
+          if (
+            !live ||
+            trickPauseActiveRef.current ||
+            gameplayLockedRef.current ||
+            roundOverRef.current ||
+            roundEndHoldScheduledRef.current
+          ) {
+            return;
+          }
             return;
           }
           if (!canAcknowledgmentPass(live, cpu.id)) return;
@@ -3199,7 +3331,15 @@ function GameScreen({
     const playerName = current.name;
     const timer = setTimeout(() => {
       const live = stateRef.current;
-      if (!live || trickPauseActiveRef.current || gameplayLockedRef.current || roundOverRef.current) return;
+      if (
+        !live ||
+        trickPauseActiveRef.current ||
+        gameplayLockedRef.current ||
+        roundOverRef.current ||
+        roundEndHoldScheduledRef.current
+      ) {
+        return;
+      }
       const liveCurrent = live.players[live.currentPlayerIndex];
       if (!liveCurrent || liveCurrent.id !== playerId) return;
 
@@ -3252,6 +3392,7 @@ function GameScreen({
     trickPauseActive,
     gameplayLocked,
     roundOver,
+    roundEndLastPlayHold,
     humanPlayer?.id,
     onlineMultiplayer,
   ]);
@@ -4198,7 +4339,8 @@ function GameScreenBoard() {
   const revealTurnHighlight = !inCeremony;
   const betweenRoundsPresentation = roundOver || !!lastHandReveal;
   const immediateTableClear = !!lastHandReveal;
-  const showActiveTurnUi = revealTurnHighlight && !betweenRoundsPresentation;
+  const showActiveTurnUi =
+    revealTurnHighlight && !betweenRoundsPresentation && !roundEndLastPlayHold;
   if (!current) {
     return (
       <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
@@ -4551,7 +4693,7 @@ function GameScreenBoard() {
     (!trickPauseActive && (state.pile?.length ?? 0) > 0);
 
   const handleCardPress = (idx: number) => {
-    if (trickPauseActive || roundOver || readOnlyGame || presentationHoldActive) {
+    if (trickPauseActive || roundOver || roundEndLastPlayHold || readOnlyGame || presentationHoldActive) {
       return;
     }
     const card = hand[idx];
@@ -4725,7 +4867,15 @@ function GameScreenBoard() {
   };
 
   const handlePlayPress = async () => {
-    if (roundOver || !isHumanTurn || trickPauseActive || readOnlyGame) return;
+    if (
+      roundOver ||
+      roundEndLastPlayHold ||
+      !isHumanTurn ||
+      trickPauseActive ||
+      readOnlyGame
+    ) {
+      return;
+    }
     if (pendingTenPlay) return;
     const actor =
       (myPlayerId && state.players.find((p) => p.id === myPlayerId)) ??
@@ -4786,7 +4936,9 @@ function GameScreenBoard() {
   };
 
   const handlePassPress = () => {
-    if (roundOver || trickPauseActive || readOnlyGame) return;
+    if (roundOver || roundEndLastPlayHold || trickPauseActive || readOnlyGame) {
+      return;
+    }
     if (pendingTenPlay) return;
     if (!isHumanPassEligible) return;
     const actor =
@@ -4890,7 +5042,9 @@ function GameScreenBoard() {
 
   const displayPlays: TrickPlayDisplay[] = useMemo(() => {
     let base: TrickPlayDisplay[];
-    if (trickPauseActive && trickPauseSnapshot) {
+    if (roundEndLastPlayHold && roundEndHoldSnapshot) {
+      base = roundEndHoldSnapshot.plays;
+    } else if (trickPauseActive && trickPauseSnapshot) {
       base = trickPauseSnapshot.plays;
     } else if (trickPlays.length > 0) {
       base = trickPlays;
@@ -4914,6 +5068,8 @@ function GameScreenBoard() {
       },
     ];
   }, [
+    roundEndLastPlayHold,
+    roundEndHoldSnapshot,
     trickPauseActive,
     trickPauseSnapshot,
     trickPlays,
@@ -4925,7 +5081,8 @@ function GameScreenBoard() {
     immediateTableClear || rankingsModalVisible
       ? EMPTY_TRICK_PLAYS
       : displayPlays;
-  const suppressTurnPresentation = betweenRoundsPresentation;
+  const suppressTurnPresentation =
+    betweenRoundsPresentation || roundEndLastPlayHold;
   const gameTableFadeOut =
     tableSweepOut || (trickPauseActive && showWinnerBanner);
 
@@ -4999,9 +5156,11 @@ function GameScreenBoard() {
       .map((a) => a.playerId) ?? [];
 
   const displayPassedPlayerIds =
-    trickPauseFrozen && trickPauseSnapshot
-      ? trickPauseSnapshot.passedPlayerIds
-      : passedPlayerIds;
+    roundEndLastPlayHold && roundEndHoldSnapshot
+      ? roundEndHoldSnapshot.passedPlayerIds
+      : trickPauseActive && trickPauseSnapshot
+        ? trickPauseSnapshot.passedPlayerIds
+        : passedPlayerIds;
 
   const trickWinnerPlayerId =
     trickPauseActive && trickPauseSnapshot?.winnerId
@@ -5443,7 +5602,8 @@ function GameScreenBoard() {
           rankingsModalVisible ||
           gameplayLocked ||
           roundOver ||
-          lastHandReveal
+          lastHandReveal ||
+          roundEndLastPlayHold
         }
         hideToasts={
           !!ceremonyPrep || !!tradePhase || rankingsModalVisible
@@ -5575,11 +5735,12 @@ function GameScreenBoard() {
             onQuit={requestLeaveGame}
             onNavigateToSettings={onNavigateToSettings}
             onNavigateToAchievements={onNavigateToAchievements}
-            playDisabled={gameplayLocked || !!handPlayInFlight || !isHumanTurn || roundOver || (!!localHumanId && hasPassedInCurrentTrick(state, localHumanId) && !humanRunOnTopTurn) || selected.length === 0 || !selectedCanPlay}
+            playDisabled={gameplayLocked || !!handPlayInFlight || !isHumanTurn || roundOver || roundEndLastPlayHold || (!!localHumanId && hasPassedInCurrentTrick(state, localHumanId) && !humanRunOnTopTurn) || selected.length === 0 || !selectedCanPlay}
             passDisabled={
               gameplayLocked ||
               !isHumanPassEligible ||
               roundOver ||
+              roundEndLastPlayHold ||
               isForcedLead ||
               !!(
                 localHumanId &&
@@ -5587,7 +5748,12 @@ function GameScreenBoard() {
                 !humanRunOnTopTurn
               )
             }
-            isPlayerTurn={isHumanPassEligible && !roundOver && !gameplayLocked}
+            isPlayerTurn={
+              isHumanPassEligible &&
+              !roundOver &&
+              !roundEndLastPlayHold &&
+              !gameplayLocked
+            }
             noValidPlays={noValidPlays}
             onTopTurn={humanRunOnTopTurn}
           />

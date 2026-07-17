@@ -980,6 +980,8 @@ function skipBotHostedGame(roomId, ctx) {
   return { ok: true };
 }
 
+/** Last-play hold on clients before Asshole reveal (GameScreen ROUND_END_LAST_PLAY_HOLD_MS). */
+const BOT_LAST_PLAY_HOLD_MS = 4_000;
 /** Last-hand overlay before rankings (GameScreen LAST_HAND_REVEAL_MS). */
 const BOT_LAST_HAND_REVEAL_MS = 4_000;
 /** Countdown on final rankings after server round XP is awarded. */
@@ -990,6 +992,7 @@ const BOT_ROUND_END_DWELL_MS = BOT_RANKINGS_COUNTDOWN_MS;
 
 function botAutoStartDelayMs(hasLastHandReveal) {
   return (
+    BOT_LAST_PLAY_HOLD_MS +
     (hasLastHandReveal ? BOT_LAST_HAND_REVEAL_MS : 0) +
     BOT_RANKINGS_COUNTDOWN_MS
   );
