@@ -32,6 +32,17 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-17T14:11"),
+    title: "Deal chrome, hand polish & Instagram links",
+    items: [
+      "Instagram — opening the site from Instagram no longer refreshes in a loop",
+      "In-game — Round Streak, Settings, and Achievements stay visible while cards are dealt",
+      "In-game — selected cards use your felt accent; scroll arrows sit a touch lower on the hand",
+      "In-game — Play / Leave lifted a little more above the home indicator; tricks sit slightly higher",
+      "Round Streak — energy glow follows the streak rarity colour",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-16T23:41"),
     title: "Home Hub, lobbies & table polish",
     items: [

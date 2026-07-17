@@ -34,7 +34,11 @@ type Props = {
   lastTrick?: LastTrickInfo | null;
   onOpenAchievements?: () => void;
   onOpenSettings?: () => void;
-  hide?: boolean;
+  /**
+   * Hide tricks / winning play / toasts / prestige — not Round Streak or util buttons.
+   * Persist chrome stays visible during deal (under seats / deal flights).
+   */
+  hideFeedback?: boolean;
   /** Refresh upcoming achievement snapshot */
   statsRefreshKey?: number;
 };
@@ -91,7 +95,9 @@ export function lastTrickFromEntry(
 
 /**
  * Full-screen feedback chrome.
- * Bottom widgets share feedbackBottom (just above resting hand cards).
+ *
+ * Persist layer (z below play area): Round Streak + Settings / Achievements.
+ * Feedback layer: Winning Play, Tricks, XP toasts, optional prestige.
  *
  *   Round Streak                              [Stats] [Settings]
  *              (Next Prestige — centered, off by default)
@@ -113,7 +119,7 @@ export default function GameplayHud({
   lastTrick,
   onOpenAchievements,
   onOpenSettings,
-  hide = false,
+  hideFeedback = false,
   statsRefreshKey = 0,
 }: Props) {
   const { colors } = useAppTheme();
@@ -121,9 +127,11 @@ export default function GameplayHud({
   const [roundsBest, setRoundsBest] = useState(0);
   const lastSignal = React.useRef(0);
   const bottom = Math.max(0, feedbackBottom);
+  /** Tricks / Winning Play sit slightly above the resting-card feedback line. */
+  const trickWidgetsBottom = Math.round(bottom * 1.05);
   const styles = useMemo(
-    () => createStyles(colors, bottom),
-    [colors, bottom],
+    () => createStyles(colors, trickWidgetsBottom),
+    [colors, trickWidgetsBottom],
   );
 
   useEffect(() => {
@@ -156,73 +164,88 @@ export default function GameplayHud({
     [players, trickHistory, localPlayerId, trickHistoryLen, trickHistorySig],
   );
 
-  if (hide) return null;
+  const padTop = Math.max(0, topInset);
 
   return (
-    <View
-      style={[styles.host, { paddingTop: Math.max(0, topInset) }]}
-      pointerEvents="box-none"
-    >
-      <View style={styles.topRow} pointerEvents="box-none">
-        <View style={styles.corner} pointerEvents="box-none">
-          {GAMEPLAY_PRESENTATION.roundsInRow ? (
-            <RoundsInRowWidget current={roundsCurrent} best={roundsBest} />
-          ) : null}
-        </View>
-        <View style={styles.utilRow}>
-          {onOpenAchievements ? (
-            <TouchableOpacity
-              style={styles.utilBtn}
-              onPress={onOpenAchievements}
-              accessibilityRole="button"
-              accessibilityLabel="Achievements and statistics"
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <MenuIcon name="trophy" size={16} color={colors.gold} />
-            </TouchableOpacity>
-          ) : null}
-          {onOpenSettings ? (
-            <TouchableOpacity
-              style={styles.utilBtn}
-              onPress={onOpenSettings}
-              accessibilityRole="button"
-              accessibilityLabel="Settings"
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <MenuIcon name="gear" size={16} color={colors.gold} />
-            </TouchableOpacity>
-          ) : null}
+    <>
+      {/*
+        Persist chrome — above vignette/felt, below seats / deal / bottom bar.
+        Stays up during deal so Round Streak + util buttons remain in corner.
+      */}
+      <View
+        style={[styles.persistHost, { paddingTop: padTop }]}
+        pointerEvents="box-none"
+      >
+        <View style={styles.topRow} pointerEvents="box-none">
+          <View style={styles.corner} pointerEvents="box-none">
+            {GAMEPLAY_PRESENTATION.roundsInRow ? (
+              <RoundsInRowWidget current={roundsCurrent} best={roundsBest} />
+            ) : null}
+          </View>
+          <View style={styles.utilRow}>
+            {onOpenAchievements ? (
+              <TouchableOpacity
+                style={styles.utilBtn}
+                onPress={onOpenAchievements}
+                accessibilityRole="button"
+                accessibilityLabel="Achievements and statistics"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MenuIcon name="trophy" size={16} color={colors.gold} />
+              </TouchableOpacity>
+            ) : null}
+            {onOpenSettings ? (
+              <TouchableOpacity
+                style={styles.utilBtn}
+                onPress={onOpenSettings}
+                accessibilityRole="button"
+                accessibilityLabel="Settings"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MenuIcon name="gear" size={16} color={colors.gold} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
       </View>
 
-      {/* Centered prestige — off by default; reserved for in-game notifications. */}
-      {GAMEPLAY_PRESENTATION.upcomingAchievements ? (
-        <View style={styles.prestigeCenter} pointerEvents="box-none">
-          <GameplayAchievementWidget
-            onOpenAchievements={onOpenAchievements}
-            refreshKey={statsRefreshKey}
-          />
+      {!hideFeedback ? (
+        <View
+          style={[styles.feedbackHost, { paddingTop: padTop }]}
+          pointerEvents="box-none"
+        >
+          {GAMEPLAY_PRESENTATION.upcomingAchievements ? (
+            <View style={styles.prestigeCenter} pointerEvents="box-none">
+              <GameplayAchievementWidget
+                onOpenAchievements={onOpenAchievements}
+                refreshKey={statsRefreshKey}
+              />
+            </View>
+          ) : null}
+
+          <View style={styles.bottomRow} pointerEvents="box-none">
+            <View style={styles.corner} pointerEvents="none">
+              {GAMEPLAY_PRESENTATION.lastTrick ? (
+                <LastTrickWidget
+                  info={lastTrick ?? null}
+                  suppress={suppressLastTrick}
+                />
+              ) : null}
+            </View>
+            <View
+              style={[styles.corner, styles.cornerRight]}
+              pointerEvents="box-none"
+            >
+              {GAMEPLAY_PRESENTATION.trickScore ? (
+                <TrickScoreWidget rows={trickRows} />
+              ) : null}
+            </View>
+          </View>
+
+          <ProgressionToastHost enabled bottomInset={bottom} />
         </View>
       ) : null}
-
-      <View style={styles.bottomRow} pointerEvents="box-none">
-        <View style={styles.corner} pointerEvents="none">
-          {GAMEPLAY_PRESENTATION.lastTrick ? (
-            <LastTrickWidget
-              info={lastTrick ?? null}
-              suppress={suppressLastTrick}
-            />
-          ) : null}
-        </View>
-        <View style={[styles.corner, styles.cornerRight]} pointerEvents="box-none">
-          {GAMEPLAY_PRESENTATION.trickScore ? (
-            <TrickScoreWidget rows={trickRows} />
-          ) : null}
-        </View>
-      </View>
-
-      <ProgressionToastHost enabled bottomInset={bottom} />
-    </View>
+    </>
   );
 }
 
@@ -231,9 +254,17 @@ function createStyles(
   feedbackBottom: number,
 ) {
   return StyleSheet.create({
-    host: {
+    /** Above vignette (0), below play area / deal / bottom bar. */
+    persistHost: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 1,
+      elevation: 1,
+      paddingHorizontal: 8,
+    },
+    feedbackHost: {
       ...StyleSheet.absoluteFillObject,
       zIndex: 40,
+      elevation: 40,
       paddingHorizontal: 8,
     },
     topRow: {

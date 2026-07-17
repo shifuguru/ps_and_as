@@ -5348,10 +5348,13 @@ function GameScreenBoard() {
         style={{
           flex: 1,
           position: "relative",
+          zIndex: 10,
+          elevation: 10,
           paddingHorizontal: 12,
           paddingTop: contentTopPadding,
           paddingBottom: handBaseline,
         }}
+        pointerEvents="box-none"
         onLayout={(e: LayoutChangeEvent) => {
           const { width, height } = e.nativeEvent.layout;
           setPlayAreaSize((prev) =>
@@ -5443,7 +5446,7 @@ function GameScreenBoard() {
         onOpenAchievements={onNavigateToAchievements}
         onOpenSettings={onNavigateToSettings}
         statsRefreshKey={roundCompleteSignal + (state.trickHistory?.length ?? 0)}
-        hide={
+        hideFeedback={
           !!ceremonyPrep ||
           !!tradePhase ||
           rankingsModalVisible ||

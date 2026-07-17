@@ -834,6 +834,7 @@ export default function GamePlayArea({
     <View
       ref={rootRef}
       style={styles.root}
+      pointerEvents="box-none"
       onLayout={onLayout}
     >
       {layout && layout.cardZoneHeight > 0 && (

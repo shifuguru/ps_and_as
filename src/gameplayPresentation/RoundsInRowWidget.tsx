@@ -9,6 +9,11 @@ import {
 } from "../services/achievementRarity";
 import GameplayGlassPanel from "./GameplayGlassPanel";
 import { HUD_CARD_HEIGHT } from "./hudLayout";
+import {
+  RunsPill,
+  flameSeedsFromPalette,
+  paletteFromAccent,
+} from "./RunsEffect";
 
 type Props = {
   current: number;
@@ -16,13 +21,21 @@ type Props = {
 };
 
 /**
- * Session round streak — glass card with flame as fuel at the bottom edge.
+ * Session round streak — hierarchy matches concept:
+ * icon → title → count → descriptor → rarity pips.
  * Accent follows achievement rarity palette by streak threshold.
+ * Flame / sparkle energy uses that same accent (pill as fuel).
  */
 export default function RoundsInRowWidget({ current, best }: Props) {
   const { colors } = useAppTheme();
   const progress = roundStreakRarityProgress(current);
   const accent = RARITY_COLOR[progress.rarity];
+  const energyOn = current > 0;
+  const palette = useMemo(() => paletteFromAccent(accent), [accent]);
+  const flameSeeds = useMemo(
+    () => flameSeedsFromPalette(palette),
+    [palette],
+  );
   const styles = useMemo(
     () => createStyles(colors, accent),
     [colors, accent],
@@ -40,14 +53,23 @@ export default function RoundsInRowWidget({ current, best }: Props) {
     best > current ? `Best ${best}` : best > 0 ? `Best ${best}` : null;
 
   return (
-    <GameplayGlassPanel compact accentColor={accent} style={styles.panel}>
-      {/* Fuel flame — base sits in the bottom edge, rises behind copy. */}
-      <View style={styles.flameFuel} pointerEvents="none">
-        <Text style={styles.flame}>🔥</Text>
-      </View>
-
-      <View style={styles.body}>
-        <Text style={styles.eyebrow}>Round Streak</Text>
+    <RunsPill
+      active={energyOn}
+      style={styles.root}
+      showGlow={energyOn}
+      showFlames={energyOn}
+      containFlames
+      emberSpread="around"
+      maxFlameHeight={16}
+      palette={palette}
+      flameSeeds={flameSeeds}
+      pillStyle={styles.effectShell}
+    >
+      <GameplayGlassPanel compact accentColor={accent} style={styles.panel}>
+        <View style={styles.header}>
+          <Text style={styles.fire}>🔥</Text>
+          <Text style={styles.eyebrow}>Round Streak</Text>
+        </View>
         <Text style={styles.count}>
           {current}
           <Text style={styles.countUnit}>
@@ -72,8 +94,8 @@ export default function RoundsInRowWidget({ current, best }: Props) {
           ))}
         </View>
         <Text style={styles.rarityLabel}>{RARITY_LABEL[progress.rarity]}</Text>
-      </View>
-    </GameplayGlassPanel>
+      </GameplayGlassPanel>
+    </RunsPill>
   );
 }
 
@@ -82,36 +104,31 @@ function createStyles(
   accent: string,
 ) {
   return StyleSheet.create({
+    root: {
+      alignSelf: "flex-start",
+      maxWidth: "100%",
+    },
+    /** Transparent host so GameplayGlassPanel remains the glass surface. */
+    effectShell: {
+      backgroundColor: "transparent",
+      borderWidth: 0,
+      padding: 0,
+      overflow: "visible",
+    },
     panel: {
       minWidth: 118,
       maxWidth: 148,
       height: HUD_CARD_HEIGHT,
-      alignSelf: "flex-start",
-      justifyContent: "flex-end",
-      gap: 0,
-      overflow: "hidden",
-    },
-    flameFuel: {
-      position: "absolute",
-      left: 0,
-      right: 0,
-      bottom: -10,
-      alignItems: "center",
-      justifyContent: "flex-end",
-      zIndex: 0,
-      opacity: 0.72,
-    },
-    flame: {
-      fontSize: 34,
-      lineHeight: 38,
-      textAlign: "center",
-    },
-    body: {
-      zIndex: 1,
       justifyContent: "space-between",
-      flex: 1,
       gap: 0,
     },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      marginBottom: 0,
+    },
+    fire: { fontSize: 12 },
     eyebrow: {
       color: accent,
       fontSize: 9,

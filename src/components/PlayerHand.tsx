@@ -460,8 +460,13 @@ function ScrollPlayHint({
 
   const isLeft = direction === "left";
   const finRadius = 16;
+  const finHeight = Math.round(zoneHeight * 0.87);
+  /** Sit slightly below geometric mid so fins align with the card bodies. */
+  const finTop =
+    Math.max(0, Math.round((zoneHeight - finHeight) / 2)) +
+    Math.round(zoneHeight * 0.045);
   const chevronSize = Math.round(
-    Math.min(zoneHeight * 0.42, 76, SCROLL_HINT_FIN_WIDTH * 0.92),
+    Math.min(finHeight * 0.42, 76, SCROLL_HINT_FIN_WIDTH * 0.92),
   );
   const label = isLeft
     ? "Scroll hand left to lowest playable card"
@@ -482,7 +487,7 @@ function ScrollPlayHint({
       style={[
         styles.scrollHintLane,
         isLeft ? styles.scrollHintLaneLeft : styles.scrollHintLaneRight,
-        { height: zoneHeight },
+        { height: zoneHeight, paddingTop: finTop },
       ]}
       onPress={onPress}
       accessibilityRole="button"
@@ -496,7 +501,7 @@ function ScrollPlayHint({
           finRadii,
           {
             width: SCROLL_HINT_FIN_WIDTH,
-            height: zoneHeight,
+            height: finHeight,
           },
         ]}
       >
@@ -505,8 +510,9 @@ function ScrollPlayHint({
           style={[
             {
               width: SCROLL_HINT_FIN_WIDTH,
-              height: zoneHeight,
+              height: finHeight,
               overflow: "hidden",
+              padding: 0,
             },
             finRadii,
           ]}
@@ -514,14 +520,14 @@ function ScrollPlayHint({
           <View
             style={{
               width: SCROLL_HINT_FIN_WIDTH,
-              height: zoneHeight,
+              height: finHeight,
               position: "relative",
             }}
           >
             <ScrollHintGradient
               direction={direction}
               width={SCROLL_HINT_FIN_WIDTH}
-              height={zoneHeight}
+              height={finHeight}
               scrimRgb={scrimRgb}
               edgeOpacity={edgeOpacity}
             />
@@ -540,9 +546,10 @@ function ScrollPlayHint({
                 styles.scrollHintFinInner,
                 {
                   width: SCROLL_HINT_FIN_WIDTH,
-                  height: zoneHeight,
+                  height: finHeight,
                 },
               ]}
+              pointerEvents="none"
             >
               <Animated.Text
                 style={[
@@ -551,7 +558,11 @@ function ScrollPlayHint({
                     fontWeight: "300",
                     lineHeight: chevronSize,
                   }),
-                  { color: chevronFlashColor as unknown as string },
+                  {
+                    color: chevronFlashColor as unknown as string,
+                    width: SCROLL_HINT_FIN_WIDTH,
+                    height: chevronSize,
+                  },
                 ]}
               >
                 {isLeft ? "‹" : "›"}
@@ -1225,7 +1236,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 4000,
     width: SCROLL_HINT_TOUCH_LANE,
-    justifyContent: "center",
+    justifyContent: "flex-start",
   },
   scrollHintLaneLeft: {
     left: 0,
@@ -1242,12 +1253,15 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,
   },
   scrollHintChevron: {
     textAlign: "center",
+    textAlignVertical: "center",
     includeFontPadding: false,
   },
   fanStrip: {

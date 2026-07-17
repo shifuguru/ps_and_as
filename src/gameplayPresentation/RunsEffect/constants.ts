@@ -1,5 +1,7 @@
 /** Visual + timing tokens for the Runs! energy effect. */
 
+import { hexToRgba } from "../../utils/colorTheory";
+
 export const RUNS_COLORS = {
   core: "#FFB200",
   hot: "#FF8C1A",
@@ -83,6 +85,26 @@ function makeFlameSeeds(palette: RunsPalette): FlameSeed[] {
     { id: 6, x: 0.78, width: 9, height: 21, delayMs: 50, periodMs: 1180, rotDeg: 7, color: palette.flameA },
     { id: 7, x: 0.88, width: 6, height: 15, delayMs: 130, periodMs: 960, rotDeg: 2, color: palette.flameC },
   ];
+}
+
+/** Build a Runs! energy palette from any accent hex (e.g. rarity color). */
+export function paletteFromAccent(accent: string): RunsPalette {
+  return {
+    core: accent,
+    hot: accent,
+    edge: accent,
+    glow: hexToRgba(accent, 0.22),
+    glowSoft: hexToRgba(accent, 0.14),
+    glowCore: hexToRgba(accent, 0.4),
+    ember: hexToRgba(accent, 0.92),
+    flameA: hexToRgba(accent, 0.78),
+    flameB: hexToRgba(accent, 0.58),
+    flameC: hexToRgba(accent, 0.42),
+  };
+}
+
+export function flameSeedsFromPalette(palette: RunsPalette): FlameSeed[] {
+  return makeFlameSeeds(palette);
 }
 
 /** Deterministic soft seeds — avoids re-randomising every render. */

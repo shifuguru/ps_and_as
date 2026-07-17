@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, TouchableWithoutFeedback, View, StyleSheet, Easing, Platform, Text } from "react-native";
 import { Card as CardType, formatCardRank } from "../game/ruleset";
 import {
@@ -7,6 +7,8 @@ import {
 } from "./cardDimensions";
 import { useDarkModeCards } from "../context/CardAppearanceContext";
 import { getCardFaceColors, suitColorForCard } from "../utils/cardFaceTheme";
+import { useAppTheme } from "../context/ThemeContext";
+import { hexToRgba } from "../utils/colorTheory";
 
 function backFaceRadii(
   style: { width?: number; height?: number } | undefined,
@@ -57,7 +59,16 @@ export default function Card({
   style?: any;
 }) {
   const darkModeCards = useDarkModeCards();
+  const { colors } = useAppTheme();
   const faceColors = getCardFaceColors(darkModeCards, disabled);
+  /** Felt-theme accent — selection / highlight rim follows the table, not fixed gold. */
+  const accentBorder = useMemo(
+    () => hexToRgba(colors.gold, 0.88),
+    [colors.gold],
+  );
+  const idleBorder = darkModeCards
+    ? "rgba(255,255,255,0.14)"
+    : "rgba(0,0,0,0.12)";
   const anim = React.useRef(new Animated.Value(selected ? 1 : 0)).current;
   const glow = React.useRef(new Animated.Value(highlight)).current;
   const float = React.useRef(new Animated.Value(0)).current;
@@ -220,7 +231,7 @@ export default function Card({
   const elevation = glow.interpolate({ inputRange: [0, 1], outputRange: [2, 10] });
   const borderGlow = glow.interpolate({
     inputRange: [0, 1],
-    outputRange: ["rgba(0,0,0,0.1)", "rgba(212,175,55,0.75)"],
+    outputRange: [idleBorder, accentBorder],
   });
 
   const cardBackground = flash

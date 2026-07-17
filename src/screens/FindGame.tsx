@@ -459,11 +459,10 @@ export default function FindGame({
 
             {publicRooms.length === 0 && roomsLoaded ? (
               <BlurPanel style={[ui.panel, styles.glassCard]} intensity={44}>
-                <Text style={styles.sectionEyebrow}>Open Lobbies</Text>
                 <Text style={ui.emptyTitle}>No Public Games Available</Text>
                 <Text style={ui.emptyBody}>
                   Host a game above and share the room code, or browse again
-                  when someone opens a public lobby.
+                  when someone opens a public game.
                 </Text>
               </BlurPanel>
             ) : (
