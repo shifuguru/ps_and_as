@@ -74,6 +74,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.8": "Four Of A Kind Mind",
   "1.1.9": "President's Day Off",
   "1.1.10": "Felt Table Fever",
+  "1.1.11": "Asshole Ascendant",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
