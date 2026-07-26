@@ -321,10 +321,10 @@ Gameplay Auditor Finding 5 (2026-06-08). Presentation-only workaround (pass latc
 During `tenRulePending`, only the player who played the 10 (`tenRuleChooserIndex()` / `lastPlayPlayerIndex`) may set Higher/Lower (`GAME_ARCHITECTURE.md` §5 TenRule, § Turn ownership).
 
 **Current behaviour:**  
-`gameAction` ten-rule branch checks `tenRulePending` only; turn gate is `player.id !== currentId` (with ack-pass exception). No compare to `tenRuleChooserIndex()`. `setTenRuleDirection` in core does not validate chooser (`server/index.js` ~1847–1852; `src/game/core.ts` ~730–757).
+`gameAction` ten-rule branch requires `tenRulePending`, compares the acting socket player to `tenRuleChooserIndex()`, and rejects invalid directions. Core `setTenRuleDirection` still does not re-check chooser (server gate is the authority boundary).
 
 **Impact:**  
-Latent rule violation when `currentPlayerIndex` is corrupted (see **Turn Ownership Invariant**); wrong seat can set pile-wide direction.
+Was: wrong seat could set Higher/Lower. Mitigated on the critical-issues branch.
 
 **Files likely involved:**  
 `server/index.js` (`gameAction`)  
@@ -332,10 +332,10 @@ Latent rule violation when `currentPlayerIndex` is corrupted (see **Turn Ownersh
 
 **Priority:** P2
 
-**Status:** Open
+**Status:** Resolved — server chooser + direction guard (critical-issues branch)
 
 **Notes:**  
-Gameplay Auditor Finding 10 (2026-06-08). Fix is a small server guard; prioritize only if live repro traces here.
+Gameplay Auditor Finding 10 (2026-06-08). Optional follow-up: defend chooser inside `setTenRuleDirection` for local/hot-seat callers.
 
 ---
 
