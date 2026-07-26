@@ -1,6 +1,6 @@
 # 🃏 Presidents & Assholes (Ps & As)
 
-> **A fast-paced multiplayer card game where everyone races to empty thwir hand before everyone else..**
+> **A fast-paced multiplayer card game where everyone races to empty their hand before everyone else..**
 
 Climb to the rank of **President**, and avoid finishing as the **Asshole**.
 
