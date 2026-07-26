@@ -15,6 +15,61 @@ export function isSocketAdapter(adapter: unknown): adapter is SocketAdapter {
   );
 }
 
+const RECONNECT_SECRET_KEY_PREFIX = "@ps_and_as_reconnect_secret:";
+
+function reconnectSecretStorageKey(roomId: string, profileId: string): string {
+  return `${RECONNECT_SECRET_KEY_PREFIX}${roomId}:${profileId}`;
+}
+
+async function readStoredReconnectSecret(
+  roomId: string,
+  profileId: string,
+): Promise<string | null> {
+  if (!roomId || !profileId) return null;
+  try {
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    const value = await AsyncStorage.getItem(
+      reconnectSecretStorageKey(roomId, profileId),
+    );
+    return typeof value === "string" && value.length > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeStoredReconnectSecret(
+  roomId: string,
+  profileId: string,
+  secret: string,
+): Promise<void> {
+  if (!roomId || !profileId || !secret) return;
+  try {
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    await AsyncStorage.setItem(
+      reconnectSecretStorageKey(roomId, profileId),
+      secret,
+    );
+  } catch {
+    // ignore persistence failures — in-memory secret still works for the session
+  }
+}
+
+async function clearStoredReconnectSecret(
+  roomId: string,
+  profileId: string,
+): Promise<void> {
+  if (!roomId || !profileId) return;
+  try {
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    await AsyncStorage.removeItem(reconnectSecretStorageKey(roomId, profileId));
+  } catch {
+    // ignore
+  }
+}
+
 export class SocketAdapter implements NetworkAdapter {
   private socket: any = null;
   private handlers: ((ev: NetworkEvent) => void)[] = [];
@@ -29,6 +84,8 @@ export class SocketAdapter implements NetworkAdapter {
   private cachedHostId: string | null = null;
   private cachedSkipDealAnimations = false;
   private feltTint: string = DEFAULT_FELT_COLOR;
+  /** Per-seat secret issued by the server; required to reclaim a seat. */
+  private reconnectSecret: string | null = null;
 
   constructor(
     private url: string | undefined,
@@ -37,9 +94,11 @@ export class SocketAdapter implements NetworkAdapter {
     private profileId: string,
     autoJoin: boolean = true,
     feltTint: string = DEFAULT_FELT_COLOR,
+    reconnectSecret: string | null = null,
   ) {
     this.shouldAutoJoin = autoJoin;
     this.feltTint = feltTint;
+    this.reconnectSecret = reconnectSecret;
     if (roomId) {
       this.activeRoomId = roomId;
     }
@@ -76,22 +135,49 @@ export class SocketAdapter implements NetworkAdapter {
 
   /** Drop room membership locally so reconnect does not auto-rejoin. */
   clearRoomSession() {
+    const roomId = this.activeRoomId || this.roomId;
+    const profileId = this.profileId;
     this.activeRoomId = null;
     this.roomId = "";
     this.shouldAutoJoin = false;
+    this.reconnectSecret = null;
     this.clearCachedGameState();
+    void clearStoredReconnectSecret(roomId, profileId);
   }
 
-  private rejoinActiveRoom() {
+  getReconnectSecret(): string | null {
+    return this.reconnectSecret;
+  }
+
+  private rememberReconnectSecret(secret: string | null | undefined, roomId?: string) {
+    if (typeof secret !== "string" || !secret) return;
+    this.reconnectSecret = secret;
+    const targetRoomId = roomId || this.activeRoomId || this.roomId;
+    void writeStoredReconnectSecret(targetRoomId, this.profileId, secret);
+  }
+
+  private async resolveReconnectSecret(roomId: string): Promise<string | undefined> {
+    if (this.reconnectSecret) return this.reconnectSecret;
+    const stored = await readStoredReconnectSecret(roomId, this.profileId);
+    if (stored) {
+      this.reconnectSecret = stored;
+      return stored;
+    }
+    return undefined;
+  }
+
+  private async rejoinActiveRoom() {
     const targetRoomId = this.activeRoomId || this.roomId;
     if (!targetRoomId || !this.socket?.connected) return;
     console.log("[SocketAdapter] Rejoining room after reconnect:", targetRoomId);
+    const reconnectSecret = await this.resolveReconnectSecret(targetRoomId);
     this.socket.emit("joinRoom", {
       roomId: targetRoomId,
       name: this.name,
       profileId: this.profileId,
       clientBuildId: CLIENT_BUILD_ID,
       feltTint: this.feltTint,
+      ...(reconnectSecret ? { reconnectSecret } : {}),
     });
   }
 
@@ -313,6 +399,7 @@ export class SocketAdapter implements NetworkAdapter {
 
     this.socket.on("connected", (data: any) => {
       console.log("[SocketAdapter] Received connected:", data);
+      this.rememberReconnectSecret(data?.reconnectSecret);
       this.handlers.forEach((h) =>
         h({
           type: "state",
@@ -755,13 +842,17 @@ export class SocketAdapter implements NetworkAdapter {
     const code = roomId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
     this.setActiveRoomId(code);
     this.name = name;
-    this.socket.emit("joinRoom", {
-      roomId: code,
-      name,
-      profileId: this.profileId,
-      clientBuildId: CLIENT_BUILD_ID,
-      feltTint: this.feltTint,
-    });
+    void (async () => {
+      const reconnectSecret = await this.resolveReconnectSecret(code);
+      this.socket.emit("joinRoom", {
+        roomId: code,
+        name,
+        profileId: this.profileId,
+        clientBuildId: CLIENT_BUILD_ID,
+        feltTint: this.feltTint,
+        ...(reconnectSecret ? { reconnectSecret } : {}),
+      });
+    })();
   }
 
   updatePlayerTheme(roomId: string, feltTint: string) {

@@ -37,7 +37,7 @@ Use this file to drive engineering work — not conversation memory.
 | 4 | BOTOPN disconnect immediately demotes seated human mid-round | **Existing** — Bot-open disconnect model vs standard rooms |
 | 5 | Online pass applies local `passTurn` without server repair pipeline | **New gap** — Online pass optimistic local mutation |
 | 6 | Client `repairStuckTurnPointer` on every `gameStateSync` | **Stale / not confirmed** — no client repair in `GameScreen.tsx` today; do not track |
-| 7 | Seated `playerReadyForNextRound` not gated on `betweenRounds` | **Existing gap extension** — Ready-for-next-round gating (spectator guard shipped; seated open) |
+| 7 | Seated `playerReadyForNextRound` not gated on `betweenRounds` | **Resolved on critical-issues branch** — seated + `tryStartNextRoundIfReady` gated |
 | 8 | Rankings before last hand — fixes shipped, verification incomplete | **Existing** — Rankings before last hand (online) |
 | 9 | In-game grace 20–30 s random, not fixed 15 s | **Existing** — Disconnect timeout |
 | 10 | `gameAction` ten-rule branch does not validate chooser | **New gap** — Ten-rule chooser server validation |
@@ -75,7 +75,7 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 | Priority | Gaps |
 |----------|------|
 | **P0** | Rankings before last hand (online); CPU takeover after disconnect; Returning player after timeout |
-| **P1** | Ready-for-next-round gating; Disconnect timeout; XP and progression persistence |
+| **P1** | Disconnect timeout; XP and progression persistence (Ready-for-next-round seated gate resolved on critical-issues branch) |
 | **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Ten-rule chooser server validation; Pause state presentation; Bot-open disconnect model vs standard rooms |
 
 **How to maintain:** When a gap is fixed, set `Status: Resolved` and add a one-line note with version or PR. When intent changes, update the architecture doc first, then close or rewrite the gap here.
@@ -219,20 +219,20 @@ Shipped: v1.0.46 Fix #1 (`roundOver` from `roundEnded` only); v1.0.51 reconnect 
 `playerReadyForNextRound` is accepted only **between rounds** (round complete, no `tenRulePending`) for **all** clients — seated and spectator. Spectators may ready for **dead-hand seat claim** only in that window. Ready latch must not start the next deal mid-round or from stale client state. Multiple spectators, dead-hand replacement, BOTOPN, and player-leave must not auto-seat the wrong human.
 
 **Current behaviour:**  
-v1.0.54: spectators gated with `betweenRounds` (`server/index.js` ~1961–1967). **Seated players are not gated** — `inRound` seated sockets can set `readyForNextRound[id] = true` at any time; `tryStartNextRoundIfReady` → `startNextRound` does not check `isRoundComplete`. UI normally hides ready behind `roundOver`, but the server handler accepts mid-round ready from seated sockets. Full regression matrix not yet run.
+v1.0.54: spectators gated with `betweenRounds`. **Seated + start gate (this branch):** `playerReadyForNextRound` rejects unless `betweenRounds`; `tryStartNextRoundIfReady` also requires round-complete / no `tenRulePending`. Regression: `scripts/test-seat-security.mjs` mid-round ready case.
 
 **Impact:**  
-Spectator mid-round ready (mitigated). Seated mid-round ready (latent): crafted or stale client could populate the ready map during live play and trigger `startNextRound` if all seated ids ready.
+Was: seated mid-round ready could latch and start the next deal. Mitigated for seated + start pipeline.
 
 **Files likely involved:**  
 `server/index.js` (`playerReadyForNextRound`, `tryStartNextRoundIfReady`, `startNextRound`, `isRoundComplete`), `server/botHostedRooms.js` (`promoteReadySpectators`), `server/tableRoster.js`, `src/screens/GameScreen.tsx` (`RoundCompleteModal`, `onToggleReady`), `src/game/socketAdapter.ts`
 
 **Priority:** P1
 
-**Status:** Open
+**Status:** Resolved — seated `betweenRounds` guard + `tryStartNextRoundIfReady` round-complete check (critical-issues branch)
 
 **Notes:**  
-Gameplay Auditor Finding 7 (2026-06-08). Ship seated `betweenRounds` guard alongside spectator guard. Verify spectator paths; add automated regression (multiple spectators, dead-hand swap, BOTOPN, leave mid-ready). Release gate `spectator-promote` covers spectator join path only. Related: dead-hand model in `MULTIPLAYER_ARCHITECTURE.md`.
+Gameplay Auditor Finding 7 (2026-06-08). Remaining optional: broader spectator/dead-hand/BOTOPN ready matrix beyond `spectator-promote` + seat-security mid-round case. Related: dead-hand model in `MULTIPLAYER_ARCHITECTURE.md`.
 
 ---
 
