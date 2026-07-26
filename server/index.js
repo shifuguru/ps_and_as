@@ -1,4 +1,5 @@
 // Simple Socket.IO server for lobbies and game state
+const crypto = require('crypto');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -29,6 +30,7 @@ const {
   nextAcknowledgmentPlayerIndex,
   resolveCompletedAcknowledgmentTrick,
   isTrickOpeningLead,
+  resolveTrickLeaderIndex,
 } = require('./gameBridge');
 const {
   viewForPlayer,
@@ -41,6 +43,7 @@ const { computeRoundXpByPlayerId } = require('./roundXp');
 const tableRoster = require('./tableRoster');
 const gameSync = require('./gameSync');
 const { advancePastInactiveSeats } = require('./turnAdvance');
+const { adjustSeatIndexAfterRemoval } = require('./seatIndex');
 const {
   validateDisplayText,
   normalizeRoomCode,
@@ -683,6 +686,7 @@ function tryStartNextRoundIfReady(roomId) {
   const room = rooms[roomId];
   if (!room?.gameState) return;
   if (isGamePausedForAway(room)) return;
+  if (!isRoundComplete(room.gameState) || room.gameState.tenRulePending) return;
   if (room.isBotHosted) {
     if (!botTableCanStartNextRound(room)) return;
     botHosted.clearBotNextRoundSchedule(room, roomId, io);
@@ -891,6 +895,10 @@ function removePlayerFromActiveGame(room, playerId) {
   if (idx < 0) return;
 
   const wasCurrent = gs.players[gs.currentPlayerIndex]?.id === playerId;
+  const wasLeader = gs.lastPlayPlayerIndex === idx;
+  const wasRunOnTop =
+    !!gs.runOnTop?.active && gs.runOnTop.playerIndex === idx;
+
   gs.players = gs.players.filter((p) => p.id !== playerId);
   gs.finishedOrder = (gs.finishedOrder || []).filter((id) => id !== playerId);
 
@@ -898,6 +906,30 @@ function removePlayerFromActiveGame(room, playerId) {
     room.inGame = false;
     room.gameState = null;
     return;
+  }
+
+  if (wasLeader) {
+    gs.lastPlayPlayerIndex = resolveTrickLeaderIndex(gs);
+  } else {
+    const remapped = adjustSeatIndexAfterRemoval(gs.lastPlayPlayerIndex, idx);
+    gs.lastPlayPlayerIndex =
+      remapped === null || remapped === undefined ? null : remapped;
+  }
+
+  if (gs.runOnTop?.active) {
+    if (wasRunOnTop) {
+      gs.runOnTop = undefined;
+    } else {
+      const remappedOnTop = adjustSeatIndexAfterRemoval(
+        gs.runOnTop.playerIndex,
+        idx,
+      );
+      if (remappedOnTop === null || remappedOnTop === undefined) {
+        gs.runOnTop = undefined;
+      } else {
+        gs.runOnTop.playerIndex = remappedOnTop;
+      }
+    }
   }
 
   if (wasCurrent) {
@@ -995,17 +1027,62 @@ function resolveProfileId(profileId, socket) {
   return profileId || socket.id;
 }
 
-function findReconnectPlayer(room, profileId, name) {
-  if (profileId) {
-    const byProfile = room.players.find(
+function newReconnectSecret() {
+  return crypto.randomBytes(24).toString('hex');
+}
+
+function ensureReconnectSecret(player) {
+  if (!player.reconnectSecret) {
+    player.reconnectSecret = newReconnectSecret();
+  }
+  return player.reconnectSecret;
+}
+
+function connectedPayload(player, socket) {
+  return {
+    id: player.id,
+    profileId: player.profileId || player.id,
+    socketId: socket.id,
+    name: player.name,
+    isSpectator: !!player.isSpectator,
+    reconnectSecret: ensureReconnectSecret(player),
+  };
+}
+
+/** Match a seat by profile id only — never by display name (names are public). */
+function findReconnectPlayer(room, profileId) {
+  if (!profileId) return null;
+  return (
+    room.players.find(
       (p) => p.id === profileId || p.profileId === profileId,
-    );
-    if (byProfile) return byProfile;
+    ) || null
+  );
+}
+
+function seatHasLiveForeignSocket(player, socket) {
+  if (!player?.socketId || player.socketId === socket.id) return false;
+  if (player.disconnectedAt) return false;
+  return !!io.sockets.sockets.get(player.socketId);
+}
+
+function canClaimExistingSeat(player, socket, reconnectSecret) {
+  if (!player) return { ok: false, reason: 'Seat not found.' };
+  if (seatHasLiveForeignSocket(player, socket)) {
+    return {
+      ok: false,
+      reason: 'This seat is already connected from another session.',
+    };
   }
-  if (name) {
-    return room.players.find((p) => p.name === name && p.disconnectedAt);
+  const expected = player.reconnectSecret;
+  if (expected) {
+    if (typeof reconnectSecret !== 'string' || reconnectSecret !== expected) {
+      return {
+        ok: false,
+        reason: 'Reconnect failed. Rejoin from the same device session.',
+      };
+    }
   }
-  return null;
+  return { ok: true };
 }
 
 function attachPlayerSocket(player, socket, name) {
@@ -1013,6 +1090,7 @@ function attachPlayerSocket(player, socket, name) {
   player.disconnectedAt = null;
   player.reconnectUntil = null;
   player.awayReason = null;
+  ensureReconnectSecret(player);
   if (name && player.name !== name) {
     player.name = name;
   }
@@ -1046,18 +1124,18 @@ function applyPlayerDisplayName(room, player, newName) {
   return true;
 }
 
-/** Drop a socket/profile from every room except keepRoomId; destroy abandoned host lobbies. */
+/**
+ * Drop this socket from every room except keepRoomId.
+ * Only match by socket id — never by profile id (profile ids are public in lobby sync).
+ * In-game seated leaves use the same pause/away path as leaveRoom.
+ */
 function removeSocketFromOtherRooms(socket, profileId, keepRoomId) {
   let listChanged = false;
 
   for (const [roomId, room] of Object.entries(rooms)) {
     if (roomId === keepRoomId) continue;
 
-    const player = room.players.find(
-      (p) =>
-        p.socketId === socket.id ||
-        (profileId && (p.id === profileId || p.profileId === profileId)),
-    );
+    const player = room.players.find((p) => p.socketId === socket.id);
     if (!player) continue;
 
     const wasCreator =
@@ -1066,6 +1144,14 @@ function removeSocketFromOtherRooms(socket, profileId, keepRoomId) {
       room.creatorId === player.profileId;
     const wasHost = room.host === player.id;
     const lobbyOnly = !room.inGame;
+
+    if (room.inGame && !player.isSpectator) {
+      player.socketId = null;
+      socket.leave(roomId);
+      markPlayerAway(roomId, player, 'left');
+      listChanged = true;
+      continue;
+    }
 
     socket.leave(roomId);
 
@@ -1409,7 +1495,7 @@ io.on('connection', (socket) => {
       gameState: null,
       inGame: false
     };
-    rooms[code].players.push({
+    const hostPlayer = {
       id: pid,
       profileId: pid,
       name: nameCheck.value,
@@ -1417,10 +1503,12 @@ io.on('connection', (socket) => {
       ready: false,
       disconnectedAt: null,
       feltTint: resolveFeltTint(feltTint),
-    });
+      reconnectSecret: newReconnectSecret(),
+    };
+    rooms[code].players.push(hostPlayer);
     socket.join(code);
     io.to(code).emit('lobbyUpdate', buildLobbyUpdate(rooms[code]));
-    socket.emit('connected', { id: pid, profileId: pid, socketId: socket.id, name: nameCheck.value });
+    socket.emit('connected', connectedPayload(hostPlayer, socket));
     if (isPublic) broadcastAvailableRooms();
   });
 
@@ -1469,7 +1557,7 @@ io.on('connection', (socket) => {
     io.to(code).emit('lobbyUpdate', buildLobbyUpdate(room));
   });
 
-  socket.on('joinRoom', ({ roomId, name, profileId, clientBuildId, feltTint }) => {
+  socket.on('joinRoom', ({ roomId, name, profileId, clientBuildId, feltTint, reconnectSecret }) => {
     const code = normalizeRoomCode(roomId);
     if (code === botHosted.BOT_ROOM_CODE) {
       botHosted.repairBotHostedRoomIfNeeded(getBotContext());
@@ -1500,10 +1588,15 @@ io.on('connection', (socket) => {
     clearEmptyRoomTimer(code);
     room.emptyAt = null;
 
-    const existingPlayer = findReconnectPlayer(room, pid, nameCheck.value);
+    const existingPlayer = findReconnectPlayer(room, pid);
     let wasAway = false;
     
     if (existingPlayer) {
+      const claim = canClaimExistingSeat(existingPlayer, socket, reconnectSecret);
+      if (!claim.ok) {
+        socket.emit('error', { message: claim.reason });
+        return;
+      }
       console.log(`[Server] Player ${nameCheck.value} (${pid}) reconnecting to room ${code}`);
       wasAway = !!existingPlayer.disconnectedAt;
       cancelAwayRemoval(code, existingPlayer.id);
@@ -1512,10 +1605,7 @@ io.on('connection', (socket) => {
       if (feltTint) {
         existingPlayer.feltTint = resolveFeltTint(feltTint);
       }
-      if (existingPlayer.id !== pid) {
-        existingPlayer.id = pid;
-        existingPlayer.profileId = pid;
-      }
+      // Never remap a claimed seat's stable id to the caller's profile id.
       
       if (room.hostName === existingPlayer.name || room.host === existingPlayer.id) {
         room.host = existingPlayer.id;
@@ -1548,6 +1638,7 @@ io.on('connection', (socket) => {
         disconnectedAt: null,
         isSpectator: joinAsSpectator,
         feltTint: resolveFeltTint(feltTint),
+        reconnectSecret: newReconnectSecret(),
       });
       if (joinAsSpectator) {
         const note = room.isBotHosted
@@ -1567,13 +1658,9 @@ io.on('connection', (socket) => {
       });
       broadcastGameState(io, room);
     }
-    socket.emit('connected', {
-      id: pid,
-      profileId: pid,
-      socketId: socket.id,
-      name: nameCheck.value,
-      isSpectator: !!joined?.isSpectator,
-    });
+    if (joined) {
+      socket.emit('connected', connectedPayload(joined, socket));
+    }
     
     if (room.inGame && room.gameState?.players) {
       if (joined) {
@@ -1933,8 +2020,16 @@ io.on('connection', (socket) => {
     emitBetweenRoundsSnapshot(socket, room);
   });
 
-  socket.on('roundFinished', ({ roomId, finishOrder, hands }) => {
-    handleRoundFinished(roomId, finishOrder, hands);
+  // Legacy client event — ignore caller-supplied finishOrder/hands. Only room
+  // members may request a server-authoritative between-rounds snapshot.
+  socket.on('roundFinished', ({ roomId }) => {
+    const code = normalizeRoomCode(roomId);
+    const room = rooms[code];
+    if (!room?.gameState) return;
+    const player = getPlayerBySocket(room, socket.id);
+    if (!player) return;
+    if (!isRoundComplete(room.gameState) || room.gameState.tenRulePending) return;
+    emitBetweenRoundsSnapshot(socket, room);
   });
 
   // Winner selects cards to send back to loser
@@ -1988,10 +2083,10 @@ io.on('connection', (socket) => {
     const inRound = activeRoundPlayerIds(room).includes(player.id);
     const betweenRounds =
       isRoundComplete(room.gameState) && !room.gameState.tenRulePending;
+    if (!betweenRounds) return;
     const canSpectatorReady =
       player.isSpectator &&
-      (room.isBotHosted || gameHasDeadHandSlot(room)) &&
-      betweenRounds;
+      (room.isBotHosted || gameHasDeadHandSlot(room));
     if (!inRound && !canSpectatorReady) return;
     room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
     if (room.isBotHosted) {
