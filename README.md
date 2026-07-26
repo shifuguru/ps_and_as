@@ -2,21 +2,6 @@
 
 **[Play the Game](https://shifuguru.github.io/ps_and_as/)** · **[Refresh](https://shifuguru.github.io/ps_and_as/?refresh=1)**
 
-Welcome.
-
-If you've landed on this page unexpectedly, one of the following has probably occurred:
-
-- the game is updating,
-- the server is restarting,
-- your connection has gone wandering,
-- or the application has briefly achieved sentience.
-
-Most issues can be fixed by refreshing the page or restarting the app.
-
-If not, remain calm.
-
-The cards are being aggressively reorganised behind the scenes.
-
 ---
 
 # Contents
