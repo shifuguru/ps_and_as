@@ -40,7 +40,7 @@ Use this file to drive engineering work — not conversation memory.
 | 7 | Seated `playerReadyForNextRound` not gated on `betweenRounds` | **Existing gap extension** — Ready-for-next-round gating (spectator guard shipped; seated open) |
 | 8 | Rankings before last hand — fixes shipped, verification incomplete | **Existing** — Rankings before last hand (online) |
 | 9 | In-game grace 20–30 s random, not fixed 15 s | **Existing** — Disconnect timeout |
-| 10 | `gameAction` ten-rule branch does not validate chooser | **New gap** — Ten-rule chooser server validation |
+| 10 | `gameAction` ten-rule branch does not validate chooser | **Resolved** — server chooser + direction guard |
 
 **Also noted (not new gaps):** BOTOPN pass-on-run stall RC-1 loop mitigation shipped (`repairTurnPointerAndReschedule` in `server/botHostedRooms.js`); late-round out leader + all passed trick finalize shipped (What's New Jun 2026). Both are mitigations under **Turn Ownership Invariant**, not closure of that gap.
 
@@ -77,7 +77,7 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 |----------|------|
 | **P0** | Rankings before last hand (online); CPU takeover after disconnect; Returning player after timeout |
 | **P1** | Ready-for-next-round gating; Disconnect timeout; XP and progression persistence; Mobile browser onboarding (PWA → Google) |
-| **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Ten-rule chooser server validation; Pause state presentation; Bot-open disconnect model vs standard rooms |
+| **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Pause state presentation; Bot-open disconnect model vs standard rooms |
 
 **How to maintain:** When a gap is fixed, set `Status: Resolved` and add a one-line note with version or PR. When intent changes, update the architecture doc first, then close or rewrite the gap here.
 
@@ -350,10 +350,10 @@ Gameplay Auditor Finding 5 (2026-06-08). Presentation-only workaround (pass latc
 During `tenRulePending`, only the player who played the 10 (`tenRuleChooserIndex()` / `lastPlayPlayerIndex`) may set Higher/Lower (`GAME_ARCHITECTURE.md` §5 TenRule, § Turn ownership).
 
 **Current behaviour:**  
-`gameAction` ten-rule branch checks `tenRulePending` only; turn gate is `player.id !== currentId` (with ack-pass exception). No compare to `tenRuleChooserIndex()`. `setTenRuleDirection` in core does not validate chooser (`server/index.js` ~1847–1852; `src/game/core.ts` ~730–757).
+`gameAction` ten-rule branch requires `tenRulePending`, compares the acting socket player to `tenRuleChooserIndex()`, and rejects invalid directions. Core `setTenRuleDirection` still does not re-check chooser (server gate is the authority boundary).
 
 **Impact:**  
-Latent rule violation when `currentPlayerIndex` is corrupted (see **Turn Ownership Invariant**); wrong seat can set pile-wide direction.
+Was: wrong seat could set Higher/Lower when turn pointer was stale. Mitigated by server chooser + direction guard.
 
 **Files likely involved:**  
 `server/index.js` (`gameAction`)  
@@ -361,10 +361,10 @@ Latent rule violation when `currentPlayerIndex` is corrupted (see **Turn Ownersh
 
 **Priority:** P2
 
-**Status:** Open
+**Status:** Resolved — server chooser + direction guard (critical-issues integrity patch)
 
 **Notes:**  
-Gameplay Auditor Finding 10 (2026-06-08). Fix is a small server guard; prioritize only if live repro traces here.
+Gameplay Auditor Finding 10 (2026-06-08). Optional follow-up: defend chooser inside `setTenRuleDirection` for local/hot-seat callers.
 
 ---
 
