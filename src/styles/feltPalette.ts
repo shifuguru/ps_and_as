@@ -312,7 +312,8 @@ function buildShellColors(
 ): AppThemeColors {
   const isDark = mode === "dark";
   const environment = environmentProfileForMode(mode);
-  const accent = isDark ? palette.complementBright : palette.complementDim;
+  const accent = isDark ? palette.complementBright : palette.complement;
+  const actionAccent = isDark ? palette.complementBright : palette.complement;
   const ink = shellNeutral(mode, palette.feltHue);
   // Micro-contrast: slightly brighter titles, clearer secondary/muted separation.
   const textPrimary = rgbToHex(ink);
@@ -345,19 +346,19 @@ function buildShellColors(
     inputBg: hexToRgba(frost, isDark ? 0.1 : 0.28),
     inputBorder: hexToRgba(frost, isDark ? 0.16 : 0.18),
     inputText: textPrimary,
-    btnGoldBg: hexToRgba(accent, isDark ? 0.16 : 0.12),
-    btnGoldBorder: hexToRgba(accent, isDark ? 0.28 : 0.24),
+    btnGoldBg: hexToRgba(accent, isDark ? 0.16 : 0.14),
+    btnGoldBorder: hexToRgba(accent, isDark ? 0.28 : 0.28),
     btnGoldText: accent,
     btnSecondaryBg: hexToRgba(frost, isDark ? 0.1 : 0.22),
-    btnSecondaryBorder: hexToRgba(frostLine, glassLine),
+    btnSecondaryBorder: hexToRgba(frostLine, isDark ? glassLine : 0.24),
     btnSecondaryText: isDark ? hexToRgba(frost, 0.9) : textPrimary,
     btnGhostBorder: hexToRgba(frost, isDark ? 0.12 : 0.16),
     btnGhostText: hexToRgba(textPrimary, isDark ? 0.65 : 0.72),
     actionTrackBg: hexToRgba(frost, isDark ? 0.06 : 0.12),
     actionTrackBorder: hexToRgba(frost, isDark ? 0.14 : 0.16),
-    actionPrimaryBg: hexToRgba(accent, isDark ? 0.18 : 0.14),
-    actionPrimaryBorder: hexToRgba(accent, isDark ? 0.32 : 0.26),
-    actionPrimaryText: accent,
+    actionPrimaryBg: hexToRgba(actionAccent, isDark ? 0.18 : 0.18),
+    actionPrimaryBorder: hexToRgba(actionAccent, isDark ? 0.32 : 0.34),
+    actionPrimaryText: actionAccent,
     actionPrimaryDisabledBg: hexToRgba(frost, isDark ? 0.04 : 0.12),
     actionPrimaryDisabledBorder: hexToRgba(frost, isDark ? 0.1 : 0.12),
     actionPrimaryDisabledText: hexToRgba(
@@ -370,8 +371,8 @@ function buildShellColors(
     leaveButtonBg: hexToRgba(frost, isDark ? 0.12 : 0.22),
     leaveButtonBorder: hexToRgba(frostLine, glassLine),
     leaveButtonText: isDark ? hexToRgba(frost, 0.9) : textPrimary,
-    leaveButtonLiveBg: hexToRgba(accent, isDark ? 0.18 : 0.14),
-    leaveButtonLiveBorder: hexToRgba(accent, isDark ? 0.32 : 0.26),
+    leaveButtonLiveBg: hexToRgba(actionAccent, isDark ? 0.18 : 0.18),
+    leaveButtonLiveBorder: hexToRgba(actionAccent, isDark ? 0.32 : 0.34),
     leaveButtonLiveText: isDark ? hexToRgba(frost, 0.88) : textPrimary,
     leaveText: accent,
     modalOverlay: hexToRgba("#000000", isDark ? 0.62 : 0.28),
