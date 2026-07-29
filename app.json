@@ -3,7 +3,7 @@
     "name": "ps_and_as",
     "slug": "ps_and_as",
     "version": "1.1.11",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -18,7 +18,16 @@
         "com.apple.developer.game-center": true
       },
       "infoPlist": {
-        "GKGameCenterUsageDescription": "Sign in to sync your name, achievements, and stats across devices."
+        "GKGameCenterUsageDescription": "Sign in to sync your name, achievements, and stats across devices.",
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait"
+        ],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
       }
     },
     "android": {
@@ -39,7 +48,13 @@
       "baseUrl": "/ps_and_as"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "DEFAULT"
+        }
+      ]
     ]
   }
 }

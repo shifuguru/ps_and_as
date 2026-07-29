@@ -70,8 +70,8 @@ export default function ActionBar({
 }: Props) {
   const { colors } = useAppTheme();
   const isLight = colors.mode === "light";
-  const gold = colors.gold;
-  const goldDim = hexToRgba(gold, isLight ? 0.42 : 0.38);
+  const accent = colors.accent;
+  const accentDim = hexToRgba(accent, isLight ? 0.42 : 0.38);
   const passIdleBg = colors.actionSecondaryBg;
   const passIdleBorder = colors.actionSecondaryBorder;
   const passIdleText = colors.actionSecondaryText;
@@ -81,11 +81,11 @@ export default function ActionBar({
   const leaveBg = colors.leaveButtonLiveBg;
   const leaveBorder = colors.leaveButtonLiveBorder;
   const leaveText = colors.leaveButtonLiveText;
-  const playTurnBgLow = hexToRgba(gold, isLight ? 0.1 : 0.14);
-  const playTurnBgHigh = hexToRgba(gold, isLight ? 0.18 : 0.28);
-  const playTurnBgRest = hexToRgba(gold, isLight ? 0.15 : 0.21);
-  const playReadyBorder = isLight ? hexToRgba(gold, 0.92) : hexToRgba(gold, 1);
-  const playTurnBorderRest = hexToRgba(gold, isLight ? 0.78 : 0.84);
+  const playTurnBgLow = hexToRgba(accent, isLight ? 0.1 : 0.14);
+  const playTurnBgHigh = hexToRgba(accent, isLight ? 0.18 : 0.28);
+  const playTurnBgRest = hexToRgba(accent, isLight ? 0.15 : 0.21);
+  const playReadyBorder = isLight ? hexToRgba(accent, 0.92) : hexToRgba(accent, 1);
+  const playTurnBorderRest = hexToRgba(accent, isLight ? 0.78 : 0.84);
   const passTurnBgLow = isLight
     ? hexToRgba(colors.textPrimary, 0.04)
     : "rgba(255,255,255,0.06)";
@@ -167,7 +167,7 @@ export default function ActionBar({
   const passBorder = showPassFlash
     ? passFlash.interpolate({
         inputRange: [0, 1],
-        outputRange: [goldDim, isLight ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.95)"],
+        outputRange: [accentDim, isLight ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.95)"],
       })
     : passIdleBorder;
 
@@ -183,12 +183,12 @@ export default function ActionBar({
     : isPlayerTurn && !playDisabled
       ? turnIntro.interpolate({
           inputRange: [0, TURN_INTRO_PEAK, 1],
-          outputRange: [goldDim, gold, playTurnBorderRest],
+          outputRange: [accentDim, accent, playTurnBorderRest],
         })
       : playIdleBorder;
 
   const playBackground = playReady
-    ? gold
+    ? accent
     : isPlayerTurn && !playDisabled
       ? turnIntro.interpolate({
           inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
@@ -301,7 +301,7 @@ export default function ActionBar({
                 borderWidth: playReady || playEnabled ? 1.5 : 1,
                 ...(playReady || playEnabled
                   ? Platform.select({
-                      ios: { shadowColor: gold },
+                      ios: { shadowColor: accent },
                       default: {},
                     })
                   : null),

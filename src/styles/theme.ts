@@ -1,10 +1,16 @@
+/**
+ * @deprecated Legacy Art Deco black-and-gold UI theme. Only used by a handful
+ * of old components (Header, BackButton, StartButton, EndGamePanel, MuteButton,
+ * NetworkDebugPanel). New code should use `useAppTheme()` from ThemeContext.
+ * Do not import this for new components.
+ */
 import { StyleSheet } from "react-native";
 import { TextStyle, ViewStyle } from "react-native";
 export const HEADER_OFFSET = 120;
 const colors = {
-  primary: "#0f0f0f", // deeper noir tone
-  secondary: "#f0f0f0", // softer white for better readability
-  accent: "#d4af37", // rich gold (Art Deco vibe)
+  primary: "#0f0f0f",
+  secondary: "#f0f0f0",
+  accent: "#d4af37", // original Art Deco gold — intentional for legacy components
   background: "#000000",
   overlay: "rgba(0,0,0,0.45)",
   buttonBackground: "rgba(20, 20, 20, 0.85)",

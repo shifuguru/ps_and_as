@@ -98,9 +98,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       right: SCROLLBAR_INSET,
       width: SCROLLBAR_WIDTH,
       borderRadius: SCROLLBAR_WIDTH / 2,
-      backgroundColor: hexToRgba(colors.gold, colors.mode === "dark" ? 0.14 : 0.1),
+      backgroundColor: hexToRgba(colors.accent, colors.mode === "dark" ? 0.14 : 0.1),
       borderWidth: 1,
-      borderColor: hexToRgba(colors.gold, colors.mode === "dark" ? 0.38 : 0.28),
+      borderColor: hexToRgba(colors.accent, colors.mode === "dark" ? 0.38 : 0.28),
       zIndex: 20,
       overflow: "hidden",
     },
@@ -108,7 +108,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       width: SCROLLBAR_WIDTH - 2,
       alignSelf: "center",
       borderRadius: (SCROLLBAR_WIDTH - 2) / 2,
-      backgroundColor: colors.gold,
+      backgroundColor: colors.accent,
     },
   });
 }

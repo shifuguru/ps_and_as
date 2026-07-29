@@ -40,8 +40,14 @@
  * - height:100% fighting min-height expansion
  * - overflow:hidden on html (clips the extended paint surface)
  *
- * ::before is a 100lvh fixed wallpaper so texture covers the full display
- * (including home-indicator), not only the layout viewport.
+ * ::before is a fixed wallpaper covering the full display (notch + home
+ * indicator), not only the layout viewport.
+ *
+ * iOS status-bar / Dynamic Island: Safari samples the *document element's*
+ * own background for the translucent status-bar region (same class of bug as
+ * the old flat-green footer). Texture must live on `html` itself — not only
+ * on ::before — or the island/notch band stays solid --ps-felt-tint green.
+ * Experiment notes: src/debug/viewportExperiments.ts (#1 / #2).
  */
 html {
   position: relative !important;
@@ -63,20 +69,38 @@ html {
   min-height: calc(100% + constant(safe-area-inset-top)) !important;
   min-height: calc(100% + env(safe-area-inset-top, 0px)) !important;
   background-color: var(--ps-felt-tint) !important;
-  background-image: none !important; /* painted by ::before at 100lvh */
+  /* Same stack as ::before — Safari status-bar / notch sampling reads this. */
+  background-image:
+    linear-gradient(
+      var(--ps-felt-tint-overlay),
+      var(--ps-felt-tint-overlay)
+    ),
+    var(--ps-felt-texture) !important;
+  background-size: 100% 100%, cover !important;
+  background-position: center center, center center !important;
+  background-repeat: no-repeat, no-repeat !important;
+  background-attachment: scroll, scroll !important;
 }
 
-/* Full-display wallpaper — largest viewport so Home Screen has no footer gap. */
+/* Full-display wallpaper — covers notch + home-indicator beyond 100lvh alone. */
 html::before {
   content: "" !important;
   position: fixed !important;
   left: 0 !important;
   right: 0 !important;
-  top: 0 !important;
+  /* Extend into unsafe top/bottom so island + home indicator sit on texture. */
+  top: calc(0px - constant(safe-area-inset-top)) !important;
+  top: calc(0px - env(safe-area-inset-top, 0px)) !important;
   width: 100% !important;
   height: 100% !important;
   height: 100dvh !important;
   height: 100lvh !important;
+  height: calc(
+    100lvh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom)
+  ) !important;
+  height: calc(
+    100lvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)
+  ) !important;
   min-height: 100% !important;
   min-height: 100dvh !important;
   min-height: 100lvh !important;

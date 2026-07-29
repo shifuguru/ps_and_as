@@ -144,7 +144,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       minWidth: 0,
     },
     label: {
-      color: hexToRgba(colors.textPrimary, 0.95),
+      color: colors.textPrimary,
       fontSize: 14,
       fontWeight: "700",
       textAlign: "center",

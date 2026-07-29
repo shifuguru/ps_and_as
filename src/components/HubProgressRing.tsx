@@ -13,7 +13,7 @@ type Props = {
   children?: React.ReactNode;
 };
 
-/** Gold (or themed) progress ring around hub avatar / achievement art. */
+/** Themed accent progress ring around hub avatar / achievement art. */
 export default function HubProgressRing({
   size,
   progress,
@@ -57,7 +57,7 @@ export default function HubProgressRing({
           strokeWidth={strokeWidth}
           fill="none"
         />
-        <G rotation={-90} origin={`${mid}, ${mid}`}>
+        <G transform={`rotate(-90 ${mid} ${mid})`}>
           <Circle
             cx={mid}
             cy={mid}

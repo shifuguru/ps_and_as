@@ -29,9 +29,9 @@ import ProgressMeter from "../components/ProgressMeter";
 import AppButton from "../components/ui/AppButton";
 import AvatarRewardBorder from "../components/AvatarRewardBorder";
 import KeepLightsOnModal from "../components/KeepLightsOnModal";
+import OnlinePlayersModal from "../components/OnlinePlayersModal";
 import MenuIcon from "../components/MenuIcon";
 import HubProgressRing from "../components/HubProgressRing";
-import HubSuitMotif from "../components/HubSuitMotif";
 import NextAchievementCard from "../components/NextAchievementCard";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
@@ -80,6 +80,7 @@ import {
   type FeaturedStat,
 } from "../services/featuredStat";
 import { triggerHaptic } from "../utils/haptics";
+import type { OnlinePlayer } from "../services/onlinePresence";
 
 const AVATAR_SIZE = 88;
 const RING_SIZE = 112;
@@ -99,6 +100,7 @@ type Props = {
   displayName: string;
   whatsNewUnread?: number;
   onlinePlayerCount?: number;
+  onlinePlayers?: OnlinePlayer[];
   actions: PlayerHubActions;
   onNavigateSound?: () => void;
   style?: StyleProp<ViewStyle>;
@@ -112,6 +114,7 @@ export default function PlayerHub({
   displayName,
   whatsNewUnread = 0,
   onlinePlayerCount = 0,
+  onlinePlayers = [],
   actions,
   onNavigateSound,
   style,
@@ -139,6 +142,7 @@ export default function PlayerHub({
   const [dailyState, setDailyState] = useState<DailyChallengeState | null>(null);
   const [featured, setFeatured] = useState<FeaturedStat | null>(null);
   const [lightsOnOpen, setLightsOnOpen] = useState(false);
+  const [onlinePlayersOpen, setOnlinePlayersOpen] = useState(false);
   const ringPulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -214,7 +218,7 @@ export default function PlayerHub({
     : null;
   const recentAccent = recentRarity
     ? RARITY_COLOR[recentRarity]
-    : colors.gold;
+    : colors.accent;
 
   return (
     <ScreenContainer ignoreHeaderOffset style={[{ flex: 1 }, style]}>
@@ -249,7 +253,6 @@ export default function PlayerHub({
             accessibilityLabel="Open player profile settings"
           >
             <BlurPanel intensity={60} style={[styles.card, styles.identityCard]}>
-              <HubSuitMotif color={colors.gold} opacity={0.12} />
               <View style={styles.identityRow}>
                 <Animated.View
                   style={[
@@ -261,8 +264,8 @@ export default function PlayerHub({
                     size={RING_SIZE}
                     progress={level.fraction}
                     strokeWidth={5}
-                    trackColor={hexToRgba(colors.gold, 0.2)}
-                    fillColor={colors.gold}
+                    trackColor={hexToRgba(colors.accent, 0.2)}
+                    fillColor={colors.accent}
                   >
                     <View style={styles.avatarCore}>
                       {border ? (
@@ -294,7 +297,7 @@ export default function PlayerHub({
                       {displayName || "Player"}
                     </Text>
                     <View style={styles.pencilBtn}>
-                      <MenuIcon name="pencil" size={15} color={colors.gold} />
+                      <MenuIcon name="pencil" size={20} color={colors.accent} />
                     </View>
                   </View>
                   {/* Reserved title slot — titles catalog not shipped yet */}
@@ -352,10 +355,24 @@ export default function PlayerHub({
               />
             </View>
             {onlinePlayerCount > 0 ? (
-              <Text style={styles.onlineHint}>
-                {onlinePlayerCount} player{onlinePlayerCount === 1 ? "" : "s"}{" "}
-                online
-              </Text>
+              <TouchableOpacity
+                style={styles.onlineHintBtn}
+                onPress={() => {
+                  triggerHaptic("light");
+                  setOnlinePlayersOpen(true);
+                }}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={`${onlinePlayerCount} player${
+                  onlinePlayerCount === 1 ? "" : "s"
+                } online`}
+                hitSlop={{ top: 6, bottom: 6, left: 12, right: 12 }}
+              >
+                <Text style={styles.onlineHint}>
+                  {onlinePlayerCount} player{onlinePlayerCount === 1 ? "" : "s"}{" "}
+                  online
+                </Text>
+              </TouchableOpacity>
             ) : null}
           </BlurPanel>
 
@@ -370,7 +387,7 @@ export default function PlayerHub({
               ]}
             >
               <View style={styles.dailyHeader}>
-                <MenuIcon name="calendar" size={16} color={colors.gold} />
+                <MenuIcon name="calendar" size={16} color={colors.accent} />
                 <Text style={[styles.sectionEyebrow, { marginBottom: 0 }]}>
                   Daily Challenge
                 </Text>
@@ -387,7 +404,7 @@ export default function PlayerHub({
                 valueLabel={`${dailyProgress.current} / ${dailyProgress.target}`}
                 style={{ marginTop: 10 }}
                 animated
-                fillColor={dailyDone ? colors.gold : undefined}
+                fillColor={dailyDone ? colors.accent : undefined}
               />
               <Text style={styles.rewardLine}>
                 {dailyDone
@@ -554,7 +571,7 @@ export default function PlayerHub({
                     <Text style={styles.unreadPillText}>{whatsNewUnread}</Text>
                   </View>
                 ) : (
-                  <MenuIcon name="list" size={18} color={colors.gold} />
+                  <MenuIcon name="list" size={18} color={colors.accent} />
                 )}
               </View>
             </BlurPanel>
@@ -585,36 +602,30 @@ export default function PlayerHub({
           </BlurPanel>
 
           <View style={styles.footerNav}>
-            <TouchableOpacity
-              style={styles.navChip}
+            <AppButton
+              label="Settings"
+              icon="gear"
+              variant="secondary"
               onPress={() => run(actions.onOpenSettings)}
-              accessibilityRole="button"
               accessibilityLabel="Settings"
-              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-            >
-              <MenuIcon name="gear" size={15} color={colors.gold} />
-              <Text style={styles.navChipText}>Settings</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.navChip}
+              style={styles.footerNavButton}
+            />
+            <AppButton
+              label="Achievements"
+              icon="trophy"
+              variant="secondary"
               onPress={() => run(actions.onOpenAchievements)}
-              accessibilityRole="button"
               accessibilityLabel="Achievements"
-              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-            >
-              <MenuIcon name="trophy" size={15} color={colors.gold} />
-              <Text style={styles.navChipText}>Achievements</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.navChip}
+              style={styles.footerNavButton}
+            />
+            <AppButton
+              label="Read Me"
+              icon="list"
+              variant="secondary"
               onPress={() => run(actions.onOpenReadMe)}
-              accessibilityRole="button"
               accessibilityLabel="Read Me"
-              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-            >
-              <MenuIcon name="list" size={15} color={colors.gold} />
-              <Text style={styles.navChipText}>Read Me</Text>
-            </TouchableOpacity>
+              style={styles.footerNavButton}
+            />
           </View>
 
           <Text style={styles.versionLabel}>{versionLabel}</Text>
@@ -624,6 +635,12 @@ export default function PlayerHub({
       <KeepLightsOnModal
         visible={lightsOnOpen}
         onClose={() => setLightsOnOpen(false)}
+      />
+      <OnlinePlayersModal
+        visible={onlinePlayersOpen}
+        playerCount={onlinePlayerCount}
+        players={onlinePlayers}
+        onClose={() => setOnlinePlayersOpen(false)}
       />
     </ScreenContainer>
   );
@@ -685,7 +702,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       borderWidth: StyleSheet.hairlineWidth,
       // Slight rim highlight — presence without decoration or fill opacity change.
       borderColor: hexToRgba(
-        colors.gold,
+        colors.accent,
         colors.mode === "dark" ? 0.22 : 0.18,
       ),
       padding: 14,
@@ -702,10 +719,10 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       default: {},
     }) as ViewStyle,
     identityCard: {
-      borderColor: hexToRgba(colors.gold, 0.4),
+      borderColor: hexToRgba(colors.accent, 0.4),
       ...(Platform.select({
         ios: {
-          shadowColor: colors.gold,
+          shadowColor: colors.accent,
           shadowOpacity: 0.28,
           shadowRadius: 14,
           shadowOffset: { width: 0, height: 4 },
@@ -736,12 +753,12 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginBottom: 12,
       padding: 12,
       borderRadius: 14,
-      backgroundColor: hexToRgba(colors.gold, 0.12),
+      backgroundColor: hexToRgba(colors.accent, 0.12),
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.gold, 0.35),
+      borderColor: hexToRgba(colors.accent, 0.35),
     },
     featuredEyebrow: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 10,
       fontWeight: "800",
       letterSpacing: 0.8,
@@ -761,14 +778,14 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginTop: 2,
       marginBottom: 2,
     },
-    dailyDoneCard: {      borderColor: hexToRgba(colors.gold, 0.5),
+    dailyDoneCard: {      borderColor: hexToRgba(colors.accent, 0.5),
     },
     friendsCard: {
       opacity: 0.92,
       borderStyle: "dashed" as const,
     },
     sectionEyebrow: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 11,
       fontWeight: "800",
       letterSpacing: 0.9,
@@ -798,14 +815,14 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       borderRadius: AVATAR_SIZE / 2,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: hexToRgba(colors.gold, 0.2),
+      backgroundColor: hexToRgba(colors.accent, 0.2),
     },
     avatarBare: {
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.gold, 0.45),
+      borderColor: hexToRgba(colors.accent, 0.45),
     },
     avatarText: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 24,
       fontWeight: "800",
     },
@@ -817,14 +834,14 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       height: 24,
       paddingHorizontal: 7,
       borderRadius: 999,
-      backgroundColor: colors.gold,
+      backgroundColor: colors.accent,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 2,
-      borderColor: hexToRgba(colors.textOnGold, 0.35),
+      borderColor: hexToRgba(colors.textOnAccent, 0.35),
     },
     levelBadgeText: {
-      color: colors.textOnGold,
+      color: colors.textOnAccent,
       fontSize: 12,
       fontWeight: "900",
     },
@@ -841,12 +858,12 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "800",
     },
     pencilBtn: {
-      padding: 6,
+      padding: 8,
       borderRadius: 999,
-      backgroundColor: hexToRgba(colors.gold, 0.14),
+      backgroundColor: hexToRgba(colors.accent, 0.14),
     },
     titleSlot: {
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 13,
       fontWeight: "600",
       fontStyle: "italic",
@@ -857,13 +874,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       opacity: 0,
     },
     identityMeta: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 13,
       fontWeight: "700",
       marginTop: 2,
     },
     careerXp: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 15,
       fontWeight: "800",
       marginTop: 2,
@@ -900,18 +917,18 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: 999,
-      backgroundColor: hexToRgba(colors.gold, 0.18),
+      backgroundColor: hexToRgba(colors.accent, 0.18),
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.gold, 0.4),
+      borderColor: hexToRgba(colors.accent, 0.4),
     },
     rewardChipText: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 12,
       fontWeight: "800",
     },
     rewardLine: {
       marginTop: 8,
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 12,
       fontWeight: "700",
     },
@@ -924,12 +941,18 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     primaryCta: { marginBottom: 10 },
     secondaryRow: { flexDirection: "row", gap: 8 },
-    onlineHint: {
+    onlineHintBtn: {
       marginTop: 10,
+      alignSelf: "center",
+      minHeight: 44,
+      justifyContent: "center",
+      paddingHorizontal: 8,
+    },
+    onlineHint: {
       textAlign: "center",
-      color: colors.textSecondary,
+      color: colors.accent,
       fontSize: 12,
-      fontWeight: "600",
+      fontWeight: "700",
     },
     unlockRow: {
       flexDirection: "row",
@@ -939,13 +962,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     unlockEmoji: { fontSize: 40, lineHeight: 48 },
     unlockBody: { flex: 1, minWidth: 0, gap: 3 },
     unlockTitle: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 20,
       fontWeight: "800",
     },
     unlockAge: {
       marginTop: 4,
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 12,
       fontWeight: "700",
     },
@@ -970,14 +993,14 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontVariant: ["tabular-nums"],
     },
     statLabel: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 11,
       fontWeight: "600",
       marginTop: 2,
     },
     linkBtn: { marginTop: 10, alignSelf: "flex-start" },
     linkBtnText: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 13,
       fontWeight: "700",
     },
@@ -991,12 +1014,12 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       height: 22,
       paddingHorizontal: 6,
       borderRadius: 999,
-      backgroundColor: colors.gold,
+      backgroundColor: colors.accent,
       alignItems: "center",
       justifyContent: "center",
     },
     unreadPillText: {
-      color: colors.textOnGold,
+      color: colors.textOnAccent,
       fontSize: 11,
       fontWeight: "800",
     },
@@ -1011,7 +1034,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       gap: 8,
     },
     supportHeart: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 18,
       fontWeight: "700",
       lineHeight: 22,
@@ -1024,7 +1047,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       flex: 1,
     },
     supportBody: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 13,
       fontWeight: "600",
       lineHeight: 19,
@@ -1038,28 +1061,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       justifyContent: "center",
       alignItems: "stretch",
       flexWrap: "wrap",
-      gap: 8,
-      marginTop: 2,
+      gap: 10,
+      marginTop: 4,
     },
-    navChip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      paddingVertical: 9,
-      paddingHorizontal: 12,
-      borderRadius: 999,
-      backgroundColor: hexToRgba(
-        colors.mode === "dark" ? "#0a1a12" : "#ffffff",
-        0.28,
-      ),
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.gold, 0.28),
-    },
-    navChipText: {
-      color: colors.textPrimary,
-      fontSize: 12,
-      fontWeight: "700",
-      letterSpacing: 0.15,
+    footerNavButton: {
+      minWidth: 140,
+      flexGrow: 1,
+      flexBasis: 0,
     },
     versionLabel: {
       fontSize: 11,

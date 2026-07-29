@@ -61,10 +61,10 @@ export default function Card({
   const darkModeCards = useDarkModeCards();
   const { colors } = useAppTheme();
   const faceColors = getCardFaceColors(darkModeCards, disabled);
-  /** Felt-theme accent — selection / highlight rim follows the table, not fixed gold. */
+  /** Felt-theme accent — selection / highlight rim follows the table, not fixed colour. */
   const accentBorder = useMemo(
-    () => hexToRgba(colors.gold, 0.88),
-    [colors.gold],
+    () => hexToRgba(colors.accent, 0.88),
+    [colors.accent],
   );
   const idleBorder = darkModeCards
     ? "rgba(255,255,255,0.14)"

@@ -194,7 +194,7 @@ export default function GameplayHud({
                 accessibilityLabel="Achievements and statistics"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <MenuIcon name="trophy" size={16} color={colors.gold} />
+                <MenuIcon name="trophy" size={16} color={colors.accent} />
               </TouchableOpacity>
             ) : null}
             {onOpenSettings ? (
@@ -205,7 +205,7 @@ export default function GameplayHud({
                 accessibilityLabel="Settings"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <MenuIcon name="gear" size={16} color={colors.gold} />
+                <MenuIcon name="gear" size={16} color={colors.accent} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -304,7 +304,7 @@ function createStyles(
       alignItems: "center",
       justifyContent: "center",
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.gold, 0.35),
+      borderColor: hexToRgba(colors.accent, 0.35),
       backgroundColor: hexToRgba(
         colors.mode === "dark" ? "#0a1a12" : "#ffffff",
         0.28,

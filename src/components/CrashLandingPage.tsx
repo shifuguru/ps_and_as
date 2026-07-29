@@ -37,7 +37,7 @@ export default function CrashLandingPage({ error, onRefresh }: Props) {
           paddingHorizontal: 16,
         },
         refreshText: {
-          color: colors.gold,
+          color: colors.accent,
           fontSize: 16,
           textDecorationLine: "underline",
         },
@@ -68,7 +68,7 @@ export default function CrashLandingPage({ error, onRefresh }: Props) {
         },
         devError: {
           marginTop: 20,
-          color: colors.textMuted,
+          color: colors.textTertiary,
           fontSize: 11,
           lineHeight: 16,
           fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
@@ -114,7 +114,7 @@ export default function CrashLandingPage({ error, onRefresh }: Props) {
         showsVerticalScrollIndicator
       >
         {!markdown && !loadError ? (
-          <ActivityIndicator color={colors.gold} size="large" style={styles.loader} />
+          <ActivityIndicator color={colors.accent} size="large" style={styles.loader} />
         ) : null}
         {loadError ? (
           <Text style={styles.errorText}>

@@ -90,7 +90,6 @@ export default function Settings({
   const [playerName, setPlayerName] = useState("");
   const [savedName, setSavedName] = useState("");
   const [previewTint, setPreviewTint] = useState(DEFAULT_FELT_COLOR);
-  const [hexInput, setHexInput] = useState("");
   const [feltPickerOpen, setFeltPickerOpen] = useState(false);
   const [onlineGuest, setOnlineGuest] = useState(false);
   const [addToHomeOpen, setAddToHomeOpen] = useState(false);
@@ -119,7 +118,6 @@ export default function Settings({
       setSavedName(info.displayName);
       const resolvedTint = tint ?? DEFAULT_FELT_COLOR;
       setPreviewTint(resolvedTint);
-      setHexInput(resolvedTint.replace(/^#/, "").slice(0, 6));
     })();
   }, []);
 
@@ -159,31 +157,9 @@ export default function Settings({
     const normalized = normalizeHexColor(hex);
     if (!normalized) return;
     setPreviewTint(normalized);
-    setHexInput(normalized.replace(/^#/, ""));
     setFeltTint(normalized);
     onWallpaperPreview?.(normalized);
     void persistFeltColor(normalized);
-  };
-
-  const handleResetFeltColor = async () => {
-    await setWallpaperTint(null);
-    setPreviewTint(DEFAULT_FELT_COLOR);
-    setHexInput(DEFAULT_FELT_COLOR.replace(/^#/, ""));
-    onWallpaperPreview?.(DEFAULT_FELT_COLOR);
-    setFeltTint(DEFAULT_FELT_COLOR);
-    onWallpaperChange?.();
-  };
-
-  const handleHexInputChange = (text: string) => {
-    const cleaned = text.replace(/[^0-9a-fA-F]/g, "").slice(0, 6);
-    setHexInput(cleaned);
-    const normalized = normalizeHexColor(cleaned);
-    if (normalized) {
-      setPreviewTint(normalized);
-      setFeltTint(normalized);
-      onWallpaperPreview?.(normalized);
-      void persistFeltColor(normalized);
-    }
   };
 
   const handleBack = async () => {
@@ -233,7 +209,7 @@ export default function Settings({
               onBlur={() => void handleSaveName()}
               onSubmitEditing={() => void handleSaveName()}
               placeholder="Enter Your Name"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={colors.textQuaternary}
               maxLength={20}
               autoCapitalize="words"
               autoCorrect={false}
@@ -325,51 +301,42 @@ export default function Settings({
                 {FELT_PRESETS.map((preset) => (
                   <TouchableOpacity
                     key={preset.hex}
-                    onPress={() => updatePreview(preset.hex)}
+                    onPress={() => {
+                      setFeltPickerOpen(false);
+                      updatePreview(preset.hex);
+                    }}
                     accessibilityLabel={preset.name}
                     style={[
                       styles.swatch,
                       { backgroundColor: preset.hex },
-                      previewTintNormalized === preset.hex && styles.swatchSelected,
+                      previewTintNormalized === preset.hex &&
+                        !feltPickerOpen &&
+                        styles.swatchSelected,
                     ]}
                   />
                 ))}
-              </View>
-              <View style={styles.hexInputRow}>
-                <View style={styles.hexInputWrap}>
-                  <Text style={styles.hexPrefix}>#</Text>
-                  <TextInput
-                    placeholder="rrggbb"
-                    placeholderTextColor={colors.textMuted}
-                    value={hexInput}
-                    onChangeText={handleHexInputChange}
-                    style={[ui.input, styles.hexInputField]}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    maxLength={6}
-                    keyboardType="default"
-                  />
-                </View>
                 <TouchableOpacity
                   style={[
-                    styles.pickerToggle,
-                    feltPickerOpen && styles.pickerToggleActive,
+                    styles.swatch,
+                    styles.pickerSwatch,
+                    feltPickerOpen && styles.swatchSelected,
+                    feltPickerOpen && styles.pickerSwatchActive,
                   ]}
                   onPress={() => setFeltPickerOpen((open) => !open)}
                   accessibilityRole="button"
-                  accessibilityLabel="Open felt color picker"
+                  accessibilityLabel="Custom felt color picker"
                   activeOpacity={0.85}
                 >
                   <View
                     style={[
-                      styles.pickerToggleSwatch,
+                      styles.pickerSwatchFill,
                       { backgroundColor: previewTintNormalized },
                     ]}
                   />
                   <MenuIcon
                     name="palette"
                     size={18}
-                    color={feltPickerOpen ? colors.textOnGold : colors.gold}
+                    color={feltPickerOpen ? colors.textOnAccent : colors.accent}
                   />
                 </TouchableOpacity>
               </View>
@@ -382,9 +349,18 @@ export default function Settings({
               ) : null}
               <TouchableOpacity
                 style={[ui.btnGhost, { marginTop: 10 }]}
-                onPress={() => void handleResetFeltColor()}
+                onPress={() => setFeltPickerOpen((open) => !open)}
+                accessibilityRole="button"
+                accessibilityLabel="Customise Theme"
               >
-                <Text style={ui.btnGhostText}>Reset Felt Color</Text>
+                <View style={styles.customiseThemeRow}>
+                  <MenuIcon
+                    name="palette"
+                    size={18}
+                    color={colors.accent}
+                  />
+                  <Text style={ui.btnGhostText}>Customise Theme</Text>
+                </View>
               </TouchableOpacity>
             </View>
 
@@ -399,7 +375,7 @@ export default function Settings({
                   onValueChange={(value) => void setDarkModeCards(value)}
                   trackColor={{
                     false: colors.panelBorder,
-                    true: colors.gold,
+                    true: colors.accent,
                   }}
                   thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
                   accessibilityLabel="Dark mode cards"
@@ -481,29 +457,29 @@ export default function Settings({
             <View style={styles.settingBlock}>
               <View style={styles.settingHeaderRow}>
                 <Text style={[styles.settingLabel, styles.settingLabelInline]}>
-                  Skip deal animations
+                  Enable Deal Animations
                 </Text>
                 <View style={styles.settingHeaderSpacer} />
-                <Text style={styles.betaWarning}>Warning: Beta</Text>
+                <Text style={styles.betaWarning}>Beta</Text>
                 <Switch
-                  value={skipDealAnimations}
-                  onValueChange={(value) => {
-                    void setSkipDealAnimations(value);
-                    onSkipDealAnimationsChange?.(value);
+                  value={!skipDealAnimations}
+                  onValueChange={(enabled) => {
+                    void setSkipDealAnimations(!enabled);
+                    onSkipDealAnimationsChange?.(!enabled);
                   }}
                   disabled={onlineGuest}
                   trackColor={{
                     false: colors.panelBorder,
-                    true: colors.gold,
+                    true: colors.accent,
                   }}
                   thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
-                  accessibilityLabel="Skip deal animations"
+                  accessibilityLabel="Enable deal animations"
                 />
               </View>
               <Text style={[styles.tintHint, styles.settingHint]}>
                 {onlineGuest
                   ? "Controlled by the host in online games."
-                  : "Skip the shuffle and deal — President/Asshole trades still play out."}
+                  : "Shuffle and deal animations are experimental. Off by default."}
               </Text>
             </View>
           </BlurPanel>
@@ -579,15 +555,15 @@ function createSegmentStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       ...BUTTON_CENTER,
     },
     segmentSelected: {
-      backgroundColor: colors.btnGoldBg,
-      borderColor: colors.btnGoldBorder,
+      backgroundColor: colors.btnAccentBg,
+      borderColor: colors.btnAccentBorder,
     },
     segmentText: buttonLabel(13, {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontWeight: "700",
     }),
     segmentTextSelected: {
-      color: colors.btnGoldText,
+      color: colors.btnAccentText,
     },
   });
 }
@@ -608,9 +584,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: colors.btnGoldBg,
+    backgroundColor: colors.btnAccentBg,
     borderWidth: 2,
-    borderColor: colors.btnGoldBorder,
+    borderColor: colors.btnAccentBorder,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -630,13 +606,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     fontWeight: "700",
   },
   profileHint: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 12,
     marginTop: 2,
     fontWeight: "600",
   },
   autoSaveHint: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: "600",
   },
@@ -649,19 +625,19 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     ...BUTTON_CENTER,
   },
   saveBtnActive: {
-    backgroundColor: colors.gold,
-    borderColor: colors.gold,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   saveBtnText: buttonLabel(14, {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontWeight: "800",
     letterSpacing: 0.2,
   }),
   saveBtnTextActive: {
-    color: colors.textOnGold,
+    color: colors.textOnAccent,
   },
   tintHint: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 12,
@@ -679,7 +655,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     borderTopColor: colors.panelBorder,
   },
   subsectionEyebrow: {
-    color: colors.textMuted,
+    color: colors.textTertiary,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1.1,
@@ -766,7 +742,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     borderColor: colors.panelBorder,
   },
   paletteLabel: {
-    color: colors.textMuted,
+    color: colors.textTertiary,
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 0.2,
@@ -774,70 +750,51 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   },
   swatchRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+    alignItems: "stretch",
+    justifyContent: "space-between",
+    gap: 10,
+    width: "100%",
     marginBottom: 12,
   },
   swatch: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    flex: 1,
+    aspectRatio: 1,
+    minWidth: 0,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: "transparent",
   },
   swatchSelected: {
     borderColor: colors.textPrimary,
   },
-  hexInputRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 10,
-  },
-  hexInputWrap: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.inputBg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.inputBorder,
-    borderRadius: 12,
-    paddingLeft: 14,
-    paddingRight: 10,
-  },
-  pickerToggle: {
-    width: 52,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.panelBorder,
-    backgroundColor: colors.btnSecondaryBg,
+  pickerSwatch: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
-    paddingVertical: 6,
-  },
-  pickerToggleActive: {
-    backgroundColor: colors.gold,
-    borderColor: colors.gold,
-  },
-  pickerToggleSwatch: {
-    width: 22,
-    height: 14,
-    borderRadius: 4,
+    gap: 2,
+    backgroundColor: colors.btnSecondaryBg,
+    borderColor: colors.panelBorder,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.35)",
+    overflow: "hidden",
   },
-  hexPrefix: {
-    color: colors.gold,
-    fontSize: 16,
-    fontWeight: "700",
-    marginRight: 2,
+  pickerSwatchActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
-  hexInputField: {
-    flex: 1,
-    backgroundColor: "transparent",
-    borderWidth: 0,
-    paddingHorizontal: 0,
-    paddingVertical: 12,
+  pickerSwatchFill: {
+    position: "absolute",
+    left: 5,
+    right: 5,
+    top: 5,
+    bottom: 5,
+    borderRadius: 8,
+    opacity: 0.45,
+  },
+  customiseThemeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    width: "100%",
   },
   });
 }

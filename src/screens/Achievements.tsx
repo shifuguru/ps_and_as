@@ -100,7 +100,7 @@ export default function Achievements({
     return (
       <ScreenContainer ignoreHeaderOffset style={styles.loadingRoot}>
         <View style={styles.loadingCenter}>
-          <ActivityIndicator size="large" color={colors.gold} />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.loadingText}>Loading Profile…</Text>
         </View>
         <BottomBar>
@@ -281,7 +281,7 @@ export default function Achievements({
                     <Text
                       style={[
                         styles.achievementStatus,
-                        { color: earned ? accent : colors.textMuted },
+                        { color: earned ? accent : colors.textTertiary },
                       ]}
                     >
                       {formatAchievementPrestige(prestige)}
@@ -427,9 +427,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       width: 52,
       height: 52,
       borderRadius: 26,
-      backgroundColor: colors.btnGoldBg,
+      backgroundColor: colors.btnAccentBg,
       borderWidth: 2,
-      borderColor: colors.btnGoldBorder,
+      borderColor: colors.btnAccentBorder,
       alignItems: "center",
       justifyContent: "center",
       marginRight: 12,
@@ -449,7 +449,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "700",
     },
     profileHint: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 12,
       marginTop: 2,
       fontWeight: "600",
@@ -473,7 +473,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       borderColor: colors.panelBorder,
     },
     statLabel: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 10,
       fontWeight: "700",
       letterSpacing: 0.2,
@@ -579,7 +579,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       color: colors.textSecondary,
     },
     achievementDesc: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 11,
       marginTop: 2,
     },
@@ -589,7 +589,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginTop: 4,
     },
     achievementTotal: {
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 10,
       fontWeight: "500",
       marginTop: 2,

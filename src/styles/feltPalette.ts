@@ -175,7 +175,16 @@ function buildSeatColors(feltHue: number, feltSat: number): string[] {
 
 export function deriveFeltPalette(feltHex: string): FeltPalette {
   const felt = hexToRgb(feltHex) ?? hexToRgb(DEFAULT_FELT_COLOR)!;
-  const { h: feltHue, s: feltSat, l: feltLight } = rgbToHsl(felt);
+  const parsed = rgbToHsl(felt);
+  // Black/gray hexes report h=0 (red). Keep the normal accent/highlight lift
+  // (sat floors below) but borrow the default felt hue when chroma is gone so
+  // UI chrome does not falsely go reddish.
+  const feltHue =
+    parsed.s < 0.5
+      ? rgbToHsl(hexToRgb(DEFAULT_FELT_COLOR)!).h
+      : parsed.h;
+  const feltSat = parsed.s;
+  const feltLight = parsed.l;
 
   const accentSat = clamp(feltSat * 0.72, 22, 68);
   const complementDim = monoTone(feltHue, clamp(feltSat * 0.85, 28, 72), clamp(feltLight + 14, 28, 42));
@@ -260,12 +269,11 @@ export function computeOnFeltColors(
   const palette = deriveFeltPalette(feltHex);
   const accent =
     variant === "light" ? palette.complementBright : palette.complementDim;
+  const text = buildOnFeltTextScale(palette.feltHue, variant);
 
   if (variant === "light") {
     return {
-      textPrimary: tintedNeutral(palette.feltHue, "light"),
-      textSecondary: tintedNeutral(palette.feltHue, "light", 0.88),
-      textMuted: tintedNeutral(palette.feltHue, "light", 0.55),
+      ...text,
       accent,
       leaveText: accent,
       textShadow: "rgba(0, 0, 0, 0.42)",
@@ -275,9 +283,7 @@ export function computeOnFeltColors(
   }
 
   return {
-    textPrimary: tintedNeutral(palette.feltHue, "dark"),
-    textSecondary: tintedNeutral(palette.feltHue, "dark", 0.88),
-    textMuted: tintedNeutral(palette.feltHue, "dark", 0.55),
+    ...text,
     accent,
     leaveText: accent,
     // Halo shadow keeps ink color but reads darker / bolder on light felts.
@@ -297,12 +303,90 @@ export function computeOnFeltFromPreferences(
   );
 }
 
+/**
+ * Clamp a hex colour's relative luminance to at most `maxL` while preserving
+ * its hue and saturation. Used by colour-audit tooling and accent safe-zone checks.
+ */
+export function clampLuminance(hex: string, maxL: number): string {
+  const currentL = relativeLuminance(hex);
+  if (currentL <= maxL) return hex;
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const { h, s, l: hslL } = rgbToHsl(rgb);
+  // Binary search: lower HSL lightness until relative luminance <= maxL.
+  let lo = 0;
+  let hi = hslL;
+  let result = hex;
+  for (let i = 0; i < 20; i++) {
+    const mid = (lo + hi) / 2;
+    const candidate = hslToHex(h, s, mid);
+    if (relativeLuminance(candidate) <= maxL) {
+      lo = mid;
+      result = candidate;
+    } else {
+      hi = mid;
+    }
+  }
+  return result;
+}
+
+/**
+ * Maximum relative luminance for an accent colour used as text on a light
+ * glass surface (~L 0.72). Guarantees ≥ 3.0 contrast ratio.
+ * (0.72 + 0.05) / (0.18 + 0.05) = 3.35
+ */
+const MAX_ACCENT_TEXT_LUMINANCE_LIGHT = 0.18;
+
 function shellNeutral(mode: ThemeMode, feltHue: number): Rgb {
   return hslToRgb({
     h: feltHue,
-    s: mode === "dark" ? 6 : 8,
-    l: mode === "dark" ? 97 : 11,
+    // Light shell ink stays near-neutral — felt hue belongs on the table / accents.
+    s: mode === "dark" ? 6 : 2,
+    l: mode === "dark" ? 97 : 12,
   });
+}
+
+type ShellTextScale = {
+  textPrimary: string;
+  textSecondary: string;
+  textTertiary: string;
+  textQuaternary: string;
+  textMuted: string;
+};
+
+/** Semantic shell text hierarchy — same roles in light and dark, tuned per mode. */
+function buildShellTextScale(textPrimary: string, isDark: boolean): ShellTextScale {
+  const textSecondary = hexToRgba(textPrimary, isDark ? 0.88 : 0.78);
+  // Light mode tertiary raised slightly (0.60) so small labels don't disappear on light glass.
+  const textTertiary = hexToRgba(textPrimary, isDark ? 0.62 : 0.60);
+  const textQuaternary = hexToRgba(textPrimary, isDark ? 0.42 : 0.38);
+  return {
+    textPrimary,
+    textSecondary,
+    textTertiary,
+    textQuaternary,
+    textMuted: textTertiary,
+  };
+}
+
+function buildOnFeltTextScale(
+  feltHue: number,
+  variant: "light" | "dark",
+): Pick<
+  FeltTextColors,
+  "textPrimary" | "textSecondary" | "textTertiary" | "textQuaternary" | "textMuted"
+> {
+  const textPrimary = tintedNeutral(feltHue, variant);
+  const textSecondary = tintedNeutral(feltHue, variant, 0.88);
+  const textTertiary = tintedNeutral(feltHue, variant, 0.62);
+  const textQuaternary = tintedNeutral(feltHue, variant, 0.42);
+  return {
+    textPrimary,
+    textSecondary,
+    textTertiary,
+    textQuaternary,
+    textMuted: textTertiary,
+  };
 }
 
 function buildShellColors(
@@ -312,12 +396,21 @@ function buildShellColors(
 ): AppThemeColors {
   const isDark = mode === "dark";
   const environment = environmentProfileForMode(mode);
-  const accent = isDark ? palette.complementBright : palette.complementDim;
+  /**
+   * Shell chrome accent (icons, eyebrows, borders):
+   * - Dark: bright lift over dark glass
+   * - Light: deep complementDim — mid/bright felt lifts are unreadable on pale glass
+   */
+  const accent = isDark
+    ? palette.complementBright
+    : palette.complementDim;
+  /** Primary CTA fill. Light mode uses solid dark fill + white label (not pastel text). */
+  const actionFill = isDark ? palette.complementBright : palette.complementDim;
   const ink = shellNeutral(mode, palette.feltHue);
-  // Micro-contrast: slightly brighter titles, clearer secondary/muted separation.
-  const textPrimary = rgbToHex(ink);
-  const textSecondary = hexToRgba(textPrimary, isDark ? 0.9 : 0.86);
-  const textMuted = hexToRgba(textPrimary, isDark ? 0.5 : 0.62);
+  const text = buildShellTextScale(rgbToHex(ink), isDark);
+  const { textPrimary, textSecondary, textTertiary, textQuaternary, textMuted } =
+    text;
+  const textOnPrimary = "#FFFFFF";
 
   const surface = isDark
     ? hslToHex(palette.feltHue, 12, 7)
@@ -332,53 +425,75 @@ function buildShellColors(
   // Edge highlight — slight separation from felt without raising fill opacity.
   const glassLine = isDark ? 0.16 : 0.2;
 
+  const btnAccentBg = isDark
+    ? hexToRgba(accent, 0.16)
+    : hexToRgba(actionFill, 0.92);
+  const btnAccentBorder = isDark
+    ? hexToRgba(accent, 0.28)
+    : hexToRgba(actionFill, 1);
+  const btnAccentText = isDark ? accent : textOnPrimary;
+  const textOnAccent = textOnPrimary;
+
   return {
     mode,
     onFelt,
+    accent,
+    // Deprecated aliases — remove usages and then delete these.
     gold: accent,
     textPrimary,
     textSecondary,
+    textTertiary,
+    textQuaternary,
     textMuted,
-    textOnGold: "#FFFFFF",
+    textOnAccent,
+    textOnGold: textOnAccent,
     panelBorder: hexToRgba(frostLine, glassLine),
     // Translucent glass fills — never approach card-face brightness.
     inputBg: hexToRgba(frost, isDark ? 0.1 : 0.28),
     inputBorder: hexToRgba(frost, isDark ? 0.16 : 0.18),
     inputText: textPrimary,
-    btnGoldBg: hexToRgba(accent, isDark ? 0.16 : 0.12),
-    btnGoldBorder: hexToRgba(accent, isDark ? 0.28 : 0.24),
-    btnGoldText: accent,
+    btnAccentBg,
+    btnGoldBg: btnAccentBg,
+    btnAccentBorder,
+    btnGoldBorder: btnAccentBorder,
+    btnAccentText,
+    btnGoldText: btnAccentText,
     btnSecondaryBg: hexToRgba(frost, isDark ? 0.1 : 0.22),
     btnSecondaryBorder: hexToRgba(frostLine, glassLine),
     btnSecondaryText: isDark ? hexToRgba(frost, 0.9) : textPrimary,
     btnGhostBorder: hexToRgba(frost, isDark ? 0.12 : 0.16),
-    btnGhostText: hexToRgba(textPrimary, isDark ? 0.65 : 0.72),
+    btnGhostText: textTertiary,
     actionTrackBg: hexToRgba(frost, isDark ? 0.06 : 0.12),
     actionTrackBorder: hexToRgba(frost, isDark ? 0.14 : 0.16),
-    actionPrimaryBg: hexToRgba(accent, isDark ? 0.18 : 0.14),
-    actionPrimaryBorder: hexToRgba(accent, isDark ? 0.32 : 0.26),
-    actionPrimaryText: accent,
+    actionPrimaryBg: isDark
+      ? hexToRgba(actionFill, 0.18)
+      : hexToRgba(actionFill, 0.92),
+    actionPrimaryBorder: isDark
+      ? hexToRgba(actionFill, 0.32)
+      : hexToRgba(actionFill, 1),
+    actionPrimaryText: isDark ? actionFill : textOnPrimary,
     actionPrimaryDisabledBg: hexToRgba(frost, isDark ? 0.04 : 0.12),
     actionPrimaryDisabledBorder: hexToRgba(frost, isDark ? 0.1 : 0.12),
-    actionPrimaryDisabledText: hexToRgba(
-      textPrimary,
-      isDark ? 0.35 : 0.42,
-    ),
+    actionPrimaryDisabledText: textQuaternary,
     actionSecondaryBg: hexToRgba(frost, isDark ? 0.06 : 0.16),
     actionSecondaryBorder: hexToRgba(frostLine, glassLine),
     actionSecondaryText: isDark ? hexToRgba(frost, 0.88) : textPrimary,
     leaveButtonBg: hexToRgba(frost, isDark ? 0.12 : 0.22),
     leaveButtonBorder: hexToRgba(frostLine, glassLine),
     leaveButtonText: isDark ? hexToRgba(frost, 0.9) : textPrimary,
-    leaveButtonLiveBg: hexToRgba(accent, isDark ? 0.18 : 0.14),
-    leaveButtonLiveBorder: hexToRgba(accent, isDark ? 0.32 : 0.26),
-    leaveButtonLiveText: isDark ? hexToRgba(frost, 0.88) : textPrimary,
+    leaveButtonLiveBg: isDark
+      ? hexToRgba(actionFill, 0.18)
+      : hexToRgba(actionFill, 0.92),
+    leaveButtonLiveBorder: isDark
+      ? hexToRgba(actionFill, 0.32)
+      : hexToRgba(actionFill, 1),
+    leaveButtonLiveText: isDark ? hexToRgba(frost, 0.88) : textOnPrimary,
     leaveText: accent,
     modalOverlay: hexToRgba("#000000", isDark ? 0.62 : 0.28),
     modalBorder: hexToRgba(frostLine, glassLine),
     modalBody: textPrimary,
     emptyTitle: hexToRgba(textPrimary, 0.96),
-    emptyBody: hexToRgba(textPrimary, isDark ? 0.52 : 0.6),
+    emptyBody: textTertiary,
     surface,
     feltWash: "transparent",
     fullscreenScrim: hexToRgba(surface, isDark ? 0.58 : 0.32),

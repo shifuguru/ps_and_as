@@ -15,6 +15,9 @@ export type { EnvironmentProfile };
 export type FeltTextColors = {
   textPrimary: string;
   textSecondary: string;
+  textTertiary: string;
+  textQuaternary: string;
+  /** @deprecated Use `textTertiary`. */
   textMuted: string;
   accent: string;
   leaveText: string;
@@ -27,18 +30,31 @@ export type AppThemeColors = {
   mode: ThemeMode;
   /** Text colors tuned for readability on the current felt tint. */
   onFelt: FeltTextColors;
-  /** Primary accent — monochrome lift of the felt hue (`colors.gold` legacy name). */
+  /** Primary accent — felt-hue complement, constrained for text legibility. */
+  accent: string;
+  /** @deprecated Use `accent`. */
   gold: string;
   textPrimary: string;
   textSecondary: string;
+  textTertiary: string;
+  textQuaternary: string;
+  /** @deprecated Use `textTertiary`. */
   textMuted: string;
+  textOnAccent: string;
+  /** @deprecated Use `textOnAccent`. */
   textOnGold: string;
   panelBorder: string;
   inputBg: string;
   inputBorder: string;
   inputText: string;
+  btnAccentBg: string;
+  /** @deprecated Use `btnAccentBg`. */
   btnGoldBg: string;
+  btnAccentBorder: string;
+  /** @deprecated Use `btnAccentBorder`. */
   btnGoldBorder: string;
+  btnAccentText: string;
+  /** @deprecated Use `btnAccentText`. */
   btnGoldText: string;
   btnSecondaryBg: string;
   btnSecondaryBorder: string;
@@ -83,9 +99,6 @@ export type AppThemeColors = {
     modal: BlurPreset;
   };
 };
-
-/** @deprecated Use theme accent via `colors.gold` — kept for legacy imports. */
-export const GOLD = "#0A84FF";
 
 export {
   buildAppTheme,

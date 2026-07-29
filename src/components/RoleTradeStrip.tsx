@@ -79,7 +79,7 @@ function TradeCardSlot({
 
   return (
     <View style={styles.slotWrap}>
-      <Text style={[styles.arrow, { color: colors.gold }]}>
+      <Text style={[styles.arrow, { color: colors.accent }]}>
         {arrow === "up" ? "↑" : "↓"}
       </Text>
       <View
@@ -104,7 +104,7 @@ function TradeCardSlot({
           </View>
         )}
       </View>
-      <Text style={[styles.slotLabel, { color: colors.textMuted }]} numberOfLines={1}>
+      <Text style={[styles.slotLabel, { color: colors.textSecondary }]} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -157,7 +157,7 @@ export default function RoleTradeStrip({
 
   return (
     <View style={[styles.row, ui.panel, { borderColor: colors.panelBorder }]}>
-      <Text style={[styles.title, { color: colors.gold }]}>
+      <Text style={[styles.title, { color: colors.accent }]}>
         {trade.key === "president" ? "👑 President Trade" : "⭐ VP Trade"}
       </Text>
       <View style={styles.cardsRow}>
@@ -178,16 +178,16 @@ export default function RoleTradeStrip({
         />
       </View>
       {isWinner ? (
-        <Text style={[styles.hint, { color: colors.textMuted }]}>
+        <Text style={[styles.hint, { color: colors.textSecondary }]}>
           Asshole must give their highest card
           {trade.returnCount > 1 ? "s" : ""}. Pick any {trade.returnCount} to return.
         </Text>
       ) : isLoser ? (
-        <Text style={[styles.hint, { color: colors.textMuted }]}>
+        <Text style={[styles.hint, { color: colors.textSecondary }]}>
           Your highest card{trade.incoming.length > 1 ? "s" : ""} go to {trade.winnerName}.
         </Text>
       ) : (
-        <Text style={[styles.hint, { color: colors.textMuted }]}>
+        <Text style={[styles.hint, { color: colors.textSecondary }]}>
           {trade.winnerName} chooses return cards from {trade.loserName}.
         </Text>
       )}

@@ -1,7 +1,7 @@
 import { themeForMode } from "./themeColors";
 import { createUiStyles } from "./createUiStyles";
 
-export { GOLD, buildAppTheme, themeForMode, type AppThemeColors, type ThemeMode } from "./themeColors";
+export { buildAppTheme, themeForMode, type AppThemeColors, type ThemeMode } from "./themeColors";
 export { createUiStyles, type UiStyles } from "./createUiStyles";
 
 export function contentMaxWidth(

@@ -101,7 +101,7 @@ export default function LastHandRevealOverlay({
             {
               width: cardWidth,
               maxWidth: cardWidth,
-              borderColor: colors.btnGoldBorder,
+              borderColor: colors.btnAccentBorder,
               paddingHorizontal: 18,
               paddingTop: 18,
               paddingBottom: 18,

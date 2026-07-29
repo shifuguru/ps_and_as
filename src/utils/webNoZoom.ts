@@ -70,15 +70,15 @@ export function bindWebTouchScrollLock(node: HTMLElement): () => void {
   node.style.userSelect = "none";
   (node.style as { webkitUserSelect?: string }).webkitUserSelect = "none";
 
-  const blockMove = (event: Event) => {
+  // Touch only — do not preventDefault on pointermove or desktop wheel/trackpad
+  // scrolling breaks when the cursor is over the color picker.
+  const blockTouchMove = (event: Event) => {
     event.preventDefault();
   };
-  node.addEventListener("touchmove", blockMove, { passive: false });
-  node.addEventListener("pointermove", blockMove, { passive: false });
+  node.addEventListener("touchmove", blockTouchMove, { passive: false });
 
   return () => {
-    node.removeEventListener("touchmove", blockMove);
-    node.removeEventListener("pointermove", blockMove);
+    node.removeEventListener("touchmove", blockTouchMove);
     node.style.touchAction = "";
     node.style.overscrollBehavior = "";
     node.style.userSelect = "";

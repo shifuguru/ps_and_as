@@ -139,3 +139,22 @@ export function withSaturation(hex: string, saturation: number): string {
   const { h, l } = rgbToHsl(rgb);
   return hslToHex(h, saturation, l);
 }
+
+/**
+ * Felt tints must survive hex round-trips with a real hue — pure black/gray
+ * collapses HSL hue to 0° (red) and turns theme accents reddish.
+ * Nudge S/L only when the naive hex would lose the intended hue.
+ */
+export function feltHexFromHsl(h: number, s: number, l: number): string {
+  const hue = ((h % 360) + 360) % 360;
+  const sat = clamp(s, 0, 100);
+  const light = clamp(l, 0, 100);
+  const direct = hslToHex(hue, sat, light);
+  const rgb = hexToRgb(direct);
+  if (!rgb) return direct;
+  const back = rgbToHsl(rgb);
+  const hueDelta = Math.abs(((back.h - hue + 180) % 360) - 180);
+  const lostHue = back.s < 1 || (sat >= 8 && hueDelta > 30);
+  if (!lostHue) return direct;
+  return hslToHex(hue, Math.max(sat, 14), clamp(light, 8, 90));
+}

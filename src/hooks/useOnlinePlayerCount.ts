@@ -2,19 +2,27 @@ import { useEffect, useState } from "react";
 import { AppState, Platform } from "react-native";
 import { io, type Socket } from "socket.io-client";
 import { DEFAULT_SERVER_PORT, getServerUrl } from "../config/server";
+import {
+  EMPTY_ONLINE_PRESENCE,
+  mergeOnlinePresence,
+  parseOnlinePresencePayload,
+  withLocalPresenceFallback,
+  type OnlinePresenceSnapshot,
+} from "../services/onlinePresence";
 import { getOrCreatePlayerId } from "../services/gameCenter";
 
 const POLL_MS = 15 * 1000;
 const CONNECT_TIMEOUT_MS = 12_000;
 
-type Listener = (count: number) => void;
+type Listener = (snapshot: OnlinePresenceSnapshot) => void;
 
 let socket: Socket | null = null;
 let connectPromise: Promise<Socket | null> | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let subscribers = new Set<Listener>();
-let latestCount = 0;
+let latestPresence: OnlinePresenceSnapshot = EMPTY_ONLINE_PRESENCE;
 let startCount = 0;
+let lastRegisteredDisplayName: string | null = null;
 
 function serverUrlsToTry(): string[] {
   const urls: string[] = [];
@@ -34,25 +42,30 @@ function serverUrlsToTry(): string[] {
   return [...new Set(urls)];
 }
 
-function parsePlayerCount(data: { activePlayers?: unknown }): number | null {
-  const raw = data?.activePlayers;
-  return typeof raw === "number" && Number.isFinite(raw)
-    ? Math.max(0, Math.floor(raw))
-    : null;
+function notify(snapshot: OnlinePresenceSnapshot) {
+  latestPresence = snapshot;
+  subscribers.forEach((listener) => listener(snapshot));
 }
 
-function notify(count: number) {
-  latestCount = count;
-  subscribers.forEach((listener) => listener(count));
+function applyPresencePayload(data: {
+  activePlayers?: unknown;
+  players?: unknown;
+}) {
+  const parsed = parseOnlinePresencePayload(data);
+  if (parsed == null) return;
+  notify(mergeOnlinePresence(latestPresence, parsed));
 }
 
-async function fetchCountHttp(): Promise<number | null> {
+async function fetchPresenceHttp(): Promise<OnlinePresenceSnapshot | null> {
   for (const base of serverUrlsToTry()) {
     try {
       const res = await fetch(`${base}/api/online-players`, { cache: "no-store" });
       if (!res.ok) continue;
-      const data = (await res.json()) as { activePlayers?: unknown };
-      const parsed = parsePlayerCount(data);
+      const data = (await res.json()) as {
+        activePlayers?: unknown;
+        players?: unknown;
+      };
+      const parsed = parseOnlinePresencePayload(data);
       if (parsed != null) return parsed;
     } catch {
       /* try next URL */
@@ -109,35 +122,52 @@ async function openSocket(): Promise<Socket | null> {
   return null;
 }
 
-async function registerProfilePresence(activeSocket: Socket): Promise<void> {
+async function registerProfilePresence(
+  activeSocket: Socket,
+  preferredDisplayName?: string | null,
+): Promise<void> {
+  const preferred = preferredDisplayName?.trim() || null;
   try {
     const profile = await getOrCreatePlayerId();
-    activeSocket.emit("registerPresence", { profileId: profile.id });
+    const displayName = preferred || profile.displayName || "Player";
+    lastRegisteredDisplayName = displayName;
+    activeSocket.emit("registerPresence", {
+      profileId: profile.id,
+      displayName,
+    });
   } catch {
-    activeSocket.emit("registerPresence", {});
+    const displayName = preferred || "Player";
+    lastRegisteredDisplayName = displayName;
+    activeSocket.emit("registerPresence", {
+      displayName,
+    });
   }
 }
 
 function attachSocketHandlers(activeSocket: Socket) {
-  activeSocket.on("onlinePlayerCount", (data: { activePlayers?: unknown }) => {
-    const next = parsePlayerCount(data);
-    if (next != null) notify(next);
-  });
+  activeSocket.on(
+    "onlinePlayerCount",
+    (data: { activePlayers?: unknown; players?: unknown }) => {
+      applyPresencePayload(data);
+    },
+  );
 
   activeSocket.on("connect", () => {
     activeSocket.emit("getOnlinePlayerCount");
-    void registerProfilePresence(activeSocket);
+    void registerProfilePresence(activeSocket, lastRegisteredDisplayName);
   });
 
   if (activeSocket.connected) {
     activeSocket.emit("getOnlinePlayerCount");
-    void registerProfilePresence(activeSocket);
+    void registerProfilePresence(activeSocket, lastRegisteredDisplayName);
   }
 }
 
-async function refreshCount() {
-  const httpCount = await fetchCountHttp();
-  if (httpCount != null) notify(httpCount);
+async function refreshPresence() {
+  const httpPresence = await fetchPresenceHttp();
+  if (httpPresence != null) {
+    notify(mergeOnlinePresence(latestPresence, httpPresence));
+  }
 
   if (socket?.connected) {
     socket.emit("getOnlinePlayerCount");
@@ -147,7 +177,7 @@ async function refreshCount() {
 function ensurePolling() {
   if (pollTimer) return;
   pollTimer = setInterval(() => {
-    void refreshCount();
+    void refreshPresence();
   }, POLL_MS);
 }
 
@@ -159,7 +189,7 @@ function stopPolling() {
 
 async function ensureStarted() {
   ensurePolling();
-  void refreshCount();
+  void refreshPresence();
 
   if (socket?.connected) return socket;
   if (connectPromise) return connectPromise;
@@ -186,6 +216,7 @@ function teardownIfIdle() {
   socket?.off("connect");
   socket?.disconnect();
   socket = null;
+  lastRegisteredDisplayName = null;
 }
 
 export function retainOnlinePresence(): () => void {
@@ -197,9 +228,9 @@ export function retainOnlinePresence(): () => void {
   };
 }
 
-export function subscribeOnlinePlayerCount(listener: Listener): () => void {
+export function subscribeOnlinePresence(listener: Listener): () => void {
   subscribers.add(listener);
-  listener(latestCount);
+  listener(latestPresence);
   void ensureStarted();
 
   return () => {
@@ -208,18 +239,39 @@ export function subscribeOnlinePlayerCount(listener: Listener): () => void {
   };
 }
 
-/** Live count of unique clients connected to the multiplayer server. */
-export function useOnlinePlayerCount(active: boolean) {
-  const [count, setCount] = useState(latestCount);
+/** @deprecated Prefer subscribeOnlinePresence — kept for callers that only need count. */
+export function subscribeOnlinePlayerCount(listener: (count: number) => void): () => void {
+  return subscribeOnlinePresence((snapshot) => listener(snapshot.count));
+}
+
+/** Push the latest known display name onto the presence socket. */
+export function updateOnlinePresenceDisplayName(
+  displayName: string | null | undefined,
+): void {
+  const trimmed = displayName?.trim() || null;
+  if (!trimmed || trimmed === lastRegisteredDisplayName) return;
+  lastRegisteredDisplayName = trimmed;
+  if (socket?.connected) {
+    void registerProfilePresence(socket, trimmed);
+  }
+}
+
+/** Live presence snapshot from the multiplayer server. */
+export function useOnlinePresence(
+  active: boolean,
+  displayName?: string | null,
+): OnlinePresenceSnapshot {
+  const [presence, setPresence] = useState(latestPresence);
 
   useEffect(() => {
     if (!active) return;
 
     const release = retainOnlinePresence();
-    const unsubscribe = subscribeOnlinePlayerCount(setCount);
+    const unsubscribe = subscribeOnlinePresence(setPresence);
+    updateOnlinePresenceDisplayName(displayName);
 
     const onAppState = (state: string) => {
-      if (state === "active") void refreshCount();
+      if (state === "active") void refreshPresence();
     };
     const sub = AppState.addEventListener("change", onAppState);
 
@@ -233,7 +285,7 @@ export function useOnlinePlayerCount(active: boolean) {
         };
       }).document;
       const onVisible = () => {
-        if (doc?.visibilityState === "visible") void refreshCount();
+        if (doc?.visibilityState === "visible") void refreshPresence();
       };
       doc?.addEventListener?.("visibilitychange", onVisible);
       removeVisibility = () =>
@@ -246,7 +298,17 @@ export function useOnlinePlayerCount(active: boolean) {
       unsubscribe();
       release();
     };
-  }, [active]);
+  }, [active, displayName]);
 
-  return count;
+  useEffect(() => {
+    if (!active) return;
+    updateOnlinePresenceDisplayName(displayName);
+  }, [active, displayName]);
+
+  return withLocalPresenceFallback(presence, displayName);
+}
+
+/** Live count of unique clients connected to the multiplayer server. */
+export function useOnlinePlayerCount(active: boolean) {
+  return useOnlinePresence(active).count;
 }

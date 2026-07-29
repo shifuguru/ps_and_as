@@ -87,7 +87,7 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
             Ps & As
           </Text>
           <Text style={styles.subtitle}>Presidents & Assholes</Text>
-          <Text style={styles.credit}>App designed by Mike Drury</Text>
+          <Text style={styles.credit}>App designed by Shifuguru</Text>
         </Animated.View>
       </View>
     </Animated.View>

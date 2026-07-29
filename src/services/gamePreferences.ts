@@ -11,7 +11,7 @@ type PreferencesCache = {
 };
 
 let cache: PreferencesCache = {
-  skipDealAnimations: false,
+  skipDealAnimations: true,
   darkModeCards: false,
   loaded: false,
 };
@@ -57,12 +57,14 @@ async function readPreferencesFromStorage(): Promise<PreferencesCache> {
       AsyncStorage.getItem(STORAGE_DARK_MODE_CARDS),
     ]);
     return {
-      skipDealAnimations: skipVal === "1" || skipVal === "true",
+      // Default ON until deal animations are out of beta (unset storage → skip).
+      skipDealAnimations:
+        skipVal == null ? true : skipVal === "1" || skipVal === "true",
       darkModeCards: darkVal === "1" || darkVal === "true",
       loaded: true,
     };
   } catch {
-    return { skipDealAnimations: false, darkModeCards: false, loaded: true };
+    return { skipDealAnimations: true, darkModeCards: false, loaded: true };
   }
 }
 

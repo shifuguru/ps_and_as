@@ -111,7 +111,7 @@ function ToastRow({
 
   const accent =
     item.kind === "xp"
-      ? colors.gold
+      ? colors.accent
       : item.kind === "streak"
         ? "#ff8a4c"
         : "#c9a227";
@@ -169,7 +169,7 @@ function createStyles(
     },
     body: {
       marginTop: 2,
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 11,
       fontWeight: "600",
     },

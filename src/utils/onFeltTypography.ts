@@ -4,6 +4,9 @@ import type { FeltTextColors } from "../styles/themeColors";
 export type OnFeltTextRole =
   | "primary"
   | "secondary"
+  | "tertiary"
+  | "quaternary"
+  /** @deprecated Use `"tertiary"`. */
   | "muted"
   | "accent"
   | "leave";
@@ -14,8 +17,11 @@ function feltColor(onFelt: FeltTextColors, role: OnFeltTextRole): string {
       return onFelt.textPrimary;
     case "secondary":
       return onFelt.textSecondary;
+    case "tertiary":
     case "muted":
-      return onFelt.textMuted;
+      return onFelt.textTertiary;
+    case "quaternary":
+      return onFelt.textQuaternary;
     case "accent":
       return onFelt.accent;
     case "leave":

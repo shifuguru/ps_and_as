@@ -303,7 +303,7 @@ export default function TrickWinCelebration({
 }
 
 function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
-  const accent = colors.gold;
+  const accent = colors.accent;
   const accentBright = colors.onFelt.accent;
 
   return StyleSheet.create({

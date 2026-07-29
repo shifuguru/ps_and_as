@@ -184,7 +184,6 @@ import {
   lastPlayPlayerId,
   type TrickPlayDisplay,
 } from "../utils/trickDisplay";
-import { styles } from "../styles/theme";
 import { responsive, isLandscape, adaptiveScale } from "../utils/responsive";
 import { useAppTheme } from "../context/ThemeContext";
 import {
@@ -3240,8 +3239,6 @@ function GameScreen({
           ) {
             return;
           }
-            return;
-          }
           if (!canAcknowledgmentPass(live, cpu.id)) return;
           const nextState = passTurn(live, cpu.id);
           if (nextState !== live) {
@@ -3513,7 +3510,7 @@ function GameScreen({
           {onlineMultiplayer && syncError ? (
             <Text
               style={{
-                color: colors.onFelt.textMuted,
+                color: colors.onFelt.textTertiary,
                 fontSize: 13,
                 marginTop: 12,
                 textAlign: "center",
@@ -3586,6 +3583,8 @@ function GameScreen({
         lastHandReveal,
         clearLastHandReveal,
         finishLastHandReveal,
+        roundEndLastPlayHold,
+        roundEndHoldSnapshot,
         trickPauseActive,
         trickPauseSnapshot,
         showWinnerBanner,
@@ -3673,6 +3672,19 @@ function GameScreen({
 }
 
 function GameScreenBoard() {
+  // Bind these before the large context destructure so a stale Fast Refresh
+  // partial update cannot throw ReferenceError: roundEndLastPlayHold is not defined.
+  const runtimeCtx = useContext(GameScreenRuntimeContext) as Record<
+    string,
+    unknown
+  > | null;
+  const roundEndLastPlayHold = runtimeCtx?.roundEndLastPlayHold === true;
+  const roundEndHoldSnapshot =
+    (runtimeCtx?.roundEndHoldSnapshot as {
+      plays: TrickPlayDisplay[];
+      passedPlayerIds: string[];
+    } | null | undefined) ?? null;
+
   const {
     state,
     setState,

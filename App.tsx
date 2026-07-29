@@ -40,7 +40,7 @@ import { useVisualViewportSize, useWebShellLayout } from "./src/hooks/useVisualV
 import { isMobileWeb, installWebShellCss } from "./src/utils/webViewport";
 import { useAppFonts } from "./src/hooks/useAppFonts";
 import { useBuildUpdateCheck } from "./src/hooks/useBuildUpdateCheck";
-import { useOnlinePlayerCount } from "./src/hooks/useOnlinePlayerCount";
+import { useOnlinePresence } from "./src/hooks/useOnlinePlayerCount";
 import { useUpdateLogUnreadCount } from "./src/hooks/useUpdateLogUnreadCount";
 import { useWebEscapeKey } from "./src/hooks/useWebEscapeKey";
 import UpdateRequiredOverlay from "./src/components/UpdateRequiredOverlay";
@@ -49,6 +49,7 @@ import {
   pickCpuDisplayNames,
 } from "./src/utils/cpuNames";
 import AppErrorBoundary from "./src/components/AppErrorBoundary";
+import PhonePortraitLock from "./src/components/PhonePortraitLock";
 import { StatusBar } from "expo-status-bar";
 import {
   getViewportExperiment,
@@ -95,7 +96,7 @@ function AppContent() {
   >(null);
   const { count: updateLogUnreadCount, markSeen: markUpdateLogSeen } =
     useUpdateLogUnreadCount(menuVisible, updateLogOpen);
-  const onlinePlayerCount = useOnlinePlayerCount(!splashVisible);
+  const onlinePresence = useOnlinePresence(!splashVisible, localPlayerName);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -674,8 +675,8 @@ function AppContent() {
                 style={[
                   appStyles.rejoinBanner,
                   {
-                    backgroundColor: colors.btnGoldBg,
-                    borderColor: colors.btnGoldBorder,
+                    backgroundColor: colors.btnAccentBg,
+                    borderColor: colors.btnAccentBorder,
                   },
                 ]}
               >
@@ -688,11 +689,11 @@ function AppContent() {
                 </Text>
                 <View style={appStyles.rejoinActions}>
                   <TouchableOpacity
-                    style={[appStyles.rejoinPrimary, { backgroundColor: colors.gold }]}
+                    style={[appStyles.rejoinPrimary, { backgroundColor: colors.accent }]}
                     onPress={() => void rejoinLobby()}
                     activeOpacity={0.85}
                   >
-                    <Text style={[appStyles.rejoinPrimaryText, { color: colors.textOnGold }]}>
+                    <Text style={[appStyles.rejoinPrimaryText, { color: colors.textOnAccent }]}>
                       Rejoin
                     </Text>
                   </TouchableOpacity>
@@ -720,7 +721,8 @@ function AppContent() {
             <PlayerHub
               displayName={localPlayerName ?? "Player"}
               whatsNewUnread={updateLogUnreadCount}
-              onlinePlayerCount={onlinePlayerCount}
+              onlinePlayerCount={onlinePresence.count}
+              onlinePlayers={onlinePresence.players}
               refreshKey={hubRefreshKey}
               onNavigateSound={() => playEffect("click")}
               actions={{
@@ -1050,7 +1052,9 @@ export default function App() {
       <ThemeProvider>
         <CardAppearanceProvider>
           <AppErrorBoundary>
-            <AppContent />
+            <PhonePortraitLock>
+              <AppContent />
+            </PhonePortraitLock>
           </AppErrorBoundary>
         </CardAppearanceProvider>
       </ThemeProvider>

@@ -166,7 +166,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginBottom: 8,
     },
     introHint: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 13,
       lineHeight: 19,
     },
@@ -180,7 +180,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       paddingHorizontal: 2,
     },
     sectionHint: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 12,
       lineHeight: 17,
       marginBottom: 10,
@@ -193,7 +193,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginBottom: 10,
     },
     entryDate: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 12,
       fontWeight: "600",
       letterSpacing: 0.2,
@@ -211,7 +211,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginBottom: 6,
     },
     bullet: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 14,
       lineHeight: 20,
       marginTop: 1,
@@ -254,13 +254,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       textTransform: "uppercase",
     },
     issueUpdated: {
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 11,
       lineHeight: 16,
       marginBottom: 4,
     },
     issueNote: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 13,
       lineHeight: 18,
     },

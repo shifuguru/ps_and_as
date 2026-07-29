@@ -35,6 +35,7 @@ const {
   viewForMember,
   broadcastGameState,
   syncPayloadForMember,
+  emitPlayerHandsPerRecipient,
 } = require('./gameStateView');
 const botHosted = require('./botHostedRooms');
 const { computeRoundXpByPlayerId } = require('./roundXp');
@@ -386,13 +387,21 @@ const rooms = {};
 /** Connected clients keyed by profileId (or socket id when profile unknown). */
 const presenceSocketsByIdentity = new Map();
 const socketPresenceIdentity = new Map();
+/** identity -> { displayName } */
+const presenceMetaByIdentity = new Map();
 
 function presenceIdentity(profileId, socketId) {
   const pid = typeof profileId === 'string' && profileId.trim() ? profileId.trim() : null;
   return pid || socketId;
 }
 
-function trackPresence(socket, profileId) {
+function sanitizePresenceDisplayName(name) {
+  if (typeof name !== 'string') return 'Player';
+  const trimmed = name.trim().slice(0, 32);
+  return trimmed || 'Player';
+}
+
+function trackPresence(socket, profileId, displayName) {
   const identity = presenceIdentity(profileId, socket.id);
   const previous = socketPresenceIdentity.get(socket.id);
   if (previous && previous !== identity) {
@@ -403,6 +412,13 @@ function trackPresence(socket, profileId) {
   }
   presenceSocketsByIdentity.get(identity).add(socket.id);
   socketPresenceIdentity.set(socket.id, identity);
+  if (displayName !== undefined) {
+    presenceMetaByIdentity.set(identity, {
+      displayName: sanitizePresenceDisplayName(displayName),
+    });
+  } else if (!presenceMetaByIdentity.has(identity)) {
+    presenceMetaByIdentity.set(identity, { displayName: 'Player' });
+  }
 }
 
 function untrackPresence(socket) {
@@ -414,6 +430,7 @@ function untrackPresence(socket) {
     sockets.delete(socket.id);
     if (sockets.size === 0) {
       presenceSocketsByIdentity.delete(identity);
+      presenceMetaByIdentity.delete(identity);
       countChanged = true;
     }
   }
@@ -425,10 +442,19 @@ function totalOnlineConnectedPlayers() {
   return presenceSocketsByIdentity.size;
 }
 
-function broadcastOnlinePlayerCount() {
-  io.emit('onlinePlayerCount', {
+function onlinePresencePayload() {
+  const players = [...presenceMetaByIdentity.entries()]
+    .filter(([identity]) => presenceSocketsByIdentity.has(identity))
+    .map(([, meta]) => ({ displayName: meta.displayName }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }));
+  return {
     activePlayers: totalOnlineConnectedPlayers(),
-  });
+    players,
+  };
+}
+
+function broadcastOnlinePlayerCount() {
+  io.emit('onlinePlayerCount', onlinePresencePayload());
 }
 
 // Assign roles based on finish order. Mutates gameState object.
@@ -605,7 +631,13 @@ function emitTradesCompleteIfReady(io, roomId, gameState, hostId) {
   const playerHands = gameState.playerHands || snapshotPlayerHands(gameState);
   gameState.playerHands = playerHands;
   syncOpeningPlayerAfterTrades(gameState, hostId);
-  io.to(roomId).emit('tradesComplete', { playerHands });
+  const room = rooms[roomId];
+  if (room) {
+    emitPlayerHandsPerRecipient(io, room, 'tradesComplete', playerHands);
+  } else {
+    // Fallback: room not found (should not happen in normal flow)
+    io.to(roomId).emit('tradesComplete', { playerHands: {} });
+  }
 }
 
 /** Auto-finish trades (no client UI yet) so ready players can start the next deal. */
@@ -1329,7 +1361,7 @@ io.on('connection', (socket) => {
   const beforeConnect = totalOnlineConnectedPlayers();
   trackPresence(socket, null);
   const afterConnect = totalOnlineConnectedPlayers();
-  socket.emit('onlinePlayerCount', { activePlayers: afterConnect });
+  socket.emit('onlinePlayerCount', onlinePresencePayload());
   if (afterConnect !== beforeConnect) broadcastOnlinePlayerCount();
 
   // Send available rooms when client requests discovery
@@ -1351,17 +1383,15 @@ io.on('connection', (socket) => {
   });
 
   socket.on('getOnlinePlayerCount', () => {
-    socket.emit('onlinePlayerCount', {
-      activePlayers: totalOnlineConnectedPlayers(),
-    });
+    socket.emit('onlinePlayerCount', onlinePresencePayload());
   });
 
-  socket.on('registerPresence', ({ profileId } = {}) => {
+  socket.on('registerPresence', ({ profileId, displayName } = {}) => {
     const before = totalOnlineConnectedPlayers();
-    trackPresence(socket, profileId);
+    trackPresence(socket, profileId, displayName);
     const after = totalOnlineConnectedPlayers();
-    socket.emit('onlinePlayerCount', { activePlayers: after });
-    if (after !== before) broadcastOnlinePlayerCount();
+    socket.emit('onlinePlayerCount', onlinePresencePayload());
+    if (after !== before || displayName !== undefined) broadcastOnlinePlayerCount();
   });
 
   socket.on('createRoom', ({ roomId, name, profileId, isPublic = true, roomName, feltTint }) => {
@@ -1963,13 +1993,13 @@ io.on('connection', (socket) => {
       p.hand = playerHands[p.id] || p.hand;
     }
 
-    io.to(roomId).emit('playerHandsUpdate', { playerHands });
+    emitPlayerHandsPerRecipient(io, room, 'playerHandsUpdate', playerHands);
 
     if (allTradesComplete(room.gameState)) {
       syncOpeningPlayerAfterTrades(room.gameState, room.host);
       reconcileCurrentPlayerIndex(room);
       broadcastGameState(io, room);
-      io.to(roomId).emit('tradesComplete', { playerHands });
+      emitPlayerHandsPerRecipient(io, room, 'tradesComplete', playerHands);
       if (room.isBotHosted) {
         botHosted.kickBotTurnLoop(roomId, getBotContext());
       }
@@ -2108,7 +2138,7 @@ io.on('connection', (socket) => {
 
 app.get('/api/online-players', (_req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.json({ activePlayers: totalOnlineConnectedPlayers() });
+  res.json(onlinePresencePayload());
 });
 
 server.listen(PORT, () => {

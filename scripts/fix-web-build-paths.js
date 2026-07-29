@@ -152,7 +152,8 @@ function writeWebManifest() {
     display: "standalone",
     background_color: "#0f5132",
     theme_color: "#0f5132",
-    orientation: "portrait",
+    // Phones lock via Screen Orientation API; tablets/desktop stay free to rotate.
+    orientation: "any",
     icons: [
       {
         src: `${basePath}/favicon.ico`,
