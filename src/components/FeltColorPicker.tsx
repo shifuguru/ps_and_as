@@ -19,6 +19,7 @@ import {
   hslToRgb,
   rgbToHex,
   rgbToHsl,
+  type Hsl,
 } from "../utils/colorTheory";
 import { normalizeHexColor } from "../services/wallpaper";
 import type { AppThemeColors } from "../styles/themeColors";
@@ -39,7 +40,9 @@ const SL_HEIGHT = 168;
 const HUE_HEIGHT = 22;
 const HUE_HIT_HEIGHT = 44;
 const MARKER = 12;
+const HUE_MARKER_W = 14;
 const PICKER_NATIVE_ID = "felt-color-picker";
+const DEFAULT_HSL: Hsl = { h: 145, s: 72, l: 32 };
 
 const captureTouch = {
   onStartShouldSetResponder: () => true,
@@ -53,6 +56,28 @@ function clampChannel(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/**
+ * RGB black / white / gray has no meaningful hue. Keep the previous H/S so the
+ * picker does not snap the hue wheel to red when lightness hits 0.
+ */
+function hslFromHex(hex: string, preserve: Hsl | null): Hsl {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return preserve ?? DEFAULT_HSL;
+  const next = rgbToHsl(rgb);
+  if (!preserve) return next;
+
+  const achromatic = next.s < 0.5;
+  const atBlackOrWhite = next.l < 0.5 || next.l > 99.5;
+  if (achromatic || atBlackOrWhite) {
+    return {
+      h: preserve.h,
+      s: atBlackOrWhite ? preserve.s : next.s,
+      l: next.l,
+    };
+  }
+  return next;
+}
+
 export default function FeltColorPicker({ value, onChange, colors }: Props) {
   const rootRef = useRef<View>(null);
   const slTouchRef = useRef<View>(null);
@@ -60,7 +85,8 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
   const hueTrackRef = useRef<View>(null);
   const [slWidth, setSlWidth] = useState(0);
   const [hueWidth, setHueWidth] = useState(0);
-  const hslRef = useRef<{ h: number; s: number; l: number } | null>(null);
+  const [hsl, setHsl] = useState<Hsl>(() => hslFromHex(value, null));
+  const hslRef = useRef<Hsl>(hsl);
   const pickHueRef = useRef<(x: number) => void>(() => {});
   const pickSlRef = useRef<(x: number, y: number) => void>(() => {});
 
@@ -68,12 +94,17 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
   const hueTouchLockRef = useWebTouchScrollLockRef();
   useWebTouchScrollLock(rootRef, true, slWidth + hueWidth);
 
-  const hsl = useMemo(() => {
-    const rgb = hexToRgb(value);
-    if (!rgb) return { h: 145, s: 72, l: 32 };
-    const next = rgbToHsl(rgb);
+  // External edits (hex field / presets) — merge achromatic props without losing hue.
+  useEffect(() => {
+    const normalized = normalizeHexColor(value);
+    if (!normalized) return;
+    const self = normalizeHexColor(
+      hslToHex(hslRef.current.h, hslRef.current.s, hslRef.current.l),
+    );
+    if (normalized === self) return;
+    const next = hslFromHex(value, hslRef.current);
     hslRef.current = next;
-    return next;
+    setHsl(next);
   }, [value]);
 
   const hueColor = useMemo(
@@ -82,9 +113,15 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
   );
 
   const emitHsl = useCallback(
-    (next: { h: number; s: number; l: number }) => {
-      hslRef.current = next;
-      onChange(hslToHex(next.h, next.s, next.l));
+    (next: Hsl) => {
+      const clamped = {
+        h: clampChannel(next.h, 0, 359.9),
+        s: clampChannel(next.s, 0, 100),
+        l: clampChannel(next.l, 0, 100),
+      };
+      hslRef.current = clamped;
+      setHsl(clamped);
+      onChange(hslToHex(clamped.h, clamped.s, clamped.l));
     },
     [onChange],
   );
@@ -100,22 +137,25 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
   const pickSl = useCallback(
     (x: number, y: number) => {
       if (slWidth <= 0) return;
-      const s = clampChannel((x / slWidth) * 100, 0, 100);
-      const l = clampChannel(100 - (y / SL_HEIGHT) * 100, 0, 100);
-      const base = hslRef.current ?? hsl;
+      const cx = clampChannel(x, 0, slWidth);
+      const cy = clampChannel(y, 0, SL_HEIGHT);
+      const s = (cx / slWidth) * 100;
+      const l = 100 - (cy / SL_HEIGHT) * 100;
+      const base = hslRef.current;
       emitHsl({ h: base.h, s, l });
     },
-    [emitHsl, hsl, slWidth],
+    [emitHsl, slWidth],
   );
 
   const pickHue = useCallback(
     (x: number) => {
       if (hueWidth <= 0) return;
-      const h = clampChannel((x / hueWidth) * 360, 0, 359.9);
-      const base = hslRef.current ?? hsl;
+      const cx = clampChannel(x, 0, hueWidth);
+      const h = (cx / hueWidth) * 360;
+      const base = hslRef.current;
       emitHsl({ h, s: base.s, l: base.l });
     },
-    [emitHsl, hsl, hueWidth],
+    [emitHsl, hueWidth],
   );
 
   pickSlRef.current = pickSl;
@@ -216,9 +256,24 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
     };
   }, [hueWidth]);
 
-  const slMarkerX = (hsl.s / 100) * Math.max(slWidth, 1);
-  const slMarkerY = (1 - hsl.l / 100) * SL_HEIGHT;
-  const hueMarkerX = (hsl.h / 360) * Math.max(hueWidth, 1);
+  // Keep markers fully inside the pads (not half-clipped past the edge).
+  const slMarkerX =
+    slWidth <= 0
+      ? 0
+      : clampChannel((hsl.s / 100) * slWidth, MARKER / 2, slWidth - MARKER / 2);
+  const slMarkerY = clampChannel(
+    (1 - hsl.l / 100) * SL_HEIGHT,
+    MARKER / 2,
+    SL_HEIGHT - MARKER / 2,
+  );
+  const hueMarkerX =
+    hueWidth <= 0
+      ? 0
+      : clampChannel(
+          (hsl.h / 360) * hueWidth,
+          HUE_MARKER_W / 2,
+          hueWidth - HUE_MARKER_W / 2,
+        );
   const normalized = normalizeHexColor(value) ?? value;
 
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -325,7 +380,7 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
             pointerEvents="none"
             style={[
               styles.hueMarker,
-              { left: hueMarkerX - 7, backgroundColor: hueColor },
+              { left: hueMarkerX - HUE_MARKER_W / 2, backgroundColor: hueColor },
             ]}
           />
         </View>
@@ -392,7 +447,7 @@ function createStyles(colors: AppThemeColors) {
     hueMarker: {
       position: "absolute",
       top: 3,
-      width: 14,
+      width: HUE_MARKER_W,
       height: HUE_HEIGHT - 6,
       borderRadius: 7,
       borderWidth: 2,
