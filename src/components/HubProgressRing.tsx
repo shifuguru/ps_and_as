@@ -57,7 +57,7 @@ export default function HubProgressRing({
           strokeWidth={strokeWidth}
           fill="none"
         />
-        <G rotation={-90} origin={`${mid}, ${mid}`}>
+        <G transform={`rotate(-90, ${mid}, ${mid})`}>
           <Circle
             cx={mid}
             cy={mid}
