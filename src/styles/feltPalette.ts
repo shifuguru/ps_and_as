@@ -73,13 +73,15 @@ export function resolveFeltEnvironment(
   }
 
   const { h, s, l } = rgbToHsl(tint);
-  const sat = clamp(s * profile.feltSaturation, 8, 92);
+  // Achromatic hex has no hue — keep display gray (don't invent red from h=0).
+  const sat = s < 1 ? 0 : clamp(s * profile.feltSaturation, 8, 92);
+  const hue = s < 1 ? 0 : h;
   // Brightness via HSL lift — not via painting glass.
   const lightLift =
     mode === "light"
       ? (profile.feltBrightness - 0.5) * 28
       : (profile.feltBrightness - 0.5) * 6;
-  const displayTint = hslToHex(h, sat, clamp(l + lightLift, 8, 72));
+  const displayTint = hslToHex(hue, sat, clamp(l + lightLift, 8, 72));
 
   const tintOpacity =
     mode === "light"
@@ -117,14 +119,16 @@ export function resolveFeltEnvironment(
 export function resolveFrostRgb(
   mode: ThemeMode,
   feltHue: number,
+  feltSat = 50,
 ): string {
+  const sat = feltSat < 1 ? 0 : mode === "dark" ? 28 : 14;
   if (mode === "dark") {
     // Deep felt-ink glass
-    const rgb = hslToRgb({ h: feltHue, s: 28, l: 8 });
+    const rgb = hslToRgb({ h: feltHue, s: sat, l: 8 });
     return `${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}`;
   }
   // Warm ivory tinted by felt hue — sunlit glass, not mint white
-  const rgb = hslToRgb({ h: feltHue, s: 14, l: 96 });
+  const rgb = hslToRgb({ h: feltHue, s: sat > 0 ? 14 : 0, l: 96 });
   return `${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}`;
 }
 
@@ -133,6 +137,8 @@ export type FeltPalette = {
   feltHex: string;
   feltSurface: string;
   feltHue: number;
+  /** 0 when the stored tint is achromatic (black/gray). */
+  feltSat: number;
   /** Mid accent — same hue as felt, lifted for UI chrome. */
   complement: string;
   complementBright: string;
@@ -175,15 +181,37 @@ function buildSeatColors(feltHue: number, feltSat: number): string[] {
 
 export function deriveFeltPalette(feltHex: string): FeltPalette {
   const felt = hexToRgb(feltHex) ?? hexToRgb(DEFAULT_FELT_COLOR)!;
-  const { h: feltHue, s: feltSat, l: feltLight } = rgbToHsl(felt);
+  const parsed = rgbToHsl(felt);
+  // Achromatic hex (black / gray) has no hue — keep accents neutral instead of
+  // treating h=0 as "red" and washing the UI with a reddish cast.
+  const achromatic = parsed.s < 1;
+  const feltHue = achromatic ? 0 : parsed.h;
+  const feltSat = achromatic ? 0 : parsed.s;
+  const feltLight = parsed.l;
 
-  const accentSat = clamp(feltSat * 0.72, 22, 68);
-  const complementDim = monoTone(feltHue, clamp(feltSat * 0.85, 28, 72), clamp(feltLight + 14, 28, 42));
-  const complement = monoTone(feltHue, accentSat, clamp(feltLight + 32, 46, 58));
-  const complementBright = monoTone(feltHue, clamp(accentSat * 0.82, 18, 55), clamp(feltLight + 54, 68, 82));
+  const accentSat = achromatic ? 0 : clamp(feltSat * 0.72, 22, 68);
+  const complementDim = monoTone(
+    feltHue,
+    achromatic ? 0 : clamp(feltSat * 0.85, 28, 72),
+    clamp(feltLight + 14, 28, 42),
+  );
+  const complement = monoTone(
+    feltHue,
+    accentSat,
+    clamp(feltLight + 32, 46, 58),
+  );
+  const complementBright = monoTone(
+    feltHue,
+    achromatic ? 0 : clamp(accentSat * 0.82, 18, 55),
+    clamp(feltLight + 54, 68, 82),
+  );
 
   const triad = [
-    monoTone(feltHue, clamp(feltSat * 0.9, 30, 75), clamp(feltLight + 8, 24, 38)),
+    monoTone(
+      feltHue,
+      achromatic ? 0 : clamp(feltSat * 0.9, 30, 75),
+      clamp(feltLight + 8, 24, 38),
+    ),
     complement,
     complementBright,
   ] as const;
@@ -193,7 +221,10 @@ export function deriveFeltPalette(feltHex: string): FeltPalette {
     monoTone(feltHue, accentSat * 0.95, clamp(feltLight + 48, 60, 74)),
   ] as const;
 
-  const seatColors = buildSeatColors(feltHue, feltSat);
+  const seatColors = buildSeatColors(
+    feltHue,
+    achromatic ? 0 : Math.max(feltSat, 28),
+  );
   const celebrationColors = [
     complementBright,
     complement,
@@ -209,6 +240,7 @@ export function deriveFeltPalette(feltHex: string): FeltPalette {
     feltHex,
     feltSurface: blendFeltSurface(feltHex),
     feltHue,
+    feltSat,
     complement,
     complementBright,
     complementDim,
@@ -242,11 +274,11 @@ export function effectiveOnFeltVariant(
   return forced;
 }
 
-function tintedNeutral(hue: number, variant: "light" | "dark", alpha = 1): string {
+function tintedNeutral(hue: number, variant: "light" | "dark", alpha = 1, sat = 6): string {
   const rgb =
     variant === "light"
-      ? hslToRgb({ h: hue, s: 6, l: 97 })
-      : hslToRgb({ h: hue, s: 8, l: 13 });
+      ? hslToRgb({ h: hue, s: sat, l: 97 })
+      : hslToRgb({ h: hue, s: Math.max(sat, sat > 0 ? 8 : 0), l: 13 });
   if (alpha >= 1) return rgbToHex(rgb);
   return `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(
     rgb.b,
@@ -260,12 +292,13 @@ export function computeOnFeltColors(
   const palette = deriveFeltPalette(feltHex);
   const accent =
     variant === "light" ? palette.complementBright : palette.complementDim;
+  const neutralSat = palette.feltSat < 1 ? 0 : 6;
 
   if (variant === "light") {
     return {
-      textPrimary: tintedNeutral(palette.feltHue, "light"),
-      textSecondary: tintedNeutral(palette.feltHue, "light", 0.88),
-      textMuted: tintedNeutral(palette.feltHue, "light", 0.55),
+      textPrimary: tintedNeutral(palette.feltHue, "light", 1, neutralSat),
+      textSecondary: tintedNeutral(palette.feltHue, "light", 0.88, neutralSat),
+      textMuted: tintedNeutral(palette.feltHue, "light", 0.55, neutralSat),
       accent,
       leaveText: accent,
       textShadow: "rgba(0, 0, 0, 0.42)",
@@ -275,9 +308,9 @@ export function computeOnFeltColors(
   }
 
   return {
-    textPrimary: tintedNeutral(palette.feltHue, "dark"),
-    textSecondary: tintedNeutral(palette.feltHue, "dark", 0.88),
-    textMuted: tintedNeutral(palette.feltHue, "dark", 0.55),
+    textPrimary: tintedNeutral(palette.feltHue, "dark", 1, neutralSat),
+    textSecondary: tintedNeutral(palette.feltHue, "dark", 0.88, neutralSat),
+    textMuted: tintedNeutral(palette.feltHue, "dark", 0.55, neutralSat),
     accent,
     leaveText: accent,
     // Halo shadow keeps ink color but reads darker / bolder on light felts.
@@ -297,10 +330,10 @@ export function computeOnFeltFromPreferences(
   );
 }
 
-function shellNeutral(mode: ThemeMode, feltHue: number): Rgb {
+function shellNeutral(mode: ThemeMode, feltHue: number, feltSat: number): Rgb {
   return hslToRgb({
     h: feltHue,
-    s: mode === "dark" ? 6 : 8,
+    s: feltSat < 1 ? 0 : mode === "dark" ? 6 : 8,
     l: mode === "dark" ? 97 : 11,
   });
 }
@@ -313,21 +346,22 @@ function buildShellColors(
   const isDark = mode === "dark";
   const environment = environmentProfileForMode(mode);
   const accent = isDark ? palette.complementBright : palette.complementDim;
-  const ink = shellNeutral(mode, palette.feltHue);
+  const ink = shellNeutral(mode, palette.feltHue, palette.feltSat);
   // Micro-contrast: slightly brighter titles, clearer secondary/muted separation.
   const textPrimary = rgbToHex(ink);
   const textSecondary = hexToRgba(textPrimary, isDark ? 0.9 : 0.86);
   const textMuted = hexToRgba(textPrimary, isDark ? 0.5 : 0.62);
 
+  const surfaceSat = palette.feltSat < 1 ? 0 : isDark ? 12 : 5;
   const surface = isDark
-    ? hslToHex(palette.feltHue, 12, 7)
-    : hslToHex(palette.feltHue, 5, 97);
+    ? hslToHex(palette.feltHue, surfaceSat, 7)
+    : hslToHex(palette.feltHue, surfaceSat, 97);
 
   // Frost tint by mode + felt hue; opacity stays in the translucent blur band.
-  const frostRgb = resolveFrostRgb(mode, palette.feltHue);
+  const frostRgb = resolveFrostRgb(mode, palette.feltHue, palette.feltSat);
   const frost = isDark
     ? textPrimary
-    : hslToHex(palette.feltHue, 14, 96);
+    : hslToHex(palette.feltHue, palette.feltSat < 1 ? 0 : 14, 96);
   const frostLine = frost;
   // Edge highlight — slight separation from felt without raising fill opacity.
   const glassLine = isDark ? 0.16 : 0.2;

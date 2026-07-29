@@ -19,6 +19,7 @@ import {
   hslToRgb,
   rgbToHex,
   rgbToHsl,
+  feltHexFromHsl,
   type Hsl,
 } from "../utils/colorTheory";
 import { normalizeHexColor } from "../services/wallpaper";
@@ -98,6 +99,11 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
   useEffect(() => {
     const normalized = normalizeHexColor(value);
     if (!normalized) return;
+    // Prefer matching the hue-safe persisted form so dragging to black keeps local HSL.
+    const persistedFromLocal = normalizeHexColor(
+      feltHexFromHsl(hslRef.current.h, hslRef.current.s, hslRef.current.l),
+    );
+    if (normalized === persistedFromLocal) return;
     const self = normalizeHexColor(
       hslToHex(hslRef.current.h, hslRef.current.s, hslRef.current.l),
     );
@@ -121,7 +127,8 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
       };
       hslRef.current = clamped;
       setHsl(clamped);
-      onChange(hslToHex(clamped.h, clamped.s, clamped.l));
+      // Persist a hue-safe hex so theme accents don't snap to red on near-black.
+      onChange(feltHexFromHsl(clamped.h, clamped.s, clamped.l));
     },
     [onChange],
   );
