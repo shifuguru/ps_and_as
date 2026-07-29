@@ -3673,6 +3673,19 @@ function GameScreen({
 }
 
 function GameScreenBoard() {
+  // Bind these before the large context destructure so a stale Fast Refresh
+  // partial update cannot throw ReferenceError: roundEndLastPlayHold is not defined.
+  const runtimeCtx = useContext(GameScreenRuntimeContext) as Record<
+    string,
+    unknown
+  > | null;
+  const roundEndLastPlayHold = runtimeCtx?.roundEndLastPlayHold === true;
+  const roundEndHoldSnapshot =
+    (runtimeCtx?.roundEndHoldSnapshot as {
+      plays: TrickPlayDisplay[];
+      passedPlayerIds: string[];
+    } | null | undefined) ?? null;
+
   const {
     state,
     setState,
@@ -3696,8 +3709,6 @@ function GameScreenBoard() {
     lastHandReveal,
     clearLastHandReveal,
     finishLastHandReveal,
-    roundEndLastPlayHold,
-    roundEndHoldSnapshot,
     trickPauseActive,
     trickPauseSnapshot,
     showWinnerBanner,
@@ -3813,11 +3824,6 @@ function GameScreenBoard() {
     lastHandReveal: LastHandRevealPayload | null;
     clearLastHandReveal: () => void;
     finishLastHandReveal: () => void;
-    roundEndLastPlayHold: boolean;
-    roundEndHoldSnapshot: {
-      plays: TrickPlayDisplay[];
-      passedPlayerIds: string[];
-    } | null;
     trickPauseActive: boolean;
     trickPauseSnapshot: TrickPauseSnapshot | null;
     showWinnerBanner: boolean;
