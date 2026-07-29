@@ -78,6 +78,12 @@ const SERVER_GATES = [
     args: ["scripts/test-reconnect-round-complete.mjs"],
   },
   {
+    id: "hand-confidentiality",
+    title: "Hand confidentiality — tradesComplete / playerHandsUpdate",
+    cmd: "node",
+    args: ["scripts/test-hand-confidentiality.mjs"],
+  },
+  {
     id: "private-reconnect",
     title: "Private room — mid-turn reconnect + next round",
     cmd: "node",
