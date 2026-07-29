@@ -322,7 +322,8 @@ type ShellTextScale = {
 /** Semantic shell text hierarchy — same roles in light and dark, tuned per mode. */
 function buildShellTextScale(textPrimary: string, isDark: boolean): ShellTextScale {
   const textSecondary = hexToRgba(textPrimary, isDark ? 0.88 : 0.78);
-  const textTertiary = hexToRgba(textPrimary, isDark ? 0.62 : 0.56);
+  // Light mode tertiary raised slightly (0.60) so small labels don't disappear on light glass.
+  const textTertiary = hexToRgba(textPrimary, isDark ? 0.62 : 0.60);
   const textQuaternary = hexToRgba(textPrimary, isDark ? 0.42 : 0.38);
   return {
     textPrimary,
@@ -360,7 +361,9 @@ function buildShellColors(
 ): AppThemeColors {
   const isDark = mode === "dark";
   const environment = environmentProfileForMode(mode);
-  const accent = isDark ? palette.complementBright : palette.complementDim;
+  // Light mode uses `complement` (mid-lightness) for shell accent — complementDim
+  // is too dull on light glass panels. Dark mode uses complementBright as before.
+  const accent = isDark ? palette.complementBright : palette.complement;
   const ink = shellNeutral(mode, palette.feltHue);
   const text = buildShellTextScale(rgbToHex(ink), isDark);
   const { textPrimary, textSecondary, textTertiary, textQuaternary, textMuted } =
