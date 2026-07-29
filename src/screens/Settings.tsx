@@ -343,7 +343,7 @@ export default function Settings({
                   />
                   <MenuIcon
                     name="palette"
-                    size={16}
+                    size={18}
                     color={feltPickerOpen ? colors.textOnGold : colors.gold}
                   />
                 </TouchableOpacity>
@@ -749,14 +749,17 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   },
   swatchRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+    alignItems: "stretch",
+    justifyContent: "space-between",
+    gap: 10,
+    width: "100%",
     marginBottom: 12,
   },
   swatch: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    flex: 1,
+    aspectRatio: 1,
+    minWidth: 0,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: "transparent",
   },
@@ -778,11 +781,11 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   },
   pickerSwatchFill: {
     position: "absolute",
-    left: 4,
-    right: 4,
-    top: 4,
-    bottom: 4,
-    borderRadius: 6,
+    left: 5,
+    right: 5,
+    top: 5,
+    bottom: 5,
+    borderRadius: 8,
     opacity: 0.45,
   },
   });
