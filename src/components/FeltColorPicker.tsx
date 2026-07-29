@@ -291,7 +291,7 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
       nativeID={PICKER_NATIVE_ID}
       style={[styles.root, Platform.OS === "web" && styles.rootWeb]}
     >
-      <Text style={styles.label}>Saturation & lightness</Text>
+      <Text style={styles.label}>Felt Color</Text>
       <View
         ref={(node) => {
           slTouchRef.current = node;
@@ -346,7 +346,7 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
         </View>
       </View>
 
-      <Text style={styles.label}>Hue</Text>
+      <Text style={styles.label}>Accent & Highlight Influence</Text>
       <View
         ref={(node) => {
           hueTouchRef.current = node;
