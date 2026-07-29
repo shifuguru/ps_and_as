@@ -177,6 +177,7 @@ function AppContent() {
         profile.id,
         true,
         feltTint,
+        pendingRejoin.reconnectSecret ?? null,
       ),
     );
     setJoinedRoomId(pendingRejoin.roomId);
@@ -770,6 +771,9 @@ function AppContent() {
                   playerName: profile.displayName,
                   isHost: !joinedRoomId,
                   roomName: displayRoomName || roomId,
+                  reconnectSecret: isSocketAdapter(roomAdapter)
+                    ? roomAdapter.getReconnectSecret() ?? undefined
+                    : undefined,
                 });
                 setPendingRejoin(null);
               })();
