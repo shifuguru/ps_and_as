@@ -9,6 +9,7 @@ const {
   passTurn,
   repairStuckTurnPointer,
   setTenRuleDirection,
+  tenRuleChooserIndex,
   resolveLeadPlayerIndexAfterTrades,
   resolveFirstRoundLeadPlayerIndex,
   resolveOpeningPlayerIndex,
@@ -552,29 +553,35 @@ function applyWinnerSelectedCards(gameState, playerHands, winnerId, selectedCard
 
   const trade = pending[key];
   if (!trade) return { ok: false, message: 'Trade not found' };
+  if (trade.selected) {
+    return { ok: false, message: 'Trade already completed' };
+  }
 
   const expectedCount = trade.count;
   if (!Array.isArray(selectedCards) || selectedCards.length !== expectedCount) {
     return { ok: false, message: `Must select exactly ${expectedCount} cards` };
   }
 
-  // Validate that winner currently has these cards
-  const winnerHand = playerHands[winnerId] || [];
+  // Validate that winner currently has these cards (consume matches — no duplicates)
+  const winnerHand = [...(playerHands[winnerId] || [])];
+  const selectedCopy = [];
   for (const sc of selectedCards) {
     const found = winnerHand.findIndex(c => c.suit === sc.suit && c.value === sc.value);
     if (found === -1) return { ok: false, message: 'Selected card not in winner hand' };
+    selectedCopy.push(winnerHand[found]);
+    winnerHand.splice(found, 1);
   }
 
   // Remove selected cards from winner and give to loser (trade.fromId)
-  playerHands[winnerId] = winnerHand.filter(h => !selectedCards.find(s => s.suit === h.suit && s.value === h.value));
+  playerHands[winnerId] = winnerHand;
   const loserId = trade.fromId;
-  playerHands[loserId] = (playerHands[loserId] || []).concat(selectedCards);
+  playerHands[loserId] = (playerHands[loserId] || []).concat(selectedCopy);
 
   // Also, the incoming cards that were removed earlier must be added to winner's hand
   playerHands[winnerId] = (playerHands[winnerId] || []).concat(trade.incoming || []);
 
   // Mark trade as completed
-  trade.selected = selectedCards;
+  trade.selected = selectedCopy;
   return { ok: true };
 }
 
@@ -1894,6 +1901,15 @@ io.on('connection', (socket) => {
         socket.emit('error', { message: 'No ten rule pending' });
         return;
       }
+      const chooserIdx = tenRuleChooserIndex(working);
+      if (chooserIdx == null || working.players[chooserIdx]?.id !== player.id) {
+        socket.emit('error', { message: 'Not your ten-rule choice' });
+        return;
+      }
+      if (action.direction !== 'higher' && action.direction !== 'lower') {
+        socket.emit('error', { message: 'Invalid ten-rule direction' });
+        return;
+      }
       next = setTenRuleDirection(working, action.direction);
     } else {
       return;
@@ -1958,8 +1974,16 @@ io.on('connection', (socket) => {
     emitBetweenRoundsSnapshot(socket, room);
   });
 
-  socket.on('roundFinished', ({ roomId, finishOrder, hands }) => {
-    handleRoundFinished(roomId, finishOrder, hands);
+  // Legacy client event — ignore caller-supplied finishOrder/hands. Only room
+  // members may request a server-authoritative between-rounds snapshot.
+  socket.on('roundFinished', ({ roomId }) => {
+    const code = normalizeRoomCode(roomId);
+    const room = rooms[code];
+    if (!room?.gameState) return;
+    const member = room.players.find((p) => p.socketId === socket.id);
+    if (!member) return;
+    if (!isRoundComplete(room.gameState) || room.gameState.tenRulePending) return;
+    emitBetweenRoundsSnapshot(socket, room);
   });
 
   // Winner selects cards to send back to loser
