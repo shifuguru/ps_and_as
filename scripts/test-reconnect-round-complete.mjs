@@ -55,6 +55,7 @@ function connectClient(name, profileId) {
     socket.on("connect_error", (err) => reject(err));
     socket.on("connected", (data) => {
       state.id = data.profileId ?? data.id;
+      state.reconnectSecret = data.reconnectSecret ?? null;
     });
     socket.on("gameStateSync", (data) => {
       state.gameState = data.gameState;
@@ -69,13 +70,14 @@ function connectClient(name, profileId) {
   });
 }
 
-async function joinPlayer(name, profileId) {
+async function joinPlayer(name, profileId, reconnectSecret) {
   const client = await connectClient(name, profileId);
   client.socket.emit("joinRoom", {
     roomId: ROOM,
     name,
     profileId,
     clientBuildId: "dev",
+    ...(reconnectSecret ? { reconnectSecret } : {}),
   });
   await once(client.socket, "connected");
   return client;
@@ -321,12 +323,17 @@ async function main() {
   guestClient.socket.disconnect();
   await wait(300);
 
+  const guestSecret = guestClient.state.reconnectSecret;
+  if (!guestSecret) {
+    throw new Error("guest never received reconnectSecret on connected");
+  }
   const rejoin = await connectClient("Guest", "profile-rc-replay-guest");
   rejoin.socket.emit("joinRoom", {
     roomId: ROOM,
     name: "Guest",
     profileId: "profile-rc-replay-guest",
     clientBuildId: "dev",
+    reconnectSecret: guestSecret,
   });
   await once(rejoin.socket, "connected");
   await wait(400);
