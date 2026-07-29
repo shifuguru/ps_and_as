@@ -303,6 +303,8 @@ async function main() {
   await testCrossRoomLeavePausesMatch();
   await testForgedRoundFinishedIgnored();
   await testMidRoundReadyIgnored();
+  await testBotSeatClaimRejected();
+  await testSkipBotTableRequiresMembership();
   console.log("All seat security checks passed.");
 }
 
@@ -310,3 +312,42 @@ main().catch((err) => {
   console.error("FAIL", err.message ?? err);
   process.exit(1);
 });
+
+async function testBotSeatClaimRejected() {
+  const attacker = await connectClient("BotThief", "cpu-1");
+  attacker.socket.emit("joinRoom", {
+    roomId: "BOTOPN",
+    name: "BotThief",
+    profileId: "cpu-1",
+  });
+  await wait(800);
+  const claimed = (attacker.state.lobby?.players || []).some(
+    (p) => p.id === "cpu-1" && p.name === "BotThief",
+  );
+  if (claimed) {
+    throw new Error("attacker claimed bot seat cpu-1");
+  }
+  if (!attacker.state.errors.some((m) => /invalid player id|bot/i.test(m))) {
+    throw new Error(
+      `expected bot/cpu id rejection, got errors=${JSON.stringify(attacker.state.errors)}`,
+    );
+  }
+  attacker.socket.disconnect();
+  console.log("  PASS bot seat claim / cpu-* join rejected");
+}
+
+async function testSkipBotTableRequiresMembership() {
+  const outsider = await connectClient("Skipper", `skip-${Date.now()}`);
+  outsider.state.roundEnded = null;
+  outsider.socket.emit("skipBotTable", { roomId: "BOTOPN" });
+  await wait(700);
+  if (
+    !outsider.state.errors.some((m) => /join the bot table|not found/i.test(m))
+  ) {
+    throw new Error(
+      `expected skipBotTable membership error, got ${JSON.stringify(outsider.state.errors)}`,
+    );
+  }
+  outsider.socket.disconnect();
+  console.log("  PASS skipBotTable requires room membership");
+}
