@@ -3240,8 +3240,6 @@ function GameScreen({
           ) {
             return;
           }
-            return;
-          }
           if (!canAcknowledgmentPass(live, cpu.id)) return;
           const nextState = passTurn(live, cpu.id);
           if (nextState !== live) {
