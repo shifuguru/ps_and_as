@@ -1,4 +1,5 @@
 import { Dimensions, Platform } from "react-native";
+import { useEffect, useState } from "react";
 import { breakpoints } from "./breakpoints";
 
 /** Android / general tablet shortest-side threshold (sw600dp-ish). */
@@ -56,12 +57,33 @@ function isTabletUa(): boolean {
 }
 
 /**
- * Desktop browsers (mouse/trackpad) — always exempt, even if the window is narrow.
+ * Phone UA — including Chrome DevTools device emulation (iPhone / Android Mobile).
+ * Checked before pointer media queries, because DevTools keeps desktop fine-pointer.
+ */
+function isMobilePhoneUa(): boolean {
+  const nav = getWebWindow()?.navigator;
+  if (!nav) return false;
+  if (isTabletUa()) return false;
+  const ua = nav.userAgent || "";
+  if (/iPhone|iPod/i.test(ua)) return true;
+  if (/Android/i.test(ua) && /Mobile/i.test(ua)) return true;
+  if (/Mobi/i.test(ua)) return true;
+  return false;
+}
+
+/**
+ * Desktop browsers (mouse/trackpad) — exempt when there is no mobile UA.
  */
 function isDesktopWebPointer(): boolean {
   const win = getWebWindow();
   if (!win?.matchMedia) return false;
   return win.matchMedia("(pointer: fine) and (hover: hover)").matches;
+}
+
+function readWebLandscape(): boolean {
+  const win = getWebWindow();
+  if (!win) return false;
+  return (win.innerWidth ?? 0) > (win.innerHeight ?? 0);
 }
 
 /**
@@ -70,19 +92,56 @@ function isDesktopWebPointer(): boolean {
  */
 export function shouldLockPortraitOrientation(): boolean {
   if (Platform.OS === "web") {
-    if (isDesktopWebPointer()) return false;
     if (isTabletUa()) return false;
+    // DevTools "iPhone" / real phones — lock even if the host still has a mouse.
+    if (isMobilePhoneUa()) return true;
+    if (isDesktopWebPointer()) return false;
     const win = getWebWindow();
     if (!win) return false;
     const shortest = Math.min(win.innerWidth ?? 0, win.innerHeight ?? 0);
-    // Match layout tablet breakpoint so large phones stay locked, tablets free.
     return shortest > 0 && shortest < breakpoints.tablet;
   }
 
   if (Platform.OS === "ios" && Platform.isPad) return false;
 
-  // Android / other native: treat large shortest-side as tablet.
   return readShortestSide() < TABLET_SHORTEST_SIDE_PX;
+}
+
+/**
+ * Phones in landscape: browsers usually cannot force rotation, so UI should
+ * block with a "rotate to portrait" message instead.
+ */
+export function shouldBlockPhoneLandscape(): boolean {
+  if (!shouldLockPortraitOrientation()) return false;
+  if (Platform.OS === "web") return readWebLandscape();
+  const { width, height } = Dimensions.get("window");
+  return width > height;
+}
+
+/** React hook — updates on resize / orientation change. */
+export function usePhoneLandscapeBlock(): boolean {
+  const [blocked, setBlocked] = useState(() => shouldBlockPhoneLandscape());
+
+  useEffect(() => {
+    const sync = () => setBlocked(shouldBlockPhoneLandscape());
+    sync();
+
+    if (Platform.OS !== "web") {
+      const sub = Dimensions.addEventListener("change", sync);
+      return () => sub.remove();
+    }
+
+    const win = getWebWindow();
+    if (!win?.addEventListener) return;
+    win.addEventListener("resize", sync);
+    win.addEventListener("orientationchange", sync);
+    return () => {
+      win.removeEventListener?.("resize", sync);
+      win.removeEventListener?.("orientationchange", sync);
+    };
+  }, []);
+
+  return blocked;
 }
 
 async function applyNativeOrientationLock(): Promise<void> {
@@ -107,18 +166,27 @@ function getWebScreenOrientation(): ScreenOrientationApi | null {
 
 async function applyWebOrientationLock(): Promise<void> {
   if (Platform.OS !== "web") return;
-  const orientation = getWebScreenOrientation();
-  if (!orientation) return;
-
-  try {
-    if (shouldLockPortraitOrientation()) {
-      // Browsers often only honor this in installed / fullscreen contexts.
-      await orientation.lock?.("portrait");
-    } else {
-      await orientation.unlock?.();
+  if (!shouldLockPortraitOrientation()) {
+    try {
+      await getWebScreenOrientation()?.unlock?.();
+    } catch {
+      // ignore
     }
+    return;
+  }
+
+  const orientation = getWebScreenOrientation();
+  if (!orientation?.lock) return;
+
+  // Only honored in installed PWA / fullscreen on most browsers; failures are expected in tabs.
+  try {
+    await orientation.lock("portrait");
   } catch {
-    // NotAllowedError outside fullscreen — expected on many mobile browsers.
+    try {
+      await orientation.lock("portrait-primary");
+    } catch {
+      // NotAllowedError outside fullscreen — landscape overlay covers this case.
+    }
   }
 }
 

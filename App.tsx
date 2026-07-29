@@ -49,6 +49,7 @@ import {
   pickCpuDisplayNames,
 } from "./src/utils/cpuNames";
 import AppErrorBoundary from "./src/components/AppErrorBoundary";
+import PhoneLandscapeGate from "./src/components/PhoneLandscapeGate";
 import { StatusBar } from "expo-status-bar";
 import {
   getViewportExperiment,
@@ -1050,7 +1051,9 @@ export default function App() {
       <ThemeProvider>
         <CardAppearanceProvider>
           <AppErrorBoundary>
-            <AppContent />
+            <PhoneLandscapeGate>
+              <AppContent />
+            </PhoneLandscapeGate>
           </AppErrorBoundary>
         </CardAppearanceProvider>
       </ThemeProvider>
