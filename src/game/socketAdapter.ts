@@ -174,8 +174,9 @@ export class SocketAdapter implements NetworkAdapter {
   private emitRegisterPresence() {
     if (!this.socket?.connected) return;
     const profileId = this.profileId?.trim();
+    const displayName = this.name?.trim() || undefined;
     if (profileId) {
-      this.socket.emit("registerPresence", { profileId });
+      this.socket.emit("registerPresence", { profileId, displayName });
       return;
     }
     void (async () => {
@@ -184,11 +185,14 @@ export class SocketAdapter implements NetworkAdapter {
         const profile = await getOrCreatePlayerId();
         this.profileId = profile.id;
         if (this.socket?.connected) {
-          this.socket.emit("registerPresence", { profileId: profile.id });
+          this.socket.emit("registerPresence", {
+            profileId: profile.id,
+            displayName: profile.displayName?.trim() || displayName,
+          });
         }
       } catch {
         if (this.socket?.connected) {
-          this.socket.emit("registerPresence", {});
+          this.socket.emit("registerPresence", { displayName });
         }
       }
     })();

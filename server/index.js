@@ -386,13 +386,21 @@ const rooms = {};
 /** Connected clients keyed by profileId (or socket id when profile unknown). */
 const presenceSocketsByIdentity = new Map();
 const socketPresenceIdentity = new Map();
+/** identity -> { displayName } */
+const presenceMetaByIdentity = new Map();
 
 function presenceIdentity(profileId, socketId) {
   const pid = typeof profileId === 'string' && profileId.trim() ? profileId.trim() : null;
   return pid || socketId;
 }
 
-function trackPresence(socket, profileId) {
+function sanitizePresenceDisplayName(name) {
+  if (typeof name !== 'string') return 'Player';
+  const trimmed = name.trim().slice(0, 32);
+  return trimmed || 'Player';
+}
+
+function trackPresence(socket, profileId, displayName) {
   const identity = presenceIdentity(profileId, socket.id);
   const previous = socketPresenceIdentity.get(socket.id);
   if (previous && previous !== identity) {
@@ -403,6 +411,13 @@ function trackPresence(socket, profileId) {
   }
   presenceSocketsByIdentity.get(identity).add(socket.id);
   socketPresenceIdentity.set(socket.id, identity);
+  if (displayName !== undefined) {
+    presenceMetaByIdentity.set(identity, {
+      displayName: sanitizePresenceDisplayName(displayName),
+    });
+  } else if (!presenceMetaByIdentity.has(identity)) {
+    presenceMetaByIdentity.set(identity, { displayName: 'Player' });
+  }
 }
 
 function untrackPresence(socket) {
@@ -414,6 +429,7 @@ function untrackPresence(socket) {
     sockets.delete(socket.id);
     if (sockets.size === 0) {
       presenceSocketsByIdentity.delete(identity);
+      presenceMetaByIdentity.delete(identity);
       countChanged = true;
     }
   }
@@ -425,10 +441,19 @@ function totalOnlineConnectedPlayers() {
   return presenceSocketsByIdentity.size;
 }
 
-function broadcastOnlinePlayerCount() {
-  io.emit('onlinePlayerCount', {
+function onlinePresencePayload() {
+  const players = [...presenceMetaByIdentity.entries()]
+    .filter(([identity]) => presenceSocketsByIdentity.has(identity))
+    .map(([, meta]) => ({ displayName: meta.displayName }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }));
+  return {
     activePlayers: totalOnlineConnectedPlayers(),
-  });
+    players,
+  };
+}
+
+function broadcastOnlinePlayerCount() {
+  io.emit('onlinePlayerCount', onlinePresencePayload());
 }
 
 // Assign roles based on finish order. Mutates gameState object.
@@ -1329,7 +1354,7 @@ io.on('connection', (socket) => {
   const beforeConnect = totalOnlineConnectedPlayers();
   trackPresence(socket, null);
   const afterConnect = totalOnlineConnectedPlayers();
-  socket.emit('onlinePlayerCount', { activePlayers: afterConnect });
+  socket.emit('onlinePlayerCount', onlinePresencePayload());
   if (afterConnect !== beforeConnect) broadcastOnlinePlayerCount();
 
   // Send available rooms when client requests discovery
@@ -1351,17 +1376,15 @@ io.on('connection', (socket) => {
   });
 
   socket.on('getOnlinePlayerCount', () => {
-    socket.emit('onlinePlayerCount', {
-      activePlayers: totalOnlineConnectedPlayers(),
-    });
+    socket.emit('onlinePlayerCount', onlinePresencePayload());
   });
 
-  socket.on('registerPresence', ({ profileId } = {}) => {
+  socket.on('registerPresence', ({ profileId, displayName } = {}) => {
     const before = totalOnlineConnectedPlayers();
-    trackPresence(socket, profileId);
+    trackPresence(socket, profileId, displayName);
     const after = totalOnlineConnectedPlayers();
-    socket.emit('onlinePlayerCount', { activePlayers: after });
-    if (after !== before) broadcastOnlinePlayerCount();
+    socket.emit('onlinePlayerCount', onlinePresencePayload());
+    if (after !== before || displayName !== undefined) broadcastOnlinePlayerCount();
   });
 
   socket.on('createRoom', ({ roomId, name, profileId, isPublic = true, roomName, feltTint }) => {
@@ -2108,7 +2131,7 @@ io.on('connection', (socket) => {
 
 app.get('/api/online-players', (_req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.json({ activePlayers: totalOnlineConnectedPlayers() });
+  res.json(onlinePresencePayload());
 });
 
 server.listen(PORT, () => {
