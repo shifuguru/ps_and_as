@@ -1124,6 +1124,13 @@ function seatHasLiveForeignSocket(player, socket) {
 
 function canClaimExistingSeat(player, socket, reconnectSecret) {
   if (!player) return { ok: false, reason: 'Seat not found.' };
+  // Bot seats are not claimable — profile ids like cpu-1 are public and stable.
+  if (botHosted.isBotMember(player) || isCpuLobbyId(player.id) || isCpuLobbyId(player.profileId)) {
+    return {
+      ok: false,
+      reason: 'That seat is reserved for a bot.',
+    };
+  }
   if (seatHasLiveForeignSocket(player, socket)) {
     return {
       ok: false,
@@ -1502,6 +1509,10 @@ io.on('connection', (socket) => {
 
   socket.on('createRoom', ({ roomId, name, profileId, isPublic = true, roomName, feltTint }) => {
     const pid = resolveProfileId(profileId, socket);
+    if (isCpuLobbyId(pid)) {
+      socket.emit('error', { message: 'Invalid player id.' });
+      return;
+    }
     const code = normalizeRoomCode(roomId);
     if (!isValidRoomCode(code)) {
       socket.emit('error', { message: 'Invalid room code.' });
@@ -1632,6 +1643,10 @@ io.on('connection', (socket) => {
       return;
     }
     const pid = resolveProfileId(profileId, socket);
+    if (isCpuLobbyId(pid)) {
+      socket.emit('error', { message: 'Invalid player id.' });
+      return;
+    }
     removeSocketFromOtherRooms(socket, pid, code);
 
     const room = rooms[code];
@@ -1918,10 +1933,8 @@ io.on('connection', (socket) => {
         socket.emit('error', { message: 'Reshuffle not needed right now' });
         return;
       }
-      const dealSeed =
-        typeof action.dealSeed === 'number'
-          ? (action.dealSeed >>> 0)
-          : Math.floor(Math.random() * 2147483647);
+      // Always server-authored — never trust client dealSeed (cherry-pick risk).
+      const dealSeed = Math.floor(Math.random() * 2147483647);
       const lastOrder = livingFinishOrder(
         room.gameState,
         room.gameState.lastRoundOrder?.slice() ?? [],
@@ -2043,6 +2056,16 @@ io.on('connection', (socket) => {
 
   socket.on('skipBotTable', ({ roomId }) => {
     const code = normalizeRoomCode(roomId);
+    const room = rooms[code];
+    if (!room) {
+      socket.emit('error', { message: 'Room not found' });
+      return;
+    }
+    const member = getPlayerBySocket(room, socket.id);
+    if (!member) {
+      socket.emit('error', { message: 'Join the bot table before skipping.' });
+      return;
+    }
     const result = botHosted.skipBotHostedGame(code, getBotContext());
     if (!result.ok) {
       socket.emit('error', { message: result.message || 'Could not skip bot game.' });
