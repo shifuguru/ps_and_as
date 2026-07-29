@@ -846,7 +846,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       backgroundColor: hexToRgba(colors.gold, 0.14),
     },
     titleSlot: {
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 13,
       fontWeight: "600",
       fontStyle: "italic",
@@ -857,7 +857,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       opacity: 0,
     },
     identityMeta: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 13,
       fontWeight: "700",
       marginTop: 2,
@@ -945,7 +945,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     unlockAge: {
       marginTop: 4,
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 12,
       fontWeight: "700",
     },
@@ -970,7 +970,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontVariant: ["tabular-nums"],
     },
     statLabel: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 11,
       fontWeight: "600",
       marginTop: 2,
@@ -1024,7 +1024,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       flex: 1,
     },
     supportBody: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 13,
       fontWeight: "600",
       lineHeight: 19,

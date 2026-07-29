@@ -374,7 +374,7 @@ export default function FindGame({
                   >
                     <TextInput
                       placeholder="Enter room code"
-                      placeholderTextColor={colors.textMuted}
+                      placeholderTextColor={colors.textQuaternary}
                       value={roomCode}
                       onChangeText={(text) =>
                         setRoomCode(normalizeRoomCodeInput(text))
@@ -827,7 +827,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     marginBottom: 2,
   },
   roomHost: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 12,
     marginBottom: 6,
   },
@@ -836,7 +836,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     alignItems: "center",
   },
   roomMetaText: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 12,
   },
   roomMetaInPlay: {
@@ -858,7 +858,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     paddingHorizontal: 18,
   },
   roomMetaDot: {
-    color: colors.textMuted,
+    color: colors.textQuaternary,
     marginHorizontal: 6,
   },
   joinBtnDisabled: {
@@ -871,7 +871,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     fontWeight: "800",
   },
   joinBtnTextDisabled: {
-    color: colors.textMuted,
+    color: colors.textTertiary,
   },
   });
 }

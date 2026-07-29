@@ -185,7 +185,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       lineHeight: 20,
     },
     footnote: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 12,
       lineHeight: 18,
       marginTop: 4,

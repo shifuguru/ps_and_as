@@ -408,7 +408,7 @@ function createStyles(colors: AppThemeColors) {
       cursor: "crosshair",
     } as object,
     label: {
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 11,
       fontWeight: "700",
       letterSpacing: 0.2,

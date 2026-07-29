@@ -3511,7 +3511,7 @@ function GameScreen({
           {onlineMultiplayer && syncError ? (
             <Text
               style={{
-                color: colors.onFelt.textMuted,
+                color: colors.onFelt.textTertiary,
                 fontSize: 13,
                 marginTop: 12,
                 textAlign: "center",

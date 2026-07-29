@@ -206,6 +206,7 @@ function RoomNameInput({
   wrapFocusedStyle: ViewStyle;
   hintStyle: TextStyle;
 }) {
+  const { colors } = useAppTheme();
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
   const focusedRef = useRef(false);
@@ -245,7 +246,7 @@ function RoomNameInput({
       <TextInput
         ref={inputRef}
         placeholder="Enter Room Name"
-        placeholderTextColor="rgba(255,255,255,0.4)"
+        placeholderTextColor={colors.textQuaternary}
         value={draft}
         onChangeText={setDraft}
         onFocus={() => {
@@ -1447,7 +1448,7 @@ function createLocalStyles(colors: AppThemeColors) {
     paddingVertical: 12,
   },
   roomInputHint: {
-    color: colors.textMuted,
+    color: colors.textTertiary,
     fontSize: 16,
     marginLeft: 8,
   },
@@ -1493,7 +1494,7 @@ function createLocalStyles(colors: AppThemeColors) {
     textAlign: "center",
   },
   deadHandSeatHint: {
-    color: colors.textMuted,
+    color: colors.textQuaternary,
     fontSize: 9,
     fontWeight: "600",
     marginTop: 2,

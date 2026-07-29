@@ -178,7 +178,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       letterSpacing: 0.5,
       marginBottom: 22,
       fontWeight: "500",
-      ...onFeltTextStyle(colors.onFelt, "accent"),
+      ...onFeltTextStyle(colors.onFelt, "quaternary"),
     },
     buttonStack: {
       gap: 10,

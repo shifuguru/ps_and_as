@@ -33,7 +33,7 @@ export default function TrickScoreWidget({ rows }: Props) {
         <Text style={styles.eyebrow}>Tricks</Text>
       </View>
       {sorted.map((r) => {
-        const accent = r.accent ?? (r.isYou ? colors.gold : colors.textMuted);
+        const accent = r.accent ?? (r.isYou ? colors.gold : colors.textTertiary);
         const leading = r.tricks > 0 && r.tricks === lead;
         return (
           <View
@@ -152,7 +152,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       borderRadius: 2,
     },
     zero: {
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 10,
       fontWeight: "600",
     },

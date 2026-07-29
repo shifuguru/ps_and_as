@@ -15,6 +15,9 @@ export type { EnvironmentProfile };
 export type FeltTextColors = {
   textPrimary: string;
   textSecondary: string;
+  textTertiary: string;
+  textQuaternary: string;
+  /** @deprecated Use `textTertiary`. */
   textMuted: string;
   accent: string;
   leaveText: string;
@@ -31,6 +34,9 @@ export type AppThemeColors = {
   gold: string;
   textPrimary: string;
   textSecondary: string;
+  textTertiary: string;
+  textQuaternary: string;
+  /** @deprecated Use `textTertiary`. */
   textMuted: string;
   textOnGold: string;
   panelBorder: string;

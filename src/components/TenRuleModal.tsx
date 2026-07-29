@@ -132,7 +132,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     choiceHint: {
       fontSize: 12,
-      color: colors.textMuted,
+      color: colors.textSecondary,
       marginTop: 2,
     },
     cancelBtn: {
@@ -143,7 +143,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     cancelLabel: {
       fontSize: 16,
       fontWeight: "600",
-      color: colors.textMuted,
+      color: colors.textSecondary,
     },
   });
 }

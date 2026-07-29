@@ -269,12 +269,11 @@ export function computeOnFeltColors(
   const palette = deriveFeltPalette(feltHex);
   const accent =
     variant === "light" ? palette.complementBright : palette.complementDim;
+  const text = buildOnFeltTextScale(palette.feltHue, variant);
 
   if (variant === "light") {
     return {
-      textPrimary: tintedNeutral(palette.feltHue, "light"),
-      textSecondary: tintedNeutral(palette.feltHue, "light", 0.88),
-      textMuted: tintedNeutral(palette.feltHue, "light", 0.55),
+      ...text,
       accent,
       leaveText: accent,
       textShadow: "rgba(0, 0, 0, 0.42)",
@@ -284,9 +283,7 @@ export function computeOnFeltColors(
   }
 
   return {
-    textPrimary: tintedNeutral(palette.feltHue, "dark"),
-    textSecondary: tintedNeutral(palette.feltHue, "dark", 0.88),
-    textMuted: tintedNeutral(palette.feltHue, "dark", 0.55),
+    ...text,
     accent,
     leaveText: accent,
     // Halo shadow keeps ink color but reads darker / bolder on light felts.
@@ -309,9 +306,51 @@ export function computeOnFeltFromPreferences(
 function shellNeutral(mode: ThemeMode, feltHue: number): Rgb {
   return hslToRgb({
     h: feltHue,
-    s: mode === "dark" ? 6 : 8,
-    l: mode === "dark" ? 97 : 11,
+    s: mode === "dark" ? 6 : 12,
+    l: mode === "dark" ? 97 : 7,
   });
+}
+
+type ShellTextScale = {
+  textPrimary: string;
+  textSecondary: string;
+  textTertiary: string;
+  textQuaternary: string;
+  textMuted: string;
+};
+
+/** Semantic shell text hierarchy — same roles in light and dark, tuned per mode. */
+function buildShellTextScale(textPrimary: string, isDark: boolean): ShellTextScale {
+  const textSecondary = hexToRgba(textPrimary, isDark ? 0.88 : 0.78);
+  const textTertiary = hexToRgba(textPrimary, isDark ? 0.62 : 0.56);
+  const textQuaternary = hexToRgba(textPrimary, isDark ? 0.42 : 0.38);
+  return {
+    textPrimary,
+    textSecondary,
+    textTertiary,
+    textQuaternary,
+    textMuted: textTertiary,
+  };
+}
+
+function buildOnFeltTextScale(
+  feltHue: number,
+  variant: "light" | "dark",
+): Pick<
+  FeltTextColors,
+  "textPrimary" | "textSecondary" | "textTertiary" | "textQuaternary" | "textMuted"
+> {
+  const textPrimary = tintedNeutral(feltHue, variant);
+  const textSecondary = tintedNeutral(feltHue, variant, 0.88);
+  const textTertiary = tintedNeutral(feltHue, variant, 0.62);
+  const textQuaternary = tintedNeutral(feltHue, variant, 0.42);
+  return {
+    textPrimary,
+    textSecondary,
+    textTertiary,
+    textQuaternary,
+    textMuted: textTertiary,
+  };
 }
 
 function buildShellColors(
@@ -323,10 +362,9 @@ function buildShellColors(
   const environment = environmentProfileForMode(mode);
   const accent = isDark ? palette.complementBright : palette.complementDim;
   const ink = shellNeutral(mode, palette.feltHue);
-  // Micro-contrast: slightly brighter titles, clearer secondary/muted separation.
-  const textPrimary = rgbToHex(ink);
-  const textSecondary = hexToRgba(textPrimary, isDark ? 0.9 : 0.86);
-  const textMuted = hexToRgba(textPrimary, isDark ? 0.5 : 0.62);
+  const text = buildShellTextScale(rgbToHex(ink), isDark);
+  const { textPrimary, textSecondary, textTertiary, textQuaternary, textMuted } =
+    text;
 
   const surface = isDark
     ? hslToHex(palette.feltHue, 12, 7)
@@ -347,6 +385,8 @@ function buildShellColors(
     gold: accent,
     textPrimary,
     textSecondary,
+    textTertiary,
+    textQuaternary,
     textMuted,
     textOnGold: "#FFFFFF",
     panelBorder: hexToRgba(frostLine, glassLine),
@@ -361,7 +401,7 @@ function buildShellColors(
     btnSecondaryBorder: hexToRgba(frostLine, glassLine),
     btnSecondaryText: isDark ? hexToRgba(frost, 0.9) : textPrimary,
     btnGhostBorder: hexToRgba(frost, isDark ? 0.12 : 0.16),
-    btnGhostText: hexToRgba(textPrimary, isDark ? 0.65 : 0.72),
+    btnGhostText: textTertiary,
     actionTrackBg: hexToRgba(frost, isDark ? 0.06 : 0.12),
     actionTrackBorder: hexToRgba(frost, isDark ? 0.14 : 0.16),
     actionPrimaryBg: hexToRgba(accent, isDark ? 0.18 : 0.14),
@@ -369,10 +409,7 @@ function buildShellColors(
     actionPrimaryText: accent,
     actionPrimaryDisabledBg: hexToRgba(frost, isDark ? 0.04 : 0.12),
     actionPrimaryDisabledBorder: hexToRgba(frost, isDark ? 0.1 : 0.12),
-    actionPrimaryDisabledText: hexToRgba(
-      textPrimary,
-      isDark ? 0.35 : 0.42,
-    ),
+    actionPrimaryDisabledText: textQuaternary,
     actionSecondaryBg: hexToRgba(frost, isDark ? 0.06 : 0.16),
     actionSecondaryBorder: hexToRgba(frostLine, glassLine),
     actionSecondaryText: isDark ? hexToRgba(frost, 0.88) : textPrimary,
@@ -387,7 +424,7 @@ function buildShellColors(
     modalBorder: hexToRgba(frostLine, glassLine),
     modalBody: textPrimary,
     emptyTitle: hexToRgba(textPrimary, 0.96),
-    emptyBody: hexToRgba(textPrimary, isDark ? 0.52 : 0.6),
+    emptyBody: textTertiary,
     surface,
     feltWash: "transparent",
     fullscreenScrim: hexToRgba(surface, isDark ? 0.58 : 0.32),

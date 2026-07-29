@@ -351,7 +351,7 @@ function roleBannerStyle(
             : "rgba(28, 48, 38, 0.7)",
           borderTopColor: colors.panelBorder,
         },
-        text: { color: isDark ? colors.textMuted : "rgba(255,255,255,0.92)" },
+        text: { color: isDark ? colors.textSecondary : "rgba(255,255,255,0.92)" },
       };
   }
 }
@@ -750,7 +750,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       letterSpacing: 0.6,
     },
     identityMeta: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 11,
       fontWeight: "600",
       letterSpacing: 0.1,
@@ -769,7 +769,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontVariant: ["tabular-nums"],
     },
     rankXpRoundMuted: {
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 13,
       fontWeight: "600",
     },
@@ -787,7 +787,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       backgroundColor: readyGreen,
     },
     readyDotOff: {
-      backgroundColor: hexToRgba(colors.textMuted, 0.55),
+      backgroundColor: hexToRgba(colors.textTertiary, 0.55),
     },
     readyLabel: {
       fontSize: 11,
@@ -798,10 +798,10 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       color: readyGreen,
     },
     readyLabelOff: {
-      color: colors.textMuted,
+      color: colors.textTertiary,
     },
     readyCount: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 12,
       fontWeight: "600",
       letterSpacing: 0.15,
@@ -818,7 +818,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontVariant: ["tabular-nums"],
     },
     spectatorHint: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 12,
       lineHeight: 17,
       textAlign: "center",

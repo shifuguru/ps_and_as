@@ -166,7 +166,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginBottom: 8,
     },
     introHint: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 13,
       lineHeight: 19,
     },
@@ -180,7 +180,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       paddingHorizontal: 2,
     },
     sectionHint: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 12,
       lineHeight: 17,
       marginBottom: 10,
@@ -254,13 +254,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       textTransform: "uppercase",
     },
     issueUpdated: {
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 11,
       lineHeight: 16,
       marginBottom: 4,
     },
     issueNote: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 13,
       lineHeight: 18,
     },

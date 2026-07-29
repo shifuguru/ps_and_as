@@ -217,7 +217,7 @@ export default function Settings({
               onBlur={() => void handleSaveName()}
               onSubmitEditing={() => void handleSaveName()}
               placeholder="Enter Your Name"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={colors.textQuaternary}
               maxLength={20}
               autoCapitalize="words"
               autoCorrect={false}
@@ -558,7 +558,7 @@ function createSegmentStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       borderColor: colors.btnGoldBorder,
     },
     segmentText: buttonLabel(13, {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontWeight: "700",
     }),
     segmentTextSelected: {
@@ -605,13 +605,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     fontWeight: "700",
   },
   profileHint: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 12,
     marginTop: 2,
     fontWeight: "600",
   },
   autoSaveHint: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: "600",
   },
@@ -628,7 +628,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     borderColor: colors.gold,
   },
   saveBtnText: buttonLabel(14, {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontWeight: "800",
     letterSpacing: 0.2,
   }),
@@ -636,7 +636,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     color: colors.textOnGold,
   },
   tintHint: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 12,
@@ -654,7 +654,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     borderTopColor: colors.panelBorder,
   },
   subsectionEyebrow: {
-    color: colors.textMuted,
+    color: colors.textTertiary,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1.1,
@@ -741,7 +741,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     borderColor: colors.panelBorder,
   },
   paletteLabel: {
-    color: colors.textMuted,
+    color: colors.textTertiary,
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 0.2,

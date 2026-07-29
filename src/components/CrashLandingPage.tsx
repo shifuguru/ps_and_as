@@ -68,7 +68,7 @@ export default function CrashLandingPage({ error, onRefresh }: Props) {
         },
         devError: {
           marginTop: 20,
-          color: colors.textMuted,
+          color: colors.textTertiary,
           fontSize: 11,
           lineHeight: 16,
           fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",

@@ -182,7 +182,7 @@ export default function LobbyPlayerModal({
                       <Text
                         style={[
                           styles.achievementStatus,
-                          { color: earned ? accent : colors.textMuted },
+                          { color: earned ? accent : colors.textTertiary },
                         ]}
                       >
                         {formatAchievementPrestige(prestige)}
@@ -254,13 +254,13 @@ function createStyles(colors: AppThemeColors) {
       fontWeight: "800",
     },
     playerMeta: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 12,
       fontWeight: "700",
       marginTop: 2,
     },
     statsHint: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 12,
       lineHeight: 17,
       marginBottom: 10,
@@ -296,16 +296,16 @@ function createStyles(colors: AppThemeColors) {
       fontWeight: "800",
     },
     achievementTitleLocked: {
-      color: colors.textMuted,
+      color: colors.textTertiary,
     },
     achievementDesc: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 11,
       lineHeight: 15,
       marginTop: 2,
     },
     achievementTotal: {
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 10,
       fontWeight: "500",
       marginTop: 2,
@@ -318,7 +318,7 @@ function createStyles(colors: AppThemeColors) {
       textAlign: "center",
     },
     statsSummary: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 11,
       fontWeight: "600",
       textAlign: "center",

@@ -85,7 +85,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       lineHeight: 22,
     },
     honesty: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 13,
       fontWeight: "600",
       textAlign: "center",

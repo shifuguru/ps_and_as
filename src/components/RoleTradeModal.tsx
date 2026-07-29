@@ -176,7 +176,7 @@ export default function RoleTradeModal({
 function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   return StyleSheet.create({
     sectionLabel: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 11,
       fontWeight: "700",
       letterSpacing: 0.4,

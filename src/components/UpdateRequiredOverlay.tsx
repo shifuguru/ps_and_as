@@ -112,7 +112,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginBottom: 18,
     },
     versionLine: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 12,
     },
     versionStrong: {
@@ -127,7 +127,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginTop: 10,
     },
     hint: {
-      color: colors.textMuted,
+      color: colors.textSecondary,
       fontSize: 11,
       lineHeight: 16,
       marginTop: 12,

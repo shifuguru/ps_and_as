@@ -197,7 +197,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "800",
     },
     wonBy: {
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 9,
       fontWeight: "600",
     },

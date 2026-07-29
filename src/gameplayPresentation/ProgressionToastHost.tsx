@@ -169,7 +169,7 @@ function createStyles(
     },
     body: {
       marginTop: 2,
-      color: colors.textMuted,
+      color: colors.textTertiary,
       fontSize: 11,
       fontWeight: "600",
     },
