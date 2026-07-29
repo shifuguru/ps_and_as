@@ -162,14 +162,6 @@ export default function Settings({
     void persistFeltColor(normalized);
   };
 
-  const handleResetFeltColor = async () => {
-    await setWallpaperTint(null);
-    setPreviewTint(DEFAULT_FELT_COLOR);
-    onWallpaperPreview?.(DEFAULT_FELT_COLOR);
-    setFeltTint(DEFAULT_FELT_COLOR);
-    onWallpaperChange?.();
-  };
-
   const handleBack = async () => {
     if (!(await handleSaveName())) return;
     onBack?.();
@@ -357,9 +349,18 @@ export default function Settings({
               ) : null}
               <TouchableOpacity
                 style={[ui.btnGhost, { marginTop: 10 }]}
-                onPress={() => void handleResetFeltColor()}
+                onPress={() => setFeltPickerOpen((open) => !open)}
+                accessibilityRole="button"
+                accessibilityLabel="Customise Theme"
               >
-                <Text style={ui.btnGhostText}>Reset Felt Color</Text>
+                <View style={styles.customiseThemeRow}>
+                  <MenuIcon
+                    name="palette"
+                    size={18}
+                    color={colors.gold}
+                  />
+                  <Text style={ui.btnGhostText}>Customise Theme</Text>
+                </View>
               </TouchableOpacity>
             </View>
 
@@ -787,6 +788,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     bottom: 5,
     borderRadius: 8,
     opacity: 0.45,
+  },
+  customiseThemeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    width: "100%",
   },
   });
 }
