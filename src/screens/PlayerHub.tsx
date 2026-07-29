@@ -31,7 +31,6 @@ import AvatarRewardBorder from "../components/AvatarRewardBorder";
 import KeepLightsOnModal from "../components/KeepLightsOnModal";
 import MenuIcon from "../components/MenuIcon";
 import HubProgressRing from "../components/HubProgressRing";
-import HubSuitMotif from "../components/HubSuitMotif";
 import NextAchievementCard from "../components/NextAchievementCard";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
@@ -249,7 +248,6 @@ export default function PlayerHub({
             accessibilityLabel="Open player profile settings"
           >
             <BlurPanel intensity={60} style={[styles.card, styles.identityCard]}>
-              <HubSuitMotif color={colors.gold} opacity={0.12} />
               <View style={styles.identityRow}>
                 <Animated.View
                   style={[
