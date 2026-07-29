@@ -11,6 +11,7 @@ type Props = {
 
 /**
  * Subtle suit fan — card-game identity without cluttering hub content.
+ * Stems are filled T-shapes (not strokes) so they stay readable at small sizes.
  */
 export default function HubSuitMotif({ color, opacity = 0.14 }: Props) {
   const styles = useMemo(
@@ -36,28 +37,38 @@ export default function HubSuitMotif({ color, opacity = 0.14 }: Props) {
         preserveAspectRatio="xMaxYMid meet"
       >
         {/* Diamond */}
-        <G transform="translate(210,18) rotate(-16)">
-          <Path d="M18 2 L30 22 L18 42 L6 22 Z" fill={fill} />
+        <G transform="translate(208,16) rotate(-16)">
+          <Path d="M18 2 L32 22 L18 42 L4 22 Z" fill={fill} />
         </G>
+
         {/* Spade */}
-        <G transform="translate(244,20) rotate(6)">
+        <G transform="translate(242,14) rotate(6)">
           <Path
-            d="M16 2
-               C22 10, 30 16, 30 24
-               C30 30, 25 34, 16 34
-               C7 34, 2 30, 2 24
-               C2 16, 10 10, 16 2 Z"
+            d="M18 2
+               C26 12, 34 18, 34 27
+               C34 34, 27 39, 18 39
+               C9 39, 2 34, 2 27
+               C2 18, 10 12, 18 2 Z"
             fill={fill}
           />
-          <Path d="M13.2 31 L16 46 L18.8 31 Z" fill={fill} />
+          {/* Wide stem + flared foot */}
+          <Path
+            d="M13 36 H23 V48 H30 V56 H6 V48 H13 Z"
+            fill={fill}
+          />
         </G>
+
         {/* Club */}
-        <G transform="translate(278,16) rotate(14)">
-          <Circle cx="16" cy="9" r="6.5" fill={fill} />
-          <Circle cx="9" cy="18" r="6.5" fill={fill} />
-          <Circle cx="23" cy="18" r="6.5" fill={fill} />
-          <Circle cx="16" cy="18" r="4" fill={fill} />
-          <Path d="M13.2 22 L16 40 L18.8 22 Z" fill={fill} />
+        <G transform="translate(276,10) rotate(14)">
+          <Circle cx="18" cy="12" r="8" fill={fill} />
+          <Circle cx="9" cy="24" r="8" fill={fill} />
+          <Circle cx="27" cy="24" r="8" fill={fill} />
+          <Circle cx="18" cy="22" r="5" fill={fill} />
+          {/* Wide stem + flared foot */}
+          <Path
+            d="M13 28 H23 V48 H30 V56 H6 V48 H13 Z"
+            fill={fill}
+          />
         </G>
       </Svg>
     </View>
