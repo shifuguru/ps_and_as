@@ -583,36 +583,30 @@ export default function PlayerHub({
           </BlurPanel>
 
           <View style={styles.footerNav}>
-            <TouchableOpacity
-              style={styles.navChip}
+            <AppButton
+              label="Settings"
+              icon="gear"
+              variant="secondary"
               onPress={() => run(actions.onOpenSettings)}
-              accessibilityRole="button"
               accessibilityLabel="Settings"
-              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-            >
-              <MenuIcon name="gear" size={15} color={colors.gold} />
-              <Text style={styles.navChipText}>Settings</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.navChip}
+              style={styles.footerNavButton}
+            />
+            <AppButton
+              label="Achievements"
+              icon="trophy"
+              variant="secondary"
               onPress={() => run(actions.onOpenAchievements)}
-              accessibilityRole="button"
               accessibilityLabel="Achievements"
-              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-            >
-              <MenuIcon name="trophy" size={15} color={colors.gold} />
-              <Text style={styles.navChipText}>Achievements</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.navChip}
+              style={styles.footerNavButton}
+            />
+            <AppButton
+              label="Read Me"
+              icon="list"
+              variant="secondary"
               onPress={() => run(actions.onOpenReadMe)}
-              accessibilityRole="button"
               accessibilityLabel="Read Me"
-              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-            >
-              <MenuIcon name="list" size={15} color={colors.gold} />
-              <Text style={styles.navChipText}>Read Me</Text>
-            </TouchableOpacity>
+              style={styles.footerNavButton}
+            />
           </View>
 
           <Text style={styles.versionLabel}>{versionLabel}</Text>
@@ -1036,28 +1030,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       justifyContent: "center",
       alignItems: "stretch",
       flexWrap: "wrap",
-      gap: 8,
-      marginTop: 2,
+      gap: 10,
+      marginTop: 4,
     },
-    navChip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      paddingVertical: 9,
-      paddingHorizontal: 12,
-      borderRadius: 999,
-      backgroundColor: hexToRgba(
-        colors.mode === "dark" ? "#0a1a12" : "#ffffff",
-        0.28,
-      ),
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.gold, 0.28),
-    },
-    navChipText: {
-      color: colors.textPrimary,
-      fontSize: 12,
-      fontWeight: "700",
-      letterSpacing: 0.15,
+    footerNavButton: {
+      minWidth: 140,
+      flexGrow: 1,
+      flexBasis: 0,
     },
     versionLabel: {
       fontSize: 11,
