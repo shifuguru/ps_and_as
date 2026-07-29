@@ -294,7 +294,7 @@ export default function PlayerHub({
                       {displayName || "Player"}
                     </Text>
                     <View style={styles.pencilBtn}>
-                      <MenuIcon name="pencil" size={15} color={colors.gold} />
+                      <MenuIcon name="pencil" size={20} color={colors.gold} />
                     </View>
                   </View>
                   {/* Reserved title slot — titles catalog not shipped yet */}
@@ -841,7 +841,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "800",
     },
     pencilBtn: {
-      padding: 6,
+      padding: 8,
       borderRadius: 999,
       backgroundColor: hexToRgba(colors.gold, 0.14),
     },
