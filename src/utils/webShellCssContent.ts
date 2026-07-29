@@ -15,6 +15,8 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  * - Safe-area on content (.ps-safe-area-h) and bottom chrome (.ps-bottom-bar-shell).
  * - Do not shrink #root / screens with env(safe-area-inset-*) — that invents a footer.
  * - html min-height: calc(100% + safe-area-inset-top) for iOS black-translucent PWAs.
+ * - html paints the same felt texture as ::before so iOS status-bar / island
+ *   sampling (document background) is textured, not flat --ps-felt-tint green.
  */
 export function getWebShellCssText(feltTint: string): string {
   return `
@@ -45,18 +47,34 @@ export function getWebShellCssText(feltTint: string): string {
       min-height: calc(100% + constant(safe-area-inset-top)) !important;
       min-height: calc(100% + env(safe-area-inset-top, 0px)) !important;
       background-color: var(--ps-felt-tint) !important;
-      background-image: none !important;
+      background-image:
+        linear-gradient(
+          var(--ps-felt-tint-overlay),
+          var(--ps-felt-tint-overlay)
+        ),
+        var(--ps-felt-texture) !important;
+      background-size: 100% 100%, cover !important;
+      background-position: center center, center center !important;
+      background-repeat: no-repeat, no-repeat !important;
+      background-attachment: scroll, scroll !important;
     }
     html::before {
       content: "" !important;
       position: fixed !important;
       left: 0 !important;
       right: 0 !important;
-      top: 0 !important;
+      top: calc(0px - constant(safe-area-inset-top)) !important;
+      top: calc(0px - env(safe-area-inset-top, 0px)) !important;
       width: 100% !important;
       height: 100% !important;
       height: 100dvh !important;
       height: 100lvh !important;
+      height: calc(
+        100lvh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom)
+      ) !important;
+      height: calc(
+        100lvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)
+      ) !important;
       min-height: 100% !important;
       min-height: 100dvh !important;
       min-height: 100lvh !important;
@@ -73,6 +91,7 @@ export function getWebShellCssText(feltTint: string): string {
       background-size: 100% 100%, cover !important;
       background-position: center center, center center !important;
       background-repeat: no-repeat, no-repeat !important;
+      background-attachment: scroll, scroll !important;
     }
     body {
       position: fixed !important;
