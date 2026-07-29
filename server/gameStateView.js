@@ -40,11 +40,17 @@ function memberInRound(state, member) {
 
 function viewForMember(state, member) {
   const inRound = memberInRound(state, member);
-  const living = livingGamePlayers(state);
-  const viewId = inRound ? member.id : living[0]?.id;
+  if (!inRound) {
+    // Spectators must not receive any real hand faces. Using a non-matching
+    // view id masks every seat via viewForPlayer (length-only placeholders).
+    return {
+      gameState: viewForPlayer(state, '__spectator__'),
+      spectator: true,
+    };
+  }
   return {
-    gameState: viewId ? viewForPlayer(state, viewId) : state,
-    spectator: !inRound,
+    gameState: viewForPlayer(state, member.id),
+    spectator: false,
   };
 }
 
