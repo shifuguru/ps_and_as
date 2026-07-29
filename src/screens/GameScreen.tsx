@@ -3240,8 +3240,6 @@ function GameScreen({
           ) {
             return;
           }
-            return;
-          }
           if (!canAcknowledgmentPass(live, cpu.id)) return;
           const nextState = passTurn(live, cpu.id);
           if (nextState !== live) {
@@ -3580,6 +3578,9 @@ function GameScreen({
         focused,
         setFocused,
         roundOver,
+        roundEndLastPlayHold,
+        roundEndHoldSnapshot,
+        roundEndHoldScheduledRef,
         botNextRoundAt,
         rankingsModalVisible,
         tableSweepOut,
@@ -3690,6 +3691,9 @@ function GameScreenBoard() {
     focused,
     setFocused,
     roundOver,
+    roundEndLastPlayHold,
+    roundEndHoldSnapshot,
+    roundEndHoldScheduledRef,
     botNextRoundAt,
     rankingsModalVisible,
     tableSweepOut,
@@ -3805,6 +3809,9 @@ function GameScreenBoard() {
     focused: number | null;
     setFocused: React.Dispatch<React.SetStateAction<number | null>>;
     roundOver: boolean;
+    roundEndLastPlayHold: boolean;
+    roundEndHoldSnapshot: { plays: TrickPlayDisplay[]; passedPlayerIds: string[] } | null;
+    roundEndHoldScheduledRef: React.MutableRefObject<boolean>;
     botNextRoundAt: number | null;
     rankingsModalVisible: boolean;
     tableSweepOut: boolean;
@@ -4686,7 +4693,7 @@ function GameScreenBoard() {
 
   const suppressLastTrickCard =
     roundOver ||
-    lastHandReveal ||
+    !!lastHandReveal ||
     !!ceremonyPrep ||
     !!tradePhase ||
     gameplayLocked ||
@@ -5602,7 +5609,7 @@ function GameScreenBoard() {
           rankingsModalVisible ||
           gameplayLocked ||
           roundOver ||
-          lastHandReveal ||
+          !!lastHandReveal ||
           roundEndLastPlayHold
         }
         hideToasts={

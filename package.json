@@ -19,6 +19,7 @@
     "test-daily-challenge": "npx tsx ./scripts/test-daily-challenge.ts",
     "bump-version": "node ./scripts/bump-version.js",
     "test-multiplayer": "node ./scripts/test-multiplayer.mjs",
+    "test-hand-confidentiality": "node ./scripts/test-hand-confidentiality.mjs",
     "qa-chaos": "node ./scripts/qa/run-chaos.mjs",
     "test-cpu-stall": "node ./scripts/test-cpu-stall-botopn.mjs",
     "test-release-gate": "node ./scripts/test-release-gate.mjs",

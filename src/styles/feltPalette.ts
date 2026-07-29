@@ -300,8 +300,10 @@ export function computeOnFeltFromPreferences(
 function shellNeutral(mode: ThemeMode, feltHue: number): Rgb {
   return hslToRgb({
     h: feltHue,
-    s: mode === "dark" ? 6 : 8,
-    l: mode === "dark" ? 97 : 11,
+    // Light shell ink must stay near-neutral for glass readability.
+    // Felt hue belongs on the table / accents — not in body copy on panels.
+    s: mode === "dark" ? 6 : 2,
+    l: mode === "dark" ? 97 : 12,
   });
 }
 
@@ -312,12 +314,20 @@ function buildShellColors(
 ): AppThemeColors {
   const isDark = mode === "dark";
   const environment = environmentProfileForMode(mode);
+  /**
+   * Shell chrome accent (icons, eyebrows, borders):
+   * - Dark: bright lift over dark glass
+   * - Light: dim/deep accent only — mid/bright felt lifts are unreadable on pale glass
+   */
   const accent = isDark ? palette.complementBright : palette.complementDim;
+  /** Primary CTA fill hue. Light mode uses a solid dark fill + white text (not pastel text). */
+  const actionFill = isDark ? palette.complementBright : palette.complementDim;
   const ink = shellNeutral(mode, palette.feltHue);
   // Micro-contrast: slightly brighter titles, clearer secondary/muted separation.
   const textPrimary = rgbToHex(ink);
   const textSecondary = hexToRgba(textPrimary, isDark ? 0.9 : 0.86);
   const textMuted = hexToRgba(textPrimary, isDark ? 0.5 : 0.62);
+  const textOnPrimary = "#FFFFFF";
 
   const surface = isDark
     ? hslToHex(palette.feltHue, 12, 7)
@@ -339,25 +349,35 @@ function buildShellColors(
     textPrimary,
     textSecondary,
     textMuted,
-    textOnGold: "#FFFFFF",
+    textOnGold: textOnPrimary,
     panelBorder: hexToRgba(frostLine, glassLine),
     // Translucent glass fills — never approach card-face brightness.
     inputBg: hexToRgba(frost, isDark ? 0.1 : 0.28),
     inputBorder: hexToRgba(frost, isDark ? 0.16 : 0.18),
     inputText: textPrimary,
-    btnGoldBg: hexToRgba(accent, isDark ? 0.16 : 0.12),
-    btnGoldBorder: hexToRgba(accent, isDark ? 0.28 : 0.24),
-    btnGoldText: accent,
+    btnGoldBg: isDark
+      ? hexToRgba(accent, 0.16)
+      : hexToRgba(actionFill, 0.92),
+    btnGoldBorder: isDark
+      ? hexToRgba(accent, 0.28)
+      : hexToRgba(actionFill, 1),
+    btnGoldText: isDark ? accent : textOnPrimary,
     btnSecondaryBg: hexToRgba(frost, isDark ? 0.1 : 0.22),
-    btnSecondaryBorder: hexToRgba(frostLine, glassLine),
+    btnSecondaryBorder: hexToRgba(frostLine, isDark ? glassLine : 0.24),
     btnSecondaryText: isDark ? hexToRgba(frost, 0.9) : textPrimary,
     btnGhostBorder: hexToRgba(frost, isDark ? 0.12 : 0.16),
     btnGhostText: hexToRgba(textPrimary, isDark ? 0.65 : 0.72),
     actionTrackBg: hexToRgba(frost, isDark ? 0.06 : 0.12),
     actionTrackBorder: hexToRgba(frost, isDark ? 0.14 : 0.16),
-    actionPrimaryBg: hexToRgba(accent, isDark ? 0.18 : 0.14),
-    actionPrimaryBorder: hexToRgba(accent, isDark ? 0.32 : 0.26),
-    actionPrimaryText: accent,
+    // Dark: translucent accent glass + accent label.
+    // Light: solid primary chip + white label — never pastel felt text on glass.
+    actionPrimaryBg: isDark
+      ? hexToRgba(actionFill, 0.18)
+      : hexToRgba(actionFill, 0.92),
+    actionPrimaryBorder: isDark
+      ? hexToRgba(actionFill, 0.32)
+      : hexToRgba(actionFill, 1),
+    actionPrimaryText: isDark ? actionFill : textOnPrimary,
     actionPrimaryDisabledBg: hexToRgba(frost, isDark ? 0.04 : 0.12),
     actionPrimaryDisabledBorder: hexToRgba(frost, isDark ? 0.1 : 0.12),
     actionPrimaryDisabledText: hexToRgba(
@@ -370,9 +390,13 @@ function buildShellColors(
     leaveButtonBg: hexToRgba(frost, isDark ? 0.12 : 0.22),
     leaveButtonBorder: hexToRgba(frostLine, glassLine),
     leaveButtonText: isDark ? hexToRgba(frost, 0.9) : textPrimary,
-    leaveButtonLiveBg: hexToRgba(accent, isDark ? 0.18 : 0.14),
-    leaveButtonLiveBorder: hexToRgba(accent, isDark ? 0.32 : 0.26),
-    leaveButtonLiveText: isDark ? hexToRgba(frost, 0.88) : textPrimary,
+    leaveButtonLiveBg: isDark
+      ? hexToRgba(actionFill, 0.18)
+      : hexToRgba(actionFill, 0.92),
+    leaveButtonLiveBorder: isDark
+      ? hexToRgba(actionFill, 0.32)
+      : hexToRgba(actionFill, 1),
+    leaveButtonLiveText: isDark ? hexToRgba(frost, 0.88) : textOnPrimary,
     leaveText: accent,
     modalOverlay: hexToRgba("#000000", isDark ? 0.62 : 0.28),
     modalBorder: hexToRgba(frostLine, glassLine),

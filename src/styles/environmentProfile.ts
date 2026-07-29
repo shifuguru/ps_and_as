@@ -43,16 +43,16 @@ export const ENVIRONMENT_DARK: EnvironmentProfile = {
 
 /** Light — sunlit felt; keep glass transparent and less minty. */
 export const ENVIRONMENT_LIGHT: EnvironmentProfile = {
-  ambientBrightness: 0.74,
+  ambientBrightness: 0.7,
   ambientWarmth: 0.42,
-  feltBrightness: 0.8,
-  feltSaturation: 1.14,
-  feltTextureStrength: 1.16,
-  vignetteStrength: 0.52,
+  feltBrightness: 0.76,
+  feltSaturation: 1.12,
+  feltTextureStrength: 1.12,
+  vignetteStrength: 0.64,
   vignetteRadius: 1.08,
-  shadowOpacity: 0.13,
-  shadowSoftness: 10,
-  centreLight: 0.2,
+  shadowOpacity: 0.16,
+  shadowSoftness: 11,
+  centreLight: 0.18,
 };
 
 export function environmentProfileForMode(mode: ThemeMode): EnvironmentProfile {
