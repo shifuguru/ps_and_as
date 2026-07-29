@@ -90,7 +90,6 @@ export default function Settings({
   const [playerName, setPlayerName] = useState("");
   const [savedName, setSavedName] = useState("");
   const [previewTint, setPreviewTint] = useState(DEFAULT_FELT_COLOR);
-  const [hexInput, setHexInput] = useState("");
   const [feltPickerOpen, setFeltPickerOpen] = useState(false);
   const [onlineGuest, setOnlineGuest] = useState(false);
   const [addToHomeOpen, setAddToHomeOpen] = useState(false);
@@ -119,7 +118,6 @@ export default function Settings({
       setSavedName(info.displayName);
       const resolvedTint = tint ?? DEFAULT_FELT_COLOR;
       setPreviewTint(resolvedTint);
-      setHexInput(resolvedTint.replace(/^#/, "").slice(0, 6));
     })();
   }, []);
 
@@ -159,7 +157,6 @@ export default function Settings({
     const normalized = normalizeHexColor(hex);
     if (!normalized) return;
     setPreviewTint(normalized);
-    setHexInput(normalized.replace(/^#/, ""));
     setFeltTint(normalized);
     onWallpaperPreview?.(normalized);
     void persistFeltColor(normalized);
@@ -168,22 +165,9 @@ export default function Settings({
   const handleResetFeltColor = async () => {
     await setWallpaperTint(null);
     setPreviewTint(DEFAULT_FELT_COLOR);
-    setHexInput(DEFAULT_FELT_COLOR.replace(/^#/, ""));
     onWallpaperPreview?.(DEFAULT_FELT_COLOR);
     setFeltTint(DEFAULT_FELT_COLOR);
     onWallpaperChange?.();
-  };
-
-  const handleHexInputChange = (text: string) => {
-    const cleaned = text.replace(/[^0-9a-fA-F]/g, "").slice(0, 6);
-    setHexInput(cleaned);
-    const normalized = normalizeHexColor(cleaned);
-    if (normalized) {
-      setPreviewTint(normalized);
-      setFeltTint(normalized);
-      onWallpaperPreview?.(normalized);
-      void persistFeltColor(normalized);
-    }
   };
 
   const handleBack = async () => {
@@ -325,50 +309,41 @@ export default function Settings({
                 {FELT_PRESETS.map((preset) => (
                   <TouchableOpacity
                     key={preset.hex}
-                    onPress={() => updatePreview(preset.hex)}
+                    onPress={() => {
+                      setFeltPickerOpen(false);
+                      updatePreview(preset.hex);
+                    }}
                     accessibilityLabel={preset.name}
                     style={[
                       styles.swatch,
                       { backgroundColor: preset.hex },
-                      previewTintNormalized === preset.hex && styles.swatchSelected,
+                      previewTintNormalized === preset.hex &&
+                        !feltPickerOpen &&
+                        styles.swatchSelected,
                     ]}
                   />
                 ))}
-              </View>
-              <View style={styles.hexInputRow}>
-                <View style={styles.hexInputWrap}>
-                  <Text style={styles.hexPrefix}>#</Text>
-                  <TextInput
-                    placeholder="rrggbb"
-                    placeholderTextColor={colors.textMuted}
-                    value={hexInput}
-                    onChangeText={handleHexInputChange}
-                    style={[ui.input, styles.hexInputField]}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    maxLength={6}
-                    keyboardType="default"
-                  />
-                </View>
                 <TouchableOpacity
                   style={[
-                    styles.pickerToggle,
-                    feltPickerOpen && styles.pickerToggleActive,
+                    styles.swatch,
+                    styles.pickerSwatch,
+                    feltPickerOpen && styles.swatchSelected,
+                    feltPickerOpen && styles.pickerSwatchActive,
                   ]}
                   onPress={() => setFeltPickerOpen((open) => !open)}
                   accessibilityRole="button"
-                  accessibilityLabel="Open felt color picker"
+                  accessibilityLabel="Custom felt color picker"
                   activeOpacity={0.85}
                 >
                   <View
                     style={[
-                      styles.pickerToggleSwatch,
+                      styles.pickerSwatchFill,
                       { backgroundColor: previewTintNormalized },
                     ]}
                   />
                   <MenuIcon
                     name="palette"
-                    size={18}
+                    size={16}
                     color={feltPickerOpen ? colors.textOnGold : colors.gold}
                   />
                 </TouchableOpacity>
@@ -481,15 +456,14 @@ export default function Settings({
             <View style={styles.settingBlock}>
               <View style={styles.settingHeaderRow}>
                 <Text style={[styles.settingLabel, styles.settingLabelInline]}>
-                  Skip deal animations
+                  Enable Deal Animations (beta)
                 </Text>
                 <View style={styles.settingHeaderSpacer} />
-                <Text style={styles.betaWarning}>Warning: Beta</Text>
                 <Switch
-                  value={skipDealAnimations}
-                  onValueChange={(value) => {
-                    void setSkipDealAnimations(value);
-                    onSkipDealAnimationsChange?.(value);
+                  value={!skipDealAnimations}
+                  onValueChange={(enabled) => {
+                    void setSkipDealAnimations(!enabled);
+                    onSkipDealAnimationsChange?.(!enabled);
                   }}
                   disabled={onlineGuest}
                   trackColor={{
@@ -497,13 +471,13 @@ export default function Settings({
                     true: colors.gold,
                   }}
                   thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
-                  accessibilityLabel="Skip deal animations"
+                  accessibilityLabel="Enable deal animations"
                 />
               </View>
               <Text style={[styles.tintHint, styles.settingHint]}>
                 {onlineGuest
                   ? "Controlled by the host in online games."
-                  : "Skip the shuffle and deal — President/Asshole trades still play out."}
+                  : "Shuffle and deal animations are experimental. Off by default."}
               </Text>
             </View>
           </BlurPanel>
@@ -707,12 +681,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     marginBottom: 0,
     flexShrink: 1,
   },
-  betaWarning: {
-    color: "#e53935",
-    fontSize: 12,
-    fontWeight: "700",
-    flexShrink: 0,
-  },
   settingHint: {
     marginBottom: 0,
   },
@@ -788,56 +756,27 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   swatchSelected: {
     borderColor: colors.textPrimary,
   },
-  hexInputRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 10,
-  },
-  hexInputWrap: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.inputBg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.inputBorder,
-    borderRadius: 12,
-    paddingLeft: 14,
-    paddingRight: 10,
-  },
-  pickerToggle: {
-    width: 52,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.panelBorder,
-    backgroundColor: colors.btnSecondaryBg,
+  pickerSwatch: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
-    paddingVertical: 6,
+    gap: 2,
+    backgroundColor: colors.btnSecondaryBg,
+    borderColor: colors.panelBorder,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
   },
-  pickerToggleActive: {
+  pickerSwatchActive: {
     backgroundColor: colors.gold,
     borderColor: colors.gold,
   },
-  pickerToggleSwatch: {
-    width: 22,
-    height: 14,
-    borderRadius: 4,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.35)",
-  },
-  hexPrefix: {
-    color: colors.gold,
-    fontSize: 16,
-    fontWeight: "700",
-    marginRight: 2,
-  },
-  hexInputField: {
-    flex: 1,
-    backgroundColor: "transparent",
-    borderWidth: 0,
-    paddingHorizontal: 0,
-    paddingVertical: 12,
+  pickerSwatchFill: {
+    position: "absolute",
+    left: 4,
+    right: 4,
+    top: 4,
+    bottom: 4,
+    borderRadius: 6,
+    opacity: 0.45,
   },
   });
 }

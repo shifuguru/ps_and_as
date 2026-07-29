@@ -281,8 +281,6 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
           HUE_MARKER_W / 2,
           hueWidth - HUE_MARKER_W / 2,
         );
-  const normalized = normalizeHexColor(value) ?? value;
-
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
@@ -392,11 +390,6 @@ export default function FeltColorPicker({ value, onChange, colors }: Props) {
           />
         </View>
       </View>
-
-      <View style={styles.previewRow}>
-        <View style={[styles.previewSwatch, { backgroundColor: normalized }]} />
-        <Text style={styles.previewHex}>{normalized.toUpperCase()}</Text>
-      </View>
     </View>
   );
 }
@@ -459,25 +452,6 @@ function createStyles(colors: AppThemeColors) {
       borderRadius: 7,
       borderWidth: 2,
       borderColor: "#ffffff",
-    },
-    previewRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      marginTop: 4,
-    },
-    previewSwatch: {
-      width: 34,
-      height: 34,
-      borderRadius: 10,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.panelBorder,
-    },
-    previewHex: {
-      color: colors.textPrimary,
-      fontSize: 14,
-      fontWeight: "700",
-      letterSpacing: 0.4,
     },
   });
 }
