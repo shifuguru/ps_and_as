@@ -319,18 +319,18 @@ function roleBannerStyle(
     case "President":
       return {
         container: {
-          backgroundColor: hexToRgba(colors.gold, 0.75),
-          borderTopColor: hexToRgba(colors.gold, isDark ? 0.2 : 0.3),
+          backgroundColor: hexToRgba(colors.accent, 0.75),
+          borderTopColor: hexToRgba(colors.accent, isDark ? 0.2 : 0.3),
         },
-        text: { color: colors.textOnGold },
+        text: { color: colors.textOnAccent },
       };
     case "Vice President":
       return {
         container: {
-          backgroundColor: hexToRgba(colors.gold, 0.7),
-          borderTopColor: hexToRgba(colors.gold, isDark ? 0.15 : 0.2),
+          backgroundColor: hexToRgba(colors.accent, 0.7),
+          borderTopColor: hexToRgba(colors.accent, isDark ? 0.15 : 0.2),
         },
-        text: { color: colors.textOnGold },
+        text: { color: colors.textOnAccent },
       };
     case "Vice Asshole":
     case "Asshole": {
@@ -651,14 +651,14 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       overflow: "hidden",
     },
     rankRowLocal: {
-      borderColor: hexToRgba(colors.gold, isDark ? 0.48 : 0.42),
+      borderColor: hexToRgba(colors.accent, isDark ? 0.48 : 0.42),
       backgroundColor: hexToRgba(
         colors.mode === "dark" ? "#0c1c14" : "#ffffff",
         isDark ? 0.42 : 0.14,
       ),
     },
     rankRowPresident: {
-      borderColor: hexToRgba(colors.gold, isDark ? 0.55 : 0.55),
+      borderColor: hexToRgba(colors.accent, isDark ? 0.55 : 0.55),
     },
     rankMain: {
       flexDirection: "row",
@@ -686,7 +686,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     avatarBare: {
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.gold, 0.35),
+      borderColor: hexToRgba(colors.accent, 0.35),
     },
     avatarText: {
       color: "#fff",
@@ -738,13 +738,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       paddingHorizontal: 6,
       paddingVertical: 2,
       borderRadius: 8,
-      backgroundColor: hexToRgba(colors.gold, isDark ? 0.2 : 0.16),
+      backgroundColor: hexToRgba(colors.accent, isDark ? 0.2 : 0.16),
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.gold, 0.4),
+      borderColor: hexToRgba(colors.accent, 0.4),
       flexShrink: 0,
     },
     youPillText: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 9,
       fontWeight: "800",
       letterSpacing: 0.6,
@@ -809,7 +809,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginBottom: 8,
     },
     botDealTimer: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 13,
       fontWeight: "700",
       letterSpacing: 0.2,

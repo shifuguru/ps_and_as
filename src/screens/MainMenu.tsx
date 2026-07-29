@@ -70,7 +70,7 @@ function MenuGlassButton({
         <BlurPanel intensity={52} style={styles.glassBtn}>
           <View style={styles.glassBtnRow}>
             <View style={styles.iconColumn}>
-              <MenuIcon name={icon} size={MENU_ICON_SIZE} color={colors.gold} />
+              <MenuIcon name={icon} size={MENU_ICON_SIZE} color={colors.accent} />
             </View>
             <Text style={styles.glassBtnText}>{label}</Text>
             <View style={styles.iconColumn} />
@@ -214,15 +214,15 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       height: 18,
       paddingHorizontal: 5,
       borderRadius: 999,
-      backgroundColor: colors.gold,
+      backgroundColor: colors.accent,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.btnGoldBorder,
+      borderColor: colors.btnAccentBorder,
       alignItems: "center",
       justifyContent: "center",
       zIndex: 1,
     },
     menuBadgeText: {
-      color: colors.textOnGold,
+      color: colors.textOnAccent,
       fontSize: 10,
       fontWeight: "800",
       letterSpacing: 0.1,

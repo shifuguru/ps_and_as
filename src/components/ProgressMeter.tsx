@@ -22,7 +22,7 @@ type Props = {
   valueLabel?: string;
   height?: number;
   style?: StyleProp<ViewStyle>;
-  /** Override fill color (defaults to gold). */
+  /** Override fill color (defaults to accent). */
   fillColor?: string;
   /** Animate fill width when progress changes (level-up hook ready). */
   animated?: boolean;
@@ -47,7 +47,7 @@ export default function ProgressMeter({
     [colors, barHeight, prestige],
   );
   const clamped = Math.max(0, Math.min(1, progress));
-  const fill = fillColor ?? colors.gold;
+  const fill = fillColor ?? colors.accent;
   const anim = useRef(new Animated.Value(clamped)).current;
 
   useEffect(() => {
@@ -131,7 +131,7 @@ function createStyles(
       backgroundColor: hexToRgba(colors.textPrimary, prestige ? 0.18 : 0.14),
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: prestige
-        ? hexToRgba(colors.gold, 0.38)
+        ? hexToRgba(colors.accent, 0.38)
         : hexToRgba(colors.textPrimary, colors.mode === "light" ? 0.16 : 0.2),
     },
     fill: {

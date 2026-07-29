@@ -27,14 +27,14 @@ export default function TurnBellButton({ visible, onPress }: Props) {
           borderRadius: 17,
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: hexToRgba(colors.gold, colors.mode === "light" ? 0.12 : 0.18),
+          backgroundColor: hexToRgba(colors.accent, colors.mode === "light" ? 0.12 : 0.18),
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: hexToRgba(colors.gold, colors.mode === "light" ? 0.28 : 0.38),
+          borderColor: hexToRgba(colors.accent, colors.mode === "light" ? 0.28 : 0.38),
         },
         bellGlow: {
           ...StyleSheet.absoluteFillObject,
           borderRadius: 17,
-          backgroundColor: hexToRgba(colors.gold, 0.12),
+          backgroundColor: hexToRgba(colors.accent, 0.12),
         },
         bellIcon: {
           fontSize: 17,

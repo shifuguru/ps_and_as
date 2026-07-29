@@ -15,7 +15,7 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   intensity?: number;
   compact?: boolean;
-  /** Soft accent rim (e.g. rarity / gold). */
+  /** Soft accent rim (e.g. rarity / accent colour). */
   accentColor?: string;
   onPress?: () => void;
   disabled?: boolean;
@@ -35,7 +35,7 @@ export default function GameplayGlassPanel({
   disabled,
 }: Props) {
   const { colors, blur } = useAppTheme();
-  const rim = accentColor ?? colors.gold;
+  const rim = accentColor ?? colors.accent;
   const panel = blur.panel;
   const env = colors.environment;
   const depth = Platform.select({

@@ -336,7 +336,7 @@ export default function Settings({
                   <MenuIcon
                     name="palette"
                     size={18}
-                    color={feltPickerOpen ? colors.textOnGold : colors.gold}
+                    color={feltPickerOpen ? colors.textOnAccent : colors.accent}
                   />
                 </TouchableOpacity>
               </View>
@@ -357,7 +357,7 @@ export default function Settings({
                   <MenuIcon
                     name="palette"
                     size={18}
-                    color={colors.gold}
+                    color={colors.accent}
                   />
                   <Text style={ui.btnGhostText}>Customise Theme</Text>
                 </View>
@@ -375,7 +375,7 @@ export default function Settings({
                   onValueChange={(value) => void setDarkModeCards(value)}
                   trackColor={{
                     false: colors.panelBorder,
-                    true: colors.gold,
+                    true: colors.accent,
                   }}
                   thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
                   accessibilityLabel="Dark mode cards"
@@ -470,7 +470,7 @@ export default function Settings({
                   disabled={onlineGuest}
                   trackColor={{
                     false: colors.panelBorder,
-                    true: colors.gold,
+                    true: colors.accent,
                   }}
                   thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
                   accessibilityLabel="Enable deal animations"
@@ -555,15 +555,15 @@ function createSegmentStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       ...BUTTON_CENTER,
     },
     segmentSelected: {
-      backgroundColor: colors.btnGoldBg,
-      borderColor: colors.btnGoldBorder,
+      backgroundColor: colors.btnAccentBg,
+      borderColor: colors.btnAccentBorder,
     },
     segmentText: buttonLabel(13, {
       color: colors.textSecondary,
       fontWeight: "700",
     }),
     segmentTextSelected: {
-      color: colors.btnGoldText,
+      color: colors.btnAccentText,
     },
   });
 }
@@ -584,9 +584,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: colors.btnGoldBg,
+    backgroundColor: colors.btnAccentBg,
     borderWidth: 2,
-    borderColor: colors.btnGoldBorder,
+    borderColor: colors.btnAccentBorder,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -625,8 +625,8 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     ...BUTTON_CENTER,
   },
   saveBtnActive: {
-    backgroundColor: colors.gold,
-    borderColor: colors.gold,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   saveBtnText: buttonLabel(14, {
     color: colors.textSecondary,
@@ -634,7 +634,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     letterSpacing: 0.2,
   }),
   saveBtnTextActive: {
-    color: colors.textOnGold,
+    color: colors.textOnAccent,
   },
   tintHint: {
     color: colors.textSecondary,
@@ -777,8 +777,8 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     overflow: "hidden",
   },
   pickerSwatchActive: {
-    backgroundColor: colors.gold,
-    borderColor: colors.gold,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   pickerSwatchFill: {
     position: "absolute",

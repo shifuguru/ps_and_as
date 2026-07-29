@@ -116,7 +116,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontSize: 12,
     },
     versionStrong: {
-      color: colors.gold,
+      color: colors.accent,
       fontWeight: "700",
     },
     primaryBtn: {

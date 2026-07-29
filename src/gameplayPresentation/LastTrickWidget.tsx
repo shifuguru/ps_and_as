@@ -130,7 +130,7 @@ export default function LastTrickWidget({
       style={[styles.host, { opacity, transform: [{ scale }] }]}
       pointerEvents="none"
     >
-      <GameplayGlassPanel compact accentColor={colors.gold} style={styles.panel}>
+      <GameplayGlassPanel compact accentColor={colors.accent} style={styles.panel}>
         <Text style={styles.eyebrow}>Winning Play</Text>
         <Text style={styles.cards}>{formatTrickCards(shown.cards)}</Text>
         <View style={styles.winnerRow}>
@@ -161,7 +161,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       minWidth: 148,
     },
     eyebrow: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 9,
       fontWeight: "800",
       letterSpacing: 0.7,
@@ -187,12 +187,12 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: hexToRgba(colors.gold, 0.22),
+      backgroundColor: hexToRgba(colors.accent, 0.22),
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.gold, 0.5),
+      borderColor: hexToRgba(colors.accent, 0.5),
     },
     avatarText: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 10,
       fontWeight: "800",
     },
@@ -202,7 +202,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "600",
     },
     winner: {
-      color: hexToRgba(colors.gold, 0.98),
+      color: hexToRgba(colors.accent, 0.98),
       fontSize: 12,
       fontWeight: "800",
     },

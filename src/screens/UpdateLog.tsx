@@ -193,7 +193,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginBottom: 10,
     },
     entryDate: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 12,
       fontWeight: "600",
       letterSpacing: 0.2,
@@ -211,7 +211,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginBottom: 6,
     },
     bullet: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 14,
       lineHeight: 20,
       marginTop: 1,

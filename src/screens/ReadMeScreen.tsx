@@ -40,16 +40,16 @@ export default function ReadMeScreen({ onBack }: Props) {
 
   const readmeTheme = useMemo(
     () => ({
-      linkColor: colors.gold,
-      linkBg: colors.btnGoldBg,
-      linkBorder: colors.btnGoldBorder,
+      linkColor: colors.accent,
+      linkBg: colors.btnAccentBg,
+      linkBorder: colors.btnAccentBorder,
       textPrimary: colors.textPrimary,
       borderMuted: colors.panelBorder,
     }),
     [
-      colors.gold,
-      colors.btnGoldBg,
-      colors.btnGoldBorder,
+      colors.accent,
+      colors.btnAccentBg,
+      colors.btnAccentBorder,
       colors.textPrimary,
       colors.panelBorder,
     ],
@@ -111,7 +111,7 @@ export default function ReadMeScreen({ onBack }: Props) {
 
       {loading ? (
         <ActivityIndicator
-          color={colors.gold}
+          color={colors.accent}
           size="large"
           style={styles.loader}
         />

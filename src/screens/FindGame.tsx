@@ -331,7 +331,7 @@ export default function FindGame({
                       accessibilityRole="button"
                       accessibilityLabel="Settings"
                     >
-                      <MenuIcon name="gear" size={18} color={colors.gold} />
+                      <MenuIcon name="gear" size={18} color={colors.accent} />
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -354,7 +354,7 @@ export default function FindGame({
                       </Text>
                     </View>
                     <View style={styles.actionTileIconHost}>
-                      <MenuIcon name="plus" size={28} color={colors.gold} />
+                      <MenuIcon name="plus" size={28} color={colors.accent} />
                     </View>
                   </View>
                 </BlurPanel>
@@ -363,7 +363,7 @@ export default function FindGame({
               <View style={styles.actionTile}>
                 <BlurPanel style={styles.actionTileInnerJoin} intensity={50}>
                   <View style={styles.joinTitleRow}>
-                    <MenuIcon name="multiplayer" size={18} color={colors.gold} />
+                    <MenuIcon name="multiplayer" size={18} color={colors.accent} />
                     <Text style={styles.actionTileTitle}>Join With Code</Text>
                   </View>
                   <View
@@ -429,7 +429,7 @@ export default function FindGame({
                 <Text style={styles.sectionEyebrow}>Open Games</Text>
                 <View style={styles.listHeaderSpinnerSlot}>
                   {isSearching ? (
-                    <ActivityIndicator size="small" color={colors.gold} />
+                    <ActivityIndicator size="small" color={colors.accent} />
                   ) : null}
                 </View>
               </View>
@@ -606,7 +606,7 @@ export default function FindGame({
 
 function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   const isDark = colors.mode === "dark";
-  const goldRim = hexToRgba(colors.gold, isDark ? 0.22 : 0.18);
+  const accentRim = hexToRgba(colors.accent, isDark ? 0.22 : 0.18);
   const cardDepth = Platform.select({
     ios: {
       shadowColor: "#000",
@@ -623,13 +623,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     paddingTop: 18,
   },
   glassCard: {
-    borderColor: goldRim,
+    borderColor: accentRim,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: "hidden",
     ...cardDepth,
   },
   sectionEyebrow: {
-    color: colors.gold,
+    color: colors.accent,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.9,
@@ -645,14 +645,14 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: hexToRgba(colors.gold, isDark ? 0.14 : 0.12),
+    backgroundColor: hexToRgba(colors.accent, isDark ? 0.14 : 0.12),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.gold, isDark ? 0.45 : 0.35),
+    borderColor: hexToRgba(colors.accent, isDark ? 0.45 : 0.35),
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
-    color: colors.gold,
+    color: colors.accent,
     fontSize: 15,
     fontWeight: "800",
   },
@@ -690,7 +690,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     minHeight: 168,
     flex: 1,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: goldRim,
+    borderColor: accentRim,
     overflow: "hidden",
     ...cardDepth,
   },
@@ -710,7 +710,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     minHeight: 168,
     flex: 1,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: goldRim,
+    borderColor: accentRim,
     overflow: "hidden",
     ...cardDepth,
   },
@@ -745,14 +745,14 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     width: "100%",
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.gold, isDark ? 0.2 : 0.16),
+    borderColor: hexToRgba(colors.accent, isDark ? 0.2 : 0.16),
     backgroundColor: hexToRgba("#ffffff", isDark ? 0.08 : 0.55),
     paddingHorizontal: 10,
     paddingVertical: Platform.OS === "ios" ? 10 : 6,
     marginTop: 12,
   },
   codeInputWrapFocused: {
-    borderColor: hexToRgba(colors.gold, isDark ? 0.45 : 0.36),
+    borderColor: hexToRgba(colors.accent, isDark ? 0.45 : 0.36),
   },
   codeInput: {
     color: colors.inputText,
@@ -840,7 +840,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     fontSize: 12,
   },
   roomMetaInPlay: {
-    color: colors.gold,
+    color: colors.accent,
     fontWeight: "700",
   },
   roomMetaStalled: {
@@ -862,11 +862,11 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     marginHorizontal: 6,
   },
   joinBtnDisabled: {
-    backgroundColor: hexToRgba(colors.gold, 0.06),
-    borderColor: hexToRgba(colors.gold, 0.18),
+    backgroundColor: hexToRgba(colors.accent, 0.06),
+    borderColor: hexToRgba(colors.accent, 0.18),
   },
   joinBtnText: {
-    color: colors.gold,
+    color: colors.accent,
     fontSize: 14,
     fontWeight: "800",
   },

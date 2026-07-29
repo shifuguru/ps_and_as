@@ -111,7 +111,7 @@ function ToastRow({
 
   const accent =
     item.kind === "xp"
-      ? colors.gold
+      ? colors.accent
       : item.kind === "streak"
         ? "#ff8a4c"
         : "#c9a227";

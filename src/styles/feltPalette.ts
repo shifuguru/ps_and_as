@@ -420,24 +420,35 @@ function buildShellColors(
   // Edge highlight — slight separation from felt without raising fill opacity.
   const glassLine = isDark ? 0.16 : 0.2;
 
+  const btnAccentBg = hexToRgba(accent, isDark ? 0.16 : 0.12);
+  const btnAccentBorder = hexToRgba(accent, isDark ? 0.28 : 0.24);
+  const btnAccentText = accent;
+  const textOnAccent = "#FFFFFF";
+
   return {
     mode,
     onFelt,
+    accent,
+    // Deprecated aliases — remove usages and then delete these.
     gold: accent,
     textPrimary,
     textSecondary,
     textTertiary,
     textQuaternary,
     textMuted,
-    textOnGold: "#FFFFFF",
+    textOnAccent,
+    textOnGold: textOnAccent,
     panelBorder: hexToRgba(frostLine, glassLine),
     // Translucent glass fills — never approach card-face brightness.
     inputBg: hexToRgba(frost, isDark ? 0.1 : 0.28),
     inputBorder: hexToRgba(frost, isDark ? 0.16 : 0.18),
     inputText: textPrimary,
-    btnGoldBg: hexToRgba(accent, isDark ? 0.16 : 0.12),
-    btnGoldBorder: hexToRgba(accent, isDark ? 0.28 : 0.24),
-    btnGoldText: accent,
+    btnAccentBg,
+    btnGoldBg: btnAccentBg,
+    btnAccentBorder,
+    btnGoldBorder: btnAccentBorder,
+    btnAccentText,
+    btnGoldText: btnAccentText,
     btnSecondaryBg: hexToRgba(frost, isDark ? 0.1 : 0.22),
     btnSecondaryBorder: hexToRgba(frostLine, glassLine),
     btnSecondaryText: isDark ? hexToRgba(frost, 0.9) : textPrimary,

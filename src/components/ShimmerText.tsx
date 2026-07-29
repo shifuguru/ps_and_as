@@ -43,8 +43,8 @@ export default function ShimmerText({
   const [size, setSize] = useState({ w: 0, h: 0 });
   const baseColor = flattenColor(style, colors.onFelt.textPrimary);
 
-  const goldSoft = hexToRgba(colors.gold, 0.55);
-  const goldMid = hexToRgba(colors.gold, 0.88);
+  const accentSoft = hexToRgba(colors.accent, 0.55);
+  const accentMid = hexToRgba(colors.accent, 0.88);
   const hotCore = hexToRgba("#fffef5", 0.95);
 
   const idleMs = Math.max(0, cycleMs - sweepMs);
@@ -89,13 +89,13 @@ export default function ShimmerText({
       Platform.OS === "web"
         ? ({
             ["--shimmer-base" as string]: baseColor,
-            ["--shimmer-soft" as string]: goldSoft,
-            ["--shimmer-mid" as string]: goldMid,
+            ["--shimmer-soft" as string]: accentSoft,
+            ["--shimmer-mid" as string]: accentMid,
             ["--shimmer-hot" as string]: hotCore,
             animationDuration: `${cycleMs}ms`,
           } as ViewStyle)
         : {},
-    [baseColor, goldSoft, goldMid, hotCore, cycleMs],
+    [baseColor, accentSoft, accentMid, hotCore, cycleMs],
   );
 
   if (Platform.OS === "web") {
@@ -127,11 +127,11 @@ export default function ShimmerText({
         },
       ]}
     >
-      <View style={[styles.streak, { backgroundColor: goldSoft }]} />
-      <View style={[styles.streakMid, { backgroundColor: goldMid }]} />
+      <View style={[styles.streak, { backgroundColor: accentSoft }]} />
+      <View style={[styles.streakMid, { backgroundColor: accentMid }]} />
       <View style={[styles.streakHot, { backgroundColor: hotCore }]} />
-      <View style={[styles.streakMid, { backgroundColor: goldMid }]} />
-      <View style={[styles.streak, { backgroundColor: goldSoft }]} />
+      <View style={[styles.streakMid, { backgroundColor: accentMid }]} />
+      <View style={[styles.streak, { backgroundColor: accentSoft }]} />
     </Animated.View>
   );
 

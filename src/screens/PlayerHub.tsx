@@ -213,7 +213,7 @@ export default function PlayerHub({
     : null;
   const recentAccent = recentRarity
     ? RARITY_COLOR[recentRarity]
-    : colors.gold;
+    : colors.accent;
 
   return (
     <ScreenContainer ignoreHeaderOffset style={[{ flex: 1 }, style]}>
@@ -259,8 +259,8 @@ export default function PlayerHub({
                     size={RING_SIZE}
                     progress={level.fraction}
                     strokeWidth={5}
-                    trackColor={hexToRgba(colors.gold, 0.2)}
-                    fillColor={colors.gold}
+                    trackColor={hexToRgba(colors.accent, 0.2)}
+                    fillColor={colors.accent}
                   >
                     <View style={styles.avatarCore}>
                       {border ? (
@@ -292,7 +292,7 @@ export default function PlayerHub({
                       {displayName || "Player"}
                     </Text>
                     <View style={styles.pencilBtn}>
-                      <MenuIcon name="pencil" size={20} color={colors.gold} />
+                      <MenuIcon name="pencil" size={20} color={colors.accent} />
                     </View>
                   </View>
                   {/* Reserved title slot — titles catalog not shipped yet */}
@@ -368,7 +368,7 @@ export default function PlayerHub({
               ]}
             >
               <View style={styles.dailyHeader}>
-                <MenuIcon name="calendar" size={16} color={colors.gold} />
+                <MenuIcon name="calendar" size={16} color={colors.accent} />
                 <Text style={[styles.sectionEyebrow, { marginBottom: 0 }]}>
                   Daily Challenge
                 </Text>
@@ -385,7 +385,7 @@ export default function PlayerHub({
                 valueLabel={`${dailyProgress.current} / ${dailyProgress.target}`}
                 style={{ marginTop: 10 }}
                 animated
-                fillColor={dailyDone ? colors.gold : undefined}
+                fillColor={dailyDone ? colors.accent : undefined}
               />
               <Text style={styles.rewardLine}>
                 {dailyDone
@@ -552,7 +552,7 @@ export default function PlayerHub({
                     <Text style={styles.unreadPillText}>{whatsNewUnread}</Text>
                   </View>
                 ) : (
-                  <MenuIcon name="list" size={18} color={colors.gold} />
+                  <MenuIcon name="list" size={18} color={colors.accent} />
                 )}
               </View>
             </BlurPanel>
@@ -590,7 +590,7 @@ export default function PlayerHub({
               accessibilityLabel="Settings"
               hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
             >
-              <MenuIcon name="gear" size={15} color={colors.gold} />
+              <MenuIcon name="gear" size={15} color={colors.accent} />
               <Text style={styles.navChipText}>Settings</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -600,7 +600,7 @@ export default function PlayerHub({
               accessibilityLabel="Achievements"
               hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
             >
-              <MenuIcon name="trophy" size={15} color={colors.gold} />
+              <MenuIcon name="trophy" size={15} color={colors.accent} />
               <Text style={styles.navChipText}>Achievements</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -610,7 +610,7 @@ export default function PlayerHub({
               accessibilityLabel="Read Me"
               hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
             >
-              <MenuIcon name="list" size={15} color={colors.gold} />
+              <MenuIcon name="list" size={15} color={colors.accent} />
               <Text style={styles.navChipText}>Read Me</Text>
             </TouchableOpacity>
           </View>
@@ -683,7 +683,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       borderWidth: StyleSheet.hairlineWidth,
       // Slight rim highlight — presence without decoration or fill opacity change.
       borderColor: hexToRgba(
-        colors.gold,
+        colors.accent,
         colors.mode === "dark" ? 0.22 : 0.18,
       ),
       padding: 14,
@@ -700,10 +700,10 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       default: {},
     }) as ViewStyle,
     identityCard: {
-      borderColor: hexToRgba(colors.gold, 0.4),
+      borderColor: hexToRgba(colors.accent, 0.4),
       ...(Platform.select({
         ios: {
-          shadowColor: colors.gold,
+          shadowColor: colors.accent,
           shadowOpacity: 0.28,
           shadowRadius: 14,
           shadowOffset: { width: 0, height: 4 },
@@ -734,12 +734,12 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginBottom: 12,
       padding: 12,
       borderRadius: 14,
-      backgroundColor: hexToRgba(colors.gold, 0.12),
+      backgroundColor: hexToRgba(colors.accent, 0.12),
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.gold, 0.35),
+      borderColor: hexToRgba(colors.accent, 0.35),
     },
     featuredEyebrow: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 10,
       fontWeight: "800",
       letterSpacing: 0.8,
@@ -759,14 +759,14 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginTop: 2,
       marginBottom: 2,
     },
-    dailyDoneCard: {      borderColor: hexToRgba(colors.gold, 0.5),
+    dailyDoneCard: {      borderColor: hexToRgba(colors.accent, 0.5),
     },
     friendsCard: {
       opacity: 0.92,
       borderStyle: "dashed" as const,
     },
     sectionEyebrow: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 11,
       fontWeight: "800",
       letterSpacing: 0.9,
@@ -796,14 +796,14 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       borderRadius: AVATAR_SIZE / 2,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: hexToRgba(colors.gold, 0.2),
+      backgroundColor: hexToRgba(colors.accent, 0.2),
     },
     avatarBare: {
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.gold, 0.45),
+      borderColor: hexToRgba(colors.accent, 0.45),
     },
     avatarText: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 24,
       fontWeight: "800",
     },
@@ -815,14 +815,14 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       height: 24,
       paddingHorizontal: 7,
       borderRadius: 999,
-      backgroundColor: colors.gold,
+      backgroundColor: colors.accent,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 2,
-      borderColor: hexToRgba(colors.textOnGold, 0.35),
+      borderColor: hexToRgba(colors.textOnAccent, 0.35),
     },
     levelBadgeText: {
-      color: colors.textOnGold,
+      color: colors.textOnAccent,
       fontSize: 12,
       fontWeight: "900",
     },
@@ -841,7 +841,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     pencilBtn: {
       padding: 8,
       borderRadius: 999,
-      backgroundColor: hexToRgba(colors.gold, 0.14),
+      backgroundColor: hexToRgba(colors.accent, 0.14),
     },
     titleSlot: {
       color: colors.textTertiary,
@@ -861,7 +861,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginTop: 2,
     },
     careerXp: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 15,
       fontWeight: "800",
       marginTop: 2,
@@ -898,18 +898,18 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: 999,
-      backgroundColor: hexToRgba(colors.gold, 0.18),
+      backgroundColor: hexToRgba(colors.accent, 0.18),
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.gold, 0.4),
+      borderColor: hexToRgba(colors.accent, 0.4),
     },
     rewardChipText: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 12,
       fontWeight: "800",
     },
     rewardLine: {
       marginTop: 8,
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 12,
       fontWeight: "700",
     },
@@ -937,7 +937,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     unlockEmoji: { fontSize: 40, lineHeight: 48 },
     unlockBody: { flex: 1, minWidth: 0, gap: 3 },
     unlockTitle: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 20,
       fontWeight: "800",
     },
@@ -975,7 +975,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     linkBtn: { marginTop: 10, alignSelf: "flex-start" },
     linkBtnText: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 13,
       fontWeight: "700",
     },
@@ -989,12 +989,12 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       height: 22,
       paddingHorizontal: 6,
       borderRadius: 999,
-      backgroundColor: colors.gold,
+      backgroundColor: colors.accent,
       alignItems: "center",
       justifyContent: "center",
     },
     unreadPillText: {
-      color: colors.textOnGold,
+      color: colors.textOnAccent,
       fontSize: 11,
       fontWeight: "800",
     },
@@ -1009,7 +1009,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       gap: 8,
     },
     supportHeart: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 18,
       fontWeight: "700",
       lineHeight: 22,
@@ -1051,7 +1051,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
         0.28,
       ),
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.gold, 0.28),
+      borderColor: hexToRgba(colors.accent, 0.28),
     },
     navChipText: {
       color: colors.textPrimary,

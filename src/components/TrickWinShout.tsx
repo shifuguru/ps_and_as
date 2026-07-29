@@ -89,9 +89,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderRadius: 999,
-      backgroundColor: colors.gold,
+      backgroundColor: colors.accent,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.btnGoldBorder,
+      borderColor: colors.btnAccentBorder,
       ...Platform.select({
         ios: {
           shadowColor: "#000",
@@ -104,7 +104,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       }),
     },
     text: {
-      color: colors.textOnGold,
+      color: colors.textOnAccent,
       fontSize: 11,
       fontWeight: "900",
       letterSpacing: 0.25,
@@ -119,7 +119,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       borderTopWidth: 7,
       borderLeftColor: "transparent",
       borderRightColor: "transparent",
-      borderTopColor: colors.gold,
+      borderTopColor: colors.accent,
     },
   });
 }
