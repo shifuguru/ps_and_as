@@ -23,7 +23,7 @@ export default function PhonePortraitLock({
     return <>{children}</>;
   }
 
-  if (!frame.rotate) {
+  if (!frame.forcePortrait) {
     return <View style={styles.root}>{children}</View>;
   }
 

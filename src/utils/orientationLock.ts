@@ -97,21 +97,21 @@ export function shouldLockPortraitOrientation(): boolean {
 }
 
 export type ForcedPortraitFrame = {
-  /** CSS-rotate the app shell so portrait layout fills a landscape viewport. */
-  rotate: boolean;
+  /** Phone is landscape — keep a portrait layout frame upright in the viewport. */
+  forcePortrait: boolean;
   /** Layout width the app should use (portrait). */
   layoutWidth: number;
   /** Layout height the app should use (portrait). */
   layoutHeight: number;
-  /** Physical viewport width (before rotation). */
+  /** Physical viewport width. */
   physicalWidth: number;
-  /** Physical viewport height (before rotation). */
+  /** Physical viewport height. */
   physicalHeight: number;
 };
 
 /**
  * When a phone is physically landscape, return swapped portrait layout sizes
- * so the UI stays portrait-locked (paired with a 90° CSS rotate on the shell).
+ * so the UI stays portrait-locked (letterboxed upright in the viewport).
  */
 export function getForcedPortraitFrame(
   physicalWidth: number,
@@ -121,7 +121,7 @@ export function getForcedPortraitFrame(
   const lock = shouldLockPortraitOrientation();
   if (lock && landscape) {
     return {
-      rotate: true,
+      forcePortrait: true,
       layoutWidth: physicalHeight,
       layoutHeight: physicalWidth,
       physicalWidth,
@@ -129,7 +129,7 @@ export function getForcedPortraitFrame(
     };
   }
   return {
-    rotate: false,
+    forcePortrait: false,
     layoutWidth: physicalWidth,
     layoutHeight: physicalHeight,
     physicalWidth,
