@@ -35,6 +35,7 @@ const {
   viewForMember,
   broadcastGameState,
   syncPayloadForMember,
+  emitPlayerHandsPerRecipient,
 } = require('./gameStateView');
 const botHosted = require('./botHostedRooms');
 const { computeRoundXpByPlayerId } = require('./roundXp');
@@ -605,7 +606,13 @@ function emitTradesCompleteIfReady(io, roomId, gameState, hostId) {
   const playerHands = gameState.playerHands || snapshotPlayerHands(gameState);
   gameState.playerHands = playerHands;
   syncOpeningPlayerAfterTrades(gameState, hostId);
-  io.to(roomId).emit('tradesComplete', { playerHands });
+  const room = rooms[roomId];
+  if (room) {
+    emitPlayerHandsPerRecipient(io, room, 'tradesComplete', playerHands);
+  } else {
+    // Fallback: room not found (should not happen in normal flow)
+    io.to(roomId).emit('tradesComplete', { playerHands: {} });
+  }
 }
 
 /** Auto-finish trades (no client UI yet) so ready players can start the next deal. */
@@ -1963,13 +1970,13 @@ io.on('connection', (socket) => {
       p.hand = playerHands[p.id] || p.hand;
     }
 
-    io.to(roomId).emit('playerHandsUpdate', { playerHands });
+    emitPlayerHandsPerRecipient(io, room, 'playerHandsUpdate', playerHands);
 
     if (allTradesComplete(room.gameState)) {
       syncOpeningPlayerAfterTrades(room.gameState, room.host);
       reconcileCurrentPlayerIndex(room);
       broadcastGameState(io, room);
-      io.to(roomId).emit('tradesComplete', { playerHands });
+      emitPlayerHandsPerRecipient(io, room, 'tradesComplete', playerHands);
       if (room.isBotHosted) {
         botHosted.kickBotTurnLoop(roomId, getBotContext());
       }

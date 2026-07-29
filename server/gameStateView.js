@@ -78,10 +78,37 @@ function syncPayloadForMember(room, member) {
   return syncEnvelope(room, gameState, spectator);
 }
 
+/**
+ * Emit a per-recipient hand-confidential event (tradesComplete / playerHandsUpdate).
+ *
+ * Security contract:
+ *   - Seated, connected players receive only their own entry from playerHands.
+ *   - Spectators and disconnected members receive playerHands: {}.
+ *   - The authoritative playerHands object on the server is never mutated.
+ *
+ * @param {import("socket.io").Server} io
+ * @param {object} room  - server room object with room.players array
+ * @param {string} eventName  - "tradesComplete" or "playerHandsUpdate"
+ * @param {Record<string, object[]>} playerHands  - full server-side hands map
+ * @param {object} [extra]  - additional fields to merge into each payload
+ */
+function emitPlayerHandsPerRecipient(io, room, eventName, playerHands, extra) {
+  for (const member of room.players) {
+    if (!member.socketId || member.disconnectedAt) continue;
+    const inRound = memberInRound(room.gameState, member);
+    const ownHand =
+      inRound && playerHands && playerHands[member.id] !== undefined
+        ? { [member.id]: playerHands[member.id] }
+        : {};
+    io.to(member.socketId).emit(eventName, { ...extra, playerHands: ownHand });
+  }
+}
+
 module.exports = {
   viewForPlayer,
   viewForMember,
   memberInRound,
   broadcastGameState,
   syncPayloadForMember,
+  emitPlayerHandsPerRecipient,
 };
