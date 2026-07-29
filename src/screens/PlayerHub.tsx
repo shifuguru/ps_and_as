@@ -29,6 +29,7 @@ import ProgressMeter from "../components/ProgressMeter";
 import AppButton from "../components/ui/AppButton";
 import AvatarRewardBorder from "../components/AvatarRewardBorder";
 import KeepLightsOnModal from "../components/KeepLightsOnModal";
+import OnlinePlayersModal from "../components/OnlinePlayersModal";
 import MenuIcon from "../components/MenuIcon";
 import HubProgressRing from "../components/HubProgressRing";
 import NextAchievementCard from "../components/NextAchievementCard";
@@ -79,6 +80,7 @@ import {
   type FeaturedStat,
 } from "../services/featuredStat";
 import { triggerHaptic } from "../utils/haptics";
+import type { OnlinePlayer } from "../services/onlinePresence";
 
 const AVATAR_SIZE = 88;
 const RING_SIZE = 112;
@@ -98,6 +100,7 @@ type Props = {
   displayName: string;
   whatsNewUnread?: number;
   onlinePlayerCount?: number;
+  onlinePlayers?: OnlinePlayer[];
   actions: PlayerHubActions;
   onNavigateSound?: () => void;
   style?: StyleProp<ViewStyle>;
@@ -111,6 +114,7 @@ export default function PlayerHub({
   displayName,
   whatsNewUnread = 0,
   onlinePlayerCount = 0,
+  onlinePlayers = [],
   actions,
   onNavigateSound,
   style,
@@ -138,6 +142,7 @@ export default function PlayerHub({
   const [dailyState, setDailyState] = useState<DailyChallengeState | null>(null);
   const [featured, setFeatured] = useState<FeaturedStat | null>(null);
   const [lightsOnOpen, setLightsOnOpen] = useState(false);
+  const [onlinePlayersOpen, setOnlinePlayersOpen] = useState(false);
   const ringPulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -350,10 +355,24 @@ export default function PlayerHub({
               />
             </View>
             {onlinePlayerCount > 0 ? (
-              <Text style={styles.onlineHint}>
-                {onlinePlayerCount} player{onlinePlayerCount === 1 ? "" : "s"}{" "}
-                online
-              </Text>
+              <TouchableOpacity
+                style={styles.onlineHintBtn}
+                onPress={() => {
+                  triggerHaptic("light");
+                  setOnlinePlayersOpen(true);
+                }}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={`${onlinePlayerCount} player${
+                  onlinePlayerCount === 1 ? "" : "s"
+                } online. Show online players.`}
+                hitSlop={{ top: 6, bottom: 6, left: 12, right: 12 }}
+              >
+                <Text style={styles.onlineHint}>
+                  {onlinePlayerCount} player{onlinePlayerCount === 1 ? "" : "s"}{" "}
+                  online
+                </Text>
+              </TouchableOpacity>
             ) : null}
           </BlurPanel>
 
@@ -622,6 +641,12 @@ export default function PlayerHub({
       <KeepLightsOnModal
         visible={lightsOnOpen}
         onClose={() => setLightsOnOpen(false)}
+      />
+      <OnlinePlayersModal
+        visible={onlinePlayersOpen}
+        playerCount={onlinePlayerCount}
+        players={onlinePlayers}
+        onClose={() => setOnlinePlayersOpen(false)}
       />
     </ScreenContainer>
   );
@@ -922,12 +947,19 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     primaryCta: { marginBottom: 10 },
     secondaryRow: { flexDirection: "row", gap: 8 },
-    onlineHint: {
+    onlineHintBtn: {
       marginTop: 10,
+      alignSelf: "center",
+      minHeight: 44,
+      justifyContent: "center",
+      paddingHorizontal: 8,
+    },
+    onlineHint: {
       textAlign: "center",
-      color: colors.textSecondary,
+      color: colors.gold,
       fontSize: 12,
-      fontWeight: "600",
+      fontWeight: "700",
+      textDecorationLine: "underline",
     },
     unlockRow: {
       flexDirection: "row",

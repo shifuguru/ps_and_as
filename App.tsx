@@ -40,7 +40,7 @@ import { useVisualViewportSize, useWebShellLayout } from "./src/hooks/useVisualV
 import { isMobileWeb, installWebShellCss } from "./src/utils/webViewport";
 import { useAppFonts } from "./src/hooks/useAppFonts";
 import { useBuildUpdateCheck } from "./src/hooks/useBuildUpdateCheck";
-import { useOnlinePlayerCount } from "./src/hooks/useOnlinePlayerCount";
+import { useOnlinePresence } from "./src/hooks/useOnlinePlayerCount";
 import { useUpdateLogUnreadCount } from "./src/hooks/useUpdateLogUnreadCount";
 import { useWebEscapeKey } from "./src/hooks/useWebEscapeKey";
 import UpdateRequiredOverlay from "./src/components/UpdateRequiredOverlay";
@@ -96,7 +96,7 @@ function AppContent() {
   >(null);
   const { count: updateLogUnreadCount, markSeen: markUpdateLogSeen } =
     useUpdateLogUnreadCount(menuVisible, updateLogOpen);
-  const onlinePlayerCount = useOnlinePlayerCount(!splashVisible);
+  const onlinePresence = useOnlinePresence(!splashVisible);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -721,7 +721,8 @@ function AppContent() {
             <PlayerHub
               displayName={localPlayerName ?? "Player"}
               whatsNewUnread={updateLogUnreadCount}
-              onlinePlayerCount={onlinePlayerCount}
+              onlinePlayerCount={onlinePresence.count}
+              onlinePlayers={onlinePresence.players}
               refreshKey={hubRefreshKey}
               onNavigateSound={() => playEffect("click")}
               actions={{
