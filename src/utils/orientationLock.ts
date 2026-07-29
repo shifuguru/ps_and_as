@@ -51,7 +51,6 @@ function isTabletUa(): boolean {
   const ua = nav.userAgent || "";
   if (isIpadOsWeb()) return true;
   if (/Tablet/i.test(ua)) return true;
-  // Android tablets omit "Mobile" in the UA.
   if (/Android/i.test(ua) && !/Mobile/i.test(ua)) return true;
   return false;
 }
@@ -71,19 +70,10 @@ function isMobilePhoneUa(): boolean {
   return false;
 }
 
-/**
- * Desktop browsers (mouse/trackpad) — exempt when there is no mobile UA.
- */
 function isDesktopWebPointer(): boolean {
   const win = getWebWindow();
   if (!win?.matchMedia) return false;
   return win.matchMedia("(pointer: fine) and (hover: hover)").matches;
-}
-
-function readWebLandscape(): boolean {
-  const win = getWebWindow();
-  if (!win) return false;
-  return (win.innerWidth ?? 0) > (win.innerHeight ?? 0);
 }
 
 /**
@@ -93,7 +83,6 @@ function readWebLandscape(): boolean {
 export function shouldLockPortraitOrientation(): boolean {
   if (Platform.OS === "web") {
     if (isTabletUa()) return false;
-    // DevTools "iPhone" / real phones — lock even if the host still has a mouse.
     if (isMobilePhoneUa()) return true;
     if (isDesktopWebPointer()) return false;
     const win = getWebWindow();
@@ -107,30 +96,75 @@ export function shouldLockPortraitOrientation(): boolean {
   return readShortestSide() < TABLET_SHORTEST_SIDE_PX;
 }
 
+export type ForcedPortraitFrame = {
+  /** CSS-rotate the app shell so portrait layout fills a landscape viewport. */
+  rotate: boolean;
+  /** Layout width the app should use (portrait). */
+  layoutWidth: number;
+  /** Layout height the app should use (portrait). */
+  layoutHeight: number;
+  /** Physical viewport width (before rotation). */
+  physicalWidth: number;
+  /** Physical viewport height (before rotation). */
+  physicalHeight: number;
+};
+
 /**
- * Phones in landscape: browsers usually cannot force rotation, so UI should
- * block with a "rotate to portrait" message instead.
+ * When a phone is physically landscape, return swapped portrait layout sizes
+ * so the UI stays portrait-locked (paired with a 90° CSS rotate on the shell).
  */
-export function shouldBlockPhoneLandscape(): boolean {
-  if (!shouldLockPortraitOrientation()) return false;
-  if (Platform.OS === "web") return readWebLandscape();
-  const { width, height } = Dimensions.get("window");
-  return width > height;
+export function getForcedPortraitFrame(
+  physicalWidth: number,
+  physicalHeight: number,
+): ForcedPortraitFrame {
+  const landscape = physicalWidth > physicalHeight;
+  const lock = shouldLockPortraitOrientation();
+  if (lock && landscape) {
+    return {
+      rotate: true,
+      layoutWidth: physicalHeight,
+      layoutHeight: physicalWidth,
+      physicalWidth,
+      physicalHeight,
+    };
+  }
+  return {
+    rotate: false,
+    layoutWidth: physicalWidth,
+    layoutHeight: physicalHeight,
+    physicalWidth,
+    physicalHeight,
+  };
 }
 
-/** React hook — updates on resize / orientation change. */
-export function usePhoneLandscapeBlock(): boolean {
-  const [blocked, setBlocked] = useState(() => shouldBlockPhoneLandscape());
+/** Swap viewport size into portrait when phone landscape lock is active. */
+export function applyPortraitLockToSize(size: {
+  width: number;
+  height: number;
+}): { width: number; height: number } {
+  const frame = getForcedPortraitFrame(size.width, size.height);
+  return { width: frame.layoutWidth, height: frame.layoutHeight };
+}
+
+export function useForcedPortraitFrame(): ForcedPortraitFrame {
+  const read = (): ForcedPortraitFrame => {
+    if (Platform.OS === "web") {
+      const win = getWebWindow();
+      return getForcedPortraitFrame(win?.innerWidth ?? 0, win?.innerHeight ?? 0);
+    }
+    const { width, height } = Dimensions.get("window");
+    return getForcedPortraitFrame(width, height);
+  };
+
+  const [frame, setFrame] = useState(read);
 
   useEffect(() => {
-    const sync = () => setBlocked(shouldBlockPhoneLandscape());
+    const sync = () => setFrame(read());
     sync();
-
     if (Platform.OS !== "web") {
       const sub = Dimensions.addEventListener("change", sync);
       return () => sub.remove();
     }
-
     const win = getWebWindow();
     if (!win?.addEventListener) return;
     win.addEventListener("resize", sync);
@@ -141,7 +175,7 @@ export function usePhoneLandscapeBlock(): boolean {
     };
   }, []);
 
-  return blocked;
+  return frame;
 }
 
 async function applyNativeOrientationLock(): Promise<void> {
@@ -178,14 +212,13 @@ async function applyWebOrientationLock(): Promise<void> {
   const orientation = getWebScreenOrientation();
   if (!orientation?.lock) return;
 
-  // Only honored in installed PWA / fullscreen on most browsers; failures are expected in tabs.
   try {
     await orientation.lock("portrait");
   } catch {
     try {
       await orientation.lock("portrait-primary");
     } catch {
-      // NotAllowedError outside fullscreen — landscape overlay covers this case.
+      // Tab / DevTools: CSS portrait shell keeps layout locked instead.
     }
   }
 }

@@ -6,6 +6,7 @@ import {
   readWebShellHeight,
   readWebShellTop,
 } from "../utils/webViewport";
+import { applyPortraitLockToSize } from "../utils/orientationLock";
 
 type WebWindow = {
   innerWidth?: number;
@@ -23,6 +24,7 @@ type WebWindow = {
 
 function readVisualViewport(win: WebWindow): ScaledSize {
   const vv = win.visualViewport;
+  let size: ScaledSize;
   if (vv) {
     const keyboardOpen = keyboardLikelyOpen(win);
     const layoutH = win.innerHeight ?? vv.height;
@@ -31,23 +33,26 @@ function readVisualViewport(win: WebWindow): ScaledSize {
       : isMobileWeb()
         ? readWebShellHeight(win)
         : Math.max(vv.height, layoutH);
-    return {
+    size = {
       width: Math.round(vv.width),
       height: Math.round(height),
       scale: 1,
       fontScale: 1,
     };
+  } else {
+    size = {
+      width: Math.round(win.innerWidth ?? 0),
+      height: Math.round(
+        isMobileWeb()
+          ? readWebShellHeight(win)
+          : win.innerHeight ?? 0,
+      ),
+      scale: 1,
+      fontScale: 1,
+    };
   }
-  return {
-    width: Math.round(win.innerWidth ?? 0),
-    height: Math.round(
-      isMobileWeb()
-        ? readWebShellHeight(win)
-        : win.innerHeight ?? 0,
-    ),
-    scale: 1,
-    fontScale: 1,
-  };
+  const locked = applyPortraitLockToSize(size);
+  return { ...size, width: locked.width, height: locked.height };
 }
 
 /** Layout size that tracks the visible viewport on mobile web (URL bar, toolbars). */
