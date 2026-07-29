@@ -303,6 +303,41 @@ export function computeOnFeltFromPreferences(
   );
 }
 
+/**
+ * Clamp a hex colour's relative luminance to at most `maxL` while preserving
+ * its hue and saturation. Used to ensure accent colours remain legible as text
+ * on light glass surfaces (where they need to be dark enough to contrast).
+ */
+function clampLuminance(hex: string, maxL: number): string {
+  const currentL = relativeLuminance(hex);
+  if (currentL <= maxL) return hex;
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const { h, s, l: hslL } = rgbToHsl(rgb);
+  // Binary search: lower HSL lightness until relative luminance <= maxL.
+  let lo = 0;
+  let hi = hslL;
+  let result = hex;
+  for (let i = 0; i < 20; i++) {
+    const mid = (lo + hi) / 2;
+    const candidate = hslToHex(h, s, mid);
+    if (relativeLuminance(candidate) <= maxL) {
+      lo = mid;
+      result = candidate;
+    } else {
+      hi = mid;
+    }
+  }
+  return result;
+}
+
+/**
+ * Maximum relative luminance for an accent colour used as text on a light
+ * glass surface (~L 0.72). Guarantees ≥ 3.0 contrast ratio.
+ * (0.72 + 0.05) / (0.18 + 0.05) = 3.35
+ */
+const MAX_ACCENT_TEXT_LUMINANCE_LIGHT = 0.18;
+
 function shellNeutral(mode: ThemeMode, feltHue: number): Rgb {
   return hslToRgb({
     h: feltHue,
@@ -361,9 +396,12 @@ function buildShellColors(
 ): AppThemeColors {
   const isDark = mode === "dark";
   const environment = environmentProfileForMode(mode);
-  // Light mode uses `complement` (mid-lightness) for shell accent — complementDim
-  // is too dull on light glass panels. Dark mode uses complementBright as before.
-  const accent = isDark ? palette.complementBright : palette.complement;
+  // Dark mode uses complementBright (bright/light accent, high contrast on dark glass).
+  // Light mode uses complement but its luminance is clamped so it stays readable as text
+  // on light glass surfaces — preserving hue/saturation while ensuring ≥ 3.0 CR.
+  const accent = isDark
+    ? palette.complementBright
+    : clampLuminance(palette.complement, MAX_ACCENT_TEXT_LUMINANCE_LIGHT);
   const ink = shellNeutral(mode, palette.feltHue);
   const text = buildShellTextScale(rgbToHex(ink), isDark);
   const { textPrimary, textSecondary, textTertiary, textQuaternary, textMuted } =
