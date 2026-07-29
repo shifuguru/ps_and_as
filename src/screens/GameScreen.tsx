@@ -3584,6 +3584,8 @@ function GameScreen({
         lastHandReveal,
         clearLastHandReveal,
         finishLastHandReveal,
+        roundEndLastPlayHold,
+        roundEndHoldSnapshot,
         trickPauseActive,
         trickPauseSnapshot,
         showWinnerBanner,
@@ -3694,6 +3696,8 @@ function GameScreenBoard() {
     lastHandReveal,
     clearLastHandReveal,
     finishLastHandReveal,
+    roundEndLastPlayHold,
+    roundEndHoldSnapshot,
     trickPauseActive,
     trickPauseSnapshot,
     showWinnerBanner,
@@ -3809,6 +3813,11 @@ function GameScreenBoard() {
     lastHandReveal: LastHandRevealPayload | null;
     clearLastHandReveal: () => void;
     finishLastHandReveal: () => void;
+    roundEndLastPlayHold: boolean;
+    roundEndHoldSnapshot: {
+      plays: TrickPlayDisplay[];
+      passedPlayerIds: string[];
+    } | null;
     trickPauseActive: boolean;
     trickPauseSnapshot: TrickPauseSnapshot | null;
     showWinnerBanner: boolean;
