@@ -4,7 +4,9 @@ import { io, type Socket } from "socket.io-client";
 import { DEFAULT_SERVER_PORT, getServerUrl } from "../config/server";
 import {
   EMPTY_ONLINE_PRESENCE,
+  mergeOnlinePresence,
   parseOnlinePresencePayload,
+  withLocalPresenceFallback,
   type OnlinePresenceSnapshot,
 } from "../services/onlinePresence";
 import { getOrCreatePlayerId } from "../services/gameCenter";
@@ -20,6 +22,7 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let subscribers = new Set<Listener>();
 let latestPresence: OnlinePresenceSnapshot = EMPTY_ONLINE_PRESENCE;
 let startCount = 0;
+let lastRegisteredDisplayName: string | null = null;
 
 function serverUrlsToTry(): string[] {
   const urls: string[] = [];
@@ -42,6 +45,15 @@ function serverUrlsToTry(): string[] {
 function notify(snapshot: OnlinePresenceSnapshot) {
   latestPresence = snapshot;
   subscribers.forEach((listener) => listener(snapshot));
+}
+
+function applyPresencePayload(data: {
+  activePlayers?: unknown;
+  players?: unknown;
+}) {
+  const parsed = parseOnlinePresencePayload(data);
+  if (parsed == null) return;
+  notify(mergeOnlinePresence(latestPresence, parsed));
 }
 
 async function fetchPresenceHttp(): Promise<OnlinePresenceSnapshot | null> {
@@ -110,15 +122,25 @@ async function openSocket(): Promise<Socket | null> {
   return null;
 }
 
-async function registerProfilePresence(activeSocket: Socket): Promise<void> {
+async function registerProfilePresence(
+  activeSocket: Socket,
+  preferredDisplayName?: string | null,
+): Promise<void> {
+  const preferred = preferredDisplayName?.trim() || null;
   try {
     const profile = await getOrCreatePlayerId();
+    const displayName = preferred || profile.displayName || "Player";
+    lastRegisteredDisplayName = displayName;
     activeSocket.emit("registerPresence", {
       profileId: profile.id,
-      displayName: profile.displayName,
+      displayName,
     });
   } catch {
-    activeSocket.emit("registerPresence", {});
+    const displayName = preferred || "Player";
+    lastRegisteredDisplayName = displayName;
+    activeSocket.emit("registerPresence", {
+      displayName,
+    });
   }
 }
 
@@ -126,25 +148,26 @@ function attachSocketHandlers(activeSocket: Socket) {
   activeSocket.on(
     "onlinePlayerCount",
     (data: { activePlayers?: unknown; players?: unknown }) => {
-      const next = parseOnlinePresencePayload(data);
-      if (next != null) notify(next);
+      applyPresencePayload(data);
     },
   );
 
   activeSocket.on("connect", () => {
     activeSocket.emit("getOnlinePlayerCount");
-    void registerProfilePresence(activeSocket);
+    void registerProfilePresence(activeSocket, lastRegisteredDisplayName);
   });
 
   if (activeSocket.connected) {
     activeSocket.emit("getOnlinePlayerCount");
-    void registerProfilePresence(activeSocket);
+    void registerProfilePresence(activeSocket, lastRegisteredDisplayName);
   }
 }
 
 async function refreshPresence() {
   const httpPresence = await fetchPresenceHttp();
-  if (httpPresence != null) notify(httpPresence);
+  if (httpPresence != null) {
+    notify(mergeOnlinePresence(latestPresence, httpPresence));
+  }
 
   if (socket?.connected) {
     socket.emit("getOnlinePlayerCount");
@@ -193,6 +216,7 @@ function teardownIfIdle() {
   socket?.off("connect");
   socket?.disconnect();
   socket = null;
+  lastRegisteredDisplayName = null;
 }
 
 export function retainOnlinePresence(): () => void {
@@ -220,8 +244,23 @@ export function subscribeOnlinePlayerCount(listener: (count: number) => void): (
   return subscribeOnlinePresence((snapshot) => listener(snapshot.count));
 }
 
+/** Push the latest known display name onto the presence socket. */
+export function updateOnlinePresenceDisplayName(
+  displayName: string | null | undefined,
+): void {
+  const trimmed = displayName?.trim() || null;
+  if (!trimmed || trimmed === lastRegisteredDisplayName) return;
+  lastRegisteredDisplayName = trimmed;
+  if (socket?.connected) {
+    void registerProfilePresence(socket, trimmed);
+  }
+}
+
 /** Live presence snapshot from the multiplayer server. */
-export function useOnlinePresence(active: boolean): OnlinePresenceSnapshot {
+export function useOnlinePresence(
+  active: boolean,
+  displayName?: string | null,
+): OnlinePresenceSnapshot {
   const [presence, setPresence] = useState(latestPresence);
 
   useEffect(() => {
@@ -229,6 +268,7 @@ export function useOnlinePresence(active: boolean): OnlinePresenceSnapshot {
 
     const release = retainOnlinePresence();
     const unsubscribe = subscribeOnlinePresence(setPresence);
+    updateOnlinePresenceDisplayName(displayName);
 
     const onAppState = (state: string) => {
       if (state === "active") void refreshPresence();
@@ -258,9 +298,14 @@ export function useOnlinePresence(active: boolean): OnlinePresenceSnapshot {
       unsubscribe();
       release();
     };
-  }, [active]);
+  }, [active, displayName]);
 
-  return presence;
+  useEffect(() => {
+    if (!active) return;
+    updateOnlinePresenceDisplayName(displayName);
+  }, [active, displayName]);
+
+  return withLocalPresenceFallback(presence, displayName);
 }
 
 /** Live count of unique clients connected to the multiplayer server. */

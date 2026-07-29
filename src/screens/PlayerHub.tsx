@@ -365,7 +365,7 @@ export default function PlayerHub({
                 accessibilityRole="button"
                 accessibilityLabel={`${onlinePlayerCount} player${
                   onlinePlayerCount === 1 ? "" : "s"
-                } online. Show online players.`}
+                } online`}
                 hitSlop={{ top: 6, bottom: 6, left: 12, right: 12 }}
               >
                 <Text style={styles.onlineHint}>
@@ -953,7 +953,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       color: colors.accent,
       fontSize: 12,
       fontWeight: "700",
-      textDecorationLine: "underline",
     },
     unlockRow: {
       flexDirection: "row",

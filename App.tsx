@@ -96,7 +96,7 @@ function AppContent() {
   >(null);
   const { count: updateLogUnreadCount, markSeen: markUpdateLogSeen } =
     useUpdateLogUnreadCount(menuVisible, updateLogOpen);
-  const onlinePresence = useOnlinePresence(!splashVisible);
+  const onlinePresence = useOnlinePresence(!splashVisible, localPlayerName);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
