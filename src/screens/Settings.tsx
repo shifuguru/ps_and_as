@@ -456,9 +456,10 @@ export default function Settings({
             <View style={styles.settingBlock}>
               <View style={styles.settingHeaderRow}>
                 <Text style={[styles.settingLabel, styles.settingLabelInline]}>
-                  Enable Deal Animations (beta)
+                  Enable Deal Animations
                 </Text>
                 <View style={styles.settingHeaderSpacer} />
+                <Text style={styles.betaWarning}>Beta</Text>
                 <Switch
                   value={!skipDealAnimations}
                   onValueChange={(enabled) => {
@@ -680,6 +681,12 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   settingLabelInline: {
     marginBottom: 0,
     flexShrink: 1,
+  },
+  betaWarning: {
+    color: "#e53935",
+    fontSize: 12,
+    fontWeight: "700",
+    flexShrink: 0,
   },
   settingHint: {
     marginBottom: 0,
