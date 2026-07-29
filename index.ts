@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 import { registerRootComponent } from "expo";
 
 import App from "./App";
+import { installOrientationLock } from "./src/utils/orientationLock";
 
 if (Platform.OS === "web") {
   require("./src/utils/webNoZoom").ensureWebNoZoom();
@@ -19,6 +20,9 @@ if (Platform.OS === "web") {
   getWebBodyPortalHost();
   installWebMobileViewportGuard();
 }
+
+// Phones: portrait. Tablets + desktop: free to rotate.
+installOrientationLock();
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);
 // It also ensures that whether you load the app in Expo Go or in a native build,

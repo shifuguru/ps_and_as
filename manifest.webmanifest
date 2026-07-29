@@ -7,7 +7,7 @@
   "display": "standalone",
   "background_color": "#0f5132",
   "theme_color": "#0f5132",
-  "orientation": "portrait",
+  "orientation": "any",
   "icons": [
     {
       "src": "/ps_and_as/favicon.ico",
