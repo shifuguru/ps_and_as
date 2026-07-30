@@ -403,6 +403,11 @@ export class SocketAdapter implements NetworkAdapter {
 
     this.socket.on("connected", (data: any) => {
       console.log("[SocketAdapter] Received connected:", data);
+      // Adopt server seat id — may differ from the local profile id when a
+      // preferred id was already taken (pre-claim / collision avoidance).
+      if (typeof data?.id === "string" && data.id.length > 0) {
+        this.profileId = data.id;
+      }
       this.rememberReconnectSecret(data?.reconnectSecret);
       this.handlers.forEach((h) =>
         h({
