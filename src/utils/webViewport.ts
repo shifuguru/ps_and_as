@@ -248,16 +248,13 @@ function applyShellGeometry(
 
   // Always pin Home Screen PWAs — keyboard must not unpin the shell.
   //
-  // CRITICAL (iOS standalone WebKit): position:fixed + inset:0 alone sizes to
-  // the *small* lying viewport (short by safe-area-inset-top), which leaves a
-  // felt gap under the home indicator. Explicit 100vh / 100lvh is the large
-  // viewport = full physical screen from cold start. Do not use 100dvh here.
-  // Refs: piclaw PWA.md, acoyfellow my-ax standalone 100lvh fix.
+  // Chin-gap fix (Reddit r/PWA): standalone + viewport-fit=cover +
+  // black-translucent requires height:100vh. height:100% offsets under the
+  // status bar without expanding → bottom chin. Do not use screen px hacks.
   const pinToDisplay = isStandaloneWebApp();
 
   if (pinToDisplay) {
-    // Prefer measured full-screen px (includes screen.height); CSS 100vh fallback.
-    const h = heightPx > 0 ? `${heightPx}px` : "100vh";
+    const h = "100vh";
     doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, h);
     doc.documentElement.style.setProperty(APP_HEIGHT_VAR, h);
     doc.documentElement.style.setProperty(APP_SHELL_TOP_VAR, "0px");
@@ -275,7 +272,7 @@ function applyShellGeometry(
 
     if (isViewportDebugEnabled() && calc) {
       traceAppHeightApply(heightPx, 0, calc, `${caller}+standalonePin`, [
-        `standalone → #root/portals height ${h} (large viewport / screen px)`,
+        "standalone → #root/portals height 100vh (chin-gap fix)",
       ]);
     }
     return;
@@ -341,17 +338,10 @@ export function readWebShellHeight(win: WebWindow): number {
     ? Math.round(vv.height + (vv.offsetTop ?? 0))
     : 0;
 
-  // Standalone: never shrink for the keyboard; prefer screen CSS pixels so the
-  // shell matches the physical display even when innerHeight lies short.
+  // Standalone: never shrink for the keyboard. Layout height still reports the
+  // best available number for RN; CSS pin uses 100vh (see applyShellGeometry).
   if (isStandaloneWebApp()) {
-    const screen = (globalThis as { screen?: { height?: number; width?: number } }).screen;
-    const screenH = Math.round(screen?.height ?? 0);
-    const screenW = Math.round(screen?.width ?? 0);
-    const portrait = (win.innerWidth ?? 0) <= (win.innerHeight ?? 0);
-    const fullScreen = portrait
-      ? Math.max(screenH, screenW)
-      : Math.min(screenH || screenW, screenW || screenH);
-    const h = Math.max(inner, client, visualBottom, fullScreen);
+    const h = Math.max(inner, client, visualBottom);
     if (Platform.OS === "web") cachedShellHeight = h;
     return h;
   }

@@ -31,22 +31,24 @@ function rewriteHtmlPaths(html) {
 
 function patchExpoReset(html) {
   const reset = `<style id="expo-reset">
-      /* Patched for iOS PWA — shell sizing owned by web-shell.css + JS (--app-shell-h) */
+      /* iOS PWA chin-gap fix: height:100% + black-translucent + viewport-fit=cover
+         offsets the body behind the status bar without expanding height.
+         Use 100vh (Reddit r/PWA "fighting the chin gap"). */
       html,
       body {
         margin: 0;
         padding: 0;
         width: 100%;
+        height: 100vh;
         overflow: hidden;
         overscroll-behavior: none;
-        height: 100%;
       }
       #root {
         display: flex;
         flex-direction: column;
         flex: 1;
         width: 100%;
-        height: 100%;
+        height: 100vh;
         min-height: 0;
         overflow: hidden;
       }
@@ -253,13 +255,8 @@ function injectEarlyShellHeight(html) {
   function sync(){
     var r=document.documentElement.style;
     if(isStandalone()){
-      var sh=(window.screen&&window.screen.height)||0;
-      var sw=(window.screen&&window.screen.width)||0;
-      var portrait=(window.innerWidth||0)<=(window.innerHeight||0);
-      var full=portrait?Math.max(sh,sw):Math.min(sh||sw,sw||sh);
-      var h=full>0?(full+"px"):"100vh";
-      r.setProperty("--app-shell-h",h);
-      r.setProperty("--app-height",h);
+      r.setProperty("--app-shell-h","100vh");
+      r.setProperty("--app-height","100vh");
       r.setProperty("--app-shell-top","0px");
       return;
     }

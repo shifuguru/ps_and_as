@@ -32,11 +32,11 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-07-30T16:47"),
+    publishedAt: nzst("2026-07-30T16:55"),
     title: "True full-screen on Home Screen",
     items: [
-      "Home Screen — the app fills the whole phone; no leftover gap or colour strip under the home bar",
-      "Home Screen — no tinted status-bar band; felt goes edge to edge",
+      "Home Screen — fills the whole phone edge to edge (no chin gap under the home bar)",
+      "Home Screen — felt continues under the status bar and home indicator",
       "First open — the name box sits above the keyboard when you tap it",
     ],
   },

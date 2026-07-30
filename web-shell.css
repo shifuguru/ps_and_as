@@ -1,88 +1,50 @@
 /**
  * iOS PWA / mobile Safari shell — loaded LAST in production index.html so it
- * overrides Expo's #expo-reset (height: 100% breaks viewport-fit=cover).
+ * overrides Expo's #expo-reset.
  *
  * Ownership split (do not reunify):
  * - Document (html): permanent felt wallpaper + tint — fills the browser paint surface
  * - Environment layer (#ps-felt-layer): enhancement only (lighting / vignette / crest / decor)
  * - Application shell (#root + portals): --app-height / --app-shell-top for keyboard/chrome
  *
- * Edge-to-edge: shell fills the display. Safe-area pads interactive chrome only.
+ * Chin-gap root cause (Reddit r/PWA "fighting the chin gap"):
+ *   standalone + viewport-fit=cover + black-translucent + height:100%
+ *   → body is offset behind the status bar WITHOUT expanding height → bottom gap.
+ * Confirmed fix: height:100vh on html/body/#root. Keep black-translucent.
  *
- * Safe-area model (SwiftDev + CSS-Tricks — viewport-fit=cover):
- * https://theswiftdev.com/progressive-web-apps-on-ios/
- * - Document (html): full bleed under notch/home indicator — NO safe-area padding.
- * - Wallpaper paints edge-to-edge (html::before at 100lvh).
- * - Header/footer pattern: .ps-bottom-bar-shell ≈ footer with
- *   padding-bottom: env(safe-area-inset-bottom); felt shows through, controls lift.
- * - .ps-safe-area-h: horizontal margins for in-flow content (their .safe-area class).
- *
- * html min-height adds top safe-area so iOS black-translucent PWAs do not leave
- * an empty bottom bar (https://dev.to/karmasakshi/make-your-pwas-look-handsome-on-ios-1o08).
+ * Edge-to-edge: shell fills the display with 100vh. Safe-area pads interactive
+ * chrome only (.ps-bottom-bar-shell / content padding) — never shrinks the shell.
  *
  * Do not ship theme-color meta — it paints a frosted status-bar band on iOS.
- * Standalone shell: explicit height 100vh / 100lvh (large viewport). Fixed
- * inset:0 alone uses the lying small viewport and leaves a bottom felt gap.
  */
 :root {
   --ps-felt-tint: #0f5132;
   --ps-felt-tint-overlay: transparent;
   --ps-felt-texture: none;
-  --app-shell-h: 100dvh;
-  --app-height: var(--app-shell-h);
+  --app-shell-h: 100vh;
+  --app-height: 100vh;
   --app-shell-top: 0px;
-}
-
-/* Home Screen: large viewport units only. 100dvh lies short by safe-area-top. */
-@media all and (display-mode: standalone) {
-  :root {
-    --app-shell-h: 100vh;
-    --app-height: 100vh;
-    --app-shell-top: 0px;
-  }
 }
 
 /* Document owns wallpaper permanently — never cleared after env ready.
  *
- * iOS PWA (black-translucent + viewport-fit=cover) moves the document under the
- * status bar and leaves an empty bottom band unless html is allowed to extend.
- * Guide: https://dev.to/karmasakshi/make-your-pwas-look-handsome-on-ios-1o08
- *
- * Rules that break the fix (do not reintroduce):
- * - position:fixed + inset:0 on html (clips to the limited viewport)
- * - height:100% fighting min-height expansion
- * - overflow:hidden on html (clips the extended paint surface)
- *
- * ::before is a fixed wallpaper covering the full display (notch + home
- * indicator), not only the layout viewport.
- *
- * iOS status-bar / Dynamic Island: Safari samples the *document element's*
- * own background for the translucent status-bar region (same class of bug as
- * the old flat-green footer). Texture must live on `html` itself — not only
- * on ::before — or the island/notch band stays solid --ps-felt-tint green.
- * Experiment notes: src/debug/viewportExperiments.ts (#1 / #2).
+ * Height MUST be 100vh (not 100%). Percentage height under black-translucent
+ * is the chin-gap bug. Texture on html itself so the status-bar region samples
+ * felt, not a flat default.
  */
 html {
   position: relative !important;
   width: 100% !important;
+  height: 100vh !important;
   margin: 0 !important;
   padding: 0 !important;
   box-sizing: border-box !important;
-  overflow-x: hidden !important;
-  overflow-y: hidden !important;
+  overflow: hidden !important;
   overscroll-behavior: none !important;
   touch-action: manipulation !important;
-  height: auto !important;
   max-height: none !important;
-  min-height: 100% !important;
-  min-height: 100dvh !important;
-  min-height: 100lvh !important;
-  min-height: -webkit-fill-available !important;
-  /* Critical: extend by top safe-area so iOS does not invent a bottom bar. */
-  min-height: calc(100% + constant(safe-area-inset-top)) !important;
-  min-height: calc(100% + env(safe-area-inset-top, 0px)) !important;
+  min-height: 100vh !important;
   background-color: var(--ps-felt-tint) !important;
-  /* Same stack as ::before — Safari status-bar / notch sampling reads this. */
   background-image:
     linear-gradient(
       var(--ps-felt-tint-overlay),
@@ -95,29 +57,16 @@ html {
   background-attachment: scroll, scroll !important;
 }
 
-/* Full-display wallpaper — covers notch + home-indicator beyond 100lvh alone. */
+/* Full-display wallpaper plane — same 100vh box as the document. */
 html::before {
   content: "" !important;
   position: fixed !important;
+  top: 0 !important;
   left: 0 !important;
   right: 0 !important;
-  /* Extend into unsafe top/bottom so island + home indicator sit on texture. */
-  top: calc(0px - constant(safe-area-inset-top)) !important;
-  top: calc(0px - env(safe-area-inset-top, 0px)) !important;
   width: 100% !important;
-  height: 100% !important;
-  height: 100dvh !important;
-  height: 100lvh !important;
-  height: calc(
-    100lvh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom)
-  ) !important;
-  height: calc(
-    100lvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)
-  ) !important;
-  min-height: 100% !important;
-  min-height: 100dvh !important;
-  min-height: 100lvh !important;
-  min-height: -webkit-fill-available !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
   z-index: -1 !important;
   pointer-events: none !important;
   background-color: var(--ps-felt-tint) !important;
@@ -135,40 +84,21 @@ html::before {
 
 body {
   position: fixed !important;
-  inset: 0 !important;
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
   bottom: auto !important;
   width: 100% !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
   overscroll-behavior: none !important;
   touch-action: manipulation !important;
-  /* Prefer large viewport last — 100dvh lies short on iOS Home Screen. */
-  height: 100% !important;
-  height: 100dvh !important;
-  height: 100lvh !important;
-  height: 100vh !important;
   max-height: none !important;
-  min-height: 100% !important;
-  min-height: 100dvh !important;
-  min-height: 100lvh !important;
-  min-height: 100vh !important;
-  min-height: -webkit-fill-available !important;
   background-color: transparent !important;
   background-image: none !important;
-}
-
-@media all and (display-mode: standalone) {
-  body {
-    height: 100vh !important;
-    height: 100lvh !important;
-    min-height: 100vh !important;
-    min-height: 100lvh !important;
-    bottom: auto !important;
-  }
 }
 
 /**
@@ -178,17 +108,14 @@ body {
 #ps-felt-layer,
 .ps-environment-layer {
   position: fixed !important;
-  inset: 0 !important;
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
-  bottom: 0 !important;
+  bottom: auto !important;
   width: 100% !important;
-  height: 100% !important;
+  height: 100vh !important;
   max-height: none !important;
-  min-height: 100% !important;
-  min-height: 100dvh !important;
-  min-height: -webkit-fill-available !important;
+  min-height: 100vh !important;
   z-index: 0 !important;
   pointer-events: none !important;
   overflow: hidden !important;
@@ -240,8 +167,8 @@ body {
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
-  /* Standalone boot / media sets 100vh; Safari tab JS may override with pixels. */
-  height: var(--app-height, 100dvh) !important;
+  /* Default 100vh (chin-gap fix). Safari tab JS may override --app-height with pixels. */
+  height: var(--app-height, 100vh) !important;
   max-height: none !important;
   min-height: 0 !important;
   background-color: transparent !important;
@@ -255,7 +182,7 @@ body {
   right: 0 !important;
   bottom: auto !important;
   width: 100% !important;
-  height: var(--app-height, 100dvh) !important;
+  height: var(--app-height, 100vh) !important;
   max-height: none !important;
   min-height: 0 !important;
   pointer-events: none !important;
@@ -274,24 +201,12 @@ body {
   right: 0 !important;
   bottom: auto !important;
   width: 100% !important;
-  height: var(--app-height, 100dvh) !important;
+  height: var(--app-height, 100vh) !important;
   max-height: none !important;
   min-height: 0 !important;
   pointer-events: none !important;
   z-index: 300 !important;
   overflow: hidden !important;
-}
-
-@media all and (display-mode: standalone) {
-  #root,
-  #ps-body-portal,
-  #ps-overlay-portal {
-    height: 100vh !important;
-    height: 100lvh !important;
-    max-height: none !important;
-    bottom: auto !important;
-    top: 0 !important;
-  }
 }
 
 #ps-overlay-portal > * {
@@ -301,15 +216,14 @@ body {
 /* Desktop / non-mobile RN wallpaper helper — also viewport-owned, not shell-sized. */
 .ps-felt-fixed {
   position: fixed !important;
-  inset: 0 !important;
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
-  bottom: 0 !important;
+  bottom: auto !important;
   width: 100% !important;
-  height: 100% !important;
+  height: 100vh !important;
   max-height: none !important;
-  min-height: 100% !important;
+  min-height: 100vh !important;
   z-index: 0 !important;
   pointer-events: none !important;
 }

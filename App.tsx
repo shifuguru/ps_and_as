@@ -626,14 +626,13 @@ function AppContent() {
           (isMobileWeb()
             ? isStandaloneWebApp()
               ? ({
-                  // Home Screen: full screen px from shell (screen.height-aware).
-                  // Fixed inset:0 alone undershoots on iOS standalone.
+                  // Home Screen chin-gap fix: 100vh (not 100%, not screen px).
                   position: "fixed",
                   top: 0,
                   left: 0,
                   right: 0,
                   width: "100%",
-                  height: shell.height > 0 ? shell.height : "100vh",
+                  height: "100vh",
                   maxHeight: "none",
                   overflow: "hidden",
                 } as object)

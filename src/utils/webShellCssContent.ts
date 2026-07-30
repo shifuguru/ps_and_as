@@ -4,24 +4,13 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
 /**
  * Runtime shell CSS (dev + production fallback). Keep in sync with web-shell.css.
  *
- * Ownership split (do not reunify):
- * - Document (html): permanent felt wallpaper + tint — fills the browser paint surface
- * - Environment layer (#ps-felt-layer): enhancement only (lighting / vignette / crest / decor)
- * - Application shell (#root / portals): --app-height / --app-shell-top for layout
+ * Chin-gap root cause (Reddit r/PWA "fighting the chin gap"):
+ *   standalone + viewport-fit=cover + black-translucent + height:100%
+ *   → body offset behind status bar without height expanding → bottom gap.
+ * Confirmed fix: height:100vh on html/body/#root. Keep black-translucent.
  *
- * Edge-to-edge rule (SwiftDev / CSS-Tricks — viewport-fit=cover):
- * https://theswiftdev.com/progressive-web-apps-on-ios/
- * - Document: full bleed — no safe-area padding on html/body.
- * - Safe-area on content (.ps-safe-area-h) and bottom chrome (.ps-bottom-bar-shell).
- * - Do not shrink #root / screens with env(safe-area-inset-*) — that invents a footer.
- * - html min-height: calc(100% + safe-area-inset-top) for iOS black-translucent PWAs.
- * - html paints the same felt texture as ::before so iOS status-bar / island
- *   sampling (document background) is textured, not flat --ps-felt-tint green.
- * - Do not ship <meta name="theme-color"> — on iOS Home Screen it paints a
- *   frosted status-bar band (often stuck on default casino green). Prefer
- *   apple-mobile-web-app-status-bar-style=black-translucent + document wallpaper.
- * - Standalone shell: explicit 100vh / 100lvh (large viewport). Fixed inset:0
- *   alone uses the lying small viewport and leaves a bottom felt gap.
+ * Safe-area pads interactive chrome only (.ps-bottom-bar-shell) — never the shell.
+ * Do not ship theme-color meta (frosted status-bar band on iOS).
  */
 export function getWebShellCssText(feltTint: string): string {
   return `
@@ -29,35 +18,22 @@ export function getWebShellCssText(feltTint: string): string {
       --ps-felt-tint: ${feltTint};
       --ps-felt-tint-overlay: transparent;
       --ps-felt-texture: none;
-      --app-shell-h: 100dvh;
-      --app-height: var(--app-shell-h);
+      --app-shell-h: 100vh;
+      --app-height: 100vh;
       --app-shell-top: 0px;
-    }
-    @media all and (display-mode: standalone) {
-      :root {
-        --app-shell-h: 100vh;
-        --app-height: 100vh;
-        --app-shell-top: 0px;
-      }
     }
     html {
       position: relative !important;
       width: 100% !important;
+      height: 100vh !important;
       margin: 0 !important;
       padding: 0 !important;
       box-sizing: border-box !important;
-      overflow-x: hidden !important;
-      overflow-y: hidden !important;
+      overflow: hidden !important;
       overscroll-behavior: none !important;
       touch-action: manipulation !important;
-      height: auto !important;
       max-height: none !important;
-      min-height: 100% !important;
-      min-height: 100dvh !important;
-      min-height: 100lvh !important;
-      min-height: -webkit-fill-available !important;
-      min-height: calc(100% + constant(safe-area-inset-top)) !important;
-      min-height: calc(100% + env(safe-area-inset-top, 0px)) !important;
+      min-height: 100vh !important;
       background-color: var(--ps-felt-tint) !important;
       background-image:
         linear-gradient(
@@ -73,24 +49,12 @@ export function getWebShellCssText(feltTint: string): string {
     html::before {
       content: "" !important;
       position: fixed !important;
+      top: 0 !important;
       left: 0 !important;
       right: 0 !important;
-      top: calc(0px - constant(safe-area-inset-top)) !important;
-      top: calc(0px - env(safe-area-inset-top, 0px)) !important;
       width: 100% !important;
-      height: 100% !important;
-      height: 100dvh !important;
-      height: 100lvh !important;
-      height: calc(
-        100lvh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom)
-      ) !important;
-      height: calc(
-        100lvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)
-      ) !important;
-      min-height: 100% !important;
-      min-height: 100dvh !important;
-      min-height: 100lvh !important;
-      min-height: -webkit-fill-available !important;
+      height: 100vh !important;
+      min-height: 100vh !important;
       z-index: -1 !important;
       pointer-events: none !important;
       background-color: var(--ps-felt-tint) !important;
@@ -107,53 +71,33 @@ export function getWebShellCssText(feltTint: string): string {
     }
     body {
       position: fixed !important;
-      inset: 0 !important;
       top: 0 !important;
       left: 0 !important;
       right: 0 !important;
       bottom: auto !important;
       width: 100% !important;
+      height: 100vh !important;
+      min-height: 100vh !important;
       margin: 0 !important;
       padding: 0 !important;
       overflow: hidden !important;
       overscroll-behavior: none !important;
       touch-action: manipulation !important;
-      height: 100% !important;
-      height: 100dvh !important;
-      height: 100lvh !important;
-      height: 100vh !important;
       max-height: none !important;
-      min-height: 100% !important;
-      min-height: 100dvh !important;
-      min-height: 100lvh !important;
-      min-height: 100vh !important;
-      min-height: -webkit-fill-available !important;
       background-color: transparent !important;
       background-image: none !important;
-    }
-    @media all and (display-mode: standalone) {
-      body {
-        height: 100vh !important;
-        height: 100lvh !important;
-        min-height: 100vh !important;
-        min-height: 100lvh !important;
-        bottom: auto !important;
-      }
     }
     #ps-felt-layer,
     .ps-environment-layer {
       position: fixed !important;
-      inset: 0 !important;
       top: 0 !important;
       left: 0 !important;
       right: 0 !important;
-      bottom: 0 !important;
+      bottom: auto !important;
       width: 100% !important;
-      height: 100% !important;
+      height: 100vh !important;
       max-height: none !important;
-      min-height: 100% !important;
-      min-height: 100dvh !important;
-      min-height: -webkit-fill-available !important;
+      min-height: 100vh !important;
       z-index: 0 !important;
       pointer-events: none !important;
       overflow: hidden !important;
@@ -172,7 +116,6 @@ export function getWebShellCssText(feltTint: string): string {
       width: 100%;
       height: 100%;
     }
-    /* Legacy wallpaper planes — document owns wallpaper; keep nodes inert if present. */
     #ps-felt-layer .ps-felt-layer-texture,
     #ps-felt-layer .ps-felt-layer-tint {
       display: none !important;
@@ -200,7 +143,7 @@ export function getWebShellCssText(feltTint: string): string {
       margin: 0 !important;
       padding: 0 !important;
       overflow: hidden !important;
-      height: var(--app-height, 100dvh) !important;
+      height: var(--app-height, 100vh) !important;
       max-height: none !important;
       min-height: 0 !important;
       background-color: transparent !important;
@@ -213,7 +156,7 @@ export function getWebShellCssText(feltTint: string): string {
       right: 0 !important;
       bottom: auto !important;
       width: 100% !important;
-      height: var(--app-height, 100dvh) !important;
+      height: var(--app-height, 100vh) !important;
       max-height: none !important;
       min-height: 0 !important;
       pointer-events: none !important;
@@ -228,36 +171,24 @@ export function getWebShellCssText(feltTint: string): string {
       right: 0 !important;
       bottom: auto !important;
       width: 100% !important;
-      height: var(--app-height, 100dvh) !important;
+      height: var(--app-height, 100vh) !important;
       max-height: none !important;
+      min-height: 0 !important;
       pointer-events: none !important;
       z-index: 300 !important;
       overflow: hidden !important;
-      min-height: 0 !important;
-    }
-    @media all and (display-mode: standalone) {
-      #root,
-      #ps-body-portal,
-      #ps-overlay-portal {
-        height: 100vh !important;
-        height: 100lvh !important;
-        max-height: none !important;
-        bottom: auto !important;
-        top: 0 !important;
-      }
     }
     #ps-overlay-portal > * { pointer-events: auto; }
     .ps-felt-fixed {
       position: fixed !important;
-      inset: 0 !important;
       top: 0 !important;
       left: 0 !important;
       right: 0 !important;
-      bottom: 0 !important;
+      bottom: auto !important;
       width: 100% !important;
-      height: 100% !important;
+      height: 100vh !important;
       max-height: none !important;
-      min-height: 100% !important;
+      min-height: 100vh !important;
       z-index: 0 !important;
       pointer-events: none !important;
     }
