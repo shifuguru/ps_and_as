@@ -32,6 +32,15 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-30T20:50"),
+    title: "iPhone edges and online players cleanup",
+    items: [
+      "iPhone Home Screen — the top and bottom edge bands now follow Light or Dark mode instead of picking up your felt colour",
+      "Opening the app — the splash screen now sits above the top edge tint while the app loads",
+      "Online players — stray generic Player entries from extra connections should no longer appear",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-30T17:00"),
     title: "Name box above the keyboard",
     items: [
@@ -397,12 +406,6 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
 ];
 
 export const KNOWN_ISSUES: KnownIssue[] = [
-  {
-    title: "Home Screen edges on iPhone",
-    status: "Looking into it",
-    updatedAt: nzst("2026-07-30T19:54"),
-    note: "Top frost should only darken or lighten the felt from dark/light mode — not recolor from your felt tint. Splash should cover the frost. Force-close and reopen after updating to check.",
-  },
   {
     title: "Achievement stats in lobbies",
     status: "Monitoring",
