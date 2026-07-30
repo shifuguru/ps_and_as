@@ -495,18 +495,14 @@ export function installWebShellCss(feltTint: string): () => void {
 
   // Default dark appearance chrome until ThemeContext resolves.
   const root = doc.documentElement;
-  const head = doc.head;
   root.style.colorScheme = "dark";
   root.setAttribute("data-ps-theme", "dark");
-  root.style.setProperty("--ps-status-veil", "rgba(0,0,0,0.5)");
-  root.style.setProperty("--ps-safe-area-fill", "rgba(0,0,0,0.78)");
-  let themeMeta = head?.querySelector?.('meta[name="theme-color"]');
-  if (!themeMeta && head) {
-    themeMeta = doc.createElement("meta");
-    themeMeta.setAttribute("name", "theme-color");
-    head.appendChild(themeMeta);
+  const metas = doc.head?.querySelectorAll?.('meta[name="theme-color"]');
+  if (metas) {
+    for (let i = metas.length - 1; i >= 0; i--) {
+      metas[i]?.parentNode?.removeChild?.(metas[i]);
+    }
   }
-  themeMeta?.setAttribute?.("content", "#000000");
 
   style.textContent = getWebShellCssText(feltTint);
 

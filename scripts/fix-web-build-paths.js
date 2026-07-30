@@ -257,17 +257,8 @@ function injectEarlyShellHeight(html) {
     html.classList.add("ps-splash-active");
     html.style.colorScheme="dark";
     html.setAttribute("data-ps-theme","dark");
-    html.style.setProperty("--ps-status-veil","rgba(0,0,0,0.5)");
-    html.style.setProperty("--ps-safe-area-fill","rgba(0,0,0,0.78)");
     var metas=document.querySelectorAll('meta[name="theme-color"]');
-    for(var i=metas.length-1;i>=1;i--) metas[i].parentNode.removeChild(metas[i]);
-    var meta=metas[0];
-    if(!meta){
-      meta=document.createElement("meta");
-      meta.setAttribute("name","theme-color");
-      document.head.appendChild(meta);
-    }
-    meta.setAttribute("content","#000000");
+    for(var i=metas.length-1;i>=0;i--) metas[i].parentNode.removeChild(metas[i]);
   }catch(e){}
   function sync(){
     var r=document.documentElement.style;

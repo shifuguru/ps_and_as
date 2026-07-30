@@ -15,8 +15,6 @@ export function getWebShellCssText(feltTint: string): string {
       --ps-felt-tint: ${feltTint};
       --ps-felt-tint-overlay: transparent;
       --ps-felt-texture: none;
-      --ps-status-veil: rgba(0, 0, 0, 0.5);
-      --ps-safe-area-fill: rgba(0, 0, 0, 0.78);
       --ps-shell-paint-h: calc(100vh + 2px);
       --app-shell-h: calc(100vh + 2px);
       --app-height: calc(100vh + 2px);
@@ -53,9 +51,15 @@ export function getWebShellCssText(feltTint: string): string {
       position: fixed !important;
       left: 0 !important;
       right: 0 !important;
-      top: 0 !important;
+      top: calc(0px - constant(safe-area-inset-top)) !important;
+      top: calc(0px - env(safe-area-inset-top, 0px)) !important;
       width: 100% !important;
-      height: var(--ps-shell-paint-h) !important;
+      height: calc(
+        100vh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom) + 4px
+      ) !important;
+      height: calc(
+        100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 4px
+      ) !important;
       min-height: var(--ps-shell-paint-h) !important;
       z-index: -1 !important;
       pointer-events: none !important;
@@ -90,41 +94,13 @@ export function getWebShellCssText(feltTint: string): string {
       background-image: none !important;
     }
     body::before {
-      content: "" !important;
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      right: 0 !important;
-      height: constant(safe-area-inset-top) !important;
-      height: env(safe-area-inset-top, 0px) !important;
-      z-index: 10002 !important;
-      pointer-events: none !important;
-      background: linear-gradient(
-        to bottom,
-        var(--ps-safe-area-fill) 0%,
-        var(--ps-status-veil) 45%,
-        transparent 100%
-      ) !important;
+      content: none !important;
     }
     html.ps-splash-active body::before {
       opacity: 0 !important;
     }
     body::after {
-      content: "" !important;
-      position: fixed !important;
-      left: 0 !important;
-      right: 0 !important;
-      bottom: 0 !important;
-      height: calc(constant(safe-area-inset-bottom) + 4px) !important;
-      height: calc(env(safe-area-inset-bottom, 0px) + 4px) !important;
-      z-index: 10002 !important;
-      pointer-events: none !important;
-      background: linear-gradient(
-        to bottom,
-        rgba(0, 0, 0, 0) 0%,
-        var(--ps-safe-area-fill) 35%,
-        var(--ps-safe-area-fill) 100%
-      ) !important;
+      content: none !important;
     }
     #ps-felt-layer,
     .ps-environment-layer {

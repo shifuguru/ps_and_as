@@ -101,10 +101,9 @@ export function clearWebThemeColorMeta(doc: WebDocument): void {
 }
 
 /**
- * Drive the residual iOS status-bar frost from appearance mode only:
- * dark → black veil / theme-color #000, light → white veil / #fff.
- * Never pass felt tint here — the veil must only darken or lighten whatever
- * wallpaper is already underneath, not recolor the safe-area strip.
+ * Keep only the system color-scheme in sync with appearance.
+ * We intentionally do NOT paint custom top/bottom chrome bands or set a
+ * runtime theme-color tint here — the wallpaper should run edge to edge.
  */
 export function syncWebAppearanceChrome(
   mode: ThemeMode,
@@ -114,30 +113,10 @@ export function syncWebAppearanceChrome(
 
   const isDark = mode !== "light";
   const root = doc.documentElement;
-  // Neutral appearance chrome only — never a felt hex.
-  const themeColor = isDark ? "#000000" : "#ffffff";
-  const veil = isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.55)";
-  const safeAreaFill = isDark ? "rgba(0,0,0,0.78)" : "rgba(255,255,255,0.82)";
 
   root.style.colorScheme = isDark ? "dark" : "light";
   root.setAttribute("data-ps-theme", isDark ? "dark" : "light");
-  root.style.setProperty("--ps-status-veil", veil);
-  root.style.setProperty("--ps-safe-area-fill", safeAreaFill);
-
-  const head = (doc as { head?: any }).head;
-  if (!head?.querySelectorAll || !doc.createElement) return;
-
-  const existing = head.querySelectorAll('meta[name="theme-color"]');
-  for (let i = existing.length - 1; i >= 1; i--) {
-    existing[i]?.parentNode?.removeChild?.(existing[i]);
-  }
-  let meta = existing[0];
-  if (!meta) {
-    meta = doc.createElement("meta");
-    meta.setAttribute("name", "theme-color");
-    head.appendChild(meta);
-  }
-  meta.setAttribute("content", themeColor);
+  clearWebThemeColorMeta(doc);
 }
 
 function clearShellInlineGeometry(el: any): void {

@@ -35,8 +35,8 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     publishedAt: nzst("2026-07-30T20:49"),
     title: "iPhone edges and online players cleanup",
     items: [
-      "iPhone Home Screen — the top and bottom edge bands now follow Light or Dark mode instead of picking up your felt colour",
-      "Opening the app — the splash screen now sits above the top edge tint while the app loads",
+      "iPhone Home Screen — the extra top and bottom tint bands are gone, so the wallpaper runs edge to edge again",
+      "Opening the app — the splash screen now cleanly covers the status area while the app loads",
       "Online players — stray generic Player entries from extra connections should no longer appear",
     ],
   },
