@@ -32,6 +32,16 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-30T23:02"),
+    title: "Clearer menus, Find Game & lobby",
+    items: [
+      "Home — Quick Game stands out first; the other cards sit quieter in the background",
+      "Find Game — join with a code is the main action; hosting and the open-games list sit underneath",
+      "Lobby — the table and seats lead the screen; room setup text stays out of the way",
+      "Buttons & labels — primary actions are easier to spot, with less tiny uppercase clutter",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-30T20:55"),
     title: "iPhone edges and online players cleanup",
     items: [
