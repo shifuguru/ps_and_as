@@ -89,15 +89,13 @@ function patchViewport(html) {
   html = patchExpoReset(html);
   html = patchShellAssets(html, basePath);
 
-  const themeColor = '<meta name="theme-color" content="#0f5132" />';
-  if (/name="theme-color"/i.test(html)) {
-    html = html.replace(
-      /name="theme-color" content="[^"]*"/i,
-      'name="theme-color" content="#0f5132"',
-    );
-  } else {
-    html = html.replace("<head>", `<head>\n    ${themeColor}`);
-  }
+  // Do NOT inject theme-color — on iOS Home Screen it paints a frosted status-bar
+  // band (often stuck on default casino green). black-translucent + document
+  // wallpaper is the full-bleed path. Strip any Expo/default leftovers.
+  html = html.replace(
+    /\s*<meta[^>]*name=["']theme-color["'][^>]*>\s*/gi,
+    "\n",
+  );
 
   const appleBar =
     '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />';
@@ -150,8 +148,9 @@ function writeWebManifest() {
     start_url: `${basePath}/`,
     scope: `${basePath}/`,
     display: "standalone",
+    // Splash only — omit theme_color so iOS Home Screen does not paint a
+    // frosted status-bar band from the default casino green.
     background_color: "#0f5132",
-    theme_color: "#0f5132",
     // Phones lock via Screen Orientation API; tablets/desktop stay free to rotate.
     orientation: "any",
     icons: [
@@ -247,11 +246,15 @@ function injectEarlyShellHeight(html) {
       return !!(window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches);
     }catch(e){ return false; }
   }
+  try{
+    var metas=document.querySelectorAll('meta[name="theme-color"]');
+    for(var i=metas.length-1;i>=0;i--) metas[i].parentNode.removeChild(metas[i]);
+  }catch(e){}
   function sync(){
     var r=document.documentElement.style;
     if(isStandalone()){
-      r.setProperty("--app-shell-h","100lvh");
-      r.setProperty("--app-height","100lvh");
+      r.setProperty("--app-shell-h","100%");
+      r.setProperty("--app-height","auto");
       r.setProperty("--app-shell-top","0px");
       return;
     }
@@ -268,7 +271,13 @@ function injectEarlyShellHeight(html) {
   window.visualViewport?.addEventListener("resize",sync);
 })();
 </script>`;
-  if (html.includes('setProperty("--app-height"')) return html;
+  // Replace any prior early shell script so rebuilds pick up geometry + theme-color strip.
+  if (html.includes('setProperty("--app-height"')) {
+    return html.replace(
+      /<script>\s*\(function\(\)\{\s*function isStandalone\(\)[\s\S]*?<\/script>/,
+      script,
+    );
+  }
   return html.replace("<head>", `<head>\n    ${script}`);
 }
 

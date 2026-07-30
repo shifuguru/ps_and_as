@@ -19,13 +19,17 @@
  *
  * html min-height adds top safe-area so iOS black-translucent PWAs do not leave
  * an empty bottom bar (https://dev.to/karmasakshi/make-your-pwas-look-handsome-on-ios-1o08).
+ *
+ * Do not ship theme-color meta — it paints a frosted status-bar band on iOS.
+ * Standalone shell: --app-height:auto + inset 0 (not 100lvh) to avoid a felt
+ * footer strip under the home indicator.
  */
 :root {
   --ps-felt-tint: #0f5132;
   --ps-felt-tint-overlay: transparent;
   --ps-felt-texture: none;
-  --app-shell-h: 100lvh;
-  --app-height: var(--app-shell-h);
+  --app-shell-h: 100%;
+  --app-height: auto;
   --app-shell-top: 0px;
 }
 
@@ -214,9 +218,9 @@ body {
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
-  /* Standalone boot sets 100%; Safari tab JS may override with a pixel height. */
+  /* Standalone: auto + bottom:0 = true edge-to-edge. Safari tab: pixel --app-height. */
   height: var(--app-height, auto) !important;
-  max-height: var(--app-height, none) !important;
+  max-height: none !important;
   min-height: 0 !important;
   background-color: transparent !important;
   z-index: 1 !important;
@@ -230,7 +234,7 @@ body {
   bottom: 0 !important;
   width: 100% !important;
   height: var(--app-height, auto) !important;
-  max-height: var(--app-height, none) !important;
+  max-height: none !important;
   min-height: 0 !important;
   pointer-events: none !important;
   z-index: 50 !important;
@@ -249,7 +253,7 @@ body {
   bottom: 0 !important;
   width: 100% !important;
   height: var(--app-height, auto) !important;
-  max-height: var(--app-height, none) !important;
+  max-height: none !important;
   min-height: 0 !important;
   pointer-events: none !important;
   z-index: 300 !important;

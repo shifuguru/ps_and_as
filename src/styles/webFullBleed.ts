@@ -80,27 +80,20 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
 }
 
 /**
- * Keep <meta name="theme-color"> in sync with the active felt tint.
- * iOS Home Screen PWAs sample this for the status-bar / safe-area chrome;
- * a stale default green (#0f5132) reads as a wrong-colored blur band on top
- * of the app when the player picks another felt.
+ * Remove <meta name="theme-color"> so iOS Home Screen does not paint a frosted
+ * status-bar / safe-area chrome tint (it was stuck on default casino green via
+ * the build-time #0f5132 meta + manifest). With apple-mobile-web-app-status-bar-style
+ * black-translucent, the notch region composites the document background instead
+ * of a separate themed blur band.
  */
-function syncWebThemeColorMeta(doc: WebDocument, color: string): void {
+export function clearWebThemeColorMeta(doc: WebDocument): void {
   const head = (doc as { head?: any }).head;
-  if (!head?.querySelector) return;
+  if (!head?.querySelectorAll) return;
 
-  const metas = head.querySelectorAll?.('meta[name="theme-color"]');
-  if (metas && typeof metas.length === "number" && metas.length > 0) {
-    for (let i = 0; i < metas.length; i++) {
-      metas[i]?.setAttribute?.("content", color);
-    }
-    return;
+  const metas = head.querySelectorAll('meta[name="theme-color"]');
+  for (let i = metas.length - 1; i >= 0; i--) {
+    metas[i]?.parentNode?.removeChild?.(metas[i]);
   }
-
-  const meta = doc.createElement("meta");
-  meta.setAttribute("name", "theme-color");
-  meta.setAttribute("content", color);
-  head.appendChild(meta);
 }
 
 function clearShellInlineGeometry(el: any): void {
@@ -196,9 +189,8 @@ export function ensureWebFeltBackdrop(
   rootStyle.setProperty("--ps-felt-texture", `url("${url}")`);
   rootStyle.setProperty("--ps-theme-mode", mode);
 
-  // Status-bar / PWA chrome samples theme-color — keep it on the felt tint so
-  // the top safe-area band does not stick on the default casino green.
-  syncWebThemeColorMeta(doc, env.displayTint);
+  // Drop theme-color chrome — do not retint it to felt (that still draws a band).
+  clearWebThemeColorMeta(doc);
 
   const layer = getOrCreateEnvironmentLayer(doc);
   const lighting = layer.querySelector(".ps-env-lighting");

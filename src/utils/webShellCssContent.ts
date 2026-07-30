@@ -17,9 +17,11 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  * - html min-height: calc(100% + safe-area-inset-top) for iOS black-translucent PWAs.
  * - html paints the same felt texture as ::before so iOS status-bar / island
  *   sampling (document background) is textured, not flat --ps-felt-tint green.
- * - <meta name="theme-color"> is synced at runtime to the active felt tint
- *   (see ensureWebFeltBackdrop) so Home Screen chrome does not stick on the
- *   default casino green after the player changes wallpaper color.
+ * - Do not ship <meta name="theme-color"> — on iOS Home Screen it paints a
+ *   frosted status-bar band (often stuck on default casino green). Prefer
+ *   apple-mobile-web-app-status-bar-style=black-translucent + document wallpaper.
+ * - Standalone shell uses inset:0 / --app-height:auto (not 100lvh) so a felt
+ *   strip does not appear under the home indicator.
  */
 export function getWebShellCssText(feltTint: string): string {
   return `
@@ -27,8 +29,8 @@ export function getWebShellCssText(feltTint: string): string {
       --ps-felt-tint: ${feltTint};
       --ps-felt-tint-overlay: transparent;
       --ps-felt-texture: none;
-      --app-shell-h: 100lvh;
-      --app-height: var(--app-shell-h);
+      --app-shell-h: 100%;
+      --app-height: auto;
       --app-shell-top: 0px;
     }
     html {
@@ -180,9 +182,9 @@ export function getWebShellCssText(feltTint: string): string {
       margin: 0 !important;
       padding: 0 !important;
       overflow: hidden !important;
-      /* Standalone boot sets 100%; Safari tab JS may override with a pixel height. */
+      /* Standalone: auto + bottom:0 = edge-to-edge. Safari tab: pixel --app-height. */
       height: var(--app-height, auto) !important;
-      max-height: var(--app-height, none) !important;
+      max-height: none !important;
       min-height: 0 !important;
       background-color: transparent !important;
       z-index: 1 !important;
@@ -195,7 +197,7 @@ export function getWebShellCssText(feltTint: string): string {
       bottom: 0 !important;
       width: 100% !important;
       height: var(--app-height, auto) !important;
-      max-height: var(--app-height, none) !important;
+      max-height: none !important;
       min-height: 0 !important;
       pointer-events: none !important;
       z-index: 50 !important;
@@ -210,11 +212,11 @@ export function getWebShellCssText(feltTint: string): string {
       bottom: 0 !important;
       width: 100% !important;
       height: var(--app-height, auto) !important;
-      max-height: var(--app-height, none) !important;
-      min-height: 0 !important;
+      max-height: none !important;
       pointer-events: none !important;
       z-index: 300 !important;
       overflow: hidden !important;
+      min-height: 0 !important;
     }
     #ps-overlay-portal > * { pointer-events: auto; }
     .ps-felt-fixed {
