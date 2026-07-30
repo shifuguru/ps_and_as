@@ -844,7 +844,6 @@ function startBotHostedGame(roomId, ctx) {
         .filter((p) => !p.isSpectator)
         .map((p) => ({ id: p.id, name: p.name })),
       hostId: room.host,
-      dealSeed,
       skipDealAnimations: !!room.skipDealAnimations,
     });
     ctx.emitTradesCompleteIfReady(ctx.io, roomId, room.gameState, room.host);
