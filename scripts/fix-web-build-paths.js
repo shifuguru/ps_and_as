@@ -153,9 +153,10 @@ function writeWebManifest() {
     start_url: `${basePath}/`,
     scope: `${basePath}/`,
     display: "standalone",
-    // Splash only — omit theme_color so iOS Home Screen does not paint a
-    // frosted status-bar band from the default casino green.
-    background_color: "#0f5132",
+    // Launch canvas matches the black splash — never felt green (that tinted
+    // the status strip before JS painted appearance chrome).
+    // Omit theme_color; runtime syncWebAppearanceChrome owns dark/light only.
+    background_color: "#000000",
     // Phones lock via Screen Orientation API; tablets/desktop stay free to rotate.
     orientation: "any",
     icons: [
@@ -253,6 +254,7 @@ function injectEarlyShellHeight(html) {
   }
   try{
     var html=document.documentElement;
+    html.classList.add("ps-splash-active");
     html.style.colorScheme="dark";
     html.setAttribute("data-ps-theme","dark");
     html.style.setProperty("--ps-status-veil","rgba(0,0,0,0.5)");

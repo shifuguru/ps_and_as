@@ -34,11 +34,17 @@ export const WEB_FULL_BLEED_FIXED =
       } as object)
     : null;
 
+/**
+ * Splash must sit above the status veil (body::before @ 10002) and crash chrome.
+ * On web, portal this node to document.body — z-index inside #root cannot win.
+ */
+export const WEB_SPLASH_Z_INDEX = 10050;
+
 export const WEB_SPLASH_OVERLAY =
   Platform.OS === "web"
     ? ({
         position: "fixed",
-        zIndex: 10000,
+        zIndex: WEB_SPLASH_Z_INDEX,
         top: 0,
         left: 0,
         right: 0,
@@ -95,9 +101,10 @@ export function clearWebThemeColorMeta(doc: WebDocument): void {
 }
 
 /**
- * Drive the residual iOS status-bar frost from appearance mode:
- * dark → black veil, light → white veil. Also sets CSS color-scheme so system
- * chrome matches. Never use felt green here — that was the stuck casino band.
+ * Drive the residual iOS status-bar frost from appearance mode only:
+ * dark → black veil / theme-color #000, light → white veil / #fff.
+ * Never pass felt tint here — the veil must only darken or lighten whatever
+ * wallpaper is already underneath, not recolor the safe-area strip.
  */
 export function syncWebAppearanceChrome(
   mode: ThemeMode,
@@ -107,14 +114,13 @@ export function syncWebAppearanceChrome(
 
   const isDark = mode !== "light";
   const root = doc.documentElement;
-  const veil = isDark ? "#000000" : "#ffffff";
+  // Neutral appearance chrome only — never a felt hex.
+  const themeColor = isDark ? "#000000" : "#ffffff";
+  const veil = isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.55)";
 
   root.style.colorScheme = isDark ? "dark" : "light";
   root.setAttribute("data-ps-theme", isDark ? "dark" : "light");
-  root.style.setProperty(
-    "--ps-status-veil",
-    isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.55)",
-  );
+  root.style.setProperty("--ps-status-veil", veil);
 
   const head = (doc as { head?: any }).head;
   if (!head?.querySelectorAll || !doc.createElement) return;
@@ -129,7 +135,7 @@ export function syncWebAppearanceChrome(
     meta.setAttribute("name", "theme-color");
     head.appendChild(meta);
   }
-  meta.setAttribute("content", veil);
+  meta.setAttribute("content", themeColor);
 }
 
 function clearShellInlineGeometry(el: any): void {
@@ -225,7 +231,7 @@ export function ensureWebFeltBackdrop(
   rootStyle.setProperty("--ps-felt-texture", `url("${url}")`);
   rootStyle.setProperty("--ps-theme-mode", mode);
 
-  // Status-bar frost follows appearance (dark/light), not felt green.
+  // Status-bar frost follows appearance (dark/light) only — never felt tint.
   syncWebAppearanceChrome(mode, doc);
 
   const layer = getOrCreateEnvironmentLayer(doc);

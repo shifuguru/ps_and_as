@@ -6,6 +6,7 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  *
  * Chin-gap: height calc(100vh + 2px) on html/body/#root (not height:100%).
  * Status frost: appearance-matched theme-color + --ps-status-veil (dark/light).
+ * Never felt tint — veil only darkens/lightens wallpaper underneath.
  * html background-color stays var(--ps-felt-tint); body stays transparent.
  */
 export function getWebShellCssText(feltTint: string): string {
@@ -109,6 +110,9 @@ export function getWebShellCssText(feltTint: string): string {
         var(--ps-status-veil) 45%,
         transparent 100%
       ) !important;
+    }
+    html.ps-splash-active body::before {
+      opacity: 0 !important;
     }
     body::after {
       content: "" !important;

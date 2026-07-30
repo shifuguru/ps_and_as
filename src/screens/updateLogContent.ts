@@ -400,8 +400,8 @@ export const KNOWN_ISSUES: KnownIssue[] = [
   {
     title: "Home Screen edges on iPhone",
     status: "Looking into it",
-    updatedAt: nzst("2026-07-30T19:31"),
-    note: "Home Screen top frost should read dark in dark mode and light in light mode; the 1px white chin under the home bar should be gone. Force-close and reopen after updating to check.",
+    updatedAt: nzst("2026-07-30T19:50"),
+    note: "Top frost should only darken or lighten the felt from dark/light mode — not recolor from your felt tint. Splash should cover the frost. Force-close and reopen after updating to check.",
   },
   {
     title: "Achievement stats in lobbies",

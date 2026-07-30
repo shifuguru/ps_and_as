@@ -37,6 +37,7 @@ import { MODAL_OVERLAY_Z } from "./src/styles/overlayZIndex";
 import WebModalPortal from "./src/components/WebModalPortal";
 import { DEFAULT_FELT_COLOR, getWallpaperTint } from "./src/services/wallpaper";
 import { WEB_SPLASH_OVERLAY } from "./src/styles/webFullBleed";
+import WebSplashPortal from "./src/components/WebSplashPortal";
 import { tryCollapseSafariChrome, isStandaloneWebApp } from "./src/utils/safariChrome";
 import { useVisualViewportSize, useWebShellLayout } from "./src/hooks/useVisualViewportSize";
 import { isMobileWeb, installWebShellCss } from "./src/utils/webViewport";
@@ -226,6 +227,17 @@ function AppContent() {
     }, 6000);
     return () => clearTimeout(timeout);
   }, [splashVisible, menuOpacity, splashOpacity]);
+
+  // Hide the status veil while splash is up (veil is body::before above #root).
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const root = (globalThis as { document?: Document }).document?.documentElement;
+    if (!root) return;
+    root.classList.toggle("ps-splash-active", splashVisible);
+    return () => {
+      root.classList.remove("ps-splash-active");
+    };
+  }, [splashVisible]);
 
   const startRandomGame = async () => {
     if (nameSetupVisible || !localPlayerName?.trim()) return;
@@ -670,22 +682,24 @@ function AppContent() {
           !settingsOpen &&
           !achievementsOpen && <AnimatedBackground />}
 
-        {/* Splash overlay (kept mounted until hide animation finishes) */}
+        {/* Splash — portaled to body on web so it sits above the status veil */}
         {splashVisible && (
-          <Animated.View
-            style={[
-              StyleSheet.absoluteFillObject,
-              WEB_SPLASH_OVERLAY,
-              {
-                justifyContent: "center",
-                alignItems: "center",
-                opacity: splashOpacity,
-              },
-            ]}
-            pointerEvents="auto"
-          >
-            <SplashScreen onFinish={hideSplashAndShowMenu} />
-          </Animated.View>
+          <WebSplashPortal>
+            <Animated.View
+              style={[
+                StyleSheet.absoluteFillObject,
+                WEB_SPLASH_OVERLAY,
+                {
+                  justifyContent: "center",
+                  alignItems: "center",
+                  opacity: splashOpacity,
+                },
+              ]}
+              pointerEvents="auto"
+            >
+              <SplashScreen onFinish={hideSplashAndShowMenu} />
+            </Animated.View>
+          </WebSplashPortal>
         )}
 
         {/* Main menu — consolidated with icons */}
