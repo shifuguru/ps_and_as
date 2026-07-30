@@ -33,9 +33,8 @@ export function nzdt(local: string): string {
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
     publishedAt: nzst("2026-07-30T17:00"),
-    title: "True full-screen on Home Screen",
+    title: "Name box above the keyboard",
     items: [
-      "Home Screen — fills the whole phone edge to edge under the Dynamic Island and home bar (no flat green strip or chin gap)",
       "First open — the name box sits above the keyboard when you tap it",
     ],
   },
@@ -398,6 +397,12 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
 ];
 
 export const KNOWN_ISSUES: KnownIssue[] = [
+  {
+    title: "Home Screen edges on iPhone",
+    status: "Looking into it",
+    updatedAt: nzst("2026-07-30T18:28"),
+    note: "From the Home Screen app, a thin white line can still show under the home bar. Under the Dynamic Island, the solid green strip is gone but a blurred grey/black band can remain instead of continuous felt.",
+  },
   {
     title: "Achievement stats in lobbies",
     status: "Monitoring",
