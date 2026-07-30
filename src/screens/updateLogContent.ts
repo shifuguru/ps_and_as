@@ -32,7 +32,7 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-07-30T20:49"),
+    publishedAt: nzst("2026-07-30T20:55"),
     title: "iPhone edges and online players cleanup",
     items: [
       "iPhone Home Screen — the extra top and bottom tint bands are gone, so the wallpaper runs edge to edge again",
