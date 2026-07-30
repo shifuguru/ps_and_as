@@ -400,7 +400,7 @@ export const KNOWN_ISSUES: KnownIssue[] = [
   {
     title: "Home Screen edges on iPhone",
     status: "Looking into it",
-    updatedAt: nzst("2026-07-30T19:30"),
+    updatedAt: nzst("2026-07-30T19:31"),
     note: "Home Screen top frost should read dark in dark mode and light in light mode; the 1px white chin under the home bar should be gone. Force-close and reopen after updating to check.",
   },
   {
