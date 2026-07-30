@@ -84,6 +84,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.18": "Off-Suit Outburst",
   "1.1.19": "Last Card Standing",
   "1.1.20": "Cut the Deck",
+  "1.1.21": "King Me Maybe",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
