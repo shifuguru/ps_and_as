@@ -704,10 +704,20 @@ export function executeCeremonyDeal(
     ? !!baseState.freshRound
     : shouldSkipPresidentAssholeTrade(streakAfterRound);
 
-  let players = clonePlayersForRound(
-    baseState.players.map((p) => ({ ...p, hand: [] })),
-  );
-  dealFreshHands(players, options.dealSeed);
+  let players;
+  if (
+    options.onlineAuthoritative &&
+    baseState.players.some((p) => (p.hand?.length ?? 0) > 0)
+  ) {
+    // Online: use server-dealt hands from sync (own faces + opponent placeholders).
+    // Never re-deal from a seed — seeds are not sent to clients.
+    players = clonePlayersForRound(baseState.players);
+  } else {
+    players = clonePlayersForRound(
+      baseState.players.map((p) => ({ ...p, hand: [] })),
+    );
+    dealFreshHands(players, options.dealSeed);
+  }
 
   let trades: ClientPendingTrade[] = [];
   const rolesById: Record<string, string> = {};
