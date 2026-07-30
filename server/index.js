@@ -282,8 +282,9 @@ function startNextRound(roomId) {
   room.gameState.readyForNextRound = {};
   gameSync.bumpStateVersion(room);
   broadcastGameState(io, room);
+  // Do not broadcast dealSeed — hands are authoritative on the server and
+  // already delivered per-recipient via gameStateSync / tradesComplete.
   io.to(roomId).emit('nextRoundStarting', {
-    dealSeed,
     promotedPlayerId: promoted[0]?.id ?? null,
     promotedPlayerIds: promoted.map((p) => p.id),
     rosterChanged,
@@ -1114,14 +1115,31 @@ function connectedPayload(player, socket) {
   };
 }
 
-/** Match a seat by profile id only — never by display name (names are public). */
-function findReconnectPlayer(room, profileId) {
-  if (!profileId) return null;
+/**
+ * Reclaim seats only via server-issued reconnectSecret.
+ * Matching by public profileId alone enables pre-claim lockout / hijack.
+ */
+function findReconnectPlayer(room, reconnectSecret) {
+  if (typeof reconnectSecret !== 'string' || !reconnectSecret) return null;
   return (
-    room.players.find(
-      (p) => p.id === profileId || p.profileId === profileId,
-    ) || null
+    room.players.find((p) => p.reconnectSecret === reconnectSecret) || null
   );
+}
+
+/** Prefer the client's profile id when free; otherwise allocate an opaque seat id. */
+function allocateSeatId(room, preferredId) {
+  const preferred =
+    typeof preferredId === 'string' && preferredId.trim()
+      ? preferredId.trim()
+      : null;
+  if (
+    preferred &&
+    !isCpuLobbyId(preferred) &&
+    !room.players.some((p) => p.id === preferred || p.profileId === preferred)
+  ) {
+    return preferred;
+  }
+  return `seat-${crypto.randomBytes(12).toString('hex')}`;
 }
 
 function seatHasLiveForeignSocket(player, socket) {
@@ -1551,10 +1569,13 @@ io.on('connection', (socket) => {
 
     removeSocketFromOtherRooms(socket, pid, code);
 
+    // Allocate before inserting host — empty room prefers client profile id.
+    const provisionalRoom = { players: [] };
+    const seatId = allocateSeatId(provisionalRoom, pid);
     rooms[code] = {
       players: [],
-      host: pid,
-      creatorId: pid,
+      host: seatId,
+      creatorId: seatId,
       hostName: nameCheck.value,
       roomName: roomNameCheck.value,
       createdAt: Date.now(),
@@ -1565,7 +1586,7 @@ io.on('connection', (socket) => {
       inGame: false
     };
     const hostPlayer = {
-      id: pid,
+      id: seatId,
       profileId: pid,
       name: nameCheck.value,
       socketId: socket.id,
@@ -1661,8 +1682,15 @@ io.on('connection', (socket) => {
     clearEmptyRoomTimer(code);
     room.emptyAt = null;
 
-    const existingPlayer = findReconnectPlayer(room, pid);
+    const existingPlayer = findReconnectPlayer(room, reconnectSecret);
     let wasAway = false;
+
+    if (reconnectSecret && !existingPlayer) {
+      socket.emit('error', {
+        message: 'Reconnect failed. Rejoin from the same device session.',
+      });
+      return;
+    }
     
     if (existingPlayer) {
       const claim = canClaimExistingSeat(existingPlayer, socket, reconnectSecret);
@@ -1670,7 +1698,7 @@ io.on('connection', (socket) => {
         socket.emit('error', { message: claim.reason });
         return;
       }
-      console.log(`[Server] Player ${nameCheck.value} (${pid}) reconnecting to room ${code}`);
+      console.log(`[Server] Player ${nameCheck.value} (${existingPlayer.id}) reconnecting to room ${code}`);
       wasAway = !!existingPlayer.disconnectedAt;
       cancelAwayRemoval(code, existingPlayer.id);
       attachPlayerSocket(existingPlayer, socket, nameCheck.value);
@@ -1678,7 +1706,10 @@ io.on('connection', (socket) => {
       if (feltTint) {
         existingPlayer.feltTint = resolveFeltTint(feltTint);
       }
-      // Never remap a claimed seat's stable id to the caller's profile id.
+      // Keep seat id stable; optionally refresh public profile hint.
+      if (pid && existingPlayer.profileId !== pid) {
+        existingPlayer.profileId = pid;
+      }
       
       if (room.hostName === existingPlayer.name || room.host === existingPlayer.id) {
         room.host = existingPlayer.id;
@@ -1702,8 +1733,9 @@ io.on('connection', (socket) => {
         return;
       }
       const joinAsSpectator = shouldJoinAsSpectator(room);
+      const seatId = allocateSeatId(room, pid);
       room.players.push({
-        id: pid,
+        id: seatId,
         profileId: pid,
         name: nameCheck.value,
         socketId: socket.id,
@@ -1746,7 +1778,6 @@ io.on('connection', (socket) => {
             id: p.id,
             name: p.name,
           })),
-          dealSeed: room.gameState.dealSeed,
           hostId: room.host,
           skipDealAnimations: !!room.skipDealAnimations,
           spectator: sync?.spectator ?? !!joined.isSpectator,
@@ -1858,7 +1889,6 @@ io.on('connection', (socket) => {
       broadcastGameState(io, room);
       io.to(roomId).emit('startGame', {
         players: room.players.map((p) => ({ id: p.id, name: p.name })),
-        dealSeed: room.gameState?.dealSeed,
         hostId: room.host,
         skipDealAnimations: !!room.skipDealAnimations,
       });
@@ -1880,7 +1910,6 @@ io.on('connection', (socket) => {
           .filter((p) => !p.isSpectator)
           .map(p => ({ id: p.id, name: p.name })),
         hostId: room.host,
-        dealSeed,
         skipDealAnimations: !!room.skipDealAnimations,
       });
       emitTradesCompleteIfReady(io, roomId, room.gameState, room.host);

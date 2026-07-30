@@ -1,5 +1,6 @@
 /**
  * Offline unit: spectators must not receive any real hand faces via viewForMember.
+ * Seated sync must not leak full playerHands or dealSeed.
  *   node scripts/test-spectator-hand-view.mjs
  */
 import { createRequire } from "module";
@@ -12,6 +13,14 @@ function assert(cond, msg) {
 }
 
 const state = {
+  dealSeed: 123456,
+  playerHands: {
+    "host-1": [
+      { suit: "spades", value: 3 },
+      { suit: "hearts", value: 14 },
+    ],
+    "guest-1": [{ suit: "clubs", value: 10 }],
+  },
   players: [
     {
       id: "host-1",
@@ -42,6 +51,20 @@ assert(
   seated.gameState.players[1].hand[0].hidden === true,
   "seated member sees opponent placeholders",
 );
+assert(
+  seated.gameState.dealSeed === undefined,
+  "seated sync must not include dealSeed",
+);
+assert(
+  seated.gameState.playerHands &&
+    Object.keys(seated.gameState.playerHands).length === 1 &&
+    seated.gameState.playerHands["host-1"],
+  "seated sync must only include own playerHands entry",
+);
+assert(
+  !seated.gameState.playerHands["guest-1"],
+  "seated sync must not include opponent playerHands",
+);
 
 const spectator = viewForMember(state, {
   id: "spec-1",
@@ -54,5 +77,14 @@ for (const p of spectator.gameState.players) {
     `spectator must not see faces for ${p.id}`,
   );
 }
+assert(
+  spectator.gameState.dealSeed === undefined,
+  "spectator sync must not include dealSeed",
+);
+assert(
+  !spectator.gameState.playerHands ||
+    Object.keys(spectator.gameState.playerHands).length === 0,
+  "spectator sync must not include playerHands",
+);
 
 console.log("PASS spectator hand view masked");
