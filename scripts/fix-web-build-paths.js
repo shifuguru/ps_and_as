@@ -253,8 +253,13 @@ function injectEarlyShellHeight(html) {
   function sync(){
     var r=document.documentElement.style;
     if(isStandalone()){
-      r.setProperty("--app-shell-h","100%");
-      r.setProperty("--app-height","auto");
+      var sh=(window.screen&&window.screen.height)||0;
+      var sw=(window.screen&&window.screen.width)||0;
+      var portrait=(window.innerWidth||0)<=(window.innerHeight||0);
+      var full=portrait?Math.max(sh,sw):Math.min(sh||sw,sw||sh);
+      var h=full>0?(full+"px"):"100vh";
+      r.setProperty("--app-shell-h",h);
+      r.setProperty("--app-height",h);
       r.setProperty("--app-shell-top","0px");
       return;
     }

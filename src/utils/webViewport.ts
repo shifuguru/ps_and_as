@@ -247,14 +247,19 @@ function applyShellGeometry(
   }
 
   // Always pin Home Screen PWAs — keyboard must not unpin the shell.
-  // Use true inset:0 (no 100lvh height clamp). Fixed lvh undershoots the
-  // display on some iOS PWAs and leaves a felt-colored strip below the app
-  // (and a mismatched theme-color band above).
+  //
+  // CRITICAL (iOS standalone WebKit): position:fixed + inset:0 alone sizes to
+  // the *small* lying viewport (short by safe-area-inset-top), which leaves a
+  // felt gap under the home indicator. Explicit 100vh / 100lvh is the large
+  // viewport = full physical screen from cold start. Do not use 100dvh here.
+  // Refs: piclaw PWA.md, acoyfellow my-ax standalone 100lvh fix.
   const pinToDisplay = isStandaloneWebApp();
 
   if (pinToDisplay) {
-    doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, "100%");
-    doc.documentElement.style.setProperty(APP_HEIGHT_VAR, "auto");
+    // Prefer measured full-screen px (includes screen.height); CSS 100vh fallback.
+    const h = heightPx > 0 ? `${heightPx}px` : "100vh";
+    doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, h);
+    doc.documentElement.style.setProperty(APP_HEIGHT_VAR, h);
     doc.documentElement.style.setProperty(APP_SHELL_TOP_VAR, "0px");
 
     for (const el of targets) {
@@ -262,15 +267,15 @@ function applyShellGeometry(
       el.style.top = "0px";
       el.style.left = "0px";
       el.style.right = "0px";
-      el.style.bottom = "0px";
-      el.style.removeProperty("height");
+      el.style.removeProperty("bottom");
+      el.style.height = h;
       el.style.maxHeight = "none";
       el.style.minHeight = "0";
     }
 
     if (isViewportDebugEnabled() && calc) {
       traceAppHeightApply(heightPx, 0, calc, `${caller}+standalonePin`, [
-        "standalone → #root/portals inset 0 (height auto, no lvh clamp)",
+        `standalone → #root/portals height ${h} (large viewport / screen px)`,
       ]);
     }
     return;
@@ -332,15 +337,29 @@ export function readWebShellHeight(win: WebWindow): number {
     .document;
   const inner = Math.round(win.innerHeight ?? 0);
   const client = Math.round(doc?.documentElement?.clientHeight ?? 0);
-
-  // Standalone: never shrink for the keyboard (see applyShellGeometry).
-  if (!(isStandaloneWebApp()) && vv && keyboardLikelyOpen(win)) {
-    return Math.round(vv.height);
-  }
-
   const visualBottom = vv
     ? Math.round(vv.height + (vv.offsetTop ?? 0))
     : 0;
+
+  // Standalone: never shrink for the keyboard; prefer screen CSS pixels so the
+  // shell matches the physical display even when innerHeight lies short.
+  if (isStandaloneWebApp()) {
+    const screen = (globalThis as { screen?: { height?: number; width?: number } }).screen;
+    const screenH = Math.round(screen?.height ?? 0);
+    const screenW = Math.round(screen?.width ?? 0);
+    const portrait = (win.innerWidth ?? 0) <= (win.innerHeight ?? 0);
+    const fullScreen = portrait
+      ? Math.max(screenH, screenW)
+      : Math.min(screenH || screenW, screenW || screenH);
+    const h = Math.max(inner, client, visualBottom, fullScreen);
+    if (Platform.OS === "web") cachedShellHeight = h;
+    return h;
+  }
+
+  if (vv && keyboardLikelyOpen(win)) {
+    return Math.round(vv.height);
+  }
+
   const h = Math.max(inner, client, visualBottom);
 
   if (Platform.OS === "web") {
