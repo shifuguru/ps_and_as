@@ -5,7 +5,7 @@
   "start_url": "/ps_and_as/",
   "scope": "/ps_and_as/",
   "display": "standalone",
-  "background_color": "#0f5132",
+  "background_color": "#000000",
   "orientation": "any",
   "icons": [
     {
