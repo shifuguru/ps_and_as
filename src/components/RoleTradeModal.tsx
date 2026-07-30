@@ -202,7 +202,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       borderColor: "transparent",
     },
     cardSlotSelected: {
-      borderColor: colors.gold,
+      borderColor: colors.accent,
     },
     cardSize: {
       width: 64,

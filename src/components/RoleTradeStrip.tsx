@@ -79,7 +79,7 @@ function TradeCardSlot({
 
   return (
     <View style={styles.slotWrap}>
-      <Text style={[styles.arrow, { color: colors.gold }]}>
+      <Text style={[styles.arrow, { color: colors.accent }]}>
         {arrow === "up" ? "↑" : "↓"}
       </Text>
       <View
@@ -157,7 +157,7 @@ export default function RoleTradeStrip({
 
   return (
     <View style={[styles.row, ui.panel, { borderColor: colors.panelBorder }]}>
-      <Text style={[styles.title, { color: colors.gold }]}>
+      <Text style={[styles.title, { color: colors.accent }]}>
         {trade.key === "president" ? "👑 President Trade" : "⭐ VP Trade"}
       </Text>
       <View style={styles.cardsRow}>

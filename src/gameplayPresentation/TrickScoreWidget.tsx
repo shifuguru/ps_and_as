@@ -33,7 +33,7 @@ export default function TrickScoreWidget({ rows }: Props) {
         <Text style={styles.eyebrow}>Tricks</Text>
       </View>
       {sorted.map((r) => {
-        const accent = r.accent ?? (r.isYou ? colors.gold : colors.textTertiary);
+        const accent = r.accent ?? (r.isYou ? colors.accent : colors.textTertiary);
         const leading = r.tricks > 0 && r.tricks === lead;
         return (
           <View
@@ -41,7 +41,7 @@ export default function TrickScoreWidget({ rows }: Props) {
             style={[
               styles.row,
               leading && {
-                backgroundColor: hexToRgba(colors.gold, 0.1),
+                backgroundColor: hexToRgba(colors.accent, 0.1),
                 borderRadius: 8,
               },
             ]}
@@ -103,7 +103,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     trophy: { fontSize: 9 },
     eyebrow: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 8,
       fontWeight: "800",
       letterSpacing: 0.5,
@@ -136,7 +136,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       width: 36,
     },
     nameYou: {
-      color: colors.gold,
+      color: colors.accent,
     },
     chipTrack: {
       flex: 1,
@@ -165,7 +165,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       textAlign: "right",
     },
     countLead: {
-      color: colors.gold,
+      color: colors.accent,
     },
   });
 }

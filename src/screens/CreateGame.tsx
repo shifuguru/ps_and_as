@@ -1186,7 +1186,7 @@ export default function CreateGame({
                               layoutWidth={ringLayout.width}
                             />
                             {seat.isHostSeat && (
-                              <Text style={[local.hostBadge, { color: colors.gold }]}>Host</Text>
+                              <Text style={[local.hostBadge, { color: colors.accent }]}>Host</Text>
                             )}
                           </TouchableOpacity>
                           )}
@@ -1277,7 +1277,7 @@ export default function CreateGame({
                     backgroundColor: readyFlash.interpolate({
                       inputRange: [0, 1],
                       outputRange: [
-                        colors.gold,
+                        colors.accent,
                         colors.mode === "light"
                           ? "rgba(255,255,255,0.96)"
                           : "rgba(255,255,255,0.92)",
@@ -1286,7 +1286,7 @@ export default function CreateGame({
                     borderColor: readyFlash.interpolate({
                       inputRange: [0, 1],
                       outputRange: [
-                        hexToRgba(colors.gold, 0.55),
+                        hexToRgba(colors.accent, 0.55),
                         colors.mode === "light"
                           ? "rgba(255,255,255,0.95)"
                           : "rgba(255,255,255,0.95)",
@@ -1311,7 +1311,7 @@ export default function CreateGame({
                         color: readyFlash.interpolate({
                           inputRange: [0, 1],
                           outputRange: [
-                            colors.textOnGold,
+                            colors.textOnAccent,
                             "#111111",
                           ],
                         }),
@@ -1382,7 +1382,7 @@ function createLocalStyles(colors: AppThemeColors) {
       isDark ? 0.55 : 0.72,
     ),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.gold, isDark ? 0.35 : 0.28),
+    borderColor: hexToRgba(colors.accent, isDark ? 0.35 : 0.28),
   },
   lobbyNoticeText: {
     color: colors.textPrimary,
@@ -1396,7 +1396,7 @@ function createLocalStyles(colors: AppThemeColors) {
     paddingVertical: 14,
     marginBottom: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.gold, isDark ? 0.22 : 0.18),
+    borderColor: hexToRgba(colors.accent, isDark ? 0.22 : 0.18),
     overflow: "hidden",
     ...Platform.select({
       ios: {
@@ -1410,7 +1410,7 @@ function createLocalStyles(colors: AppThemeColors) {
     }),
   },
   fieldLabel: {
-    color: colors.gold,
+    color: colors.accent,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.9,
@@ -1428,14 +1428,14 @@ function createLocalStyles(colors: AppThemeColors) {
       isDark ? 0.1 : 0.55,
     ),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.gold, isDark ? 0.2 : 0.16),
+    borderColor: hexToRgba(colors.accent, isDark ? 0.2 : 0.16),
     borderRadius: 12,
     paddingLeft: 14,
     paddingRight: 12,
     minHeight: 48,
   },
   roomInputWrapFocused: {
-    borderColor: hexToRgba(colors.gold, isDark ? 0.45 : 0.36),
+    borderColor: hexToRgba(colors.accent, isDark ? 0.45 : 0.36),
     backgroundColor: isDark
       ? hexToRgba(frostLine, 0.14)
       : hexToRgba("#ffffff", 0.92),
@@ -1475,13 +1475,13 @@ function createLocalStyles(colors: AppThemeColors) {
   deadHandSeat: {
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.gold, isDark ? 0.28 : 0.22),
+    borderColor: hexToRgba(colors.accent, isDark ? 0.28 : 0.22),
     borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 10,
     paddingHorizontal: 6,
-    backgroundColor: hexToRgba(colors.gold, isDark ? 0.06 : 0.08),
+    backgroundColor: hexToRgba(colors.accent, isDark ? 0.06 : 0.08),
   },
   deadHandSeatIcon: {
     fontSize: 20,
@@ -1506,7 +1506,7 @@ function createLocalStyles(colors: AppThemeColors) {
     gap: 10,
   },
   roomCodeLabel: {
-    color: colors.gold,
+    color: colors.accent,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.8,
@@ -1519,18 +1519,18 @@ function createLocalStyles(colors: AppThemeColors) {
     maxWidth: "56%",
     minHeight: 36,
     paddingHorizontal: 12,
-    backgroundColor: hexToRgba(colors.gold, isDark ? 0.12 : 0.1),
+    backgroundColor: hexToRgba(colors.accent, isDark ? 0.12 : 0.1),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.gold, isDark ? 0.4 : 0.32),
+    borderColor: hexToRgba(colors.accent, isDark ? 0.4 : 0.32),
     borderRadius: 12,
     ...BUTTON_CENTER,
   },
   roomCodeButtonCopied: {
-    borderColor: hexToRgba(colors.gold, 0.55),
-    backgroundColor: hexToRgba(colors.gold, 0.22),
+    borderColor: hexToRgba(colors.accent, 0.55),
+    backgroundColor: hexToRgba(colors.accent, 0.22),
   },
   roomCodeButtonText: buttonLabel(15, {
-    color: colors.gold,
+    color: colors.accent,
     fontWeight: "800",
     letterSpacing: 1.2,
   }),
@@ -1542,7 +1542,7 @@ function createLocalStyles(colors: AppThemeColors) {
     paddingTop: 4,
   },
   tableHint: {
-    color: colors.gold,
+    color: colors.accent,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.7,
@@ -1597,18 +1597,18 @@ function createLocalStyles(colors: AppThemeColors) {
     height: LOBBY_ADD_CPU_H,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.gold, isDark ? 0.35 : 0.28),
+    borderColor: hexToRgba(colors.accent, isDark ? 0.35 : 0.28),
     borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: hexToRgba(colors.gold, isDark ? 0.08 : 0.1),
+    backgroundColor: hexToRgba(colors.accent, isDark ? 0.08 : 0.1),
     zIndex: 2,
   },
   emptySeatPlus: {
     fontSize: 22,
     fontWeight: "700",
     lineHeight: 24,
-    color: colors.gold,
+    color: colors.accent,
   },
   emptySeatLabel: {
     color: colors.textSecondary,
@@ -1671,7 +1671,7 @@ function createLocalStyles(colors: AppThemeColors) {
   lobbyPrimaryReady: {
     backgroundColor: colors.actionPrimaryBg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.gold, 0.55),
+    borderColor: hexToRgba(colors.accent, 0.55),
   },
   lobbyPrimaryReadyText: {
     color: colors.actionPrimaryText,
@@ -1702,16 +1702,16 @@ function createLocalStyles(colors: AppThemeColors) {
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: hexToRgba(colors.gold, isDark ? 0.1 : 0.08),
+    backgroundColor: hexToRgba(colors.accent, isDark ? 0.1 : 0.08),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.gold, isDark ? 0.28 : 0.22),
+    borderColor: hexToRgba(colors.accent, isDark ? 0.28 : 0.22),
   },
   stepBtnDisabled: {
     opacity: 0.35,
   },
   stepBtnText: buttonLabel(20, {
     fontWeight: "700",
-    color: colors.gold,
+    color: colors.accent,
   }),
   cpuCount: {
     color: colors.textPrimary,

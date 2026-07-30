@@ -82,7 +82,7 @@ export default function AddToHomeScreenBanner() {
             activeOpacity={0.85}
           >
             {working ? (
-              <ActivityIndicator color={colors.textOnGold} />
+              <ActivityIndicator color={colors.textOnAccent} />
             ) : (
               <Text style={ui.btnPrimaryText}>{installButtonLabel}</Text>
             )}
@@ -115,7 +115,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       padding: 14,
     },
     eyebrow: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 11,
       fontWeight: "800",
       letterSpacing: 0.8,

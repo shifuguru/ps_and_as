@@ -184,7 +184,6 @@ import {
   lastPlayPlayerId,
   type TrickPlayDisplay,
 } from "../utils/trickDisplay";
-import { styles } from "../styles/theme";
 import { responsive, isLandscape, adaptiveScale } from "../utils/responsive";
 import { useAppTheme } from "../context/ThemeContext";
 import {

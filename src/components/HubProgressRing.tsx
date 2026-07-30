@@ -13,7 +13,7 @@ type Props = {
   children?: React.ReactNode;
 };
 
-/** Gold (or themed) progress ring around hub avatar / achievement art. */
+/** Themed accent progress ring around hub avatar / achievement art. */
 export default function HubProgressRing({
   size,
   progress,

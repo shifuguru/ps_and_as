@@ -89,7 +89,7 @@ export function createUiStyles(c: AppThemeColors) {
       borderColor: c.panelBorder,
     },
     panelEyebrow: {
-      color: c.gold,
+      color: c.accent,
       fontSize: 11,
       fontWeight: "800",
       letterSpacing: 0.5,
@@ -116,24 +116,24 @@ export function createUiStyles(c: AppThemeColors) {
       borderRadius: 12,
       paddingHorizontal: 14,
       minHeight: 44,
-      backgroundColor: c.btnGoldBg,
+      backgroundColor: c.btnAccentBg,
       borderWidth: 1,
-      borderColor: c.btnGoldBorder,
+      borderColor: c.btnAccentBorder,
       ...BUTTON_CENTER,
     },
     btnGoldText: buttonLabel(14, {
-      color: c.btnGoldText,
+      color: c.btnAccentText,
       fontWeight: "700",
     }),
     btnGoldFill: {
       borderRadius: 12,
       paddingHorizontal: 14,
       minHeight: 44,
-      backgroundColor: c.gold,
+      backgroundColor: c.accent,
       ...BUTTON_CENTER,
     },
     btnGoldFillText: buttonLabel(14, {
-      color: c.textOnGold,
+      color: c.textOnAccent,
       fontWeight: "800",
     }),
     btnSecondary: {
@@ -224,7 +224,7 @@ export function createUiStyles(c: AppThemeColors) {
       borderColor: c.modalBorder,
     },
     modalTitle: {
-      color: c.gold,
+      color: c.accent,
       fontWeight: "800",
       fontSize: 12,
       letterSpacing: 0.5,

@@ -100,7 +100,7 @@ export default function Achievements({
     return (
       <ScreenContainer ignoreHeaderOffset style={styles.loadingRoot}>
         <View style={styles.loadingCenter}>
-          <ActivityIndicator size="large" color={colors.gold} />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.loadingText}>Loading Profile…</Text>
         </View>
         <BottomBar>
@@ -427,9 +427,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       width: 52,
       height: 52,
       borderRadius: 26,
-      backgroundColor: colors.btnGoldBg,
+      backgroundColor: colors.btnAccentBg,
       borderWidth: 2,
-      borderColor: colors.btnGoldBorder,
+      borderColor: colors.btnAccentBorder,
       alignItems: "center",
       justifyContent: "center",
       marginRight: 12,

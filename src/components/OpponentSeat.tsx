@@ -639,7 +639,7 @@ export default function OpponentSeat({
         >
           <AvatarAmbientEffect
             size={avatarSize}
-            accentColor={celebrationPalette.complementBright || colors.gold}
+            accentColor={celebrationPalette.complementBright || colors.accent}
             enabled={GAMEPLAY_PRESENTATION.avatarAmbient && !isOut}
             turnActive={isActive && !isOut}
           />
@@ -659,7 +659,7 @@ export default function OpponentSeat({
           {!isDeadHand ? (
             <AvatarAmbientEffect
               size={avatarSize}
-              accentColor={celebrationPalette.complementBright || colors.gold}
+              accentColor={celebrationPalette.complementBright || colors.accent}
               enabled={GAMEPLAY_PRESENTATION.avatarAmbient && !isOut}
               turnActive={isActive && !isOut}
             />
@@ -711,7 +711,7 @@ export default function OpponentSeat({
 }
 
 function createStyles(colors: AppThemeColors, palette: FeltPalette) {
-  const accent = colors.gold;
+  const accent = colors.accent;
   const accentBright = palette.complementBright;
   const accentSoft = hexToRgba(accent, 0.55);
   const accentFill = hexToRgba(accent, 0.08);

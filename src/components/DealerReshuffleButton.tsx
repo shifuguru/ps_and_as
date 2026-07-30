@@ -31,12 +31,12 @@ export default function DealerReshuffleButton({ visible, onPress }: Props) {
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: hexToRgba(
-            colors.gold,
+            colors.accent,
             colors.mode === "light" ? 0.16 : 0.22,
           ),
           borderWidth: 2,
           borderColor: hexToRgba(
-            colors.gold,
+            colors.accent,
             colors.mode === "light" ? 0.42 : 0.55,
           ),
           shadowColor: "#000",
@@ -48,7 +48,7 @@ export default function DealerReshuffleButton({ visible, onPress }: Props) {
         glow: {
           ...StyleSheet.absoluteFillObject,
           borderRadius: 36,
-          backgroundColor: hexToRgba(colors.gold, 0.14),
+          backgroundColor: hexToRgba(colors.accent, 0.14),
         },
         icon: {
           fontSize: 28,
@@ -60,7 +60,7 @@ export default function DealerReshuffleButton({ visible, onPress }: Props) {
           fontWeight: "800",
           letterSpacing: 0.8,
           textTransform: "uppercase",
-          color: colors.gold,
+          color: colors.accent,
         },
       }),
     [colors],

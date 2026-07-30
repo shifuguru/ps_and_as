@@ -71,7 +71,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       zIndex: 40,
       elevation: 40,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: hexToRgba(colors.gold, isDark ? 0.22 : 0.16),
+      borderBottomColor: hexToRgba(colors.accent, isDark ? 0.22 : 0.16),
     },
     container: {
       width: "100%",
@@ -111,10 +111,10 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     statDivider: {
       width: StyleSheet.hairlineWidth,
       height: 28,
-      backgroundColor: hexToRgba(colors.gold, isDark ? 0.28 : 0.2),
+      backgroundColor: hexToRgba(colors.accent, isDark ? 0.28 : 0.2),
     },
     label: {
-      color: colors.gold,
+      color: colors.accent,
       fontSize: 10,
       fontWeight: "800",
       letterSpacing: 0.7,

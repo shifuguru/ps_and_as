@@ -119,7 +119,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       textAlign: "center",
       fontSize: 22,
       fontWeight: "700",
-      color: hexToRgba(colors.gold, colors.mode === "light" ? 0.1 : 0.07),
+      color: hexToRgba(colors.accent, colors.mode === "light" ? 0.1 : 0.07),
       letterSpacing: 1.2,
     },
   });

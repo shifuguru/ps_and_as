@@ -675,8 +675,8 @@ function AppContent() {
                 style={[
                   appStyles.rejoinBanner,
                   {
-                    backgroundColor: colors.btnGoldBg,
-                    borderColor: colors.btnGoldBorder,
+                    backgroundColor: colors.btnAccentBg,
+                    borderColor: colors.btnAccentBorder,
                   },
                 ]}
               >
@@ -689,11 +689,11 @@ function AppContent() {
                 </Text>
                 <View style={appStyles.rejoinActions}>
                   <TouchableOpacity
-                    style={[appStyles.rejoinPrimary, { backgroundColor: colors.gold }]}
+                    style={[appStyles.rejoinPrimary, { backgroundColor: colors.accent }]}
                     onPress={() => void rejoinLobby()}
                     activeOpacity={0.85}
                   >
-                    <Text style={[appStyles.rejoinPrimaryText, { color: colors.textOnGold }]}>
+                    <Text style={[appStyles.rejoinPrimaryText, { color: colors.textOnAccent }]}>
                       Rejoin
                     </Text>
                   </TouchableOpacity>
