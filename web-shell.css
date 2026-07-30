@@ -12,12 +12,16 @@
  *   → body is offset behind the status bar WITHOUT expanding height → bottom gap.
  * Confirmed fix: height:100vh on html/body/#root. Keep black-translucent.
  *
- * Dynamic Island / top (separate from chin-gap):
- * iOS black-translucent samples html's background-color for the status-bar
- * region. Transparent (or missing) colour → dark frosted band with a green/blue
- * cast — NOT "texture showing through". Keep background-color: var(--ps-felt-tint)
- * forever (updated to the live theme tint). Texture on html helps continuity;
- * never clear the sample colour on .ps-env-ready.
+ * Dynamic Island / top:
+ * iOS black-translucent makes the STATUS BAR chrome transparent — icons float
+ * over whatever the page paints underneath. That is the “no band” look.
+ *
+ * What must be underneath: html’s felt stack (background-color + texture).
+ * - html background-color MUST stay var(--ps-felt-tint) forever. Transparent
+ *   here → iOS falls back to a dark frosted band (v1.1.17 regression).
+ * - body MUST stay transparent so that felt is visible under the icons.
+ *   An opaque body paints a solid strip and hides the texture.
+ * - Never clear the sample colour on .ps-env-ready.
  *
  * Edge-to-edge: shell fills the display with 100vh. Safe-area pads interactive
  * chrome only (.ps-bottom-bar-shell / content padding) — never shrinks the shell.
@@ -37,7 +41,7 @@
  *
  * Height MUST be 100vh (not 100%). Percentage height under black-translucent
  * is the chin-gap bug. background-color MUST stay a real felt tint — that is
- * what iOS samples behind the Dynamic Island / status icons.
+ * what keeps black-translucent from falling back to a dark band.
  */
 html {
   position: relative !important;
@@ -69,8 +73,8 @@ html {
  * Extends into safe-area top/bottom (+2px) so island + home indicator sit on
  * the same felt stack, and a 1px chin cannot flash the UA white canvas.
  *
- * Do NOT change html/body/#root away from height:100vh — that is the working
- * bottom chin-gap fix. Do NOT set html background-color to transparent.
+ * Do NOT change html/body/#root away from height:100vh — chin-gap fix.
+ * Do NOT set html background-color to transparent.
  */
 html::before {
   content: "" !important;
@@ -117,8 +121,8 @@ body {
   overscroll-behavior: none !important;
   touch-action: manipulation !important;
   max-height: none !important;
-  /* Match document sample colour so a 1px shell undershoot stays felt, not white. */
-  background-color: var(--ps-felt-tint) !important;
+  /* Transparent so html felt shows under status icons (no solid band). */
+  background-color: transparent !important;
   background-image: none !important;
 }
 

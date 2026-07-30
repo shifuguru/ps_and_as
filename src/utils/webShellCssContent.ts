@@ -9,9 +9,9 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  *   → body offset behind status bar without height expanding → bottom gap.
  * Confirmed fix: height:100vh on html/body/#root. Keep black-translucent.
  *
- * Dynamic Island / status bar: iOS samples html background-color. Transparent
- * → dark frosted band (the v1.1.17 regression). Keep var(--ps-felt-tint) forever;
- * update the CSS variable to the live theme tint. Never clear it on .ps-env-ready.
+ * Status bar “no band”: black-translucent makes the chrome transparent; icons
+ * float over html’s felt. html background-color stays var(--ps-felt-tint)
+ * (transparent → dark frost). body stays transparent (opaque body → solid band).
  *
  * Safe-area pads interactive chrome only (.ps-bottom-bar-shell) — never the shell.
  * Do not ship theme-color meta (frosted status-bar band on iOS).
@@ -94,7 +94,7 @@ export function getWebShellCssText(feltTint: string): string {
       overscroll-behavior: none !important;
       touch-action: manipulation !important;
       max-height: none !important;
-      background-color: var(--ps-felt-tint) !important;
+      background-color: transparent !important;
       background-image: none !important;
     }
     #ps-felt-layer,
