@@ -499,6 +499,7 @@ export function installWebShellCss(feltTint: string): () => void {
   root.style.colorScheme = "dark";
   root.setAttribute("data-ps-theme", "dark");
   root.style.setProperty("--ps-status-veil", "rgba(0,0,0,0.5)");
+  root.style.setProperty("--ps-safe-area-fill", "rgba(0,0,0,0.78)");
   let themeMeta = head?.querySelector?.('meta[name="theme-color"]');
   if (!themeMeta && head) {
     themeMeta = doc.createElement("meta");
