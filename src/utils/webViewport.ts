@@ -254,7 +254,7 @@ function applyShellGeometry(
   const pinToDisplay = isStandaloneWebApp();
 
   if (pinToDisplay) {
-    const h = "100vh";
+    const h = "calc(100vh + 2px)";
     doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, h);
     doc.documentElement.style.setProperty(APP_HEIGHT_VAR, h);
     doc.documentElement.style.setProperty(APP_SHELL_TOP_VAR, "0px");
@@ -272,7 +272,7 @@ function applyShellGeometry(
 
     if (isViewportDebugEnabled() && calc) {
       traceAppHeightApply(heightPx, 0, calc, `${caller}+standalonePin`, [
-        "standalone → #root/portals height 100vh (chin-gap fix)",
+        "standalone → #root/portals height calc(100vh + 2px) (chin seal)",
       ]);
     }
     return;
@@ -493,14 +493,19 @@ export function installWebShellCss(feltTint: string): () => void {
 
   doc.documentElement.style.setProperty("--ps-felt-tint", feltTint);
 
-  // Never leave a theme-color meta that paints iOS status-bar chrome.
+  // Default dark appearance chrome until ThemeContext resolves.
+  const root = doc.documentElement;
   const head = doc.head;
-  if (head?.querySelectorAll) {
-    const metas = head.querySelectorAll('meta[name="theme-color"]');
-    for (let i = metas.length - 1; i >= 0; i--) {
-      metas[i]?.parentNode?.removeChild?.(metas[i]);
-    }
+  root.style.colorScheme = "dark";
+  root.setAttribute("data-ps-theme", "dark");
+  root.style.setProperty("--ps-status-veil", "rgba(0,0,0,0.5)");
+  let themeMeta = head?.querySelector?.('meta[name="theme-color"]');
+  if (!themeMeta && head) {
+    themeMeta = doc.createElement("meta");
+    themeMeta.setAttribute("name", "theme-color");
+    head.appendChild(themeMeta);
   }
+  themeMeta?.setAttribute?.("content", "#000000");
 
   style.textContent = getWebShellCssText(feltTint);
 

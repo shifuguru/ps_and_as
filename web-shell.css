@@ -12,43 +12,52 @@
  *   → body is offset behind the status bar WITHOUT expanding height → bottom gap.
  * Confirmed fix: height:100vh on html/body/#root. Keep black-translucent.
  *
- * Dynamic Island / top (separate from chin-gap): flat green behind the island
- * is html background-color: var(--ps-felt-tint) (#0f5132) sampled by iOS.
- * html::before extends into safe-area-inset-top with the textured felt stack;
- * html.ps-env-ready clears the solid sample colour so the island matches game felt.
+ * Dynamic Island / top:
+ * iOS black-translucent makes the STATUS BAR chrome translucent — icons float
+ * over the page. A residual frost/gradient often remains; we drive its colour
+ * from appearance via theme-color + color-scheme + --ps-status-veil:
+ * dark → black veil, light → white veil (never felt green).
  *
- * Edge-to-edge: shell fills the display with 100vh. Safe-area pads interactive
- * chrome only (.ps-bottom-bar-shell / content padding) — never shrinks the shell.
+ * What must be underneath: html’s felt stack (background-color + texture).
+ * - html background-color MUST stay var(--ps-felt-tint) forever. Transparent
+ *   here → iOS falls back to a dark frosted band (v1.1.17 regression).
+ * - body MUST stay transparent so that felt is visible under the icons.
+ * - Never clear the sample colour on .ps-env-ready.
  *
- * Do not ship theme-color meta — it paints a frosted status-bar band on iOS.
+ * Chin: paint shell at calc(100vh + 2px) and seal the bottom edge so a 1px UA
+ * white line cannot show. Safe-area pads interactive chrome only.
  */
 :root {
   --ps-felt-tint: #0f5132;
   --ps-felt-tint-overlay: transparent;
   --ps-felt-texture: none;
-  --app-shell-h: 100vh;
-  --app-height: 100vh;
+  --ps-status-veil: rgba(0, 0, 0, 0.5);
+  --ps-shell-paint-h: calc(100vh + 2px);
+  --app-shell-h: calc(100vh + 2px);
+  --app-height: calc(100vh + 2px);
   --app-shell-top: 0px;
+  color-scheme: dark;
 }
 
 /* Document owns wallpaper permanently — never cleared after env ready.
  *
- * Height MUST be 100vh (not 100%). Percentage height under black-translucent
- * is the chin-gap bug. Texture on html itself so the status-bar region samples
- * felt, not a flat default.
+ * Height uses 100vh + 2px to cover subpixel chin gaps. background-color MUST
+ * stay a real felt tint — that keeps black-translucent from falling back to a
+ * dark band.
  */
 html {
   position: relative !important;
   width: 100% !important;
-  height: 100vh !important;
+  height: var(--ps-shell-paint-h) !important;
   margin: 0 !important;
   padding: 0 !important;
   box-sizing: border-box !important;
-  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
   overscroll-behavior: none !important;
   touch-action: manipulation !important;
   max-height: none !important;
-  min-height: 100vh !important;
+  min-height: var(--ps-shell-paint-h) !important;
   background-color: var(--ps-felt-tint) !important;
   background-image:
     linear-gradient(
@@ -62,17 +71,8 @@ html {
   background-attachment: scroll, scroll !important;
 }
 
-/* Full-display wallpaper plane.
- *
- * TOP / Dynamic Island (separate from the bottom chin-gap fix):
- * iOS black-translucent samples the document background for the status-bar
- * region. The game felt is texture + tint; a bare html background-color of
- * --ps-felt-tint (#0f5132) reads as a flat green strip behind the island.
- * This ::before carries the SAME texture+tint stack and extends into
- * safe-area-inset-top so the island sits on felt, not solid green.
- *
- * Do NOT change html/body/#root away from height:100vh — that is the working
- * bottom chin-gap fix.
+/* Full-display wallpaper plane — extends past safe areas so island + home
+ * indicator sit on felt. Do NOT set html background-color to transparent.
  */
 html::before {
   content: "" !important;
@@ -83,12 +83,12 @@ html::before {
   top: calc(0px - env(safe-area-inset-top, 0px)) !important;
   width: 100% !important;
   height: calc(
-    100vh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom)
+    100vh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom) + 4px
   ) !important;
   height: calc(
-    100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)
+    100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 4px
   ) !important;
-  min-height: 100vh !important;
+  min-height: var(--ps-shell-paint-h) !important;
   z-index: -1 !important;
   pointer-events: none !important;
   background-color: var(--ps-felt-tint) !important;
@@ -104,14 +104,6 @@ html::before {
   background-attachment: scroll, scroll !important;
 }
 
-/* Once texture is applied, stop using solid --ps-felt-tint as the status-bar
- * sample colour. iOS composites the translucent bar from html's background-color;
- * flat green here is the Dynamic Island strip. Transparent lets the textured
- * image / ::before read through under black-translucent. */
-html.ps-env-ready {
-  background-color: transparent !important;
-}
-
 body {
   position: fixed !important;
   top: 0 !important;
@@ -119,16 +111,50 @@ body {
   right: 0 !important;
   bottom: auto !important;
   width: 100% !important;
-  height: 100vh !important;
-  min-height: 100vh !important;
+  height: var(--ps-shell-paint-h) !important;
+  min-height: var(--ps-shell-paint-h) !important;
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
   overscroll-behavior: none !important;
   touch-action: manipulation !important;
   max-height: none !important;
+  /* Transparent so html felt shows under status icons (no solid band). */
   background-color: transparent !important;
   background-image: none !important;
+}
+
+/* Appearance-matched status veil (dark→black, light→white). Sits in the
+ * safe-area strip so the residual iOS frost reads as intentional chrome. */
+body::before {
+  content: "" !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: constant(safe-area-inset-top) !important;
+  height: env(safe-area-inset-top, 0px) !important;
+  z-index: 10002 !important;
+  pointer-events: none !important;
+  background: linear-gradient(
+    to bottom,
+    var(--ps-status-veil) 0%,
+    var(--ps-status-veil) 45%,
+    transparent 100%
+  ) !important;
+}
+
+/* 1px chin seal — under #root so splash/app cover it; visible only in a UA gap. */
+body::after {
+  content: "" !important;
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: -3px !important;
+  height: 5px !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+  background-color: var(--ps-felt-tint) !important;
 }
 
 /**
@@ -143,9 +169,9 @@ body {
   right: 0 !important;
   bottom: auto !important;
   width: 100% !important;
-  height: 100vh !important;
+  height: var(--ps-shell-paint-h) !important;
   max-height: none !important;
-  min-height: 100vh !important;
+  min-height: var(--ps-shell-paint-h) !important;
   z-index: 0 !important;
   pointer-events: none !important;
   overflow: hidden !important;
@@ -197,8 +223,8 @@ body {
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
-  /* Default 100vh (chin-gap fix). Safari tab JS may override --app-height with pixels. */
-  height: var(--app-height, 100vh) !important;
+  /* Oversized with --ps-shell-paint-h so a 1px chin cannot flash white. */
+  height: var(--app-height, var(--ps-shell-paint-h)) !important;
   max-height: none !important;
   min-height: 0 !important;
   background-color: transparent !important;
@@ -212,7 +238,7 @@ body {
   right: 0 !important;
   bottom: auto !important;
   width: 100% !important;
-  height: var(--app-height, 100vh) !important;
+  height: var(--app-height, var(--ps-shell-paint-h)) !important;
   max-height: none !important;
   min-height: 0 !important;
   pointer-events: none !important;
@@ -231,7 +257,7 @@ body {
   right: 0 !important;
   bottom: auto !important;
   width: 100% !important;
-  height: var(--app-height, 100vh) !important;
+  height: var(--app-height, var(--ps-shell-paint-h)) !important;
   max-height: none !important;
   min-height: 0 !important;
   pointer-events: none !important;
@@ -251,9 +277,9 @@ body {
   right: 0 !important;
   bottom: auto !important;
   width: 100% !important;
-  height: 100vh !important;
+  height: var(--ps-shell-paint-h) !important;
   max-height: none !important;
-  min-height: 100vh !important;
+  min-height: var(--ps-shell-paint-h) !important;
   z-index: 0 !important;
   pointer-events: none !important;
 }

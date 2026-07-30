@@ -632,7 +632,7 @@ function AppContent() {
                   left: 0,
                   right: 0,
                   width: "100%",
-                  height: "100vh",
+                  height: "calc(100vh + 2px)",
                   maxHeight: "none",
                   overflow: "hidden",
                 } as object)

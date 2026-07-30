@@ -33,18 +33,8 @@ export function nzdt(local: string): string {
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
     publishedAt: nzst("2026-07-30T17:00"),
-    title: "Felt under the Dynamic Island",
+    title: "Name box above the keyboard",
     items: [
-      "Home Screen — the table felt continues behind the Dynamic Island (no flat green strip at the top)",
-      "Home Screen — bottom edge stays flush (chin gap stays gone)",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-30T16:50"),
-    title: "True full-screen on Home Screen",
-    items: [
-      "Home Screen — fills the whole phone edge to edge (no chin gap under the home bar)",
-      "Home Screen — felt continues under the status bar and home indicator",
       "First open — the name box sits above the keyboard when you tap it",
     ],
   },
@@ -95,23 +85,6 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
       "In-game — Round Streak top-left; Next Prestige hidden for now; table sits a bit lower",
       "In-game — bigger Play button (no card count on the label); tricks panel more compact; hand lifted a little",
       "Achievements — President Streak pills use cool platinum, not orange; flame rises from the bottom of the pill",
-      "iPhone Home Screen — felt fills edge-to-edge under the notch and home indicator",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-16T18:15"),
-    title: "Home Screen fills the whole iPhone display",
-    items: [
-      "iPhone Home Screen — wallpaper covers the full display height, including under the home indicator",
-      "Empty footer band under the felt should be gone — force-close and reopen the Home Screen app after updating",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-16T18:02"),
-    title: "True fullscreen on iPhone",
-    items: [
-      "iPhone Home Screen — the app fills the whole display; the home indicator sits over the felt instead of a green footer band",
-      "Menus and profile — no extra empty strip under the buttons; only enough space so controls clear the home indicator",
     ],
   },
   {
@@ -126,18 +99,10 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     publishedAt: nzst("2026-07-16T14:18"),
     title: "Felt wallpaper, prestige achievements & streak pills",
     items: [
-      "iPhone web — felt wallpaper fills behind Safari’s toolbar and Home Screen edges without white or flat green strips",
       "Achievements — every achievement can prestige (Roman numerals); progress carries over from your existing stats",
       "Achievements — rarity-tinted progress fills each card as you climb toward the next prestige",
       "Profile — Current and Best President Streak pills glow hot while your streak is live, and calm to sparkles when it’s broken",
       "Profile — role counts (President through Asshole) sit in clearer coloured pills",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-16T09:55"),
-    title: "Viewport diagnostics",
-    items: [
-      "iPhone web — add ?viewportDebug=1 to the URL for a live viewport overlay when troubleshooting Safari or Home Screen display issues",
     ],
   },
   {
@@ -191,7 +156,6 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     title: "Playing a 10 & online resync",
     items: [
       "Playing a 10 — choose Higher or Lower before your tens go to the table, instead of waiting for them to land first",
-      "Online — reconnecting after a round ends should show the last hand and rankings more reliably",
       "Quick Game — joining or refreshing mid-round resyncs more reliably on bot tables",
       "General gameplay stability improvements",
     ],
@@ -201,13 +165,6 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     title: "Turn highlight during card plays",
     items: [
       "Turn ring — the gold highlight stays on whoever just played while their cards are still flying to the table, instead of jumping to the next player too soon",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-08T13:23:14"),
-    title: "Card flight landing",
-    items: [
-      "Your plays — cards from your hand land on the pile instead of stopping above it, especially on iPhone home-screen play",
     ],
   },
   {
@@ -227,17 +184,9 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     ],
   },
   {
-    publishedAt: nzst("2026-06-06T15:11:42"),
-    title: "Card flight landing",
-    items: [
-      "Your plays — cards from your hand land directly on the pile without a visible overshoot or snap at the end",
-    ],
-  },
-  {
     publishedAt: nzst("2026-06-06T00:43"),
-    title: "Round end & 10 Lower",
+    title: "10 Lower",
     items: [
-      "Online — reconnect or refresh after a round ends and you still get the last hand, then rankings",
       "10 Lower — you must play the same number of cards as the 10 pile (no triple beat on a single 10)",
     ],
   },
@@ -287,7 +236,6 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     title: "Hand polish",
     items: [
       "Your hand — easier scrolling, steady card size, and cleaner dimming on cards you can’t play",
-      "Online — rankings wait for the last-hand reveal before they appear",
     ],
   },
   {
@@ -334,14 +282,12 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
       "Deal ceremony — shuffle and deal from your hand zone with smoother pacing",
       "Chevrons when a playable card is off-screen — tap to jump there",
       "Smaller phones — hand, buttons, and seats scale so the table stays readable",
-      "On top! after a 10 remembers higher or lower correctly",
     ],
   },
   {
     publishedAt: nzst("2026-05-30T22:29"),
     title: "Runs, trades & XP",
     items: [
-      "10s during a run play as normal cards — no higher/lower prompt while Runs! is active",
       "Role trades — return cards fly to the right seat before the round opens",
       "Trick and run XP tally during play and land on the scoreboard; leaving early forfeits that round’s XP",
       "See other players’ trick-win shouts and avatar borders online",
@@ -364,7 +310,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
       "Turn hints on the table — Your turn, Waiting for…, and Dealing cards… sit below the play-type badge; Your turn pulses like Pass",
       "Play-type pill highlights when a run or special rule is active; plain Singles stays gold",
       "Run bonus XP pool above the play pile during 4+ card runs — trick winner takes the pool when the trick ends",
-      "At round end everyone sees the last player's remaining hand before the rankings screen",
+      "At round end the table aims to show the last player's remaining hand before rankings",
       "Brighter glow on the active player's avatar ring",
       "Online lobbies accept up to 8 players before the game starts",
     ],
@@ -451,6 +397,12 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
 ];
 
 export const KNOWN_ISSUES: KnownIssue[] = [
+  {
+    title: "Home Screen edges on iPhone",
+    status: "Looking into it",
+    updatedAt: nzst("2026-07-30T19:31"),
+    note: "Home Screen top frost should read dark in dark mode and light in light mode; the 1px white chin under the home bar should be gone. Force-close and reopen after updating to check.",
+  },
   {
     title: "Achievement stats in lobbies",
     status: "Monitoring",
