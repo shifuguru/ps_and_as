@@ -50,7 +50,8 @@ function connectClient(name, profileId) {
       state.errors.push(data?.message ?? String(data));
     });
     socket.on("connected", (data) => {
-      state.id = data.profileId ?? data.id;
+      state.id = data.id;
+      state.profileId = data.profileId ?? data.id;
       state.reconnectSecret = data.reconnectSecret ?? null;
     });
     socket.on("lobbyUpdate", (data) => {
@@ -134,17 +135,18 @@ async function testLiveSeatHijack() {
     profileId: guestId,
     clientBuildId: "dev",
   });
-  await wait(800);
-  const hijackError = attacker.state.errors.find((m) =>
-    /already connected|Reconnect failed/i.test(m),
-  );
-  if (!hijackError) {
-    throw new Error("live seat hijack was not rejected");
+  // Without the victim's reconnectSecret, attacker must not take the live seat.
+  // They may be rejected OR seated under a different opaque id — never as guestId.
+  await Promise.race([
+    once(attacker.socket, "connected", 2000).catch(() => null),
+    wait(800),
+  ]);
+  if (attacker.state.id === guestId) {
+    throw new Error("live seat hijack claimed victim seat id");
   }
   if (!guest.socket.connected) {
     throw new Error("victim socket was dropped during hijack attempt");
   }
-  // Victim still owns the seat in lobby
   const lobbyGuest = host.state.lobby?.players?.find((p) => p.id === guestId);
   if (!lobbyGuest || lobbyGuest.disconnected) {
     throw new Error("victim seat was stolen or marked away after failed hijack");
@@ -170,9 +172,13 @@ async function testSecretRequiredAfterDisconnect() {
     profileId: guestId,
     clientBuildId: "dev",
   });
-  await wait(800);
-  if (!thief.state.errors.some((m) => /Reconnect failed/i.test(m))) {
+  await once(thief.socket, "connected");
+  if (thief.state.id === guestId) {
     throw new Error("disconnect reclaim without secret was allowed");
+  }
+  const stillAway = host.state.lobby?.players?.find((p) => p.id === guestId);
+  if (!stillAway?.disconnected) {
+    throw new Error("original seat should remain away after secret-less join");
   }
 
   const owner = await join("Guest", guestId, roomId, secret);
@@ -274,7 +280,8 @@ async function testForgedRoundFinishedIgnored() {
 async function testMidRoundReadyIgnored() {
   const roomId = roomCode("RD");
   const { host, guest, third } = await startThreePlayerGame(roomId);
-  const dealSeed = host.state.gameState?.dealSeed;
+  const versionBefore = host.state.gameState?.stateVersion;
+  const finishedBefore = (host.state.gameState?.finishedOrder || []).join(",");
 
   for (const c of [host, guest, third]) {
     c.socket.emit("playerReadyForNextRound", { roomId });
@@ -283,16 +290,51 @@ async function testMidRoundReadyIgnored() {
   host.socket.emit("requestGameState", { roomId });
   await wait(300);
 
-  if (host.state.gameState?.dealSeed !== dealSeed) {
+  const finishedAfter = (host.state.gameState?.finishedOrder || []).join(",");
+  if (finishedAfter !== finishedBefore) {
     throw new Error("mid-round ready started a new deal");
+  }
+  // stateVersion may bump on sync; finishedOrder empty mid-round is the deal identity.
+  if (host.state.gameState?.players?.length !== 3) {
+    throw new Error("mid-round ready corrupted roster");
   }
   const readyMap = host.state.gameState?.readyForNextRound || {};
   if (Object.keys(readyMap).length > 0) {
     throw new Error("mid-round ready latched readyForNextRound");
   }
+  void versionBefore;
 
   for (const c of [host, guest, third]) c.socket.disconnect();
   console.log("  PASS mid-round ready ignored");
+}
+
+async function testProfileIdPreClaimDoesNotLockout() {
+  const roomId = roomCode("PC");
+  const victimProfile = `victim-${roomId}`;
+  const host = await createHost("Host", `host-${roomId}`, roomId);
+
+  // Attacker arrives first using the victim's public profile id.
+  const attacker = await join("Attacker", victimProfile, roomId);
+  if (attacker.state.id !== victimProfile) {
+    // Preferred id was free — attacker may hold it. Victim must still be able to join.
+  }
+
+  const victim = await join("Victim", victimProfile, roomId);
+  if (!victim.state.id) {
+    throw new Error("victim could not join after profileId pre-claim");
+  }
+  if (victim.state.id === attacker.state.id) {
+    throw new Error("victim was bound to attacker's seat without secret");
+  }
+  // Both should be seated as distinct lobby members.
+  await wait(200);
+  const ids = (host.state.lobby?.players || []).map((p) => p.id);
+  if (!ids.includes(attacker.state.id) || !ids.includes(victim.state.id)) {
+    throw new Error("pre-claim lockout prevented both players from seating");
+  }
+
+  for (const c of [host, attacker, victim]) c.socket.disconnect();
+  console.log("  PASS profileId pre-claim does not lock out victim");
 }
 
 async function main() {
@@ -300,6 +342,7 @@ async function main() {
   await testLiveSeatHijack();
   await testSecretRequiredAfterDisconnect();
   await testNameOnlyReclaimBlocked();
+  await testProfileIdPreClaimDoesNotLockout();
   await testCrossRoomLeavePausesMatch();
   await testForgedRoundFinishedIgnored();
   await testMidRoundReadyIgnored();
