@@ -60,8 +60,9 @@ export function parseOnlinePresencePayload(data: {
 
 /**
  * Merge a newly parsed presence payload into the latest snapshot.
- * Count-only payloads (no `players` field) must not wipe known names —
- * production servers may still emit `{ activePlayers }` alone.
+ * Count-only payloads (no `players` field) must not wipe known names when the
+ * count is stable/rising — production may still emit `{ activePlayers }` alone.
+ * When the count drops (or hits zero), prior names are stale and must clear.
  */
 export function mergeOnlinePresence(
   previous: OnlinePresenceSnapshot,
@@ -69,6 +70,20 @@ export function mergeOnlinePresence(
 ): OnlinePresenceSnapshot {
   if (incoming.playersProvided) {
     return incoming;
+  }
+  if (incoming.count <= 0) {
+    return {
+      count: 0,
+      players: [],
+      playersProvided: previous.playersProvided,
+    };
+  }
+  if (incoming.count < previous.players.length) {
+    return {
+      count: incoming.count,
+      players: [],
+      playersProvided: false,
+    };
   }
   return {
     count: incoming.count,
