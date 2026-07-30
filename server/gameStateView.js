@@ -14,8 +14,16 @@ function livingGamePlayers(state) {
 
 function viewForPlayer(fullState, playerId) {
   if (!fullState || !Array.isArray(fullState.players)) return fullState;
+  const ownHands =
+    fullState.playerHands && fullState.playerHands[playerId] !== undefined
+      ? { [playerId]: fullState.playerHands[playerId] }
+      : undefined;
+  const { dealSeed: _dealSeed, playerHands: _playerHands, ...rest } = fullState;
   return {
-    ...fullState,
+    ...rest,
+    // Never broadcast the deal seed — clients must not reconstruct opponent hands.
+    // Never leak the full playerHands map — same confidentiality as tradesComplete.
+    ...(ownHands ? { playerHands: ownHands } : {}),
     players: fullState.players.map((p) => ({
       ...p,
       sidelinedHand: isDeadHand(p)
