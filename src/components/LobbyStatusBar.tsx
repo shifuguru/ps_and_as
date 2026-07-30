@@ -115,10 +115,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     label: {
       color: colors.accent,
-      fontSize: 10,
-      fontWeight: "800",
-      letterSpacing: 0.7,
-      textTransform: "uppercase",
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 0.4,
       marginBottom: 2,
       textAlign: "center",
     },

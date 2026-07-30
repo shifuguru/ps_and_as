@@ -99,10 +99,9 @@ function createStyles(
     },
     eyebrow: {
       color: accent,
-      fontSize: 11,
-      fontWeight: "800",
-      letterSpacing: 0.8,
-      textTransform: "uppercase",
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 0.2,
     },
     rarityPill: {
       paddingHorizontal: 8,
@@ -114,10 +113,9 @@ function createStyles(
     },
     rarityPillText: {
       color: accent,
-      fontSize: 10,
+      fontSize: 11,
       fontWeight: "800",
-      letterSpacing: 0.5,
-      textTransform: "uppercase",
+      letterSpacing: 0.4,
     },
     row: {
       flexDirection: "row",

@@ -252,7 +252,7 @@ export default function PlayerHub({
             accessibilityRole="button"
             accessibilityLabel="Open player profile settings"
           >
-            <BlurPanel intensity={60} style={[styles.card, styles.identityCard]}>
+            <BlurPanel intensity={54} style={[styles.card, styles.identityCard]}>
               <View style={styles.identityRow}>
                 <Animated.View
                   style={[
@@ -327,9 +327,8 @@ export default function PlayerHub({
             </BlurPanel>
           </TouchableOpacity>
 
-          {/* Play — primary visit intent */}
-          <BlurPanel intensity={52} style={[styles.card, styles.cardDepth]}>
-            <Text style={styles.sectionEyebrow}>Play</Text>
+          {/* Play — primary visit intent sits on felt (no competing glass shell) */}
+          <View style={styles.playHero}>
             <AppButton
               label="Quick Game"
               icon="bolt"
@@ -374,28 +373,26 @@ export default function PlayerHub({
                 </Text>
               </TouchableOpacity>
             ) : null}
-          </BlurPanel>
+          </View>
 
           {/* Daily Challenge — time-sensitive */}
           {dailyDef && dailyProgress ? (
             <BlurPanel
-              intensity={52}
+              intensity={44}
               style={[
                 styles.card,
-                styles.cardDepth,
+                styles.utilityCard,
                 dailyDone && styles.dailyDoneCard,
               ]}
             >
               <View style={styles.dailyHeader}>
                 <MenuIcon name="calendar" size={16} color={colors.accent} />
-                <Text style={[styles.sectionEyebrow, { marginBottom: 0 }]}>
+                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
                   Daily Challenge
                 </Text>
-                <View style={styles.rewardChip}>
-                  <Text style={styles.rewardChipText}>
-                    +{dailyDef.rewardXp} XP
-                  </Text>
-                </View>
+                <Text style={styles.rewardInline}>
+                  +{dailyDef.rewardXp} XP
+                </Text>
               </View>
               <Text style={styles.goalTitle}>{dailyDef.title}</Text>
               <Text style={styles.goalSub}>{dailyDef.description}</Text>
@@ -406,13 +403,13 @@ export default function PlayerHub({
                 animated
                 fillColor={dailyDone ? colors.accent : undefined}
               />
-              <Text style={styles.rewardLine}>
-                {dailyDone
-                  ? dailyState?.rewardClaimed
+              {dailyDone ? (
+                <Text style={styles.rewardLine}>
+                  {dailyState?.rewardClaimed
                     ? "Complete — reward claimed"
-                    : "Complete — reward ready"
-                  : "Make progress in any round today"}
-              </Text>
+                    : "Complete — reward ready"}
+                </Text>
+              ) : null}
             </BlurPanel>
           ) : null}
 
@@ -427,30 +424,20 @@ export default function PlayerHub({
           {/* Recent Unlock — celebration when fresh */}
           {recent && recentRarity ? (
             <BlurPanel
-              intensity={56}
+              intensity={44}
               style={[
                 styles.card,
-                { borderColor: hexToRgba(recentAccent, 0.45) },
+                styles.utilityCard,
+                { borderColor: hexToRgba(recentAccent, 0.32) },
               ]}
             >
-              <View style={styles.unlockHeader}>
-                <Text style={styles.sectionEyebrow}>
-                  {recent.prestige > 1 ? "Recent Prestige" : "Recent Unlock"}
+              <Text style={styles.sectionTitle}>
+                {recent.prestige > 1 ? "Recent Prestige" : "Recent Unlock"}
+                {" · "}
+                <Text style={{ color: recentAccent }}>
+                  {RARITY_LABEL[recentRarity]}
                 </Text>
-                <View
-                  style={[
-                    styles.rarityPill,
-                    {
-                      backgroundColor: hexToRgba(recentAccent, 0.18),
-                      borderColor: hexToRgba(recentAccent, 0.4),
-                    },
-                  ]}
-                >
-                  <Text style={[styles.rarityPillText, { color: recentAccent }]}>
-                    {RARITY_LABEL[recentRarity]}
-                  </Text>
-                </View>
-              </View>
+              </Text>
               <View style={styles.unlockRow}>
                 <Text style={styles.unlockEmoji}>{recent.def.emoji}</Text>
                 <View style={styles.unlockBody}>
@@ -479,8 +466,8 @@ export default function PlayerHub({
 
           {/* Continue Your Journey — longer-arc goals */}
           {goals.length > 0 ? (
-            <BlurPanel intensity={52} style={[styles.card, styles.cardDepth]}>
-              <Text style={styles.sectionEyebrow}>Continue Your Journey</Text>
+            <BlurPanel intensity={44} style={[styles.card, styles.utilityCard]}>
+              <Text style={styles.sectionTitle}>Continue Your Journey</Text>
               <View style={styles.goalStack}>
                 {goals.map((g, idx) => (
                   <View key={g.id}>
@@ -500,8 +487,11 @@ export default function PlayerHub({
 
           {/* Friends placeholder — wide layouts only (slot for Join / Spectate later) */}
           {showFriendsPlaceholder ? (
-            <BlurPanel intensity={48} style={[styles.card, styles.friendsCard]}>
-              <Text style={styles.sectionEyebrow}>Friends</Text>
+            <BlurPanel
+              intensity={40}
+              style={[styles.card, styles.utilityCard, styles.friendsCard]}
+            >
+              <Text style={styles.sectionTitle}>Friends</Text>
               <Text style={styles.friendsTease}>Coming soon</Text>
               <Text style={styles.goalSub}>
                 See who&apos;s in lobbies, join or spectate, and open profiles —
@@ -511,11 +501,10 @@ export default function PlayerHub({
           ) : null}
 
           {/* Stats Snapshot */}
-          <BlurPanel intensity={52} style={[styles.card, styles.cardDepth]}>
-            <Text style={styles.sectionEyebrow}>Stats Snapshot</Text>
+          <BlurPanel intensity={44} style={[styles.card, styles.utilityCard]}>
+            <Text style={styles.sectionTitle}>Stats Snapshot</Text>
             {featured ? (
               <View style={styles.featuredStat}>
-                <Text style={styles.featuredEyebrow}>Featured</Text>
                 <Text style={styles.featuredValue}>{featured.value}</Text>
                 <Text style={styles.featuredLabel}>{featured.label}</Text>
                 <Text style={styles.goalSub}>{featured.hint}</Text>
@@ -556,10 +545,10 @@ export default function PlayerHub({
             activeOpacity={0.85}
             onPress={() => run(actions.onOpenWhatsNew)}
           >
-            <BlurPanel intensity={52} style={[styles.card, styles.cardDepth]}>
+            <BlurPanel intensity={44} style={[styles.card, styles.utilityCard]}>
               <View style={styles.whatsNewRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.sectionEyebrow}>What&apos;s New</Text>
+                  <Text style={styles.sectionTitle}>What&apos;s New</Text>
                   <Text style={styles.goalTitle}>
                     {whatsNewUnread > 0
                       ? `${whatsNewUnread} new update${whatsNewUnread === 1 ? "" : "s"}`
@@ -577,8 +566,11 @@ export default function PlayerHub({
             </BlurPanel>
           </TouchableOpacity>
 
-          {/* Support — destination card, above lightweight footer nav */}
-          <BlurPanel intensity={52} style={[styles.card, styles.cardDepth, styles.supportCard]}>
+          {/* Support — secondary destination; Quick Game remains the only primary CTA */}
+          <BlurPanel
+            intensity={44}
+            style={[styles.card, styles.utilityCard, styles.supportCard]}
+          >
             <View style={styles.supportHeader}>
               <Text style={styles.supportHeart} accessibilityLabel="Heart">
                 ♥
@@ -591,7 +583,7 @@ export default function PlayerHub({
             </Text>
             <AppButton
               label="Support Development"
-              variant="primary"
+              variant="secondary"
               onPress={() => {
                 triggerHaptic("light");
                 setLightsOnOpen(true);
@@ -681,7 +673,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       alignItems: "center",
       paddingHorizontal: 20,
     },
-    content: { width: "100%", gap: 12 },
+    content: { width: "100%", gap: 16 },
     brandTitle: {
       fontSize: 40,
       fontWeight: "700",
@@ -697,10 +689,14 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "600",
       ...onFeltTextStyle(colors.onFelt, "accent"),
     },
+    playHero: {
+      gap: 10,
+      marginTop: 4,
+      marginBottom: 4,
+    },
     card: {
       borderRadius: 16,
       borderWidth: StyleSheet.hairlineWidth,
-      // Slight rim highlight — presence without decoration or fill opacity change.
       borderColor: hexToRgba(
         colors.accent,
         colors.mode === "dark" ? 0.22 : 0.18,
@@ -708,62 +704,33 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       padding: 14,
       overflow: "hidden",
     },
-    cardDepth: Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: env.shadowOpacity,
-        shadowRadius: env.shadowSoftness,
-        shadowOffset: { width: 0, height: 4 },
-      },
-      android: { elevation: 3 },
-      default: {},
-    }) as ViewStyle,
+    /** Quieter supporting panels — present without matching Play CTA weight. */
+    utilityCard: {
+      borderColor: hexToRgba(
+        colors.textPrimary,
+        colors.mode === "dark" ? 0.12 : 0.1,
+      ),
+    },
     identityCard: {
-      borderColor: hexToRgba(colors.accent, 0.4),
+      borderColor: hexToRgba(colors.accent, 0.34),
       ...(Platform.select({
         ios: {
-          shadowColor: colors.accent,
-          shadowOpacity: 0.28,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 4 },
+          shadowColor: "#000",
+          shadowOpacity: env.shadowOpacity * 0.7,
+          shadowRadius: env.shadowSoftness,
+          shadowOffset: { width: 0, height: 3 },
         },
-        android: { elevation: 4 },
+        android: { elevation: 3 },
         default: {},
       }) as ViewStyle),
-    },
-    unlockHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 8,
-    },
-    rarityPill: {
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: 999,
-      borderWidth: StyleSheet.hairlineWidth,
-    },
-    rarityPillText: {
-      fontSize: 10,
-      fontWeight: "800",
-      letterSpacing: 0.5,
-      textTransform: "uppercase",
     },
     featuredStat: {
       marginBottom: 12,
       padding: 12,
       borderRadius: 14,
-      backgroundColor: hexToRgba(colors.accent, 0.12),
+      backgroundColor: hexToRgba(colors.accent, 0.1),
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.accent, 0.35),
-    },
-    featuredEyebrow: {
-      color: colors.accent,
-      fontSize: 10,
-      fontWeight: "800",
-      letterSpacing: 0.8,
-      textTransform: "uppercase",
-      marginBottom: 4,
+      borderColor: hexToRgba(colors.accent, 0.28),
     },
     featuredValue: {
       color: colors.textPrimary,
@@ -778,18 +745,18 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginTop: 2,
       marginBottom: 2,
     },
-    dailyDoneCard: {      borderColor: hexToRgba(colors.accent, 0.5),
+    dailyDoneCard: {
+      borderColor: hexToRgba(colors.accent, 0.42),
     },
     friendsCard: {
       opacity: 0.92,
       borderStyle: "dashed" as const,
     },
-    sectionEyebrow: {
-      color: colors.accent,
-      fontSize: 11,
-      fontWeight: "800",
-      letterSpacing: 0.9,
-      textTransform: "uppercase",
+    sectionTitle: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: "700",
+      letterSpacing: 0.2,
       marginBottom: 8,
     },
     identityRow: {
@@ -912,19 +879,11 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       gap: 8,
       marginBottom: 10,
     },
-    rewardChip: {
+    rewardInline: {
       marginLeft: "auto",
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 999,
-      backgroundColor: hexToRgba(colors.accent, 0.18),
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.accent, 0.4),
-    },
-    rewardChipText: {
       color: colors.accent,
       fontSize: 12,
-      fontWeight: "800",
+      fontWeight: "700",
     },
     rewardLine: {
       marginTop: 8,
@@ -951,8 +910,8 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     onlineHint: {
       textAlign: "center",
       color: colors.accent,
-      fontSize: 12,
-      fontWeight: "700",
+      fontSize: 13,
+      fontWeight: "600",
     },
     unlockRow: {
       flexDirection: "row",
@@ -1020,7 +979,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     unreadPillText: {
       color: colors.textOnAccent,
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: "800",
     },
     supportCard: {

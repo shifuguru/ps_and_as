@@ -302,131 +302,125 @@ export default function FindGame({
           showsVerticalScrollIndicator={false}
         >
           <View style={{ width: contentMax }}>
-            <BlurPanel style={[ui.panel, styles.glassCard, { marginBottom: 14 }]}>
-              <View style={styles.profileRow}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {playerInitials(playerName || "?")}
-                  </Text>
-                </View>
-                <View style={styles.profileCopy}>
-                  <Text style={styles.sectionEyebrow}>Playing As</Text>
-                  <Text style={styles.playerName} numberOfLines={1}>
-                    {playerName || "…"}
-                  </Text>
-                </View>
-                <View style={styles.profileActions}>
-                  {onNavigateToAchievements ? (
-                    <TouchableOpacity
-                      style={ui.btnSecondary}
-                      onPress={onNavigateToAchievements}
-                    >
-                      <ShimmerText style={ui.btnSecondaryText}>Stats</ShimmerText>
-                    </TouchableOpacity>
-                  ) : null}
-                  {onNavigateToSettings ? (
-                    <TouchableOpacity
-                      style={[ui.btnSecondary, styles.profileIconBtn]}
-                      onPress={onNavigateToSettings}
-                      accessibilityRole="button"
-                      accessibilityLabel="Settings"
-                    >
-                      <MenuIcon name="gear" size={18} color={colors.accent} />
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
+            {/* Utility identity strip — no glass panel */}
+            <View style={styles.profileRow}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {playerInitials(playerName || "?")}
+                </Text>
               </View>
-            </BlurPanel>
-
-            <View style={styles.actionRow}>
-              <TouchableOpacity
-                style={styles.actionTile}
-                activeOpacity={0.85}
-                onPress={handleHost}
-                disabled={connectionStatus !== "connected"}
-              >
-                <BlurPanel style={styles.actionTileInner} intensity={50}>
-                  <View style={styles.actionTileHostLayout}>
-                    <View style={styles.actionTileHostCopy}>
-                      <Text style={styles.actionTileTitle}>Host Open Game</Text>
-                      <Text style={styles.actionTileHint}>
-                        Create an open lobby for anyone to join.
-                      </Text>
-                    </View>
-                    <View style={styles.actionTileIconHost}>
-                      <MenuIcon name="plus" size={28} color={colors.accent} />
-                    </View>
-                  </View>
-                </BlurPanel>
-              </TouchableOpacity>
-
-              <View style={styles.actionTile}>
-                <BlurPanel style={styles.actionTileInnerJoin} intensity={50}>
-                  <View style={styles.joinTitleRow}>
-                    <MenuIcon name="multiplayer" size={18} color={colors.accent} />
-                    <Text style={styles.actionTileTitle}>Join With Code</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.codeInputWrap,
-                      codeFocused && styles.codeInputWrapFocused,
-                    ]}
-                  >
-                    <TextInput
-                      placeholder="Enter room code"
-                      placeholderTextColor={colors.textQuaternary}
-                      value={roomCode}
-                      onChangeText={(text) =>
-                        setRoomCode(normalizeRoomCodeInput(text))
-                      }
-                      onFocus={() => setCodeFocused(true)}
-                      onBlur={() => setCodeFocused(false)}
-                      autoCapitalize="characters"
-                      autoCorrect={false}
-                      spellCheck={false}
-                      textContentType={
-                        Platform.OS === "ios" ? "oneTimeCode" : "none"
-                      }
-                      autoComplete={
-                        Platform.OS === "web" ? "one-time-code" : "off"
-                      }
-                      importantForAutofill="no"
-                      passwordRules={Platform.OS === "ios" ? "" : undefined}
-                      keyboardType={
-                        Platform.OS === "ios" ? "ascii-capable" : "default"
-                      }
-                      {...(Platform.OS === "web"
-                        ? ({
-                            name: "ps-and-as-room-join-code",
-                            id: "ps-and-as-room-join-code",
-                            autoComplete: "one-time-code",
-                            "data-1p-ignore": true,
-                            "data-lpignore": "true",
-                            "data-bwignore": "true",
-                            "data-form-type": "other",
-                          } as object)
-                        : null)}
-                      style={styles.codeInput}
-                    />
-                  </View>
+              <View style={styles.profileCopy}>
+                <Text style={styles.playerName} numberOfLines={1}>
+                  {playerName || "…"}
+                </Text>
+              </View>
+              <View style={styles.profileActions}>
+                {onNavigateToAchievements ? (
                   <TouchableOpacity
-                    style={[
-                      ui.btnGoldFill,
-                      styles.codeJoinBtn,
-                      !normalizeRoomCodeInput(roomCode) && styles.codeJoinBtnDisabled,
-                    ]}
-                    onPress={handleJoinWithCode}
-                    disabled={!normalizeRoomCodeInput(roomCode)}
+                    style={styles.tertiaryBtn}
+                    onPress={onNavigateToAchievements}
+                    accessibilityRole="button"
+                    accessibilityLabel="Stats"
                   >
-                    <Text style={ui.btnGoldFillText}>Join</Text>
+                    <ShimmerText style={styles.tertiaryBtnText}>Stats</ShimmerText>
                   </TouchableOpacity>
-                </BlurPanel>
+                ) : null}
+                {onNavigateToSettings ? (
+                  <TouchableOpacity
+                    style={styles.iconOnlyBtn}
+                    onPress={onNavigateToSettings}
+                    accessibilityRole="button"
+                    accessibilityLabel="Settings"
+                  >
+                    <MenuIcon name="gear" size={18} color={colors.accent} />
+                  </TouchableOpacity>
+                ) : null}
               </View>
             </View>
 
+            {/* Primary task: join a room */}
+            <BlurPanel style={styles.joinHero} intensity={52}>
+              <Text style={styles.joinHeroTitle}>Join With Code</Text>
+              <View
+                style={[
+                  styles.codeInputWrap,
+                  codeFocused && styles.codeInputWrapFocused,
+                ]}
+              >
+                <TextInput
+                  placeholder="Enter room code"
+                  placeholderTextColor={colors.textQuaternary}
+                  value={roomCode}
+                  onChangeText={(text) =>
+                    setRoomCode(normalizeRoomCodeInput(text))
+                  }
+                  onFocus={() => setCodeFocused(true)}
+                  onBlur={() => setCodeFocused(false)}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  spellCheck={false}
+                  textContentType={
+                    Platform.OS === "ios" ? "oneTimeCode" : "none"
+                  }
+                  autoComplete={
+                    Platform.OS === "web" ? "one-time-code" : "off"
+                  }
+                  importantForAutofill="no"
+                  passwordRules={Platform.OS === "ios" ? "" : undefined}
+                  keyboardType={
+                    Platform.OS === "ios" ? "ascii-capable" : "default"
+                  }
+                  {...(Platform.OS === "web"
+                    ? ({
+                        name: "ps-and-as-room-join-code",
+                        id: "ps-and-as-room-join-code",
+                        autoComplete: "one-time-code",
+                        "data-1p-ignore": true,
+                        "data-lpignore": "true",
+                        "data-bwignore": "true",
+                        "data-form-type": "other",
+                      } as object)
+                    : null)}
+                  style={styles.codeInput}
+                />
+              </View>
+              <TouchableOpacity
+                style={[
+                  ui.btnGoldFill,
+                  styles.codeJoinBtn,
+                  !normalizeRoomCodeInput(roomCode) && styles.codeJoinBtnDisabled,
+                ]}
+                onPress={handleJoinWithCode}
+                disabled={!normalizeRoomCodeInput(roomCode)}
+              >
+                <Text style={ui.btnGoldFillText}>Join</Text>
+              </TouchableOpacity>
+            </BlurPanel>
+
+            {/* Secondary: host */}
+            <TouchableOpacity
+              style={[
+                styles.hostSecondary,
+                connectionStatus !== "connected" && styles.hostSecondaryDisabled,
+              ]}
+              activeOpacity={0.85}
+              onPress={handleHost}
+              disabled={connectionStatus !== "connected"}
+              accessibilityRole="button"
+              accessibilityLabel="Host Open Game"
+            >
+              <MenuIcon name="plus" size={18} color={colors.accent} />
+              <View style={styles.hostSecondaryCopy}>
+                <Text style={styles.hostSecondaryTitle}>Host Open Game</Text>
+                <Text style={styles.hostSecondaryHint}>
+                  Open a lobby and share the room code
+                </Text>
+              </View>
+            </TouchableOpacity>
+
             <View style={styles.listHeader}>
               <View style={styles.listHeaderLeft}>
-                <Text style={styles.sectionEyebrow}>Open Games</Text>
+                <Text style={styles.sectionTitle}>Open Games</Text>
                 <View style={styles.listHeaderSpinnerSlot}>
                   {isSearching ? (
                     <ActivityIndicator size="small" color={colors.accent} />
@@ -436,13 +430,14 @@ export default function FindGame({
               <TouchableOpacity
                 onPress={refreshRooms}
                 disabled={isSearching}
-                style={[ui.btnSecondary, styles.refreshBtn]}
-                activeOpacity={0.85}
+                style={styles.refreshLink}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Refresh open games"
               >
                 <Text
                   style={[
-                    ui.btnSecondaryText,
-                    styles.refreshBtnText,
+                    styles.refreshLinkText,
                     isSearching && styles.refreshLinkDisabled,
                   ]}
                 >
@@ -452,19 +447,18 @@ export default function FindGame({
             </View>
 
             {error ? (
-              <BlurPanel style={styles.errorPanel} intensity={40}>
+              <View style={styles.errorPanel}>
                 <Text style={styles.errorText}>{error}</Text>
-              </BlurPanel>
+              </View>
             ) : null}
 
             {publicRooms.length === 0 && roomsLoaded ? (
-              <BlurPanel style={[ui.panel, styles.glassCard]} intensity={44}>
+              <View style={styles.emptyState}>
                 <Text style={ui.emptyTitle}>No Public Games Available</Text>
                 <Text style={ui.emptyBody}>
-                  Host a game above and share the room code, or browse again
-                  when someone opens a public game.
+                  Host above and share the room code, or check again later.
                 </Text>
-              </BlurPanel>
+              </View>
             ) : (
               publicRooms.map((room) => {
                 const inPlay = !!room.inGame && !!room.roundInProgress;
@@ -490,102 +484,57 @@ export default function FindGame({
                 const actionDisabled =
                   !playerName.trim() || (showSpectate ? false : full);
                 return (
-                  <BlurPanel
-                    key={room.roomId}
-                    style={[
-                      ui.panel,
-                      styles.glassCard,
-                      { padding: 14, marginBottom: 10 },
-                    ]}
-                    intensity={46}
-                  >
+                  <View key={room.roomId} style={styles.roomRowCard}>
                     <View style={styles.roomRow}>
                       <View style={styles.roomInfo}>
                         <Text style={styles.roomTitle} numberOfLines={1}>
                           {room.roomName || `${room.hostName}'s Game`}
                         </Text>
-                        <Text style={styles.roomHost} numberOfLines={1}>
+                        <Text style={styles.roomMetaLine} numberOfLines={2}>
                           {isBotTable
-                            ? "Bots · dead hand seat open next round"
+                            ? "Bots"
                             : `Host · ${room.hostName}`}
+                          {" · "}
+                          {room.playerCount}/{room.maxPlayers}
+                          {botStalled
+                            ? " · Stalled"
+                            : inPlay
+                              ? isBotTable
+                                ? " · Watching"
+                                : seatOpen
+                                  ? " · In Play · seat open"
+                                  : " · In Play"
+                              : betweenRounds
+                                ? " · Between Rounds"
+                                : ` · ${formatTimeAgo(room.createdAt)}`}
                         </Text>
-                        <View style={styles.roomMeta}>
-                          <Text style={styles.roomMetaText}>
-                            {room.playerCount}/{room.maxPlayers} players
-                          </Text>
-                          {botStalled ? (
-                            <>
-                              <Text style={styles.roomMetaDot}>·</Text>
-                              <Text
-                                style={[
-                                  styles.roomMetaText,
-                                  styles.roomMetaStalled,
-                                ]}
-                              >
-                                Stalled
-                              </Text>
-                            </>
-                          ) : inPlay ? (
-                            <>
-                              <Text style={styles.roomMetaDot}>·</Text>
-                              <Text
-                                style={[
-                                  styles.roomMetaText,
-                                  styles.roomMetaInPlay,
-                                ]}
-                              >
-                                {isBotTable
-                                  ? "Bots playing · join to watch"
-                                  : seatOpen
-                                    ? "In Play · seat open"
-                                    : "In Play"}
-                              </Text>
-                            </>
-                          ) : betweenRounds ? (
-                            <>
-                              <Text style={styles.roomMetaDot}>·</Text>
-                              <Text style={styles.roomMetaText}>
-                                Between Rounds
-                              </Text>
-                            </>
-                          ) : (
-                            <>
-                              <Text style={styles.roomMetaDot}>·</Text>
-                              <Text style={styles.roomMetaText}>
-                                {formatTimeAgo(room.createdAt)}
-                              </Text>
-                            </>
-                          )}
-                        </View>
                       </View>
-                      <View style={styles.roomActions}>
-                        <TouchableOpacity
+                      <TouchableOpacity
+                        style={[
+                          showSpectate ? ui.btnSecondary : ui.btnGold,
+                          styles.roomPrimaryBtn,
+                          actionDisabled && styles.joinBtnDisabled,
+                        ]}
+                        onPress={() =>
+                          showSpectate
+                            ? handleSpectateRoom(room.roomId)
+                            : handleJoinRoom(room.roomId)
+                        }
+                        disabled={actionDisabled}
+                      >
+                        <Text
                           style={[
-                            showSpectate ? ui.btnSecondary : ui.btnGold,
-                            styles.roomPrimaryBtn,
-                            actionDisabled && styles.joinBtnDisabled,
-                          ]}
-                          onPress={() =>
                             showSpectate
-                              ? handleSpectateRoom(room.roomId)
-                              : handleJoinRoom(room.roomId)
-                          }
-                          disabled={actionDisabled}
+                              ? ui.btnSecondaryText
+                              : styles.joinBtnText,
+                            actionDisabled && styles.joinBtnTextDisabled,
+                          ]}
                         >
-                          <Text
-                            style={[
-                              showSpectate
-                                ? ui.btnSecondaryText
-                                : styles.joinBtnText,
-                              actionDisabled && styles.joinBtnTextDisabled,
-                            ]}
-                          >
-                            {actionLabel}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
+                          {actionLabel}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
-                  </BlurPanel>
+                  </View>
                 );
               })
             )}
@@ -606,272 +555,240 @@ export default function FindGame({
 
 function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   const isDark = colors.mode === "dark";
-  const accentRim = hexToRgba(colors.accent, isDark ? 0.22 : 0.18);
-  const cardDepth = Platform.select({
-    ios: {
-      shadowColor: "#000",
-      shadowOpacity: 0.18,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 4 },
-    },
-    android: { elevation: 3 },
-    default: {},
-  });
+  const accentRim = hexToRgba(colors.accent, isDark ? 0.28 : 0.22);
 
   return StyleSheet.create({
-  bottomControls: {
-    paddingTop: 18,
-  },
-  glassCard: {
-    borderColor: accentRim,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-    ...cardDepth,
-  },
-  sectionEyebrow: {
-    color: colors.accent,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.9,
-    textTransform: "uppercase",
-    marginBottom: 4,
-  },
-  profileRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: hexToRgba(colors.accent, isDark ? 0.14 : 0.12),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.accent, isDark ? 0.45 : 0.35),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: {
-    color: colors.accent,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  profileCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  profileActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flexShrink: 0,
-  },
-  profileIconBtn: {
-    paddingHorizontal: 11,
-  },
-  playerName: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  actionRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 18,
-  },
-  actionTile: {
-    flex: 1,
-    minWidth: 0,
-    alignSelf: "stretch",
-  },
-  actionTileInner: {
-    borderRadius: 16,
-    padding: 14,
-    minHeight: 168,
-    flex: 1,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: accentRim,
-    overflow: "hidden",
-    ...cardDepth,
-  },
-  actionTileHostLayout: {
-    flex: 1,
-    minHeight: 140,
-    alignItems: "stretch",
-  },
-  actionTileHostCopy: {
-    alignItems: "center",
-    gap: 6,
-  },
-  actionTileInnerJoin: {
-    borderRadius: 16,
-    padding: 14,
-    alignItems: "stretch",
-    minHeight: 168,
-    flex: 1,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: accentRim,
-    overflow: "hidden",
-    ...cardDepth,
-  },
-  actionTileIconHost: {
-    flex: 1,
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  joinTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    width: "100%",
-  },
-  actionTileTitle: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "700",
-    textAlign: "center",
-    flexShrink: 1,
-  },
-  actionTileHint: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-    lineHeight: 16,
-  },
-  codeInputWrap: {
-    width: "100%",
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.accent, isDark ? 0.2 : 0.16),
-    backgroundColor: hexToRgba("#ffffff", isDark ? 0.08 : 0.55),
-    paddingHorizontal: 10,
-    paddingVertical: Platform.OS === "ios" ? 10 : 6,
-    marginTop: 12,
-  },
-  codeInputWrapFocused: {
-    borderColor: hexToRgba(colors.accent, isDark ? 0.45 : 0.36),
-  },
-  codeInput: {
-    color: colors.inputText,
-    fontSize: 16,
-    textAlign: "center",
-  },
-  codeJoinBtn: {
-    width: "100%",
-    paddingVertical: 9,
-    marginTop: 6,
-  },
-  codeJoinBtnDisabled: {
-    opacity: 0.45,
-  },
-  listHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
-    paddingHorizontal: 2,
-  },
-  listHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexShrink: 1,
-  },
-  listHeaderSpinnerSlot: {
-    width: 20,
-    height: 20,
-    marginLeft: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  refreshBtn: {
-    minWidth: 72,
-    marginLeft: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  refreshBtnText: {
-    fontSize: 13,
-  },
-  refreshLinkDisabled: {
-    opacity: 0.45,
-  },
-  errorPanel: {
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba("#ff8a8a", 0.4),
-  },
-  errorText: {
-    color: "#ff8a8a",
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "600",
-  },
-  roomRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  roomInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-  roomTitle: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  roomHost: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginBottom: 6,
-  },
-  roomMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  roomMetaText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-  },
-  roomMetaInPlay: {
-    color: colors.accent,
-    fontWeight: "700",
-  },
-  roomMetaStalled: {
-    color: "#e8a87c",
-    fontWeight: "700",
-  },
-  roomActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexShrink: 0,
-  },
-  roomPrimaryBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-  },
-  roomMetaDot: {
-    color: colors.textQuaternary,
-    marginHorizontal: 6,
-  },
-  joinBtnDisabled: {
-    backgroundColor: hexToRgba(colors.accent, 0.06),
-    borderColor: hexToRgba(colors.accent, 0.18),
-  },
-  joinBtnText: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  joinBtnTextDisabled: {
-    color: colors.textTertiary,
-  },
+    bottomControls: {
+      paddingTop: 18,
+    },
+    profileRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      marginBottom: 16,
+      paddingHorizontal: 2,
+    },
+    avatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: hexToRgba(colors.accent, isDark ? 0.14 : 0.12),
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hexToRgba(colors.accent, isDark ? 0.4 : 0.3),
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarText: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: "800",
+    },
+    profileCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    profileActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      flexShrink: 0,
+    },
+    playerName: {
+      color: colors.textPrimary,
+      fontSize: 17,
+      fontWeight: "700",
+    },
+    tertiaryBtn: {
+      minHeight: 40,
+      paddingHorizontal: 10,
+      justifyContent: "center",
+    },
+    tertiaryBtnText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    iconOnlyBtn: {
+      width: 40,
+      height: 40,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    joinHero: {
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: accentRim,
+      overflow: "hidden",
+    },
+    joinHeroTitle: {
+      color: colors.textPrimary,
+      fontSize: 17,
+      fontWeight: "800",
+      textAlign: "center",
+      marginBottom: 4,
+    },
+    hostSecondary: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      marginBottom: 18,
+      borderRadius: 14,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hexToRgba(colors.textPrimary, isDark ? 0.14 : 0.12),
+      backgroundColor: hexToRgba(
+        isDark ? colors.textPrimary : "#ffffff",
+        isDark ? 0.06 : 0.35,
+      ),
+    },
+    hostSecondaryDisabled: {
+      opacity: 0.45,
+    },
+    hostSecondaryCopy: {
+      flex: 1,
+      minWidth: 0,
+      gap: 2,
+    },
+    hostSecondaryTitle: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "700",
+    },
+    hostSecondaryHint: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "600",
+      lineHeight: 16,
+    },
+    codeInputWrap: {
+      width: "100%",
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hexToRgba(colors.accent, isDark ? 0.2 : 0.16),
+      backgroundColor: hexToRgba("#ffffff", isDark ? 0.08 : 0.55),
+      paddingHorizontal: 10,
+      paddingVertical: Platform.OS === "ios" ? 10 : 6,
+      marginTop: 12,
+    },
+    codeInputWrapFocused: {
+      borderColor: hexToRgba(colors.accent, isDark ? 0.45 : 0.36),
+    },
+    codeInput: {
+      color: colors.inputText,
+      fontSize: 16,
+      textAlign: "center",
+    },
+    codeJoinBtn: {
+      width: "100%",
+      paddingVertical: 11,
+      marginTop: 10,
+    },
+    codeJoinBtnDisabled: {
+      opacity: 0.45,
+    },
+    listHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 10,
+      paddingHorizontal: 2,
+    },
+    listHeaderLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexShrink: 1,
+    },
+    sectionTitle: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "700",
+      letterSpacing: 0.2,
+    },
+    listHeaderSpinnerSlot: {
+      width: 20,
+      height: 20,
+      marginLeft: 8,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    refreshLink: {
+      minHeight: 40,
+      paddingHorizontal: 8,
+      justifyContent: "center",
+    },
+    refreshLinkText: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    refreshLinkDisabled: {
+      opacity: 0.45,
+    },
+    errorPanel: {
+      borderRadius: 14,
+      padding: 12,
+      marginBottom: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hexToRgba("#ff8a8a", 0.4),
+      backgroundColor: hexToRgba("#ff8a8a", isDark ? 0.1 : 0.08),
+    },
+    errorText: {
+      color: "#ff8a8a",
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: "600",
+    },
+    emptyState: {
+      paddingVertical: 20,
+      paddingHorizontal: 12,
+      alignItems: "center",
+    },
+    roomRowCard: {
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+      marginBottom: 2,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: hexToRgba(colors.textPrimary, isDark ? 0.12 : 0.1),
+    },
+    roomRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    roomInfo: {
+      flex: 1,
+      minWidth: 0,
+    },
+    roomTitle: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "700",
+      marginBottom: 3,
+    },
+    roomMetaLine: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "600",
+      lineHeight: 16,
+    },
+    roomPrimaryBtn: {
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+    },
+    joinBtnDisabled: {
+      backgroundColor: hexToRgba(colors.accent, 0.06),
+      borderColor: hexToRgba(colors.accent, 0.18),
+    },
+    joinBtnText: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: "800",
+    },
+    joinBtnTextDisabled: {
+      color: colors.textTertiary,
+    },
   });
 }

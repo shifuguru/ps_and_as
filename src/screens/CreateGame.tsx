@@ -38,7 +38,6 @@ import BottomBar, {
   BottomBarLeave,
   bottomOuterPad,
 } from "../components/BottomBar";
-import BlurPanel from "../components/BlurPanel";
 import OpponentSeat from "../components/OpponentSeat";
 import LobbyPlayerModal from "../components/LobbyPlayerModal";
 import ShimmerText from "../components/ShimmerText";
@@ -481,8 +480,8 @@ export default function CreateGame({
 
   const contentMaxWidth = Math.min(520, Math.max(320, width - 24));
   const estimatedTableHeight = Math.max(
-    140,
-    windowHeight - topBarHeight - bottomBarHeight - 240,
+    180,
+    windowHeight - topBarHeight - bottomBarHeight - 160,
   );
   const effectiveTableHeight = tableAreaHeight || estimatedTableHeight;
   const ringLayout = useMemo(
@@ -957,42 +956,29 @@ export default function CreateGame({
             }}
           >
             <View style={{ width: contentMaxWidth, flex: 1 }}>
-              <BlurPanel style={local.roomPanel} intensity={48}>
-                {onlineLobby && actualRoomId ? (
-                  <View style={local.roomCodeRow}>
-                    <Text style={local.roomCodeLabel}>Room Code:</Text>
-                    <TouchableOpacity
-                      style={[
-                        local.roomCodeButton,
-                        codeCopied && local.roomCodeButtonCopied,
-                      ]}
-                      onPress={handleCopyRoomCode}
-                      activeOpacity={0.85}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Copy room code ${actualRoomId}`}
-                    >
-                      <Text style={local.roomCodeButtonText} numberOfLines={1}>
-                        {codeCopied ? "Copied!" : actualRoomId}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-                {canEditRoom ? (
-                  <>
-                    <Text
-                      style={[
-                        local.fieldLabel,
-                        local.fieldLabelSpaced,
-                        onlineLobby && actualRoomId
-                          ? local.fieldLabelAfterCode
-                          : null,
-                      ]}
-                    >
-                      Room Name
-                    </Text>
-                    <Text style={local.roomNameHint}>
-                      Shown in Open Games — guests join with the room code.
-                    </Text>
+              {/* Utility room chrome — supports the table, does not own the screen */}
+              {(onlineLobby && actualRoomId) || canEditRoom || localIsSpectator ? (
+                <View style={local.roomUtility}>
+                  {onlineLobby && actualRoomId ? (
+                    <View style={local.roomCodeRow}>
+                      <Text style={local.roomCodeLabel}>Code</Text>
+                      <TouchableOpacity
+                        style={[
+                          local.roomCodeButton,
+                          codeCopied && local.roomCodeButtonCopied,
+                        ]}
+                        onPress={handleCopyRoomCode}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Copy room code ${actualRoomId}`}
+                      >
+                        <Text style={local.roomCodeButtonText} numberOfLines={1}>
+                          {codeCopied ? "Copied!" : actualRoomId}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
+                  {canEditRoom ? (
                     <RoomNameInput
                       value={roomName}
                       onCommit={handleRoomNameCommit}
@@ -1008,34 +994,14 @@ export default function CreateGame({
                       wrapFocusedStyle={local.roomInputWrapFocused}
                       hintStyle={local.roomInputHint}
                     />
-                  </>
-                ) : null}
-                {onlineLobby && localIsSpectator ? (
-                  <Text style={[local.deadHandInfo, local.fieldLabelAfterCode]}>
-                    You joined as a spectator — tap Ready to take a seat next
-                    round (up to 8 players). Use Spectate on Find Game to watch
-                    the current round live.
-                  </Text>
-                ) : null}
-                {onlineLobby && seatCount === MIN_PLAYERS ? (
-                  <>
-                    <Text
-                      style={[
-                        local.fieldLabel,
-                        local.fieldLabelSpaced,
-                        local.fieldLabelAfterCode,
-                      ]}
-                    >
-                      Open Seat
+                  ) : null}
+                  {onlineLobby && localIsSpectator ? (
+                    <Text style={local.supportNote}>
+                      Spectating — Ready to take a seat next round
                     </Text>
-                    <Text style={local.deadHandInfo}>
-                      A dead hand is dealt automatically with two players. A
-                      third person can spectate from Open Games and take that
-                      seat after the round.
-                    </Text>
-                  </>
-                ) : null}
-              </BlurPanel>
+                  ) : null}
+                </View>
+              ) : null}
 
                 <View
                   style={local.tableArea}
@@ -1051,15 +1017,15 @@ export default function CreateGame({
                   <Text style={local.tableHint}>
                     {onlineLobby
                       ? localIsSpectator
-                        ? "Spectating this round — Ready to play next round"
+                        ? "Spectating this round"
                         : seatCount < MIN_PLAYERS
-                        ? "Share the room code — waiting for players"
+                        ? "Waiting for players"
                         : showDeadHandSeat
-                          ? "Dead hand active — third player can spectate & join next round"
-                          : `${seatCount} players in lobby`
+                          ? "Table ready — dead hand open for a third"
+                          : `${seatCount} at the table`
                       : seatCount < MIN_PLAYERS_FULL_TABLE
-                        ? `Add at least ${MIN_PLAYERS_FULL_TABLE} players to start`
-                        : `${seatCount} players at the table`}
+                        ? `Need ${MIN_PLAYERS_FULL_TABLE} to start`
+                        : `${seatCount} at the table`}
                   </Text>
 
                   <View
@@ -1130,8 +1096,7 @@ export default function CreateGame({
                               ]}
                             >
                               <Text style={local.deadHandSeatIcon}>🃏</Text>
-                              <Text style={local.deadHandSeatLabel}>Dead Hand</Text>
-                              <Text style={local.deadHandSeatHint}>Open seat</Text>
+                              <Text style={local.deadHandSeatLabel}>Open Seat</Text>
                             </View>
                           ) : (
                           <TouchableOpacity
@@ -1217,7 +1182,7 @@ export default function CreateGame({
           <View style={[local.bottomInner, { maxWidth: contentMaxWidth }]}>
             {usingMock ? (
             <View style={local.cpuSection}>
-              <Text style={local.fieldLabel}>CPU Players</Text>
+              <Text style={local.cpuSectionLabel}>CPU Players</Text>
               <View style={local.stepper}>
                 <TouchableOpacity
                   style={[
@@ -1253,16 +1218,18 @@ export default function CreateGame({
               </Text>
             ) : null}
 
-            <View style={ui.actionTrack}>
+            <View style={local.actionRow}>
               {onNavigateToAchievements ? (
                 <TouchableOpacity
-                  style={[ui.actionSecondary, local.lobbySideBtn]}
+                  style={local.lobbyTertiaryBtn}
                   onPress={onNavigateToAchievements}
+                  accessibilityRole="button"
+                  accessibilityLabel="Stats"
                 >
-                  <ShimmerText style={ui.actionSecondaryText}>Stats</ShimmerText>
+                  <ShimmerText style={local.lobbyTertiaryText}>Stats</ShimmerText>
                 </TouchableOpacity>
               ) : (
-                <View style={local.lobbySideBtn} />
+                <View style={local.lobbyTertiaryBtn} />
               )}
               <AnimatedTouchable
                 style={[
@@ -1337,13 +1304,15 @@ export default function CreateGame({
               </AnimatedTouchable>
               {onNavigateToSettings ? (
                 <TouchableOpacity
-                  style={[ui.actionSecondary, local.lobbySideBtn]}
+                  style={local.lobbyTertiaryBtn}
                   onPress={onNavigateToSettings}
+                  accessibilityRole="button"
+                  accessibilityLabel="Settings"
                 >
-                  <Text style={ui.actionSecondaryText}>Settings</Text>
+                  <Text style={local.lobbyTertiaryText}>Settings</Text>
                 </TouchableOpacity>
               ) : (
-                <View style={local.lobbySideBtn} />
+                <View style={local.lobbyTertiaryBtn} />
               )}
             </View>
 
@@ -1390,31 +1359,23 @@ function createLocalStyles(colors: AppThemeColors) {
     fontWeight: "700",
     textAlign: "center",
   },
-  roomPanel: {
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    marginBottom: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.accent, isDark ? 0.22 : 0.18),
-    overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.18,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 4 },
-      },
-      android: { elevation: 3 },
-      default: {},
-    }),
+  roomUtility: {
+    gap: 10,
+    marginBottom: 8,
+  },
+  supportNote: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    paddingHorizontal: 4,
   },
   fieldLabel: {
-    color: colors.accent,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.9,
-    textTransform: "uppercase",
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.2,
     marginBottom: 0,
   },
   fieldLabelSpaced: {
@@ -1432,7 +1393,7 @@ function createLocalStyles(colors: AppThemeColors) {
     borderRadius: 12,
     paddingLeft: 14,
     paddingRight: 12,
-    minHeight: 48,
+    minHeight: 44,
   },
   roomInputWrapFocused: {
     borderColor: hexToRgba(colors.accent, isDark ? 0.45 : 0.36),
@@ -1455,23 +1416,6 @@ function createLocalStyles(colors: AppThemeColors) {
   fieldLabelAfterCode: {
     marginTop: 8,
   },
-  roomNameHint: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "600",
-    textAlign: "center",
-    marginBottom: 8,
-    paddingHorizontal: 4,
-  },
-  deadHandInfo: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "600",
-    textAlign: "center",
-    paddingHorizontal: 4,
-  },
   deadHandSeat: {
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
@@ -1489,15 +1433,8 @@ function createLocalStyles(colors: AppThemeColors) {
   },
   deadHandSeatLabel: {
     color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: "800",
-    textAlign: "center",
-  },
-  deadHandSeatHint: {
-    color: colors.textQuaternary,
-    fontSize: 9,
-    fontWeight: "600",
-    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "700",
     textAlign: "center",
   },
   roomCodeRow: {
@@ -1506,11 +1443,10 @@ function createLocalStyles(colors: AppThemeColors) {
     gap: 10,
   },
   roomCodeLabel: {
-    color: colors.accent,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.2,
     flexShrink: 0,
   },
   roomCodeButton: {
@@ -1539,17 +1475,15 @@ function createLocalStyles(colors: AppThemeColors) {
     minHeight: 0,
     justifyContent: "center",
     alignItems: "center",
-    paddingTop: 4,
+    paddingTop: 8,
   },
   tableHint: {
-    color: colors.accent,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.7,
-    textTransform: "uppercase",
-    marginBottom: 10,
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+    marginBottom: 12,
     textAlign: "center",
-    opacity: 0.9,
   },
   seatRing: {
     position: "relative",
@@ -1587,8 +1521,8 @@ function createLocalStyles(colors: AppThemeColors) {
   },
   hostBadge: {
     marginTop: 2,
-    fontSize: 10,
-    fontWeight: "800",
+    fontSize: 11,
+    fontWeight: "700",
     letterSpacing: 0.2,
   },
   emptySeat: {
@@ -1612,7 +1546,7 @@ function createLocalStyles(colors: AppThemeColors) {
   },
   emptySeatLabel: {
     color: colors.textSecondary,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
     marginTop: 4,
   },
@@ -1621,23 +1555,44 @@ function createLocalStyles(colors: AppThemeColors) {
     gap: 10,
     marginBottom: 14,
   },
+  cpuSectionLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
   bottomControls: {
     paddingTop: BOTTOM_BAR_TOP_PAD,
   },
   lobbyWaitHint: {
     textAlign: "center",
     color: colors.textSecondary,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     marginBottom: 10,
     letterSpacing: 0.2,
   },
-  lobbySideBtn: {
-    flex: 1,
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 10,
+    minHeight: 52,
+  },
+  lobbyTertiaryBtn: {
+    flex: 0.85,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  lobbyTertiaryText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: "600",
   },
   lobbyPrimaryBtn: {
-    flex: 1.45,
-    minHeight: 48,
+    flex: 1.6,
+    minHeight: 52,
     borderRadius: 14,
     paddingHorizontal: 10,
     ...BUTTON_CENTER,
