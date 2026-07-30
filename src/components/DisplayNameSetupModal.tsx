@@ -116,7 +116,6 @@ export default function DisplayNameSetupModal({ visible, onComplete }: Props) {
             maxLength={20}
             autoCapitalize="words"
             autoCorrect={false}
-            autoFocus
             returnKeyType="done"
             editable={!saving}
             accessibilityLabel="Display name"
