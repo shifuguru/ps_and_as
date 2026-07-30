@@ -21,6 +21,12 @@ export function useClientBuildLabel(): string {
 
   useEffect(() => {
     const sync = resolveClientBuildInfo();
+    // Local Metro: always show package.json / env — never replace with live
+    // version.json (that made localhost look like production).
+    if (__DEV__) {
+      setLabel(formatBuildLabel(sync));
+      return;
+    }
     if (!isPlaceholderBuildId(sync.buildId)) {
       setLabel(formatBuildLabel(sync));
       return;

@@ -66,6 +66,18 @@ function readPackageVersion(): string | undefined {
 
 /** Semantic app version from package.json / app.json (resolved lazily). */
 export function resolveAppVersion(): string {
+  // Local Metro/web: never prefer the production bake stamp in index.html
+  // (__PS_AND_AS_BUILD__). That stamp only updates on CI sync and left localhost
+  // stuck on an old version (e.g. 1.1.11) while package.json moved on.
+  if (__DEV__) {
+    return (
+      process.env.EXPO_PUBLIC_APP_VERSION?.trim() ||
+      readExtraBuild()?.version?.trim() ||
+      readPackageVersion() ||
+      runtimeBuild()?.version?.trim() ||
+      "0.0.0"
+    );
+  }
   return (
     runtimeBuild()?.version?.trim() ||
     readExtraBuild()?.version?.trim() ||
@@ -91,6 +103,14 @@ export function resolveClientBuildId(): string {
 
 /** Build id for UI labels — prefer runtime HTML inject (matches version.json on deploy). */
 function resolveDisplayBuildId(): string {
+  // Local: expo-dev-env injects git SHA; never show the production index.html stamp.
+  if (__DEV__) {
+    return (
+      process.env.EXPO_PUBLIC_BUILD_ID?.trim() ||
+      readExtraBuild()?.buildId?.trim() ||
+      "dev"
+    );
+  }
   const runtime = runtimeBuild()?.buildId?.trim();
   const env = process.env.EXPO_PUBLIC_BUILD_ID?.trim();
   const extra = readExtraBuild()?.buildId?.trim();
@@ -102,6 +122,7 @@ function resolveDisplayBuildId(): string {
 
 /** Deploy channel baked into version.json / index.html on CI builds. */
 export function resolveDeployChannel(): "production" | "development" {
+  if (__DEV__) return "development";
   const channel = runtimeBuild()?.channel;
   return channel === "development" ? "development" : "production";
 }
