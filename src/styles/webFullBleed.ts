@@ -79,6 +79,30 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
+/**
+ * Keep <meta name="theme-color"> in sync with the active felt tint.
+ * iOS Home Screen PWAs sample this for the status-bar / safe-area chrome;
+ * a stale default green (#0f5132) reads as a wrong-colored blur band on top
+ * of the app when the player picks another felt.
+ */
+function syncWebThemeColorMeta(doc: WebDocument, color: string): void {
+  const head = (doc as { head?: any }).head;
+  if (!head?.querySelector) return;
+
+  const metas = head.querySelectorAll?.('meta[name="theme-color"]');
+  if (metas && typeof metas.length === "number" && metas.length > 0) {
+    for (let i = 0; i < metas.length; i++) {
+      metas[i]?.setAttribute?.("content", color);
+    }
+    return;
+  }
+
+  const meta = doc.createElement("meta");
+  meta.setAttribute("name", "theme-color");
+  meta.setAttribute("content", color);
+  head.appendChild(meta);
+}
+
 function clearShellInlineGeometry(el: any): void {
   if (!el?.style) return;
   el.style.removeProperty("height");
@@ -171,6 +195,10 @@ export function ensureWebFeltBackdrop(
   rootStyle.setProperty("--ps-felt-tint-overlay", tintOverlay);
   rootStyle.setProperty("--ps-felt-texture", `url("${url}")`);
   rootStyle.setProperty("--ps-theme-mode", mode);
+
+  // Status-bar / PWA chrome samples theme-color — keep it on the felt tint so
+  // the top safe-area band does not stick on the default casino green.
+  syncWebThemeColorMeta(doc, env.displayTint);
 
   const layer = getOrCreateEnvironmentLayer(doc);
   const lighting = layer.querySelector(".ps-env-lighting");

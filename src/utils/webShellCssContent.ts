@@ -17,6 +17,9 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  * - html min-height: calc(100% + safe-area-inset-top) for iOS black-translucent PWAs.
  * - html paints the same felt texture as ::before so iOS status-bar / island
  *   sampling (document background) is textured, not flat --ps-felt-tint green.
+ * - <meta name="theme-color"> is synced at runtime to the active felt tint
+ *   (see ensureWebFeltBackdrop) so Home Screen chrome does not stick on the
+ *   default casino green after the player changes wallpaper color.
  */
 export function getWebShellCssText(feltTint: string): string {
   return `

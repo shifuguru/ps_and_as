@@ -32,6 +32,15 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-30T16:27"),
+    title: "Name setup on phones",
+    items: [
+      "First open — the name box sits above the keyboard when you tap it (no more typing behind it)",
+      "Home Screen — wallpaper stays put when the keyboard opens",
+      "Theme — the top phone chrome follows your felt colour",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-30T15:55"),
     title: "Choose your name, clearer looks & private hands online",
     items: [

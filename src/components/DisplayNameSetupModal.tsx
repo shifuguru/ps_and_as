@@ -10,6 +10,7 @@ import {
 import BlurPanel from "./BlurPanel";
 import AppButton from "./ui/AppButton";
 import { useAppTheme } from "../context/ThemeContext";
+import { useKeyboardAvoidingOverlay } from "../hooks/useKeyboardAvoidingOverlay";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { triggerHaptic } from "../utils/haptics";
 import {
@@ -29,6 +30,10 @@ export default function DisplayNameSetupModal({ visible, onComplete }: Props) {
   const insets = useLayoutInsets();
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(width - 48, 400);
+
+  const baseTop = Math.max(24, insets.top + 12);
+  const baseBottom = Math.max(24, insets.bottom + 12);
+  const keyboardOverlay = useKeyboardAvoidingOverlay(baseTop, baseBottom);
 
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +71,7 @@ export default function DisplayNameSetupModal({ visible, onComplete }: Props) {
       visible={visible}
       transparent
       animationType="fade"
+      statusBarTranslucent
       onRequestClose={() => {
         /* Blocking gate — cannot dismiss without choosing a name. */
       }}
@@ -74,8 +80,9 @@ export default function DisplayNameSetupModal({ visible, onComplete }: Props) {
         style={[
           ui.modalOverlay,
           {
-            paddingTop: Math.max(24, insets.top + 12),
-            paddingBottom: Math.max(24, insets.bottom + 12),
+            justifyContent: keyboardOverlay.justifyContent,
+            paddingTop: keyboardOverlay.paddingTop,
+            paddingBottom: keyboardOverlay.paddingBottom,
           },
         ]}
       >
@@ -109,7 +116,6 @@ export default function DisplayNameSetupModal({ visible, onComplete }: Props) {
             maxLength={20}
             autoCapitalize="words"
             autoCorrect={false}
-            autoFocus
             returnKeyType="done"
             editable={!saving}
             accessibilityLabel="Display name"
