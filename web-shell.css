@@ -12,6 +12,11 @@
  *   → body is offset behind the status bar WITHOUT expanding height → bottom gap.
  * Confirmed fix: height:100vh on html/body/#root. Keep black-translucent.
  *
+ * Dynamic Island / top (separate from chin-gap): flat green behind the island
+ * is html background-color: var(--ps-felt-tint) (#0f5132) sampled by iOS.
+ * html::before extends into safe-area-inset-top with the textured felt stack;
+ * html.ps-env-ready clears the solid sample colour so the island matches game felt.
+ *
  * Edge-to-edge: shell fills the display with 100vh. Safe-area pads interactive
  * chrome only (.ps-bottom-bar-shell / content padding) — never shrinks the shell.
  *
@@ -57,15 +62,32 @@ html {
   background-attachment: scroll, scroll !important;
 }
 
-/* Full-display wallpaper plane — same 100vh box as the document. */
+/* Full-display wallpaper plane.
+ *
+ * TOP / Dynamic Island (separate from the bottom chin-gap fix):
+ * iOS black-translucent samples the document background for the status-bar
+ * region. The game felt is texture + tint; a bare html background-color of
+ * --ps-felt-tint (#0f5132) reads as a flat green strip behind the island.
+ * This ::before carries the SAME texture+tint stack and extends into
+ * safe-area-inset-top so the island sits on felt, not solid green.
+ *
+ * Do NOT change html/body/#root away from height:100vh — that is the working
+ * bottom chin-gap fix.
+ */
 html::before {
   content: "" !important;
   position: fixed !important;
-  top: 0 !important;
   left: 0 !important;
   right: 0 !important;
+  top: calc(0px - constant(safe-area-inset-top)) !important;
+  top: calc(0px - env(safe-area-inset-top, 0px)) !important;
   width: 100% !important;
-  height: 100vh !important;
+  height: calc(
+    100vh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom)
+  ) !important;
+  height: calc(
+    100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)
+  ) !important;
   min-height: 100vh !important;
   z-index: -1 !important;
   pointer-events: none !important;
@@ -80,6 +102,14 @@ html::before {
   background-position: center center, center center !important;
   background-repeat: no-repeat, no-repeat !important;
   background-attachment: scroll, scroll !important;
+}
+
+/* Once texture is applied, stop using solid --ps-felt-tint as the status-bar
+ * sample colour. iOS composites the translucent bar from html's background-color;
+ * flat green here is the Dynamic Island strip. Transparent lets the textured
+ * image / ::before read through under black-translucent. */
+html.ps-env-ready {
+  background-color: transparent !important;
 }
 
 body {

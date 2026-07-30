@@ -32,6 +32,14 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-30T17:00"),
+    title: "Felt under the Dynamic Island",
+    items: [
+      "Home Screen — the table felt continues behind the Dynamic Island (no flat green strip at the top)",
+      "Home Screen — bottom edge stays flush (chin gap stays gone)",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-30T16:50"),
     title: "True full-screen on Home Screen",
     items: [

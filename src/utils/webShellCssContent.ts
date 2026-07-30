@@ -9,6 +9,10 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  *   → body offset behind status bar without height expanding → bottom gap.
  * Confirmed fix: height:100vh on html/body/#root. Keep black-translucent.
  *
+ * Dynamic Island green strip: html background-color var(--ps-felt-tint).
+ * html::before extends into safe-area-inset-top with textured felt;
+ * html.ps-env-ready clears the solid sample colour.
+ *
  * Safe-area pads interactive chrome only (.ps-bottom-bar-shell) — never the shell.
  * Do not ship theme-color meta (frosted status-bar band on iOS).
  */
@@ -49,11 +53,17 @@ export function getWebShellCssText(feltTint: string): string {
     html::before {
       content: "" !important;
       position: fixed !important;
-      top: 0 !important;
       left: 0 !important;
       right: 0 !important;
+      top: calc(0px - constant(safe-area-inset-top)) !important;
+      top: calc(0px - env(safe-area-inset-top, 0px)) !important;
       width: 100% !important;
-      height: 100vh !important;
+      height: calc(
+        100vh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom)
+      ) !important;
+      height: calc(
+        100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)
+      ) !important;
       min-height: 100vh !important;
       z-index: -1 !important;
       pointer-events: none !important;
@@ -68,6 +78,9 @@ export function getWebShellCssText(feltTint: string): string {
       background-position: center center, center center !important;
       background-repeat: no-repeat, no-repeat !important;
       background-attachment: scroll, scroll !important;
+    }
+    html.ps-env-ready {
+      background-color: transparent !important;
     }
     body {
       position: fixed !important;

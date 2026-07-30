@@ -320,6 +320,70 @@ function experiment5(doc: Doc): void {
   );
 }
 
+/**
+ * EXPERIMENT 6 — Dynamic Island paint-owner probe.
+ * Unique colours per ancestor. Whichever colour shows behind the island
+ * is the paint owner (html / body / #root / #ps-felt-layer).
+ * Enable: ?viewportExperiment=6
+ */
+function experiment6(doc: Doc): void {
+  injectStyle(
+    doc,
+    `
+    html {
+      background-color: #ff00ff !important;
+      background-image: none !important;
+    }
+    html::before {
+      background-color: #00ffff !important;
+      background-image: none !important;
+    }
+    body {
+      background-color: #0000ff !important;
+      background-image: none !important;
+    }
+    #root {
+      background-color: #00ff00 !important;
+    }
+    #${WEB_FELT_LAYER_ID} {
+      background-color: #ffff00 !important;
+      opacity: 1 !important;
+    }
+    `,
+  );
+  markActive(
+    doc,
+    6,
+    "island probe: html=#ff00ff ::before=#00ffff body=#0000ff #root=#00ff00 felt=#ffff00",
+  );
+  const rects = ["html", "body", "#root", `#${WEB_FELT_LAYER_ID}`].map((sel) => {
+    const el =
+      sel === "html"
+        ? doc.documentElement
+        : sel === "body"
+          ? doc.body
+          : doc.querySelector(sel);
+    const r = el?.getBoundingClientRect?.();
+    return {
+      sel,
+      top: r ? Math.round(r.top) : null,
+      bottom: r ? Math.round(r.bottom) : null,
+      height: r ? Math.round(r.height) : null,
+    };
+  });
+  console.table(rects);
+  (globalThis as { __PS_ISLAND_PROBE__?: unknown }).__PS_ISLAND_PROBE__ = {
+    colours: {
+      html: "#ff00ff",
+      "html::before": "#00ffff",
+      body: "#0000ff",
+      "#root": "#00ff00",
+      [`#${WEB_FELT_LAYER_ID}`]: "#ffff00",
+    },
+    rects,
+  };
+}
+
 export function teardownViewportExperiment(): void {
   const doc = (globalThis as { document?: Doc }).document;
   if (!doc) return;
@@ -352,6 +416,8 @@ export function applyViewportExperimentFromQuery(): () => void {
         return experiment4(doc);
       case 5:
         return experiment5(doc);
+      case 6:
+        return experiment6(doc);
       default:
         return undefined;
     }
@@ -360,7 +426,7 @@ export function applyViewportExperimentFromQuery(): () => void {
   run();
   // Felt/shell sync can re-run on resize; keep visual experiments pinned.
   const win = (globalThis as { window?: any }).window;
-  const reapply = experiment <= 3 ? () => run() : undefined;
+  const reapply = experiment <= 3 || experiment === 6 ? () => run() : undefined;
   if (reapply) {
     win?.addEventListener?.("resize", reapply);
     win?.visualViewport?.addEventListener?.("resize", reapply);
