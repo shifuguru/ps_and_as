@@ -6,7 +6,6 @@
   "scope": "/ps_and_as/",
   "display": "standalone",
   "background_color": "#0f5132",
-  "theme_color": "#0f5132",
   "orientation": "any",
   "icons": [
     {
