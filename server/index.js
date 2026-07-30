@@ -2002,21 +2002,33 @@ io.on('connection', (socket) => {
     let next = working;
     if (action?.type === 'play') {
       if (action.playerId && action.playerId !== player.id) return;
+      // Atomic 10-rule direction must be validated the same way as the
+      // dedicated tenRule action — otherwise a non-string truthy value is
+      // persisted into state and crashes clients that call .toUpperCase().
+      const atomicTenDir = action.tenRuleDirection;
+      if (
+        atomicTenDir != null &&
+        atomicTenDir !== 'higher' &&
+        atomicTenDir !== 'lower'
+      ) {
+        socket.emit('error', { message: 'Invalid ten-rule direction' });
+        return;
+      }
       const before = working;
       next = playCards(
         working,
         player.id,
         action.cards || [],
-        action.tenRuleDirection
-          ? { tenRuleDirection: action.tenRuleDirection }
+        atomicTenDir
+          ? { tenRuleDirection: atomicTenDir }
           : undefined,
       );
       if (next === before) {
         socket.emit('error', { message: 'Invalid play' });
         return;
       }
-      if (next.tenRulePending && action.tenRuleDirection) {
-        next = setTenRuleDirection(next, action.tenRuleDirection);
+      if (next.tenRulePending && atomicTenDir) {
+        next = setTenRuleDirection(next, atomicTenDir);
       }
     } else if (action?.type === 'pass') {
       const before = working;

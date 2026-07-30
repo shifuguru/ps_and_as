@@ -568,6 +568,14 @@ export function playCards(
   cards: Card[],
   options?: PlayCardsOptions,
 ): GameState {
+  // Reject malformed atomic 10-rule direction before mutating state.
+  if (
+    options?.tenRuleDirection != null &&
+    options.tenRuleDirection !== "higher" &&
+    options.tenRuleDirection !== "lower"
+  ) {
+    return state;
+  }
   // Very small validation: ensure it's that player's turn and they have the cards
   const pIndex = state.players.findIndex((p) => p.id === playerId);
   if (pIndex === -1) return state;

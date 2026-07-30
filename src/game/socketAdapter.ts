@@ -86,6 +86,12 @@ export class SocketAdapter implements NetworkAdapter {
   private feltTint: string = DEFAULT_FELT_COLOR;
   /** Per-seat secret issued by the server; required to reclaim a seat. */
   private reconnectSecret: string | null = null;
+  /**
+   * Stable local profile id from construction. Server may adopt a different
+   * seat id (`seat-*`) on collision; secrets must still resolve under this id
+   * after refresh when App rebuilds the adapter with the original profile.
+   */
+  private readonly preferredProfileId: string;
 
   constructor(
     private url: string | undefined,
@@ -98,6 +104,7 @@ export class SocketAdapter implements NetworkAdapter {
   ) {
     this.shouldAutoJoin = autoJoin;
     this.feltTint = feltTint;
+    this.preferredProfileId = profileId;
     this.reconnectSecret = reconnectSecret;
     if (roomId) {
       this.activeRoomId = roomId;
@@ -137,12 +144,16 @@ export class SocketAdapter implements NetworkAdapter {
   clearRoomSession() {
     const roomId = this.activeRoomId || this.roomId;
     const profileId = this.profileId;
+    const preferredId = this.preferredProfileId;
     this.activeRoomId = null;
     this.roomId = "";
     this.shouldAutoJoin = false;
     this.reconnectSecret = null;
     this.clearCachedGameState();
     void clearStoredReconnectSecret(roomId, profileId);
+    if (preferredId && preferredId !== profileId) {
+      void clearStoredReconnectSecret(roomId, preferredId);
+    }
   }
 
   getReconnectSecret(): string | null {
@@ -154,11 +165,27 @@ export class SocketAdapter implements NetworkAdapter {
     this.reconnectSecret = secret;
     const targetRoomId = roomId || this.activeRoomId || this.roomId;
     void writeStoredReconnectSecret(targetRoomId, this.profileId, secret);
+    // Dual-write under the preferred local profile id so refresh/rejoin still
+    // finds the secret when the live seat id was remapped to seat-*.
+    if (
+      this.preferredProfileId &&
+      this.preferredProfileId !== this.profileId
+    ) {
+      void writeStoredReconnectSecret(
+        targetRoomId,
+        this.preferredProfileId,
+        secret,
+      );
+    }
   }
 
   private async resolveReconnectSecret(roomId: string): Promise<string | undefined> {
     if (this.reconnectSecret) return this.reconnectSecret;
-    const stored = await readStoredReconnectSecret(roomId, this.profileId);
+    const stored =
+      (await readStoredReconnectSecret(roomId, this.profileId)) ||
+      (this.preferredProfileId !== this.profileId
+        ? await readStoredReconnectSecret(roomId, this.preferredProfileId)
+        : null);
     if (stored) {
       this.reconnectSecret = stored;
       return stored;
