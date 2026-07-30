@@ -16,7 +16,7 @@
  * iOS black-translucent makes the STATUS BAR chrome translucent — icons float
  * over the page. A residual frost/gradient often remains; we drive its colour
  * from appearance via theme-color + color-scheme + --ps-status-veil:
- * dark → black veil, light → white veil (never felt green).
+ * dark → black veil, light → white veil (never felt tint — only darken/lighten).
  *
  * What must be underneath: html’s felt stack (background-color + texture).
  * - html background-color MUST stay var(--ps-felt-tint) forever. Transparent
@@ -124,8 +124,9 @@ body {
   background-image: none !important;
 }
 
-/* Appearance-matched status veil (dark→black, light→white). Sits in the
- * safe-area strip so the residual iOS frost reads as intentional chrome. */
+/* Appearance-matched status veil (dark→black, light→white). Neutral overlay
+ * only — darkens/lightens felt underneath; never a felt-tinted paint. Sits
+ * above #root (z 1) and below splash (z 10050). Hidden while splash is up. */
 body::before {
   content: "" !important;
   position: fixed !important;
@@ -142,6 +143,10 @@ body::before {
     var(--ps-status-veil) 45%,
     transparent 100%
   ) !important;
+}
+
+html.ps-splash-active body::before {
+  opacity: 0 !important;
 }
 
 /* 1px chin seal — under #root so splash/app cover it; visible only in a UA gap. */
