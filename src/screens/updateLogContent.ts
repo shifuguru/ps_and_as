@@ -32,7 +32,7 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-07-30T20:50"),
+    publishedAt: nzst("2026-07-30T20:49"),
     title: "iPhone edges and online players cleanup",
     items: [
       "iPhone Home Screen — the top and bottom edge bands now follow Light or Dark mode instead of picking up your felt colour",
