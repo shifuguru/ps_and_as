@@ -674,19 +674,29 @@ export default function CreateGame({
         }
       }
       if (ev.type === "state" && ev.state?.type === "connected") {
-        const myProfileId = playerIdRef.current;
-        if (myProfileId && ev.state.id === myProfileId) {
-          setLocalId(ev.state.id);
-          localIdRef.current = ev.state.id;
-          if (usingMock) setHostId(ev.state.id);
-          setConnectionStatus("connected");
-        } else if (
-          usingMock &&
-          typeof ev.state.name === "string" &&
-          cpuBotNamesRef.current.includes(ev.state.name) &&
-          actualRoomId
-        ) {
-          (net as MockAdapter).toggleReady(actualRoomId, ev.state.id, true);
+        if (onlineLobby) {
+          // Server seat id is authoritative (may differ from local profile id).
+          if (typeof ev.state.id === "string" && ev.state.id) {
+            setLocalId(ev.state.id);
+            localIdRef.current = ev.state.id;
+            playerIdRef.current = ev.state.id;
+            setConnectionStatus("connected");
+          }
+        } else {
+          const myProfileId = playerIdRef.current;
+          if (myProfileId && ev.state.id === myProfileId) {
+            setLocalId(ev.state.id);
+            localIdRef.current = ev.state.id;
+            if (usingMock) setHostId(ev.state.id);
+            setConnectionStatus("connected");
+          } else if (
+            usingMock &&
+            typeof ev.state.name === "string" &&
+            cpuBotNamesRef.current.includes(ev.state.name) &&
+            actualRoomId
+          ) {
+            (net as MockAdapter).toggleReady(actualRoomId, ev.state.id, true);
+          }
         }
       }
       if (ev.type === "state" && ev.state?.type === "playerRemoved") {
