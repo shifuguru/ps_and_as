@@ -32,7 +32,7 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-07-30T15:54"),
+    publishedAt: nzst("2026-07-30T15:55"),
     title: "Choose your name, clearer looks & private hands online",
     items: [
       "First open — pick the name other players will see before you hit the Home Hub",
