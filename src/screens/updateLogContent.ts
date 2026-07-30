@@ -400,7 +400,7 @@ export const KNOWN_ISSUES: KnownIssue[] = [
   {
     title: "Home Screen edges on iPhone",
     status: "Looking into it",
-    updatedAt: nzst("2026-07-30T19:50"),
+    updatedAt: nzst("2026-07-30T19:54"),
     note: "Top frost should only darken or lighten the felt from dark/light mode — not recolor from your felt tint. Splash should cover the frost. Force-close and reopen after updating to check.",
   },
   {
