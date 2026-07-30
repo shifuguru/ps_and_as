@@ -21,16 +21,25 @@
  * an empty bottom bar (https://dev.to/karmasakshi/make-your-pwas-look-handsome-on-ios-1o08).
  *
  * Do not ship theme-color meta — it paints a frosted status-bar band on iOS.
- * Standalone shell: --app-height:auto + inset 0 (not 100lvh) to avoid a felt
- * footer strip under the home indicator.
+ * Standalone shell: explicit height 100vh / 100lvh (large viewport). Fixed
+ * inset:0 alone uses the lying small viewport and leaves a bottom felt gap.
  */
 :root {
   --ps-felt-tint: #0f5132;
   --ps-felt-tint-overlay: transparent;
   --ps-felt-texture: none;
-  --app-shell-h: 100%;
-  --app-height: auto;
+  --app-shell-h: 100dvh;
+  --app-height: var(--app-shell-h);
   --app-shell-top: 0px;
+}
+
+/* Home Screen: large viewport units only. 100dvh lies short by safe-area-top. */
+@media all and (display-mode: standalone) {
+  :root {
+    --app-shell-h: 100vh;
+    --app-height: 100vh;
+    --app-shell-top: 0px;
+  }
 }
 
 /* Document owns wallpaper permanently — never cleared after env ready.
@@ -130,23 +139,36 @@ body {
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
-  bottom: 0 !important;
+  bottom: auto !important;
   width: 100% !important;
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
   overscroll-behavior: none !important;
   touch-action: manipulation !important;
+  /* Prefer large viewport last — 100dvh lies short on iOS Home Screen. */
   height: 100% !important;
   height: 100dvh !important;
   height: 100lvh !important;
+  height: 100vh !important;
   max-height: none !important;
   min-height: 100% !important;
   min-height: 100dvh !important;
   min-height: 100lvh !important;
+  min-height: 100vh !important;
   min-height: -webkit-fill-available !important;
   background-color: transparent !important;
   background-image: none !important;
+}
+
+@media all and (display-mode: standalone) {
+  body {
+    height: 100vh !important;
+    height: 100lvh !important;
+    min-height: 100vh !important;
+    min-height: 100lvh !important;
+    bottom: auto !important;
+  }
 }
 
 /**
@@ -210,7 +232,7 @@ body {
   top: var(--app-shell-top, 0px) !important;
   left: 0 !important;
   right: 0 !important;
-  bottom: 0 !important;
+  bottom: auto !important;
   display: flex !important;
   flex-direction: column !important;
   flex: 1 !important;
@@ -218,8 +240,8 @@ body {
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
-  /* Standalone: auto + bottom:0 = true edge-to-edge. Safari tab: pixel --app-height. */
-  height: var(--app-height, auto) !important;
+  /* Standalone boot / media sets 100vh; Safari tab JS may override with pixels. */
+  height: var(--app-height, 100dvh) !important;
   max-height: none !important;
   min-height: 0 !important;
   background-color: transparent !important;
@@ -231,9 +253,9 @@ body {
   top: var(--app-shell-top, 0px) !important;
   left: 0 !important;
   right: 0 !important;
-  bottom: 0 !important;
+  bottom: auto !important;
   width: 100% !important;
-  height: var(--app-height, auto) !important;
+  height: var(--app-height, 100dvh) !important;
   max-height: none !important;
   min-height: 0 !important;
   pointer-events: none !important;
@@ -250,14 +272,26 @@ body {
   top: var(--app-shell-top, 0px) !important;
   left: 0 !important;
   right: 0 !important;
-  bottom: 0 !important;
+  bottom: auto !important;
   width: 100% !important;
-  height: var(--app-height, auto) !important;
+  height: var(--app-height, 100dvh) !important;
   max-height: none !important;
   min-height: 0 !important;
   pointer-events: none !important;
   z-index: 300 !important;
   overflow: hidden !important;
+}
+
+@media all and (display-mode: standalone) {
+  #root,
+  #ps-body-portal,
+  #ps-overlay-portal {
+    height: 100vh !important;
+    height: 100lvh !important;
+    max-height: none !important;
+    bottom: auto !important;
+    top: 0 !important;
+  }
 }
 
 #ps-overlay-portal > * {
