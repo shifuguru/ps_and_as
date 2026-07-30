@@ -69,6 +69,7 @@ type WebDocument = {
   createElement: (tag: string) => any;
   documentElement: any;
   querySelector?: (selector: string) => any;
+  head?: any;
 };
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -81,10 +82,7 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
 
 /**
  * Remove <meta name="theme-color"> so iOS Home Screen does not paint a frosted
- * status-bar / safe-area chrome tint (it was stuck on default casino green via
- * the build-time #0f5132 meta + manifest). With apple-mobile-web-app-status-bar-style
- * black-translucent, the notch region composites html's background-color — keep
- * that colour as the live felt tint (never transparent).
+ * status-bar / safe-area chrome tint stuck on a felt colour.
  */
 export function clearWebThemeColorMeta(doc: WebDocument): void {
   const head = (doc as { head?: any }).head;
@@ -94,6 +92,44 @@ export function clearWebThemeColorMeta(doc: WebDocument): void {
   for (let i = metas.length - 1; i >= 0; i--) {
     metas[i]?.parentNode?.removeChild?.(metas[i]);
   }
+}
+
+/**
+ * Drive the residual iOS status-bar frost from appearance mode:
+ * dark → black veil, light → white veil. Also sets CSS color-scheme so system
+ * chrome matches. Never use felt green here — that was the stuck casino band.
+ */
+export function syncWebAppearanceChrome(
+  mode: ThemeMode,
+  doc: WebDocument = (globalThis as { document?: WebDocument }).document as WebDocument,
+): void {
+  if (Platform.OS !== "web" || !doc?.documentElement) return;
+
+  const isDark = mode !== "light";
+  const root = doc.documentElement;
+  const veil = isDark ? "#000000" : "#ffffff";
+
+  root.style.colorScheme = isDark ? "dark" : "light";
+  root.setAttribute("data-ps-theme", isDark ? "dark" : "light");
+  root.style.setProperty(
+    "--ps-status-veil",
+    isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.55)",
+  );
+
+  const head = (doc as { head?: any }).head;
+  if (!head?.querySelectorAll || !doc.createElement) return;
+
+  const existing = head.querySelectorAll('meta[name="theme-color"]');
+  for (let i = existing.length - 1; i >= 1; i--) {
+    existing[i]?.parentNode?.removeChild?.(existing[i]);
+  }
+  let meta = existing[0];
+  if (!meta) {
+    meta = doc.createElement("meta");
+    meta.setAttribute("name", "theme-color");
+    head.appendChild(meta);
+  }
+  meta.setAttribute("content", veil);
 }
 
 function clearShellInlineGeometry(el: any): void {
@@ -189,8 +225,8 @@ export function ensureWebFeltBackdrop(
   rootStyle.setProperty("--ps-felt-texture", `url("${url}")`);
   rootStyle.setProperty("--ps-theme-mode", mode);
 
-  // Drop theme-color chrome — do not retint it to felt (that still draws a band).
-  clearWebThemeColorMeta(doc);
+  // Status-bar frost follows appearance (dark/light), not felt green.
+  syncWebAppearanceChrome(mode, doc);
 
   const layer = getOrCreateEnvironmentLayer(doc);
   const lighting = layer.querySelector(".ps-env-lighting");

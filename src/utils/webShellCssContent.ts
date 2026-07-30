@@ -4,17 +4,9 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
 /**
  * Runtime shell CSS (dev + production fallback). Keep in sync with web-shell.css.
  *
- * Chin-gap root cause (Reddit r/PWA "fighting the chin gap"):
- *   standalone + viewport-fit=cover + black-translucent + height:100%
- *   → body offset behind status bar without height expanding → bottom gap.
- * Confirmed fix: height:100vh on html/body/#root. Keep black-translucent.
- *
- * Status bar “no band”: black-translucent makes the chrome transparent; icons
- * float over html’s felt. html background-color stays var(--ps-felt-tint)
- * (transparent → dark frost). body stays transparent (opaque body → solid band).
- *
- * Safe-area pads interactive chrome only (.ps-bottom-bar-shell) — never the shell.
- * Do not ship theme-color meta (frosted status-bar band on iOS).
+ * Chin-gap: height calc(100vh + 2px) on html/body/#root (not height:100%).
+ * Status frost: appearance-matched theme-color + --ps-status-veil (dark/light).
+ * html background-color stays var(--ps-felt-tint); body stays transparent.
  */
 export function getWebShellCssText(feltTint: string): string {
   return `
@@ -22,22 +14,26 @@ export function getWebShellCssText(feltTint: string): string {
       --ps-felt-tint: ${feltTint};
       --ps-felt-tint-overlay: transparent;
       --ps-felt-texture: none;
-      --app-shell-h: 100vh;
-      --app-height: 100vh;
+      --ps-status-veil: rgba(0, 0, 0, 0.5);
+      --ps-shell-paint-h: calc(100vh + 2px);
+      --app-shell-h: calc(100vh + 2px);
+      --app-height: calc(100vh + 2px);
       --app-shell-top: 0px;
+      color-scheme: dark;
     }
     html {
       position: relative !important;
       width: 100% !important;
-      height: 100vh !important;
+      height: var(--ps-shell-paint-h) !important;
       margin: 0 !important;
       padding: 0 !important;
       box-sizing: border-box !important;
-      overflow: hidden !important;
+      overflow-x: hidden !important;
+      overflow-y: hidden !important;
       overscroll-behavior: none !important;
       touch-action: manipulation !important;
       max-height: none !important;
-      min-height: 100vh !important;
+      min-height: var(--ps-shell-paint-h) !important;
       background-color: var(--ps-felt-tint) !important;
       background-image:
         linear-gradient(
@@ -59,12 +55,12 @@ export function getWebShellCssText(feltTint: string): string {
       top: calc(0px - env(safe-area-inset-top, 0px)) !important;
       width: 100% !important;
       height: calc(
-        100vh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom) + 2px
+        100vh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom) + 4px
       ) !important;
       height: calc(
-        100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 2px
+        100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 4px
       ) !important;
-      min-height: 100vh !important;
+      min-height: var(--ps-shell-paint-h) !important;
       z-index: -1 !important;
       pointer-events: none !important;
       background-color: var(--ps-felt-tint) !important;
@@ -86,8 +82,8 @@ export function getWebShellCssText(feltTint: string): string {
       right: 0 !important;
       bottom: auto !important;
       width: 100% !important;
-      height: 100vh !important;
-      min-height: 100vh !important;
+      height: var(--ps-shell-paint-h) !important;
+      min-height: var(--ps-shell-paint-h) !important;
       margin: 0 !important;
       padding: 0 !important;
       overflow: hidden !important;
@@ -97,6 +93,34 @@ export function getWebShellCssText(feltTint: string): string {
       background-color: transparent !important;
       background-image: none !important;
     }
+    body::before {
+      content: "" !important;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      height: constant(safe-area-inset-top) !important;
+      height: env(safe-area-inset-top, 0px) !important;
+      z-index: 10002 !important;
+      pointer-events: none !important;
+      background: linear-gradient(
+        to bottom,
+        var(--ps-status-veil) 0%,
+        var(--ps-status-veil) 45%,
+        transparent 100%
+      ) !important;
+    }
+    body::after {
+      content: "" !important;
+      position: fixed !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: -3px !important;
+      height: 5px !important;
+      z-index: 0 !important;
+      pointer-events: none !important;
+      background-color: var(--ps-felt-tint) !important;
+    }
     #ps-felt-layer,
     .ps-environment-layer {
       position: fixed !important;
@@ -105,9 +129,9 @@ export function getWebShellCssText(feltTint: string): string {
       right: 0 !important;
       bottom: auto !important;
       width: 100% !important;
-      height: 100vh !important;
+      height: var(--ps-shell-paint-h) !important;
       max-height: none !important;
-      min-height: 100vh !important;
+      min-height: var(--ps-shell-paint-h) !important;
       z-index: 0 !important;
       pointer-events: none !important;
       overflow: hidden !important;
@@ -153,7 +177,7 @@ export function getWebShellCssText(feltTint: string): string {
       margin: 0 !important;
       padding: 0 !important;
       overflow: hidden !important;
-      height: var(--app-height, 100vh) !important;
+      height: var(--app-height, var(--ps-shell-paint-h)) !important;
       max-height: none !important;
       min-height: 0 !important;
       background-color: transparent !important;
@@ -166,7 +190,7 @@ export function getWebShellCssText(feltTint: string): string {
       right: 0 !important;
       bottom: auto !important;
       width: 100% !important;
-      height: var(--app-height, 100vh) !important;
+      height: var(--app-height, var(--ps-shell-paint-h)) !important;
       max-height: none !important;
       min-height: 0 !important;
       pointer-events: none !important;
@@ -181,7 +205,7 @@ export function getWebShellCssText(feltTint: string): string {
       right: 0 !important;
       bottom: auto !important;
       width: 100% !important;
-      height: var(--app-height, 100vh) !important;
+      height: var(--app-height, var(--ps-shell-paint-h)) !important;
       max-height: none !important;
       min-height: 0 !important;
       pointer-events: none !important;
@@ -196,9 +220,9 @@ export function getWebShellCssText(feltTint: string): string {
       right: 0 !important;
       bottom: auto !important;
       width: 100% !important;
-      height: 100vh !important;
+      height: var(--ps-shell-paint-h) !important;
       max-height: none !important;
-      min-height: 100vh !important;
+      min-height: var(--ps-shell-paint-h) !important;
       z-index: 0 !important;
       pointer-events: none !important;
     }

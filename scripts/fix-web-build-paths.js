@@ -33,13 +33,13 @@ function patchExpoReset(html) {
   const reset = `<style id="expo-reset">
       /* iOS PWA chin-gap fix: height:100% + black-translucent + viewport-fit=cover
          offsets the body behind the status bar without expanding height.
-         Use 100vh (Reddit r/PWA "fighting the chin gap"). */
+         Use 100vh+2px to cover a 1px UA chin. */
       html,
       body {
         margin: 0;
         padding: 0;
         width: 100%;
-        height: 100vh;
+        height: calc(100vh + 2px);
         overflow: hidden;
         overscroll-behavior: none;
       }
@@ -48,7 +48,7 @@ function patchExpoReset(html) {
         flex-direction: column;
         flex: 1;
         width: 100%;
-        height: 100vh;
+        height: calc(100vh + 2px);
         min-height: 0;
         overflow: hidden;
       }
@@ -91,12 +91,15 @@ function patchViewport(html) {
   html = patchExpoReset(html);
   html = patchShellAssets(html, basePath);
 
-  // Do NOT inject theme-color — on iOS Home Screen it paints a frosted status-bar
-  // band (often stuck on default casino green). black-translucent + document
-  // wallpaper is the full-bleed path. Strip any Expo/default leftovers.
+  // Default dark theme-color (appearance chrome). JS retints to white in light
+  // mode. Never inject felt green — that stuck as a casino status-bar band.
   html = html.replace(
     /\s*<meta[^>]*name=["']theme-color["'][^>]*>\s*/gi,
     "\n",
+  );
+  html = html.replace(
+    "<head>",
+    `<head>\n    <meta name="theme-color" content="#000000" />`,
   );
 
   const appleBar =
@@ -249,14 +252,25 @@ function injectEarlyShellHeight(html) {
     }catch(e){ return false; }
   }
   try{
+    var html=document.documentElement;
+    html.style.colorScheme="dark";
+    html.setAttribute("data-ps-theme","dark");
+    html.style.setProperty("--ps-status-veil","rgba(0,0,0,0.5)");
     var metas=document.querySelectorAll('meta[name="theme-color"]');
-    for(var i=metas.length-1;i>=0;i--) metas[i].parentNode.removeChild(metas[i]);
+    for(var i=metas.length-1;i>=1;i--) metas[i].parentNode.removeChild(metas[i]);
+    var meta=metas[0];
+    if(!meta){
+      meta=document.createElement("meta");
+      meta.setAttribute("name","theme-color");
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute("content","#000000");
   }catch(e){}
   function sync(){
     var r=document.documentElement.style;
     if(isStandalone()){
-      r.setProperty("--app-shell-h","100vh");
-      r.setProperty("--app-height","100vh");
+      r.setProperty("--app-shell-h","calc(100vh + 2px)");
+      r.setProperty("--app-height","calc(100vh + 2px)");
       r.setProperty("--app-shell-top","0px");
       return;
     }
