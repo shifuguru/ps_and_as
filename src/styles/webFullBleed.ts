@@ -35,8 +35,8 @@ export const WEB_FULL_BLEED_FIXED =
     : null;
 
 /**
- * Splash must sit above the status veil (body::before @ 10002) and crash chrome.
- * On web, portal this node to document.body — z-index inside #root cannot win.
+ * Splash must sit above the fixed shell and body portals on web.
+ * Portal this node to document.body — z-index inside #root cannot win.
  */
 export const WEB_SPLASH_Z_INDEX = 10050;
 
@@ -87,8 +87,8 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
 }
 
 /**
- * Remove <meta name="theme-color"> so iOS Home Screen does not paint a frosted
- * status-bar / safe-area chrome tint stuck on a felt colour.
+ * Remove <meta name="theme-color"> so standalone iOS does not get an
+ * app-specified status-region tint before the runtime shell takes over.
  */
 export function clearWebThemeColorMeta(doc: WebDocument): void {
   const head = (doc as { head?: any }).head;

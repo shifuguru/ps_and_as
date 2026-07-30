@@ -13,14 +13,13 @@
  * Confirmed fix: height:100vh on html/body/#root. Keep black-translucent.
  *
  * Dynamic Island / top:
- * iOS black-translucent makes the STATUS BAR chrome translucent — icons float
- * over the page. A residual frost/gradient often remains; we drive its colour
- * from appearance via theme-color + color-scheme + --ps-status-veil:
- * dark → black veil, light → white veil (never felt tint — only darken/lighten).
+ * The document element itself owns the wallpaper under the status region.
+ * Do not add a second full-display pseudo-element here: separate geometry for
+ * html and html::before creates a real seam where iOS transitions between the
+ * main viewport and the safe-area sample.
  *
  * What must be underneath: html’s felt stack (background-color + texture).
- * - html background-color MUST stay var(--ps-felt-tint) forever. Transparent
- *   here → iOS falls back to a dark frosted band (v1.1.17 regression).
+ * - html background-color MUST stay var(--ps-felt-tint) forever.
  * - body MUST stay transparent so that felt is visible under the icons.
  * - Never clear the sample colour on .ps-env-ready.
  *
@@ -70,39 +69,6 @@ html {
   background-attachment: scroll, scroll !important;
 }
 
-/* Full-display wallpaper plane — extend past safe areas so the wallpaper runs
- * edge to edge without custom top/bottom chrome bands.
- */
-html::before {
-  content: "" !important;
-  position: fixed !important;
-  left: 0 !important;
-  right: 0 !important;
-  top: calc(0px - constant(safe-area-inset-top)) !important;
-  top: calc(0px - env(safe-area-inset-top, 0px)) !important;
-  width: 100% !important;
-  height: calc(
-    100vh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom) + 4px
-  ) !important;
-  height: calc(
-    100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 4px
-  ) !important;
-  min-height: var(--ps-shell-paint-h) !important;
-  z-index: -1 !important;
-  pointer-events: none !important;
-  background-color: var(--ps-felt-tint) !important;
-  background-image:
-    linear-gradient(
-      var(--ps-felt-tint-overlay),
-      var(--ps-felt-tint-overlay)
-    ),
-    var(--ps-felt-texture) !important;
-  background-size: 100% 100%, cover !important;
-  background-position: center center, center center !important;
-  background-repeat: no-repeat, no-repeat !important;
-  background-attachment: scroll, scroll !important;
-}
-
 body {
   position: fixed !important;
   top: 0 !important;
@@ -125,10 +91,6 @@ body {
 
 body::before {
   content: none !important;
-}
-
-html.ps-splash-active body::before {
-  opacity: 0 !important;
 }
 
 body::after {

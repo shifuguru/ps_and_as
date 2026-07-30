@@ -7,7 +7,6 @@
     <meta name="apple-mobile-web-app-title" content="P's &amp; A's" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" content="#000000" />
     <script>window.__PS_AND_AS_BUILD__={"version":"1.1.22","buildId":"21d4fe83fbda646181e815c89f54d469aebcc4f7","builtAt":"2026-07-30T08:56:55.637Z","codename":"Ace Up the Sleeve","channel":"production"};</script>
     <script>
 (function(){
@@ -19,11 +18,8 @@
   }
   try{
     var html=document.documentElement;
-    html.classList.add("ps-splash-active");
     html.style.colorScheme="dark";
     html.setAttribute("data-ps-theme","dark");
-    var metas=document.querySelectorAll('meta[name="theme-color"]');
-    for(var i=metas.length-1;i>=0;i--) metas[i].parentNode.removeChild(metas[i]);
   }catch(e){}
   function sync(){
     var r=document.documentElement.style;

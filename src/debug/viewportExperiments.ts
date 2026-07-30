@@ -1,7 +1,7 @@
 /**
  * Reversible, query-gated Safari compositing experiments.
  *
- * Enable with `?viewportExperiment=N` (1–5). Absent → no effect, zero cost.
+ * Enable with `?viewportExperiment=N` (1–6). Absent → no effect, zero cost.
  * These experiments TEMPORARILY mutate runtime styles to prove which layer
  * Safari's translucent toolbar composites from. They do NOT change the shipped
  * wallpaper architecture; everything is applied via a single injected <style>

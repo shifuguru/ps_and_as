@@ -91,15 +91,11 @@ function patchViewport(html) {
   html = patchExpoReset(html);
   html = patchShellAssets(html, basePath);
 
-  // Default dark theme-color (appearance chrome). JS retints to white in light
-  // mode. Never inject felt green — that stuck as a casino status-bar band.
+  // Strip theme-color entirely: the runtime shell keeps color-scheme in sync,
+  // and iOS Home Screen should not receive an app-specified status-region tint.
   html = html.replace(
     /\s*<meta[^>]*name=["']theme-color["'][^>]*>\s*/gi,
     "\n",
-  );
-  html = html.replace(
-    "<head>",
-    `<head>\n    <meta name="theme-color" content="#000000" />`,
   );
 
   const appleBar =
@@ -254,11 +250,8 @@ function injectEarlyShellHeight(html) {
   }
   try{
     var html=document.documentElement;
-    html.classList.add("ps-splash-active");
     html.style.colorScheme="dark";
     html.setAttribute("data-ps-theme","dark");
-    var metas=document.querySelectorAll('meta[name="theme-color"]');
-    for(var i=metas.length-1;i>=0;i--) metas[i].parentNode.removeChild(metas[i]);
   }catch(e){}
   function sync(){
     var r=document.documentElement.style;
