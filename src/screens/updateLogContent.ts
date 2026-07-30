@@ -32,6 +32,16 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-30T15:54"),
+    title: "Choose your name, clearer looks & private hands online",
+    items: [
+      "First open — pick the name other players will see before you hit the Home Hub",
+      "Look & feel — clearer light and dark text, stronger buttons, and a refreshed Customise Theme picker in Settings",
+      "Phones — the app stays in portrait so the table doesn’t tip sideways",
+      "Online — your hand stays private from opponents and spectators during trades",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-17T15:09"),
     title: "See the last play before round end",
     items: [
