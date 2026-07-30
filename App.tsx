@@ -626,14 +626,15 @@ function AppContent() {
           (isMobileWeb()
             ? isStandaloneWebApp()
               ? ({
-                  // Home Screen: largest viewport (100lvh) so nothing sits under a footer gap.
+                  // Home Screen: true edge-to-edge — no 100lvh clamp (that left
+                  // a felt strip under the home indicator on some iPhones).
                   position: "fixed",
                   top: 0,
                   left: 0,
                   right: 0,
                   bottom: 0,
                   width: "100%",
-                  height: "100lvh",
+                  height: "auto",
                   maxHeight: "none",
                   overflow: "hidden",
                 } as object)

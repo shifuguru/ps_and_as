@@ -32,12 +32,12 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-07-30T16:27"),
-    title: "Name setup on phones",
+    publishedAt: nzst("2026-07-30T16:35"),
+    title: "Full-screen phones & name setup",
     items: [
+      "Home Screen — no tinted status-bar or home-indicator colour bands; the felt goes edge to edge",
       "First open — the name box sits above the keyboard when you tap it (no more typing behind it)",
       "Home Screen — wallpaper stays put when the keyboard opens",
-      "Theme — the top phone chrome follows your felt colour",
     ],
   },
   {

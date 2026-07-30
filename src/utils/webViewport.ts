@@ -247,11 +247,14 @@ function applyShellGeometry(
   }
 
   // Always pin Home Screen PWAs — keyboard must not unpin the shell.
+  // Use true inset:0 (no 100lvh height clamp). Fixed lvh undershoots the
+  // display on some iOS PWAs and leaves a felt-colored strip below the app
+  // (and a mismatched theme-color band above).
   const pinToDisplay = isStandaloneWebApp();
 
   if (pinToDisplay) {
-    doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, "100lvh");
-    doc.documentElement.style.setProperty(APP_HEIGHT_VAR, "100lvh");
+    doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, "100%");
+    doc.documentElement.style.setProperty(APP_HEIGHT_VAR, "auto");
     doc.documentElement.style.setProperty(APP_SHELL_TOP_VAR, "0px");
 
     for (const el of targets) {
@@ -260,14 +263,14 @@ function applyShellGeometry(
       el.style.left = "0px";
       el.style.right = "0px";
       el.style.bottom = "0px";
-      el.style.height = "100lvh";
+      el.style.removeProperty("height");
       el.style.maxHeight = "none";
       el.style.minHeight = "0";
     }
 
     if (isViewportDebugEnabled() && calc) {
       traceAppHeightApply(heightPx, 0, calc, `${caller}+standalonePin`, [
-        "standalone → #root/portals 100lvh + inset 0",
+        "standalone → #root/portals inset 0 (height auto, no lvh clamp)",
       ]);
     }
     return;
@@ -481,12 +484,12 @@ export function installWebShellCss(feltTint: string): () => void {
 
   doc.documentElement.style.setProperty("--ps-felt-tint", feltTint);
 
-  // Align PWA chrome with the boot felt tint (FeltBackground refines via displayTint).
+  // Never leave a theme-color meta that paints iOS status-bar chrome.
   const head = doc.head;
-  if (head?.querySelector) {
+  if (head?.querySelectorAll) {
     const metas = head.querySelectorAll('meta[name="theme-color"]');
-    if (metas?.length) {
-      for (const meta of metas) meta.setAttribute("content", feltTint);
+    for (let i = metas.length - 1; i >= 0; i--) {
+      metas[i]?.parentNode?.removeChild?.(metas[i]);
     }
   }
 
