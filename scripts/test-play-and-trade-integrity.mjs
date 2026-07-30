@@ -274,12 +274,90 @@ function testOfflineTradeReplayRejected() {
   console.log("ok: offline trade replay rejected");
 }
 
+function testInvalidAtomicTenDirectionRejected() {
+  const ten = card("hearts", 10);
+  const before = buildPlayState([ten, card("clubs", 5)]);
+  const after = playCards(before, "p1", [ten], {
+    tenRuleDirection: { bad: true },
+  });
+  assert(after === before, "non-string tenRuleDirection must be rejected");
+  assert(
+    before.tenRule?.direction == null || before.tenRule.direction === null,
+    "tenRule direction must not be set to an object",
+  );
+  assert((before.pile || []).length === 0, "pile must stay empty on reject");
+  console.log("ok: invalid atomic tenRuleDirection rejected");
+}
+
+function testServerAtomicTenGuardPresent() {
+  const fs = require("fs");
+  const src = fs.readFileSync(
+    path.join(__dirname, "../server/index.js"),
+    "utf8",
+  );
+  assert(
+    src.includes("Invalid ten-rule direction") &&
+      src.includes("atomicTenDir"),
+    "server gameAction play path must validate atomic tenRuleDirection",
+  );
+  console.log("ok: server atomic ten-rule direction guard present");
+}
+
+function testBotSpectatorRetentionOnLeave() {
+  const botHosted = require("../server/botHostedRooms.js");
+  const room = {
+    isBotHosted: true,
+    inGame: false,
+    gameState: null,
+    host: "cpu-1",
+    players: [
+      { id: "cpu-1", name: "Bot", profileId: "cpu-1" },
+      {
+        id: "spec-keep",
+        name: "Watcher",
+        isSpectator: true,
+        disconnectedAt: null,
+      },
+      {
+        id: "spec-gone",
+        name: "Left",
+        isSpectator: true,
+        disconnectedAt: Date.now(),
+      },
+      {
+        id: "human",
+        name: "Seated",
+        isSpectator: false,
+        disconnectedAt: null,
+      },
+    ],
+  };
+  botHosted.afterBotRoomPlayerLeft(room, "BOTOPN", {
+    isRoundComplete: () => false,
+    tryStartNextRoundIfReady() {},
+  });
+  const ids = room.players.map((p) => p.id);
+  assert(
+    ids.includes("spec-keep"),
+    "connected spectator must remain after another player leaves",
+  );
+  assert(
+    !ids.includes("spec-gone"),
+    "disconnected spectator should be cleaned up",
+  );
+  assert(ids.includes("human"), "connected seated human must remain");
+  console.log("ok: bot-table connected spectators retained on leave");
+}
+
 function main() {
   testDuplicatePlayRejected();
   testLegitimatePairStillWorks();
   testTradeReplayRejected();
   testOfflineTradeReplayRejected();
   testServerTradeGuardPresent();
+  testInvalidAtomicTenDirectionRejected();
+  testServerAtomicTenGuardPresent();
+  testBotSpectatorRetentionOnLeave();
   console.log("\nAll play/trade integrity checks passed.");
 }
 
