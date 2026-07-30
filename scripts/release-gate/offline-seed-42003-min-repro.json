@@ -1,0 +1,231 @@
+{
+  "seed": 42003,
+  "failStep": 81,
+  "bareSim": {
+    "ok": true,
+    "steps": 80,
+    "reason": "complete",
+    "lastMutator": "playCards [10]",
+    "stateAtFailure": {
+      "currentPlayerIndex": 3,
+      "currentPlayerId": "4",
+      "stillIn": false,
+      "finishedOrder": [
+        "3",
+        "1",
+        "4",
+        "2"
+      ],
+      "handLens": [
+        {
+          "id": "1",
+          "n": 0
+        },
+        {
+          "id": "2",
+          "n": 1
+        },
+        {
+          "id": "3",
+          "n": 0
+        },
+        {
+          "id": "4",
+          "n": 0
+        }
+      ],
+      "trickActions": 0,
+      "trickNum": 11,
+      "pileLen": 0,
+      "passCount": 0,
+      "lastPlayPlayerIndex": null,
+      "runOnTop": null
+    },
+    "window": [
+      {
+        "step": 79,
+        "before": {
+          "currentPlayerIndex": 3,
+          "currentPlayerId": "4",
+          "stillIn": true,
+          "finishedOrder": [
+            "3",
+            "1"
+          ],
+          "handLens": [
+            {
+              "id": "1",
+              "n": 0
+            },
+            {
+              "id": "2",
+              "n": 1
+            },
+            {
+              "id": "3",
+              "n": 0
+            },
+            {
+              "id": "4",
+              "n": 1
+            }
+          ],
+          "trickActions": 2,
+          "trickNum": 10,
+          "pileLen": 1,
+          "passCount": 1,
+          "lastPlayPlayerIndex": 0,
+          "runOnTop": null
+        },
+        "mutator": "passTurn",
+        "after": {
+          "currentPlayerIndex": 3,
+          "currentPlayerId": "4",
+          "stillIn": true,
+          "finishedOrder": [
+            "3",
+            "1"
+          ],
+          "handLens": [
+            {
+              "id": "1",
+              "n": 0
+            },
+            {
+              "id": "2",
+              "n": 1
+            },
+            {
+              "id": "3",
+              "n": 0
+            },
+            {
+              "id": "4",
+              "n": 1
+            }
+          ],
+          "trickActions": 2,
+          "trickNum": 10,
+          "pileLen": 1,
+          "passCount": 1,
+          "lastPlayPlayerIndex": 0,
+          "runOnTop": null
+        }
+      },
+      {
+        "step": 80,
+        "before": {
+          "currentPlayerIndex": 3,
+          "currentPlayerId": "4",
+          "stillIn": false,
+          "finishedOrder": [
+            "3",
+            "1",
+            "4"
+          ],
+          "handLens": [
+            {
+              "id": "1",
+              "n": 0
+            },
+            {
+              "id": "2",
+              "n": 1
+            },
+            {
+              "id": "3",
+              "n": 0
+            },
+            {
+              "id": "4",
+              "n": 0
+            }
+          ],
+          "trickActions": 3,
+          "trickNum": 10,
+          "pileLen": 1,
+          "passCount": 1,
+          "lastPlayPlayerIndex": 3,
+          "runOnTop": null
+        },
+        "mutator": "playCards [10]",
+        "after": {
+          "currentPlayerIndex": 3,
+          "currentPlayerId": "4",
+          "stillIn": false,
+          "finishedOrder": [
+            "3",
+            "1",
+            "4",
+            "2"
+          ],
+          "handLens": [
+            {
+              "id": "1",
+              "n": 0
+            },
+            {
+              "id": "2",
+              "n": 1
+            },
+            {
+              "id": "3",
+              "n": 0
+            },
+            {
+              "id": "4",
+              "n": 0
+            }
+          ],
+          "trickActions": 0,
+          "trickNum": 11,
+          "pileLen": 0,
+          "passCount": 0,
+          "lastPlayPlayerIndex": null,
+          "runOnTop": null
+        }
+      }
+    ]
+  },
+  "withPreprocessTurn": {
+    "ok": true,
+    "steps": 80,
+    "reason": "complete",
+    "lastMutator": "playCards [10]",
+    "finalSnap": {
+      "currentPlayerIndex": 3,
+      "currentPlayerId": "4",
+      "stillIn": false,
+      "finishedOrder": [
+        "3",
+        "1",
+        "4",
+        "2"
+      ],
+      "handLens": [
+        {
+          "id": "1",
+          "n": 0
+        },
+        {
+          "id": "2",
+          "n": 1
+        },
+        {
+          "id": "3",
+          "n": 0
+        },
+        {
+          "id": "4",
+          "n": 0
+        }
+      ],
+      "trickActions": 0,
+      "trickNum": 11,
+      "pileLen": 0,
+      "passCount": 0,
+      "lastPlayPlayerIndex": null,
+      "runOnTop": null
+    }
+  }
+}

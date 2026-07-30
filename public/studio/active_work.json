@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-06-20T01:27:59.706Z",
+  "generatedFrom": "work_items.json",
+  "columns": {
+    "investigating": [
+      {
+        "id": "wi-botopn-lifecycle",
+        "title": "BOTOPN between-rounds stall (Cluster C)",
+        "priority": "P0",
+        "owner": "investigation",
+        "startedAt": "2026-06-20T02:30:00.000Z",
+        "updatedAt": "2026-06-20T03:00:00.000Z",
+        "investigation": "studio/delegations/cluster-c-investigation.md",
+        "blockedReason": "Root cause confidence 58% — logging run required",
+        "notes": "botopn-lifecycle gate FAIL. Investigation-only until root cause confidence exceeds 80%."
+      }
+    ],
+    "fixing": [],
+    "testing": [
+      {
+        "id": "wi-rankings-verify",
+        "title": "Rankings before last hand — Human QA Tests 1–3",
+        "priority": "P0",
+        "owner": "regression",
+        "startedAt": "2026-06-06T00:00:00.000Z",
+        "updatedAt": "2026-06-20T01:00:00.000Z",
+        "gapId": "rankings-before-last-hand",
+        "investigation": "ARCHITECTURE_GAPS.md",
+        "notes": "Fixes shipped v1.0.46/v1.0.51; verification incomplete. Check reconnect replay on joinRoom."
+      }
+    ],
+    "blocked": [
+      {
+        "id": "wi-spectator-join",
+        "title": "Spectator auto-spectate — implementation plan (D-008)",
+        "priority": "P0",
+        "owner": "product",
+        "startedAt": "2026-06-08T08:00:00.000Z",
+        "updatedAt": "2026-06-20T01:00:00.000Z",
+        "investigation": "studio/decisions.md",
+        "blockedReason": "Implementation plan delivered — awaiting Director approval (D-008)",
+        "notes": "Director D-008 (2026-06-20): mid-match Join auto-routes to Spectate. Product Agent delivers implementation plan (files, flow, risks). No code until Director approves plan."
+      },
+      {
+        "id": "wi-release-gate",
+        "title": "Release gate v1.0.60 — server slice rerun",
+        "priority": "P0",
+        "owner": "release",
+        "startedAt": "2026-06-08T09:00:00.000Z",
+        "updatedAt": "2026-06-20T01:00:00.000Z",
+        "investigation": "RELEASE_GATE.md",
+        "notes": "Offline gate passed in last partial run. Server gates not confirmed — last failure was spawn/port 4000 (infra). Rerun with stable server."
+      },
+      {
+        "id": "wi-release-readiness-report",
+        "title": "Release Readiness Report v1.0.60",
+        "priority": "P0",
+        "owner": "release",
+        "startedAt": "2026-06-08T16:00:00.000Z",
+        "updatedAt": "2026-06-20T01:00:00.000Z",
+        "investigation": "RELEASE_GATE.md",
+        "blockedReason": "Draft ready — DO NOT SHIP; Director signoff required",
+        "notes": "Orchestrator deliverable: SHIP / SHIP WITH KNOWN ISSUES / DO NOT SHIP after clean full gate run."
+      },
+      {
+        "id": "wi-cpu-takeover",
+        "title": "CPU takeover after disconnect — post-RC design",
+        "priority": "P1",
+        "owner": "architecture",
+        "startedAt": "2026-06-01T00:00:00.000Z",
+        "updatedAt": "2026-06-20T00:30:00.000Z",
+        "gapId": "cpu-takeover-after-disconnect",
+        "investigation": "ARCHITECTURE_GAPS.md",
+        "blockedReason": "Post-RC — blocked on rc-stability-exit (Director D-007)",
+        "notes": "Post-RC per Director D-007 (2026-06-20). Design + implementation in disconnect-persistence phase. Architecture Agent delivers design pack via wi-disconnect-persistence-pack."
+      },
+      {
+        "id": "wi-returning-player",
+        "title": "Returning player after timeout — post-RC",
+        "priority": "P1",
+        "owner": "architecture",
+        "startedAt": "2026-06-01T00:00:00.000Z",
+        "updatedAt": "2026-06-20T00:30:00.000Z",
+        "gapId": "returning-player-after-timeout",
+        "investigation": "ARCHITECTURE_GAPS.md",
+        "blockedReason": "Post-RC — blocked on rc-stability-exit (Director D-007)",
+        "notes": "Post-RC per Director D-007. Ships with CPU takeover in disconnect-persistence phase."
+      },
+      {
+        "id": "wi-ready-gating",
+        "title": "Seated ready-for-next-round gating on betweenRounds",
+        "priority": "P1",
+        "owner": "implementation",
+        "startedAt": "2026-06-01T00:00:00.000Z",
+        "updatedAt": "2026-06-20T00:30:00.000Z",
+        "gapId": "ready-for-next-round-gating",
+        "investigation": "ARCHITECTURE_GAPS.md",
+        "blockedReason": "Paused — requires Director approval before implementation",
+        "notes": "Spectator guard shipped v1.0.54; seated path still open. Implementation requires Director approval."
+      },
+      {
+        "id": "wi-disconnect-timeout",
+        "title": "Disconnect timeout alignment (15 s) — post-RC",
+        "priority": "P1",
+        "owner": "architecture",
+        "startedAt": "2026-06-08T16:00:00.000Z",
+        "updatedAt": "2026-06-20T00:30:00.000Z",
+        "gapId": "disconnect-timeout",
+        "investigation": "ARCHITECTURE_GAPS.md",
+        "blockedReason": "Post-RC — blocked on rc-stability-exit (Director D-007)",
+        "notes": "Post-RC per Director D-007. Fixed 15 s grace aligned server + UI in disconnect-persistence phase."
+      },
+      {
+        "id": "wi-xp-persistence",
+        "title": "XP and progression persistence — Identity & Progression Platform",
+        "priority": "P1",
+        "owner": "architecture",
+        "startedAt": "2026-06-08T16:00:00.000Z",
+        "updatedAt": "2026-06-19T22:30:00.000Z",
+        "gapId": "xp-persistence",
+        "investigation": "ARCHITECTURE_GAPS.md",
+        "blockedReason": "Blocked by rc-stability-exit — epic-identity-progression-platform planning complete; await Director Phase 1 implementation approval after RC exit",
+        "notes": "Director approved Identity & Progression Platform roadmap (2026-06-19). Resolution path: studio/identity-progression-platform.md Phase 1 Foundation. Gap closes when Phase 1 ships. Implementation NOT approved; blocked on rc-stability-exit."
+      },
+      {
+        "id": "epic-identity-progression-platform",
+        "title": "Identity & Progression Platform",
+        "priority": "P1",
+        "owner": "architecture",
+        "startedAt": "2026-06-19T22:30:00.000Z",
+        "updatedAt": "2026-06-19T22:30:00.000Z",
+        "investigation": "studio/identity-progression-platform.md",
+        "blockedReason": "Blocked by rc-stability-exit — no progression or auth code until RC stabilization complete",
+        "notes": "Unified PublicPlayerProfile contract; remote profile viewing; guest-first identity; OAuth; cloud authority; titles; ranked foundations. Director approved roadmap 2026-06-19 — implementation NOT approved."
+      }
+    ],
+    "completed": [
+      {
+        "id": "wi-round-completion",
+        "title": "Penultimate player out — keep D-004 for RC",
+        "priority": "P2",
+        "owner": "product",
+        "startedAt": "2026-06-08T09:00:00.000Z",
+        "updatedAt": "2026-06-20T00:30:00.000Z",
+        "investigation": "src/game/core.ts",
+        "notes": "Director D-009 (2026-06-20): keep current rules for RC. No instant round-end variant."
+      },
+      {
+        "id": "wi-mc-render-fix",
+        "title": "Mission Control render crash fix",
+        "priority": "P1",
+        "owner": "implementation",
+        "startedAt": "2026-06-08T15:00:00.000Z",
+        "updatedAt": "2026-06-08T16:00:00.000Z",
+        "investigation": "src/screens/MissionControlScreen.tsx",
+        "notes": "StatCard/WorkCard styles scope ReferenceError caused blank wallpaper after load. Module-level StyleSheet + AppErrorBoundary on MC route."
+      },
+      {
+        "id": "wi-mc-static-assets",
+        "title": "Mission Control static asset path fix",
+        "priority": "P1",
+        "owner": "implementation",
+        "startedAt": "2026-06-08T15:00:00.000Z",
+        "updatedAt": "2026-06-08T16:00:00.000Z",
+        "investigation": "src/utils/staticAssetPaths.ts",
+        "notes": "resolveStaticAssetUrl — Expo dev serves public/ at server root; deploy uses __PS_AND_AS_BASE__. Fixed local JSON fetch returning HTML."
+      },
+      {
+        "id": "wi-mission-control-2a",
+        "title": "Mission Control Phase 2A — orchestration data model",
+        "priority": "P1",
+        "owner": "implementation",
+        "startedAt": "2026-06-08T14:00:00.000Z",
+        "updatedAt": "2026-06-08T14:30:00.000Z",
+        "investigation": "studio/work_items.json",
+        "notes": "directives, objectives, work_items, agent fleet, dual-write active_work, validation, orchestrator rule"
+      },
+      {
+        "id": "wi-mission-control-p1",
+        "title": "Mission Control Phase 1 — file-backed portal",
+        "priority": "P1",
+        "owner": "implementation",
+        "startedAt": "2026-06-08T12:00:00.000Z",
+        "updatedAt": "2026-06-08T12:00:00.000Z",
+        "investigation": "src/screens/MissionControlScreen.tsx",
+        "notes": "Studio operational command centre at /mission-control"
+      },
+      {
+        "id": "wi-botopn-trick-pause",
+        "title": "BOTOPN spectator trick-winner presentation investigation",
+        "priority": "P2",
+        "owner": "investigation",
+        "startedAt": "2026-06-07T00:00:00.000Z",
+        "updatedAt": "2026-06-08T07:00:00.000Z",
+        "notes": "Trick-pause freeze vs live sync turn ring — presentation/timing, not core ownership."
+      }
+    ]
+  }
+}

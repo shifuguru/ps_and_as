@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-06-08T14:00:00.000Z",
+  "deploy": {
+    "productionUrl": "https://shifuguru.github.io/ps_and_as/",
+    "devUrl": "https://shifuguru.github.io/ps_and_as/dev/",
+    "lastDeploy": {
+      "at": "2026-06-08T06:00:00.000Z",
+      "version": "1.0.60",
+      "buildId": "pending",
+      "channel": "production"
+    },
+    "ciRunsReleaseGate": false
+  },
+  "gate": {
+    "command": "npm run test-release-gate",
+    "rcScope": {
+      "decision": "D-010",
+      "waivedGateIds": ["botopn-lifecycle", "botopn-stall-live"],
+      "waivedReason": "BOTOPN deferred from RC critical path — see studio/BOTOPN_RC_DEFERRAL.md",
+      "rcPassRequires": ["core", "roster", "offline-sim", "turn-headless", "turn-ring", "quick-private-2h", "spectator-promote", "reconnect-rankings", "private-reconnect"]
+    },
+    "lastRun": {
+      "at": "2026-06-08T12:00:00.000Z",
+      "mode": "rc-closure-sprint-consolidated",
+      "result": "pass-rc-scope-with-waiver",
+      "offlineSlice": {
+        "passed": ["core", "roster", "offline-sim", "turn-headless", "turn-ring"],
+        "status": "pass",
+        "note": "core rerun 2026-06-08 PASS"
+      },
+      "serverSlice": {
+        "passed": ["quick-private-2h", "spectator-promote", "reconnect-rankings", "private-reconnect"],
+        "failed": [],
+        "waived": [
+          {
+            "id": "botopn-lifecycle",
+            "message": "Deferred post-RC — Cluster C Phase B (D-010)",
+            "cluster": "C-botopn-lifecycle"
+          },
+          {
+            "id": "botopn-stall-live",
+            "message": "Deferred post-RC — live seating (D-010)",
+            "cluster": "C-botopn-lifecycle-overlap"
+          }
+        ],
+        "status": "pass_rc_scope",
+        "rerunRequired": true,
+        "rerunNote": "Rerun non-BOTOPN server slice for RC-M2 signoff. BOTOPN gates not RC-blocking."
+      },
+      "skipped": [],
+      "durationMs": null
+    },
+    "failureClusters": {
+      "A-client-ceremony": {
+        "gates": [],
+        "productionGap": "multiplayer-round-transition-no-cards",
+        "status": "implemented",
+        "confidence": 0.85
+      },
+      "B-spectator-promotion": {
+        "gates": ["spectator-promote"],
+        "status": "implemented",
+        "confidence": 0.92
+      },
+      "C-botopn-lifecycle": {
+        "gates": ["botopn-lifecycle", "botopn-stall-live"],
+        "status": "deferred-post-rc",
+        "confidence": 0.88,
+        "note": "D-010 — fix scoped; not RC-blocking"
+      }
+    },
+    "gates": [
+      { "id": "core", "layer": "L0", "requiresServer": false, "rcBlocking": true },
+      { "id": "roster", "layer": "L0", "requiresServer": false, "rcBlocking": true },
+      { "id": "offline-sim", "layer": "L1", "requiresServer": false, "rcBlocking": true },
+      { "id": "turn-headless", "layer": "L1", "requiresServer": false, "rcBlocking": true },
+      { "id": "turn-ring", "layer": "L1", "requiresServer": false, "rcBlocking": true },
+      { "id": "quick-private-2h", "layer": "L2", "requiresServer": true, "rcBlocking": true },
+      { "id": "spectator-promote", "layer": "L2", "requiresServer": true, "rcBlocking": true },
+      { "id": "reconnect-rankings", "layer": "L2", "requiresServer": true, "rcBlocking": true },
+      { "id": "private-reconnect", "layer": "L2", "requiresServer": true, "rcBlocking": true },
+      { "id": "botopn-lifecycle", "layer": "L2", "requiresServer": true, "rcBlocking": false, "postRc": true },
+      { "id": "botopn-stall-live", "layer": "L2", "requiresServer": true, "rcBlocking": false, "postRc": true }
+    ]
+  },
+  "releaseConfidence": {
+    "score": 0.78,
+    "label": "medium",
+    "shipRecommendation": "SHIP WITH KNOWN ISSUES",
+    "note": "D-010: BOTOPN off RC path. Clusters A+B implemented; non-BOTOPN gates green; Human QA pending. BOTOPN reactivation post-RC.",
+    "updatedAt": "2026-06-08T14:00:00.000Z"
+  },
+  "blockers": [
+    {
+      "id": "rankings-human-qa",
+      "severity": "P0",
+      "title": "Rankings + round transition Human QA",
+      "detail": "Automated PASS; Director checklist in round-transition-verification-package.md and rankings-qa-package.md"
+    },
+    {
+      "id": "p0-round-transition",
+      "severity": "P0",
+      "title": "Round transition — Human repro pending",
+      "detail": "Cluster A implemented; automated green; production 3× Asshole repro not signed"
+    },
+    {
+      "id": "uncommitted-rc-bundle",
+      "severity": "release",
+      "title": "RC fixes not committed",
+      "detail": "Clusters A+B + presence loop fix in working tree; commit before deploy"
+    },
+    {
+      "id": "botopn-rc-hide",
+      "severity": "release",
+      "title": "Hide BOTOPN in Find Game for RC (D-010)",
+      "detail": "Show 'No Public Games Available' when no human lobbies — Product + Engineering implementation pending"
+    }
+  ],
+  "knownIssues": [
+    {
+      "id": "RC-K1",
+      "title": "BOTOPN lifecycle disabled for RC",
+      "acceptedForRc": true,
+      "decision": "D-010",
+      "detail": "Public bot table not surfaced in RC builds; Cluster C fix post-RC"
+    },
+    {
+      "id": "RC-K2",
+      "title": "Public bot-hosted matchmaking deferred post-RC",
+      "acceptedForRc": true,
+      "decision": "D-010",
+      "detail": "Quick Online / BOTOPN reactivation per studio/BOTOPN_RC_DEFERRAL.md"
+    },
+    {
+      "id": "RC-K3",
+      "title": "Disconnect grace — no CPU takeover",
+      "acceptedForRc": true,
+      "decision": "D-007"
+    }
+  ],
+  "sprint": {
+    "id": "rc-closure",
+    "objective": "SHIP WITH KNOWN ISSUES — BOTOPN deferred (D-010)",
+    "implementationAgent": "standby-botopn-post-rc"
+  }
+}

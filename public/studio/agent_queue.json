@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 2,
+  "updatedAt": "2026-06-20T01:00:00.000Z",
+  "updatedBy": "orchestrator",
+  "cycle": "autonomous-rc-push-2026-06-20",
+  "queue": [
+    {
+      "workItemId": "wi-round-transition",
+      "assignee": "investigation",
+      "status": "delivered",
+      "completedAt": "2026-06-20T01:00:00.000Z",
+      "artifactPath": "P0_ROUND_TRANSITION_INVESTIGATION.md",
+      "escalation": "Director — approve Bucket C fix proposal"
+    },
+    {
+      "workItemId": "wi-release-gate",
+      "assignee": "release",
+      "status": "delivered",
+      "completedAt": "2026-06-20T01:00:00.000Z",
+      "artifactPath": "studio/release_status.json",
+      "escalation": "Director — SHIP decision (draft: DO NOT SHIP)"
+    },
+    {
+      "workItemId": "wi-rankings-verify",
+      "assignee": "regression",
+      "status": "delivered",
+      "completedAt": "2026-06-20T01:00:00.000Z",
+      "artifactPath": "studio/delegations/rankings-qa-package.md",
+      "escalation": "Human QA / Director — Tests 1–3 signoff"
+    },
+    {
+      "workItemId": "wi-spectator-join",
+      "assignee": "product",
+      "status": "delivered",
+      "completedAt": "2026-06-20T01:00:00.000Z",
+      "artifactPath": "studio/delegations/spectator-auto-spectate-plan.md",
+      "escalation": "Director — approve implementation plan"
+    },
+    {
+      "workItemId": "wi-disconnect-persistence-pack",
+      "assignee": "architecture",
+      "status": "active",
+      "dueWindow": "7d",
+      "note": "Parallel post-RC work — not RC push scope"
+    }
+  ],
+  "idle": [
+    {
+      "assignee": "implementation",
+      "reason": "Awaiting Director approval on round transition fix + spectator plan"
+    }
+  ]
+}

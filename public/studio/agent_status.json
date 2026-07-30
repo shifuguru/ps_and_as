@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-06-20T01:00:00.000Z",
+  "fleet": [
+    {
+      "id": "orchestrator",
+      "displayName": "Orchestrator",
+      "role": "Coordinates assignment, monitoring, and file updates — not primary implementer",
+      "status": "working",
+      "currentTaskSummary": "RC push deliverables synced — awaiting Director review",
+      "lastActivityAt": "2026-06-20T01:00:00.000Z",
+      "capabilities": ["coordination", "assignment", "studio-ops"],
+      "available": true
+    },
+    {
+      "id": "investigation",
+      "displayName": "Investigation Agent",
+      "role": "Evidence-only traces — no code changes",
+      "status": "idle",
+      "currentWorkItemId": "wi-round-transition",
+      "currentTaskSummary": "Delivered — Bucket C classification + fix proposal",
+      "lastActivityAt": "2026-06-20T01:00:00.000Z",
+      "capabilities": ["gameplay", "multiplayer", "spectator", "botopn", "evidence"],
+      "available": true
+    },
+    {
+      "id": "implementation",
+      "displayName": "Implementation Agent",
+      "role": "Code changes only when approvedForImplementation is true",
+      "status": "idle",
+      "currentTaskSummary": "Standby — Director approvals pending",
+      "lastActivityAt": "2026-06-20T01:00:00.000Z",
+      "capabilities": ["gameplay", "multiplayer", "client", "server", "studio-ops"],
+      "available": true
+    },
+    {
+      "id": "regression",
+      "displayName": "Regression Agent",
+      "role": "Does the fix work? — test-core, QA league, targeted verification",
+      "status": "idle",
+      "currentWorkItemId": "wi-rankings-verify",
+      "currentTaskSummary": "Delivered — automated PASS; Human QA checklist ready",
+      "lastActivityAt": "2026-06-20T01:00:00.000Z",
+      "capabilities": ["test-core", "qa-league", "human-qa", "verification"],
+      "available": true
+    },
+    {
+      "id": "release",
+      "displayName": "Release Agent",
+      "role": "Can we ship? — release gate, release_status, RC readiness",
+      "status": "idle",
+      "currentWorkItemId": "wi-release-gate",
+      "currentTaskSummary": "Delivered — gate rerun + DO NOT SHIP draft",
+      "lastActivityAt": "2026-06-20T01:00:00.000Z",
+      "capabilities": ["release-gate", "release-status", "ship-recommendation"],
+      "available": true
+    },
+    {
+      "id": "architecture",
+      "displayName": "Architecture Agent",
+      "role": "Gap register, architecture docs, design before build",
+      "status": "working",
+      "currentWorkItemId": "wi-disconnect-persistence-pack",
+      "currentTaskSummary": "Post-RC disconnect pack (parallel)",
+      "lastActivityAt": "2026-06-20T00:30:00.000Z",
+      "capabilities": ["architecture-gaps", "design", "decisions"],
+      "available": false,
+      "dueWindow": "7d"
+    },
+    {
+      "id": "product",
+      "displayName": "Product Agent",
+      "role": "UX and product decisions before implementation",
+      "status": "idle",
+      "currentWorkItemId": "wi-spectator-join",
+      "currentTaskSummary": "Delivered — spectator auto-spectate plan (D-008)",
+      "lastActivityAt": "2026-06-20T01:00:00.000Z",
+      "capabilities": ["product", "ux", "copy", "player-flow"],
+      "available": true
+    }
+  ]
+}

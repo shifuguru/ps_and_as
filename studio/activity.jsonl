@@ -1,0 +1,29 @@
+{"type":"investigation.started","at":"2026-06-08T08:00:00.000Z","agent":"agent","title":"Mid-match spectator Join regression","ref":"App.tsx startGame spectator guard"}
+{"type":"investigation.completed","at":"2026-06-08T10:00:00.000Z","agent":"agent","title":"Mid-match spectator Join regression","outcome":"Navigation bug — server sync OK; Join path uses create screen; Spectate path works"}
+{"type":"investigation.started","at":"2026-06-08T09:00:00.000Z","agent":"agent","title":"Round completion — penultimate player out","ref":"src/game/core.ts lastPlayerMustRespondToCurrentTrick"}
+{"type":"investigation.completed","at":"2026-06-08T11:30:00.000Z","agent":"agent","title":"Round completion — penultimate player out","outcome":"Core rules by design; product decision needed for instant-end variant"}
+{"type":"investigation.completed","at":"2026-06-08T07:00:00.000Z","agent":"agent","title":"BOTOPN spectator trick-winner","outcome":"Presentation/timing during trick-pause — not core ownership bug"}
+{"type":"release_gate","at":"2026-06-08T10:30:00.000Z","result":"fail","failed":["spectator-promote","reconnect-rankings","private-reconnect","botopn-lifecycle"]}
+{"type":"fix.merged","at":"2026-06-08T06:00:00.000Z","title":"v1.0.60 — fresh-round trades, ceremony finalization","version":"1.0.60","paths":["src/game/core.ts","src/screens/GameScreen.tsx"]}
+{"type":"note","at":"2026-06-08T12:00:00.000Z","author":"Mission Control Architect","message":"Phase 1 portal seeded — studio/ files are source of truth"}
+{"type":"work.completed","at":"2026-06-08T14:30:00.000Z","workItemId":"wi-mission-control-2a","outcome":"Phase 2A — directives, objectives, work_items, agent fleet, sync-active-work, validation, orchestrator rule"}
+{"type":"directive.acknowledged","at":"2026-06-08T14:00:00.000Z","objective":"Release Candidate Stabilization","by":"orchestrator"}
+{"type":"work.completed","at":"2026-06-08T16:00:00.000Z","workItemId":"wi-mc-render-fix","outcome":"Module-level StyleSheet + AppErrorBoundary — Mission Control no longer blank after load"}
+{"type":"work.completed","at":"2026-06-08T16:00:00.000Z","workItemId":"wi-mc-static-assets","outcome":"staticAssetPaths.ts + fetchStaticAsset.ts — local /studio/ vs deploy /ps_and_as/studio/"}
+{"type":"work.reclassified","at":"2026-06-08T16:00:00.000Z","workItemId":"wi-spectator-join","from":"investigating","to":"blocked","reason":"Investigation complete — product decision pending; removed invalid gapId"}
+{"type":"work.reclassified","at":"2026-06-08T16:00:00.000Z","workItemId":"wi-round-completion","from":"investigating","to":"blocked","reason":"Investigation complete — core rules by design; product decision pending"}
+{"type":"studio.alignment","at":"2026-06-08T16:00:00.000Z","author":"orchestrator","message":"Mission Control alignment session — dashboard, brief, work_items, roadmap, release_status synced to repo reality; Phase 2A complete; offline gate pass vs server rerun distinguished"}
+{"type":"studio.freshness","at":"2026-06-18T01:35:12.459Z","author":"orchestrator","message":"Freshness ownership model adopted (studio/freshness-ownership.md); projectStateUpdatedAt reconciled to current project reality"}
+{"type":"platform.approved","at":"2026-06-19T22:30:00.000Z","author":"Director","message":"Identity & Progression Platform roadmap approved — PublicPlayerProfile, profileId preservation, guest-first model, Phase 1 Foundation; implementation NOT approved"}
+{"type":"platform.integrated","at":"2026-06-19T22:30:00.000Z","author":"orchestrator","message":"Mission Control integration — epic-identity-progression-platform, roadmap phases, ipp-* backlog, D-006, studio/identity-progression-platform.md; blocked by rc-stability-exit"}
+{"type":"roadmap.updated","at":"2026-06-19T22:30:00.000Z","author":"orchestrator","message":"Added identity-progression-foundation through progression-ranked-foundation; retention-monetization superseded; RC priorities unchanged"}
+{"type":"rc.planning","at":"2026-06-19T23:59:00.000Z","author":"orchestrator","message":"RC stabilization execution plan + rc-exit-criteria.md — agent queues, Director bottleneck, release forecast; RC-M6 flags CPU takeover scope conflict"}
+{"type":"director.decision","at":"2026-06-20T00:30:00.000Z","author":"Director","message":"D-007 disconnect post-RC; D-008 spectator auto-spectate; D-009 keep D-004 — RC-M6 resolved"}
+{"type":"delegation.cycle","at":"2026-06-20T00:30:00.000Z","author":"orchestrator","message":"Autonomous delegation cycle — 5 agents active; RC blockers 5→4; Implementation idle"}
+{"type":"rc.push","at":"2026-06-20T01:00:00.000Z","author":"orchestrator","message":"Autonomous RC push complete — round transition Bucket C proposal; gate rerun (gameplay fail); rankings automated PASS; spectator plan ready"}
+{"type":"implementation.shipped","at":"2026-06-20T03:30:00.000Z","author":"implementation","message":"Cluster A+B shipped — spectator-promote PASS; botopn gates remain Cluster C (62% confidence)"}
+{"type":"release_gate","at":"2026-06-20T01:00:00.000Z","result":"fail","passed":["quick-private-2h","reconnect-rankings","private-reconnect"],"failed":["spectator-promote","botopn-lifecycle"],"hung":["botopn-stall-live"],"ref":"studio/delegations/gate-failure-correlation.md"}
+{"type":"sprint.started","at":"2026-06-08T12:00:00.000Z","author":"orchestrator","message":"RC closure sprint — target SHIP WITH KNOWN ISSUES"}
+{"type":"investigation.completed","at":"2026-06-08T12:00:00.000Z","author":"investigation","message":"Cluster C classified 83% Phase B ready-gate — fix scope ~30 LOC; Implementation standby"}
+{"type":"regression.completed","at":"2026-06-08T12:00:00.000Z","author":"regression","message":"Round transition + rankings automated PASS; Human QA signoff-ready package delivered"}
+{"type":"release.updated","at":"2026-06-08T12:00:00.000Z","author":"release","message":"Confidence 52%→74%; recommendation SHIP WITH KNOWN ISSUES; BOTOPN waiver candidate RC-K1/K2"}

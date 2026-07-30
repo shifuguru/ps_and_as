@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-06-19T22:30:00.000Z",
+  "currentPhase": {
+    "id": "rc-stability",
+    "name": "RC stability — multiplayer match flow",
+    "goal": "Ship a trustworthy online Presidents experience: rounds complete, rankings correct, reconnect sane.",
+    "exitCriteria": [
+      "All P0 gaps in ARCHITECTURE_GAPS.md marked Resolved",
+      "Full release gate passes (offline + server)",
+      "Human QA sign-off on rankings Tests 1–3",
+      "No production repro for round transition no-cards bug"
+    ],
+    "targetWindow": "v1.0.60 → v1.1.0 RC",
+    "status": "active"
+  },
+  "nextPhase": {
+    "id": "disconnect-persistence",
+    "name": "Disconnect & persistence — P1 alignment",
+    "goal": "CPU takeover, 15 s grace, ready gating; progression work remains blocked on Identity & Progression Platform until RC exit.",
+    "exitCriteria": [
+      "CPU substitute for disconnected humans in standard rooms",
+      "Late reconnect reclaim after grace",
+      "15 s disconnect timeout aligned server + UI",
+      "rc-stability-exit achieved (unblocks Identity & Progression Platform Phase 1)"
+    ],
+    "targetWindow": "post-1.1.0 RC",
+    "status": "planned",
+    "dependsOn": ["rc-stability-exit"]
+  },
+  "futurePhases": [
+    {
+      "id": "identity-progression-foundation",
+      "name": "Identity & Progression — Foundation",
+      "goal": "PublicPlayerProfile contract, lobby broadcast, client cache, remote profile viewing — single pipeline.",
+      "exitCriteria": [
+        "PublicPlayerProfile schema + validator shipped",
+        "Profile on join/reconnect; included in lobbyUpdate",
+        "LobbyPlayerModal + scoreboard + borders use ProfileCache (no duplicate GETs)",
+        "ARCHITECTURE_GAPS XP persistence gap Resolved when Phase 1 ships"
+      ],
+      "targetWindow": "v1.1.x post-RC",
+      "status": "blocked",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["rc-stability-exit"],
+      "epicId": "epic-identity-progression-platform",
+      "doc": "studio/identity-progression-platform.md"
+    },
+    {
+      "id": "identity-guest-and-link",
+      "name": "Identity — Guest accounts & linking",
+      "goal": "Guest-first identity documented; explicit guest vs signed-in UX; merge guest stats into linked account.",
+      "exitCriteria": [
+        "Guest model documented (install profileId)",
+        "Settings + profile guest badge",
+        "Link flow merges stats without forking progression"
+      ],
+      "targetWindow": "v1.2.0",
+      "status": "blocked",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["identity-progression-foundation"]
+    },
+    {
+      "id": "identity-oauth",
+      "name": "Identity — Apple & Google Sign-In",
+      "goal": "Cross-device identity via OAuth; preserve Game Center path; authenticated stats writes.",
+      "exitCriteria": [
+        "Apple Sign-In (web + iOS where applicable)",
+        "Google Sign-In (web + Android)",
+        "linkedAccountId from OAuth subject",
+        "Game Center coexistence documented"
+      ],
+      "targetWindow": "v1.2.x → v1.3.0",
+      "status": "blocked",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["identity-guest-and-link"]
+    },
+    {
+      "id": "progression-cloud-authority",
+      "name": "Progression — Cloud authority",
+      "goal": "Server-derived PublicPlayerProfile; authenticated progression writes; remove open PUT.",
+      "exitCriteria": [
+        "Server stores denormalized publicProfile beside stats",
+        "Authenticated PUT /api/player-stats/:id",
+        "Conflict policy documented"
+      ],
+      "targetWindow": "v1.3.0",
+      "status": "blocked",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["identity-progression-foundation", "identity-oauth"]
+    },
+    {
+      "id": "progression-titles-cosmetics",
+      "name": "Progression — Titles & cosmetics",
+      "goal": "titleId, cosmeticIds, featuredBorderId on PublicPlayerProfile; lobby flair.",
+      "exitCriteria": [
+        "Title + cosmetic catalogs",
+        "Equip UI updates public snapshot",
+        "Lobby + profile show title/cosmetics"
+      ],
+      "targetWindow": "v1.3.x → v1.4.0",
+      "status": "blocked",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["progression-cloud-authority"]
+    },
+    {
+      "id": "progression-ranked-foundation",
+      "name": "Progression — Ranked foundations",
+      "goal": "Rank tier/points data model; public badge; no ranked queue in prod yet.",
+      "exitCriteria": [
+        "RankedProfile schema keyed by profileId",
+        "Server records ranked results separately from casual",
+        "Public snapshot exposes rank badge only"
+      ],
+      "targetWindow": "v1.4.0+",
+      "status": "blocked",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["progression-cloud-authority"]
+    },
+    {
+      "id": "turn-ownership-elimination",
+      "name": "Turn ownership elimination",
+      "goal": "Remove repairStuckTurnPointer dependency; bare sim 100→0.",
+      "exitCriteria": [
+        "TURN_OWNERSHIP_ELIMINATION.md milestones complete",
+        "No client-side turn repair on gameStateSync"
+      ],
+      "targetWindow": "post-1.1.0",
+      "status": "planned"
+    },
+    {
+      "id": "studio-operations",
+      "name": "Studio operations automation",
+      "goal": "Mission Control Phase 2B–3: Fleet/Queue UI, gate ingest, live metrics.",
+      "exitCriteria": [
+        "Phase 2A orchestration data model complete",
+        "Phase 2B Mission Control UI (Directive, Fleet, Work Queue tabs)",
+        "Release gate wired in deploy CI",
+        "dashboard.json auto-sync from gaps + gate"
+      ],
+      "targetWindow": "2026 H2",
+      "status": "active",
+      "progressNote": "Phase 2A complete 2026-06-08 — portal operational; Phase 2B UI next"
+    },
+    {
+      "id": "retention-monetization",
+      "name": "Retention & monetization readiness",
+      "goal": "Superseded by Identity & Progression Platform phases (foundation → titles → ranked).",
+      "exitCriteria": [
+        "See identity-progression-foundation through progression-ranked-foundation"
+      ],
+      "targetWindow": "superseded",
+      "status": "superseded",
+      "supersededBy": "epic-identity-progression-platform"
+    }
+  ]
+}

@@ -697,6 +697,8 @@ export default function OpponentSeat({
         <Text style={[styles.statusPill, styles.passPill]}>Pass</Text>
       ) : isThinking ? (
         <Text style={[styles.statusPill, styles.thinkPill]}>…</Text>
+      ) : isLocal && isActive ? (
+        <Text style={[styles.statusPill, styles.yourTurnPill]}>Your turn</Text>
       ) : isLocal ? (
         <Text style={[styles.statusPill, styles.youPill]}>You</Text>
       ) : null}
@@ -980,6 +982,14 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   },
   youPill: {
     ...onFeltTextStyle(onFelt, "accent"),
+  },
+  yourTurnPill: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.35,
+    ...onFeltTextStyle(onFelt, "accent", {
+      color: accentBright,
+    }),
   },
   });
 }

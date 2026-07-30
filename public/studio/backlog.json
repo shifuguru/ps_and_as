@@ -1,0 +1,313 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-06-19T22:30:00.000Z",
+  "items": [
+    {
+      "id": "epic-identity-progression-platform",
+      "title": "Identity & Progression Platform",
+      "priority": "P1",
+      "status": "blocked",
+      "rationale": "Unified PublicPlayerProfile contract; remote profile viewing; guest-first identity; OAuth; cloud authority; titles; ranked foundations. Director approved roadmap 2026-06-19 — implementation NOT approved.",
+      "blockedBy": ["rc-stability-exit"],
+      "estimatedPhase": "identity-progression-foundation",
+      "doc": "studio/identity-progression-platform.md"
+    },
+    {
+      "id": "ipp-schema-v1",
+      "title": "PublicPlayerProfile schema v1 + validator",
+      "priority": "P1",
+      "rationale": "Single multiplayer-facing progression contract (TS + JSON schema).",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["epic-identity-progression-platform"],
+      "estimatedPhase": "identity-progression-foundation"
+    },
+    {
+      "id": "ipp-derive",
+      "title": "Server derive PlayerStats → PublicPlayerProfile",
+      "priority": "P1",
+      "rationale": "Denormalize public snapshot from authoritative stats store.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-schema-v1"],
+      "estimatedPhase": "identity-progression-foundation"
+    },
+    {
+      "id": "ipp-visibility",
+      "title": "Profile visibility public | private + server redaction",
+      "priority": "P2",
+      "rationale": "Privacy opt-out before broad profile sharing.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-schema-v1"],
+      "estimatedPhase": "identity-progression-foundation"
+    },
+    {
+      "id": "ipp-versioning",
+      "title": "PublicPlayerProfile schema versioning",
+      "priority": "P1",
+      "rationale": "Forward-compatible clients ignore unknown fields.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-schema-v1"],
+      "estimatedPhase": "identity-progression-foundation"
+    },
+    {
+      "id": "ipp-join-push",
+      "title": "Push public profile on joinRoom / reconnect",
+      "priority": "P1",
+      "rationale": "Remote profile viewing — client sends snapshot at room entry.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-schema-v1"],
+      "estimatedPhase": "identity-progression-foundation"
+    },
+    {
+      "id": "ipp-lobby-broadcast",
+      "title": "Include publicProfile in buildLobbyUpdate",
+      "priority": "P1",
+      "rationale": "Single socket pipeline for roster progression data.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-join-push", "ipp-derive"],
+      "estimatedPhase": "identity-progression-foundation"
+    },
+    {
+      "id": "ipp-client-cache",
+      "title": "ProfileCache session map — single reader API",
+      "priority": "P1",
+      "rationale": "Eliminate duplicate fetchCloudPlayerStats display pipelines.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-lobby-broadcast"],
+      "estimatedPhase": "identity-progression-foundation"
+    },
+    {
+      "id": "ipp-modal-wire",
+      "title": "LobbyPlayerModal reads ProfileCache",
+      "priority": "P1",
+      "rationale": "Remote profile viewing — achievements + XP in popup.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-client-cache"],
+      "estimatedPhase": "identity-progression-foundation"
+    },
+    {
+      "id": "ipp-scoreboard-unify",
+      "title": "Scoreboard + avatar borders read ProfileCache",
+      "priority": "P1",
+      "rationale": "Remove parallel GET paths; one contract everywhere.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-client-cache"],
+      "estimatedPhase": "identity-progression-foundation"
+    },
+    {
+      "id": "ipp-spectator-read",
+      "title": "Spectators receive roster profiles (read-only)",
+      "priority": "P2",
+      "rationale": "Spectator mode profile viewing without write path.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-lobby-broadcast"],
+      "estimatedPhase": "identity-progression-foundation"
+    },
+    {
+      "id": "ipp-guest-model",
+      "title": "Document guest = install profileId model",
+      "priority": "P1",
+      "rationale": "Guest-first identity — preserve existing profileId architecture.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["epic-identity-progression-platform"],
+      "estimatedPhase": "identity-guest-and-link"
+    },
+    {
+      "id": "ipp-guest-badge",
+      "title": "Guest vs signed-in UI in Settings + profile",
+      "priority": "P1",
+      "rationale": "Player-visible identity state.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-guest-model"],
+      "estimatedPhase": "identity-guest-and-link"
+    },
+    {
+      "id": "ipp-guest-merge",
+      "title": "Link guest → account stats merge",
+      "priority": "P1",
+      "rationale": "Upgrade path without forking progression.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-guest-badge"],
+      "estimatedPhase": "identity-guest-and-link"
+    },
+    {
+      "id": "ipp-google-oauth",
+      "title": "Google Sign-In (web + Android)",
+      "priority": "P1",
+      "rationale": "Cross-device identity — post-RC OAuth track.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-guest-merge"],
+      "estimatedPhase": "identity-oauth"
+    },
+    {
+      "id": "ipp-google-link",
+      "title": "Map Google sub → linkedAccountId",
+      "priority": "P1",
+      "rationale": "Preserve profileId; link OAuth subject.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-google-oauth"],
+      "estimatedPhase": "identity-oauth"
+    },
+    {
+      "id": "ipp-apple-oauth",
+      "title": "Sign in with Apple (web + iOS)",
+      "priority": "P1",
+      "rationale": "Cross-device identity — post-RC OAuth track.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-guest-merge"],
+      "estimatedPhase": "identity-oauth"
+    },
+    {
+      "id": "ipp-gc-coexist",
+      "title": "Game Center + Apple Sign-In coexistence matrix",
+      "priority": "P1",
+      "rationale": "Document iOS identity paths without breaking GC users.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-apple-oauth"],
+      "estimatedPhase": "identity-oauth"
+    },
+    {
+      "id": "ipp-auth-put",
+      "title": "Authenticate PUT /api/player-stats/:id",
+      "priority": "P0",
+      "rationale": "Security — remove unauthenticated stat spoofing before cloud authority.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-google-link", "ipp-gc-coexist"],
+      "estimatedPhase": "progression-cloud-authority"
+    },
+    {
+      "id": "ipp-server-snapshot",
+      "title": "Store denormalized publicProfile beside stats",
+      "priority": "P1",
+      "rationale": "Cloud progression authority — server-derived public snapshots.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-derive", "ipp-auth-put"],
+      "estimatedPhase": "progression-cloud-authority"
+    },
+    {
+      "id": "ipp-event-ingest",
+      "title": "Optional server event-based XP ingest",
+      "priority": "P2",
+      "rationale": "Move from client max-merge blobs to signed progression events.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-server-snapshot"],
+      "estimatedPhase": "progression-cloud-authority"
+    },
+    {
+      "id": "ipp-offline-queue",
+      "title": "Client offline progression sync queue",
+      "priority": "P2",
+      "rationale": "Queue sync on reconnect after offline play.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-server-snapshot"],
+      "estimatedPhase": "progression-cloud-authority"
+    },
+    {
+      "id": "ipp-title-catalog",
+      "title": "Title definitions + unlock rules",
+      "priority": "P2",
+      "rationale": "Titles on PublicPlayerProfile — post-RC cosmetics track.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-server-snapshot"],
+      "estimatedPhase": "progression-titles-cosmetics"
+    },
+    {
+      "id": "ipp-cosmetic-catalog",
+      "title": "Cosmetic ids + equip slot model",
+      "priority": "P2",
+      "rationale": "Avatar flair beyond achievement borders.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-title-catalog"],
+      "estimatedPhase": "progression-titles-cosmetics"
+    },
+    {
+      "id": "ipp-equip-ui",
+      "title": "Equip UI → updates public snapshot",
+      "priority": "P2",
+      "rationale": "Player-selected title/cosmetics visible in multiplayer.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-cosmetic-catalog"],
+      "estimatedPhase": "progression-titles-cosmetics"
+    },
+    {
+      "id": "ipp-lobby-flair",
+      "title": "Show title + border on seats from PublicPlayerProfile",
+      "priority": "P2",
+      "rationale": "Social progression visibility at the table.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-equip-ui"],
+      "estimatedPhase": "progression-titles-cosmetics"
+    },
+    {
+      "id": "ipp-ranked-schema",
+      "title": "RankedProfile schema (rankTier, rankPoints, seasonId)",
+      "priority": "P2",
+      "rationale": "Ranked foundations — data model only, no queue yet.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-server-snapshot"],
+      "estimatedPhase": "progression-ranked-foundation"
+    },
+    {
+      "id": "ipp-ranked-result",
+      "title": "Server casual vs ranked result recording",
+      "priority": "P2",
+      "rationale": "Separate ranked progression from casual rooms.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-ranked-schema"],
+      "estimatedPhase": "progression-ranked-foundation"
+    },
+    {
+      "id": "ipp-ranked-badge",
+      "title": "Public rank badge on profile + modal",
+      "priority": "P2",
+      "rationale": "Expose rank tier without raw MMR.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-ranked-result"],
+      "estimatedPhase": "progression-ranked-foundation"
+    },
+    {
+      "id": "ipp-ranked-queue",
+      "title": "Ranked matchmaking queue (deferred)",
+      "priority": "idea",
+      "rationale": "Explicitly out of ranked foundation scope — separate epic when ready.",
+      "blockedBy": ["rc-stability-exit"],
+      "dependsOn": ["ipp-ranked-badge"],
+      "estimatedPhase": "progression-ranked-foundation"
+    },
+    {
+      "id": "backlog-spectator-join-fix",
+      "title": "Navigate mid-match Join spectators to GameScreen",
+      "priority": "P0",
+      "rationale": "Players use room code Join expecting live watch; server marks spectator correctly but client blocks navigation.",
+      "estimatedPhase": "rc-stability"
+    },
+    {
+      "id": "backlog-gate-ci",
+      "title": "Wire release gate into deploy-web.yml",
+      "priority": "P1",
+      "rationale": "RELEASE_GATE.md recommends gate before build:web — prevents shipping broken multiplayer.",
+      "dependsOn": ["gate-incomplete"],
+      "estimatedPhase": "studio-operations"
+    },
+    {
+      "id": "backlog-studio-sync",
+      "title": "Mission Control Phase 2 sync-dashboard.mjs",
+      "priority": "P2",
+      "rationale": "Auto-derive P0/P1 counts from ARCHITECTURE_GAPS.md without hand-editing dashboard.json.",
+      "estimatedPhase": "studio-operations"
+    },
+    {
+      "id": "backlog-round-completion-product",
+      "title": "Product decision: instant round end vs trick acknowledgment",
+      "priority": "idea",
+      "rationale": "Penultimate out play currently requires last player to respond to trick — conflicts with some player expectations.",
+      "estimatedPhase": "rc-stability"
+    },
+    {
+      "id": "backlog-trick-pause-sync",
+      "title": "Align trick-pause display with live turn ring on BOTOPN",
+      "priority": "P2",
+      "rationale": "Presentation desync during trick-pause — winner appears not to lead next trick.",
+      "estimatedPhase": "rc-stability"
+    }
+  ]
+}

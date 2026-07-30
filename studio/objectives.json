@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-06-20T00:30:00.000Z",
+  "updatedBy": "orchestrator",
+  "current": [
+    {
+      "id": "rc-stabilization",
+      "title": "Reach Release Candidate",
+      "summary": "Ship a trustworthy online Presidents experience with verified gate and closed P0 gaps.",
+      "successCriteria": [
+        "RC mandatory criteria in studio/rc-exit-criteria.md satisfied",
+        "Full release gate passes (offline + server)",
+        "Spectator auto-spectate (D-008) implemented and verified",
+        "Rankings-before-last-hand Human QA Tests 1–3 signed off",
+        "Round transition gap closed or Director-accepted"
+      ],
+      "linkedDirective": "Release Candidate Stabilization",
+      "targetVersion": "1.1.0 RC"
+    }
+  ],
+  "completed": []
+}

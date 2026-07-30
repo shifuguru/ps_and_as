@@ -1,0 +1,140 @@
+Server listening on 4002
+[Server] Created bot-hosted room BOTOPN
+[Server] Bot-hosted game started in BOTOPN
+[core DEBUG] playCards incoming cards [ 3 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+conn -3T7TJol8CUPbidUAAAB transport: websocket from undefined
+[Server] Watcher joined bot table BOTOPN as spectator
+[core DEBUG] playCards incoming cards [ 4 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 5 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=3,4,5, isActiveRun=true
+[core] runFromCurrentTrick detected run (context): 3,4,5 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5 multiplicity=1
+[core DEBUG] playCards incoming cards [ 6 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core] runFromCurrentTrick detected run (context): 3,4,5 multiplicity=1
+[core DEBUG] playCards context: playedTen=false, runSeq=3,4,5,6, isActiveRun=true
+[core] runFromCurrentTrick detected run (context): 3,4,5,6 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5,6 multiplicity=1
+[core DEBUG] playCards incoming cards [ 7 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core] runFromCurrentTrick detected run (context): 3,4,5,6 multiplicity=1
+[core DEBUG] playCards context: playedTen=false, runSeq=3,4,5,6,7, isActiveRun=true
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7 multiplicity=1
+[core DEBUG] playCards incoming cards [ 8 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7 multiplicity=1
+[core DEBUG] playCards context: playedTen=false, runSeq=3,4,5,6,7,8, isActiveRun=true
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8 multiplicity=1
+[core DEBUG] playCards incoming cards [ 9 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8 multiplicity=1
+[core DEBUG] playCards context: playedTen=false, runSeq=3,4,5,6,7,8,9, isActiveRun=true
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8,9 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8,9 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8,9 multiplicity=1
+[core DEBUG] playCards incoming cards [ 10 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8,9 multiplicity=1
+[core DEBUG] playCards context: playedTen=true, runSeq=3,4,5,6,7,8,9,10, isActiveRun=true
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8,9,10 multiplicity=1
+[core] passTurn ENTRY playerId=cpu-1 currentPlayerIndex=0 lastPlayPlayerIndex=1 passCount=0
+[core] currentTrick.actions.length=8
+[core DEBUG] passTurn status: active=["cpu-1","cpu-2"], leader=cpu-2, others=["cpu-1"], passed=["cpu-1"], lastActions=[{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"spades","value":6}],"timestamp":1781940849411},{"type":"play","playerId":"cpu-1","playerName":"Amy","cards":[{"suit":"clubs","value":7}],"timestamp":1781940851790},{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"clubs","value":8}],"timestamp":1781940854174},{"type":"play","playerId":"cpu-1","playerName":"Amy","cards":[{"suit":"hearts","value":9}],"timestamp":1781940855904},{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"diamonds","value":10}],"timestamp":1781940857747},{"type":"pass","playerId":"cpu-1","playerName":"Amy","timestamp":1781940860250}]
+[core] maybeResolveTrickAfterPasses: leaderIndex=1, passed=["cpu-1"]
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8,9,10 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8,9,10 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8,9,10 multiplicity=1
+[core DEBUG] playCards incoming cards [ 9 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8,9,10 multiplicity=1
+[core DEBUG] playCards context: playedTen=false, runSeq=3,4,5,6,7,8,9,10, isActiveRun=true
+[core] runFromCurrentTrick detected run (context): 3,4,5 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5,6 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8,9 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8,9,10 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5,6,7,8,9,10 multiplicity=1
+[core DEBUG] playCards incoming cards [ 3 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 4 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 5 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=3,4,5, isActiveRun=true
+[core] runFromCurrentTrick detected run (context): 3,4,5 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5 multiplicity=1
+[core DEBUG] playCards incoming cards [ 4 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core] runFromCurrentTrick detected run (context): 3,4,5 multiplicity=1
+[core DEBUG] playCards context: playedTen=false, runSeq=3,4,5, isActiveRun=true
+[core] runFromCurrentTrick detected run (context): 3,4,5 multiplicity=1
+[core] passTurn ENTRY playerId=cpu-2 currentPlayerIndex=1 lastPlayPlayerIndex=0 passCount=0
+[core] currentTrick.actions.length=4
+[core DEBUG] passTurn status: active=["cpu-1","cpu-2"], leader=cpu-1, others=["cpu-2"], passed=["cpu-2"], lastActions=[{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"hearts","value":3}],"timestamp":1781940864243},{"type":"play","playerId":"cpu-1","playerName":"Amy","cards":[{"suit":"spades","value":4}],"timestamp":1781940865642},{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"spades","value":5}],"timestamp":1781940867704},{"type":"play","playerId":"cpu-1","playerName":"Amy","cards":[{"suit":"clubs","value":4}],"timestamp":1781940868996},{"type":"pass","playerId":"cpu-2","playerName":"Ben","timestamp":1781940871101}]
+[core] maybeResolveTrickAfterPasses: leaderIndex=0, passed=["cpu-2"]
+[core] runFromCurrentTrick detected run (context): 3,4,5 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5 multiplicity=1
+[core] runFromCurrentTrick detected run (context): 3,4,5 multiplicity=1
+[core DEBUG] playCards incoming cards [ 3 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 7 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 8 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 11 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 12 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 14 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 15 ] containsTwo= true __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core] passTurn ENTRY playerId=cpu-2 currentPlayerIndex=1 lastPlayPlayerIndex=0 passCount=0
+[core] currentTrick.actions.length=7
+[core DEBUG] passTurn status: active=["cpu-1","cpu-2"], leader=cpu-1, others=["cpu-2"], passed=["cpu-2"], lastActions=[{"type":"play","playerId":"cpu-1","playerName":"Amy","cards":[{"suit":"diamonds","value":8}],"timestamp":1781940877213},{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"hearts","value":11}],"timestamp":1781940879438},{"type":"play","playerId":"cpu-1","playerName":"Amy","cards":[{"suit":"hearts","value":12}],"timestamp":1781940880727},{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"clubs","value":14}],"timestamp":1781940882707},{"type":"play","playerId":"cpu-1","playerName":"Amy","cards":[{"suit":"hearts","value":15}],"timestamp":1781940884882},{"type":"pass","playerId":"cpu-2","playerName":"Ben","timestamp":1781940886094}]
+[core] maybeResolveTrickAfterPasses: leaderIndex=0, passed=["cpu-2"]
+[core DEBUG] playCards incoming cards [ 8 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 11 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 12 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 14 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 16 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core] passTurn ENTRY playerId=cpu-2 currentPlayerIndex=1 lastPlayPlayerIndex=0 passCount=0
+[core] currentTrick.actions.length=5
+[core DEBUG] passTurn status: active=["cpu-1","cpu-2"], leader=cpu-1, others=["cpu-2"], passed=["cpu-2"], lastActions=[{"type":"play","playerId":"cpu-1","playerName":"Amy","cards":[{"suit":"hearts","value":8}],"timestamp":1781940888441},{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"clubs","value":11}],"timestamp":1781940889716},{"type":"play","playerId":"cpu-1","playerName":"Amy","cards":[{"suit":"diamonds","value":12}],"timestamp":1781940891497},{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"hearts","value":14}],"timestamp":1781940893840},{"type":"play","playerId":"cpu-1","playerName":"Amy","cards":[{"suit":"joker","value":16}],"timestamp":1781940895998},{"type":"pass","playerId":"cpu-2","playerName":"Ben","timestamp":1781940895999}]
+[core] maybeResolveTrickAfterPasses: leaderIndex=0, passed=["cpu-2"]
+[core DEBUG] playCards incoming cards [ 10 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=true, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 7 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 10 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=true, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 7 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 13 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 14 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core] passTurn ENTRY playerId=cpu-1 currentPlayerIndex=0 lastPlayPlayerIndex=1 passCount=0
+[core] currentTrick.actions.length=6
+[core DEBUG] passTurn status: active=["cpu-1","cpu-2"], leader=cpu-2, others=["cpu-1"], passed=["cpu-1"], lastActions=[{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"diamonds","value":7}],"timestamp":1781940900346},{"type":"play","playerId":"cpu-1","playerName":"Amy","cards":[{"suit":"spades","value":10}],"timestamp":1781940902015,"tenRuleDirection":"lower"},{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"spades","value":7}],"timestamp":1781940904490},{"type":"play","playerId":"cpu-1","playerName":"Amy","cards":[{"suit":"clubs","value":13}],"timestamp":1781940906221},{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"diamonds","value":14}],"timestamp":1781940908580},{"type":"pass","playerId":"cpu-1","playerName":"Amy","timestamp":1781940910060}]
+[core] maybeResolveTrickAfterPasses: leaderIndex=1, passed=["cpu-1"]
+[core DEBUG] playCards incoming cards [ 11 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 13 ] containsTwo= false __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core DEBUG] playCards incoming cards [ 15 ] containsTwo= true __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core] passTurn ENTRY playerId=cpu-1 currentPlayerIndex=0 lastPlayPlayerIndex=1 passCount=0
+[core] currentTrick.actions.length=3
+[core DEBUG] passTurn status: active=["cpu-1","cpu-2"], leader=cpu-2, others=["cpu-1"], passed=["cpu-1"], lastActions=[{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"diamonds","value":11}],"timestamp":1781940911319},{"type":"play","playerId":"cpu-1","playerName":"Amy","cards":[{"suit":"diamonds","value":13}],"timestamp":1781940912564},{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"clubs","value":15}],"timestamp":1781940913856},{"type":"pass","playerId":"cpu-1","playerName":"Amy","timestamp":1781940915960}]
+[core] maybeResolveTrickAfterPasses: leaderIndex=1, passed=["cpu-1"]
+[core DEBUG] playCards incoming cards [ 15 ] containsTwo= true __filename= C:\Users\Admin\source\repos\ps_and_as\src\game\core.ts
+[core DEBUG] playCards context: playedTen=false, runSeq=, isActiveRun=false
+[core] passTurn ENTRY playerId=cpu-1 currentPlayerIndex=0 lastPlayPlayerIndex=1 passCount=0
+[core] currentTrick.actions.length=1
+[core DEBUG] passTurn status: active=["cpu-1"], leader=cpu-2, others=["cpu-1"], passed=["cpu-1"], lastActions=[{"type":"play","playerId":"cpu-2","playerName":"Ben","cards":[{"suit":"spades","value":15}],"timestamp":1781940918399},{"type":"pass","playerId":"cpu-1","playerName":"Amy","timestamp":1781940920411}]
+[core] maybeResolveTrickAfterPasses: leaderIndex=1, passed=["cpu-1"]
+[Server] Socket -3T7TJol8CUPbidUAAAB disconnected
+[Server] Player Watcher disconnected from room BOTOPN

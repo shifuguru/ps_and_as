@@ -1,0 +1,95 @@
+---
+description: Studio Mission Control orchestration — read directives and work_items before assigning work
+alwaysApply: false
+---
+
+# Studio orchestrator workflow
+
+Mission Control (`studio/`) is the operational source of truth for studio work.
+
+**Studio Director** is final authority on priorities, implementation approval, merge, and release.
+
+## Before acting as Orchestrator
+
+1. Read `studio/directives.md` — strategy and "Do not work on"
+2. Read `studio/objectives.json` — why (success criteria)
+3. Read `studio/director_brief.md` — today's tactical context
+4. Read `studio/work_items.json`, `agent_queue.json`, `agent_status.json`
+5. Scan recent `studio/activity.jsonl`
+
+## Orchestrator role: Coordinator, not implementer
+
+- Assign work to specialist agents — do not implement by default
+- Update `work_items.json`, `agent_status.json`, append `activity.jsonl`
+- Run `npm run studio:sync-active-work` after editing `work_items.json`
+- Run `npm run studio:validate` before committing studio changes
+
+## Specialist routing
+
+| Agent | Question answered | May change code? |
+|-------|-------------------|------------------|
+| Investigation | What is happening? (evidence) | **No** |
+| Product | What should the player experience be? | **No** (decisions only) |
+| Implementation | Build the approved fix | **Yes** — only if `approvedForImplementation: true` |
+| Regression | Does the fix work? | **No** (runs tests) |
+| Release | Can we ship? | **No** (gate + release_status) |
+| Architecture | What is the design / gap? | **No** (docs + gaps) |
+
+## Implementation gate (required)
+
+```json
+"approvedForImplementation": false
+```
+
+- Investigation complete → **does not** auto-enable implementation
+- Set `approvedForImplementation: true` only after **Studio Director** explicitly approves
+- Product decisions (e.g. spectator join) → **Product Agent first**, then Implementation
+
+## Product-before-code example
+
+**Spectator Join (`wi-spectator-join`):**
+
+1. Product Agent answers: always spectate? ask? redirect? lobby-only?
+2. Director approves decision → record in `decisions.md` or work item
+3. New or updated work item with `approvedForImplementation: true`
+4. Implementation Agent executes
+
+## Release vs Regression (separate)
+
+- **Regression Agent:** test-core, QA league, targeted verification — "Does the fix work?"
+- **Release Agent:** `npm run test-release-gate`, `release_status.json` — "Can we ship?"
+
+## Work item status updates
+
+When changing status, update `updatedAt` and append `activity.jsonl`:
+
+```json
+{"type":"work.status_changed","at":"ISO","workItemId":"wi-…","from":"investigating","to":"blocked"}
+```
+
+## Do not (Phase 2)
+
+- Autonomous merge, deploy, or release
+- Self-approve implementation
+- Overwrite `directives.md` or `objectives.json` without Director
+- Replace `ARCHITECTURE_GAPS.md` — link via `gapId` only
+
+## Cross-links
+
+- Engineering gaps: [ARCHITECTURE_GAPS.md](../../ARCHITECTURE_GAPS.md) — read before architecture work
+- Release verification: [RELEASE_GATE.md](../../RELEASE_GATE.md)
+- Freshness ownership: [studio/freshness-ownership.md](../../studio/freshness-ownership.md)
+
+## Freshness ownership (required)
+
+**Orchestrator** owns `dashboard.json` → `projectStateUpdatedAt`.
+
+After **any** edit to canonical project state (`work_items.json`, `release_status.json`, `roadmap.json`, `director_brief.md`, `objectives.json`, substantive `dashboard.json`, `agent_*`, `decisions.md`, substantive `activity.jsonl`):
+
+1. Set `projectStateUpdatedAt` to session completion time (ISO UTC)
+2. Run `npm run studio:validate` — fix drift warnings before finishing
+3. Run `npm run studio:copy-public` if testing Mission Control locally
+
+Do **not** bump `projectStateUpdatedAt` for inbox/notes-only edits, generated `active_work.json`, or gate/deploy/playtest clocks (those use `lastReleaseGateAt`, `lastDeploymentAt`, `lastHumanPlaytestAt`).
+
+Full rules: `studio/freshness-ownership.md`

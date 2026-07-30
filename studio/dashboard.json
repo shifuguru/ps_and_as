@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 2,
+  "updatedAt": "2026-06-08T14:00:00.000Z",
+  "updatedBy": "orchestrator",
+  "projectStateUpdatedAt": "2026-06-08T14:00:00.000Z",
+  "lastDeploymentAt": "2026-06-08T06:00:00.000Z",
+  "lastReleaseGateAt": "2026-06-08T12:00:00.000Z",
+  "lastHumanPlaytestAt": "",
+  "project": {
+    "name": "Presidents & Assholes",
+    "codename": "Quad Squad Goals",
+    "version": "1.0.60",
+    "channel": "production"
+  },
+  "release": {
+    "status": "blocked",
+    "headline": "RC path narrowed — BOTOPN deferred (D-010); Human QA + gate rerun remain",
+    "lastGateRun": {
+      "at": "2026-06-08T12:00:00.000Z",
+      "result": "pass-rc-scope-with-waiver",
+      "offlinePassed": ["core", "roster", "offline-sim", "turn-headless", "turn-ring"],
+      "serverPassed": ["quick-private-2h", "spectator-promote", "reconnect-rankings", "private-reconnect"],
+      "serverWaived": ["botopn-lifecycle", "botopn-stall-live"],
+      "serverFailureNote": "BOTOPN gates waived per D-010 — not RC-blocking. See studio/BOTOPN_RC_DEFERRAL.md",
+      "reportPath": "studio/delegations/release-readiness-report-draft.md",
+      "releaseConfidence": 0.78
+    }
+  },
+  "objective": {
+    "title": "Release Candidate Stabilization",
+    "summary": "Close RC: round transition Human QA, rankings signoff, non-BOTOPN release gate, Find Game hide (D-010), packaging. BOTOPN post-RC.",
+    "successMetric": "RC mandatory criteria in studio/rc-exit-criteria.md satisfied"
+  },
+  "priorities": {
+    "p0": {
+      "open": 5,
+      "items": [
+        {
+          "id": "multiplayer-round-transition-no-cards",
+          "title": "Multiplayer round transition — Human QA signoff",
+          "status": "testing",
+          "owner": "human",
+          "doc": "studio/delegations/round-transition-verification-package.md"
+        },
+        {
+          "id": "rankings-before-last-hand",
+          "title": "Rankings before last hand — Human QA Tests 1–3",
+          "status": "testing",
+          "owner": "regression",
+          "doc": "studio/delegations/rankings-qa-package.md"
+        },
+        {
+          "id": "release-gate-server-rerun",
+          "title": "Release gate — non-BOTOPN slice (D-010 waiver)",
+          "status": "blocked",
+          "owner": "release",
+          "doc": "studio/BOTOPN_RC_DEFERRAL.md"
+        },
+        {
+          "id": "spectator-auto-spectate",
+          "title": "Spectator auto-spectate — plan ready (D-008)",
+          "status": "blocked",
+          "owner": "product",
+          "doc": "studio/delegations/spectator-auto-spectate-plan.md"
+        },
+        {
+          "id": "botopn-rc-hide",
+          "title": "Hide BOTOPN in Find Game for RC (D-010)",
+          "status": "queued",
+          "owner": "implementation",
+          "doc": "studio/BOTOPN_RC_DEFERRAL.md"
+        }
+      ]
+    },
+    "p1": {
+      "open": 7,
+      "items": [
+        {
+          "id": "botopn-lifecycle-cluster-c",
+          "title": "BOTOPN Cluster C — post-RC reactivation",
+          "status": "deferred",
+          "owner": "implementation",
+          "doc": "studio/delegations/cluster-c-investigation.md"
+        },
+        {
+          "id": "cpu-takeover-after-disconnect",
+          "title": "CPU takeover after disconnect (post-RC D-007)",
+          "status": "blocked",
+          "owner": "architecture",
+          "doc": "studio/disconnect-persistence-pack.md"
+        },
+        {
+          "id": "returning-player-after-timeout",
+          "title": "Returning player after timeout (post-RC D-007)",
+          "status": "blocked",
+          "owner": "architecture",
+          "doc": "ARCHITECTURE_GAPS.md"
+        },
+        {
+          "id": "disconnect-timeout",
+          "title": "Disconnect timeout alignment (post-RC D-007)",
+          "status": "blocked",
+          "owner": "architecture",
+          "doc": "ARCHITECTURE_GAPS.md"
+        },
+        {
+          "id": "ready-for-next-round-gating",
+          "title": "Ready-for-next-round gating (seated players)",
+          "status": "blocked",
+          "owner": "orchestrator",
+          "doc": "ARCHITECTURE_GAPS.md"
+        },
+        {
+          "id": "release-readiness-v1.0.60",
+          "title": "Release Readiness Report v1.0.60",
+          "status": "blocked",
+          "owner": "release",
+          "doc": "RELEASE_GATE.md"
+        },
+        {
+          "id": "xp-persistence",
+          "title": "XP and progression persistence",
+          "status": "design approved",
+          "owner": "architecture",
+          "doc": "studio/identity-progression-platform.md"
+        }
+      ]
+    },
+    "p2": {
+      "open": 5,
+      "items": [
+        {
+          "id": "turn-ownership-invariant",
+          "title": "Turn Ownership Invariant (post-1.1.0 track)",
+          "status": "monitoring",
+          "doc": "TURN_OWNERSHIP_INVESTIGATION.md"
+        },
+        {
+          "id": "online-pass-optimistic-local-mutation",
+          "title": "Online pass optimistic local mutation",
+          "status": "queued",
+          "doc": "ARCHITECTURE_GAPS.md"
+        },
+        {
+          "id": "ten-rule-chooser-server-validation",
+          "title": "Ten-rule chooser server validation",
+          "status": "queued",
+          "doc": "ARCHITECTURE_GAPS.md"
+        },
+        {
+          "id": "bot-open-disconnect-model",
+          "title": "Bot-open disconnect model vs standard rooms",
+          "status": "queued",
+          "doc": "ARCHITECTURE_GAPS.md"
+        },
+        {
+          "id": "pause-state-presentation",
+          "title": "Pause state presentation",
+          "status": "queued",
+          "doc": "ARCHITECTURE_GAPS.md"
+        }
+      ]
+    }
+  },
+  "health": {
+    "game": "amber",
+    "gameNote": "RC blockers: Human QA (round transition + rankings), non-BOTOPN gate rerun, D-008 spectator; BOTOPN deferred (D-010)",
+    "studio": "amber",
+    "studioNote": "D-010 recorded; Mission Control synced; release gate BOTOPN waiver documented"
+  },
+  "productHealth": {
+    "gameplayStability": {
+      "status": "amber",
+      "score": 78,
+      "note": "Private multiplayer gates green; round transition Human QA pending"
+    },
+    "multiplayerReadiness": {
+      "status": "amber",
+      "score": 72,
+      "note": "Private room path stable; BOTOPN deferred from RC — not a ship blocker"
+    },
+    "retentionReadiness": {
+      "status": "amber",
+      "score": 55,
+      "note": "XP local-only; IPP Phase 1 post-RC exit"
+    },
+    "monetizationReadiness": {
+      "status": "red",
+      "score": 15,
+      "note": "No IAP pipeline — intentional"
+    }
+  },
+  "nextActions": [
+    "Product + Engineering: hide BOTOPN in Find Game for RC (D-010)",
+    "Release Agent: rerun non-BOTOPN gate slice; update release_status.json",
+    "Human QA: rankings Tests 1–3 + round transition checklist",
+    "Director: SHIP WITH KNOWN ISSUES signoff after above"
+  ],
+  "releaseForecast": {
+    "earliestRc": "3-5 days after Human QA + gate rerun",
+    "mostLikelyRc": "1-2 weeks",
+    "confidence": "medium (78%)",
+    "priorBlockers": 4,
+    "currentBlockers": 5,
+    "uncertaintyReduced": [
+      "D-010 — BOTOPN removed from RC critical path",
+      "Clusters A+B implemented; spectator-promote PASS",
+      "Cluster C classified and scoped for post-RC",
+      "Rankings automated verification PASS"
+    ],
+    "remainingUnknowns": [
+      "Round transition Human QA 3× Asshole repro",
+      "Rankings Human QA Tests 1-3",
+      "D-008 spectator implementation scope",
+      "Find Game BOTOPN hide implementation timing"
+    ],
+    "updatedAt": "2026-06-08T14:00:00.000Z"
+  },
+  "links": {
+    "architectureGaps": "ARCHITECTURE_GAPS.md",
+    "releaseGate": "RELEASE_GATE.md",
+    "qaLeague": "QA_BOT_LEAGUE.md",
+    "playerUpdates": "src/screens/updateLogContent.ts",
+    "directives": "studio/directives.md",
+    "workItems": "studio/work_items.json",
+    "identityProgressionPlatform": "studio/identity-progression-platform.md",
+    "rcExitCriteria": "studio/rc-exit-criteria.md",
+    "rcExecutionPlan": "studio/rc-stabilization-execution-plan.md",
+    "releaseReadinessReport": "studio/delegations/release-readiness-report-draft.md",
+    "rankingsQaPackage": "studio/delegations/rankings-qa-package.md",
+    "spectatorPlan": "studio/delegations/spectator-auto-spectate-plan.md",
+    "botopnRcDeferral": "studio/BOTOPN_RC_DEFERRAL.md"
+  }
+}

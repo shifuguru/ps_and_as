@@ -1,0 +1,125 @@
+﻿{
+  "games": 100,
+  "startSeed": 42000,
+  "players": 4,
+  "failures": 22,
+  "rate": 0.22,
+  "signatures": {
+    "turn on out player 3": 8,
+    "turn on out player 4": 7,
+    "turn on out player 2": 4,
+    "turn on out player 1": 3
+  },
+  "failingSeeds": [
+    {
+      "seed": 42005,
+      "reason": "turn on out player 2",
+      "steps": 76
+    },
+    {
+      "seed": 42010,
+      "reason": "turn on out player 3",
+      "steps": 74
+    },
+    {
+      "seed": 42011,
+      "reason": "turn on out player 4",
+      "steps": 59
+    },
+    {
+      "seed": 42015,
+      "reason": "turn on out player 3",
+      "steps": 68
+    },
+    {
+      "seed": 42017,
+      "reason": "turn on out player 3",
+      "steps": 78
+    },
+    {
+      "seed": 42018,
+      "reason": "turn on out player 1",
+      "steps": 65
+    },
+    {
+      "seed": 42020,
+      "reason": "turn on out player 3",
+      "steps": 73
+    },
+    {
+      "seed": 42024,
+      "reason": "turn on out player 4",
+      "steps": 65
+    },
+    {
+      "seed": 42029,
+      "reason": "turn on out player 4",
+      "steps": 78
+    },
+    {
+      "seed": 42039,
+      "reason": "turn on out player 4",
+      "steps": 55
+    },
+    {
+      "seed": 42040,
+      "reason": "turn on out player 1",
+      "steps": 77
+    },
+    {
+      "seed": 42048,
+      "reason": "turn on out player 3",
+      "steps": 82
+    },
+    {
+      "seed": 42052,
+      "reason": "turn on out player 4",
+      "steps": 74
+    },
+    {
+      "seed": 42058,
+      "reason": "turn on out player 3",
+      "steps": 83
+    },
+    {
+      "seed": 42059,
+      "reason": "turn on out player 4",
+      "steps": 49
+    },
+    {
+      "seed": 42062,
+      "reason": "turn on out player 3",
+      "steps": 75
+    },
+    {
+      "seed": 42067,
+      "reason": "turn on out player 3",
+      "steps": 83
+    },
+    {
+      "seed": 42070,
+      "reason": "turn on out player 1",
+      "steps": 70
+    },
+    {
+      "seed": 42074,
+      "reason": "turn on out player 2",
+      "steps": 73
+    },
+    {
+      "seed": 42088,
+      "reason": "turn on out player 2",
+      "steps": 84
+    },
+    {
+      "seed": 42093,
+      "reason": "turn on out player 4",
+      "steps": 75
+    },
+    {
+      "seed": 42096,
+      "reason": "turn on out player 2",
+      "steps": 74
+    }
+  ]
+}

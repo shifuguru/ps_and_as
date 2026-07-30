@@ -1,0 +1,1729 @@
+========================================================================
+GAME TRACE — seed 1004
+Players: P1, P2, P3, P4 | Rounds: 4
+========================================================================
+
+------------------------------------------------------------------------
+ROUND 1
+Opening player: P4
+3♣ holder: P4
+Rank-3 cards: P1:3♠ | P3:3♥ | P4:3♣,3♦
+------------------------------------------------------------------------
+
+TURN 1
+P4 plays 3♣
+Pile: [3]
+TURN 2
+P1 plays 4♥
+Pile: [4]
+TURN 3
+P2 plays 5♣
+Pile: [5]
+
+RUN ACTIVATED
+Chronology: [3, 4, 5, 5]
+Run Sequence: [3, 4, 5]
+Pile: [5]
+Multiplicity: 1
+currentPlayerIndex: 2 (P3)
+
+TURN 4
+P3 plays 4♣
+Pile: [4]
+TURN 5
+P4 plays 3♦
+Pile: [3]
+TURN 6
+P1 plays 4♦
+Pile: [4]
+TURN 7
+P2 plays 5♦
+Pile: [5]
+TURN 8
+P3 plays 6♦
+Pile: [6]
+
+RUN EXTENDED
+Chronology: [3, 4, 5, 4, 3, 4, 5, 6, 6]
+Run Sequence: [3, 4, 5, 6]
+Pile: [6]
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+TURN 9
+P4 plays 7♥
+Pile: [7]
+
+RUN EXTENDED
+Chronology: [3, 4, 5, 4, 3, 4, 5, 6, 7, 7]
+Run Sequence: [3, 4, 5, 6, 7]
+Pile: [7]
+Multiplicity: 1
+currentPlayerIndex: 0 (P1)
+
+TURN 10
+P1 plays 6♥
+Pile: [6]
+TURN 11
+P2 plays 7♣
+Pile: [7]
+TURN 12
+P3 plays 8♥
+Pile: [8]
+
+RUN BROKEN
+Chronology: [3, 4, 5, 4, 3, 4, 5, 6, 7, 6, 7, 8, 8]
+Run Sequence: [6, 7, 8]
+Pile: [8]
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+
+RUN ACTIVATED
+Chronology: [3, 4, 5, 4, 3, 4, 5, 6, 7, 6, 7, 8, 8]
+Run Sequence: [6, 7, 8]
+Pile: [8]
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+TURN 13
+P4 passes
+TURN 14
+P1 plays 7♦
+Pile: [7]
+
+RUN EXTENDED
+Chronology: [3, 4, 5, 4, 3, 4, 5, 6, 7, 6, 7, 8, 7, 7]
+Run Sequence: [3, 4, 5, 6, 7]
+Pile: [7]
+Multiplicity: 1
+currentPlayerIndex: 1 (P2)
+
+TURN 15
+P2 plays 6♠
+Pile: [6]
+TURN 16
+P3 plays 5♠
+Pile: [5]
+TURN 17
+P1 passes
+TURN 18
+P2 plays 4♠
+Pile: [4]
+TURN 19
+P3 plays 3♥
+Pile: [3]
+TURN 20
+P2 passes
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 2 (P3)
+
+
+TRICK COMPLETE
+Winner: P3
+Run cards in trick: 17
+
+TURN 21
+P3 plays 8♣
+Pile: [8]
+TURN 22
+P4 plays 10♠
+Pile: [10]
+
+TEN RULE ACTIVATED
+Direction: higher
+Pile: [10]
+
+TURN 23
+P1 plays J♠
+Pile: [J]
+
+TEN RULE CLEARED
+Pile: [J]
+
+TURN 24
+P2 plays Q♠
+Pile: [Q]
+
+RUN ACTIVATED
+Chronology: [8, 10, 11, 12, 12]
+Run Sequence: [10, 11, 12]
+Pile: [Q]
+Multiplicity: 1
+currentPlayerIndex: 2 (P3)
+
+TURN 25
+P3 plays K♣
+Pile: [K]
+
+RUN EXTENDED
+Chronology: [8, 10, 11, 12, 13, 13]
+Run Sequence: [10, 11, 12, 13]
+Pile: [K]
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+TURN 26
+P4 plays Q♣
+Pile: [Q]
+TURN 27
+P1 plays J♦
+Pile: [J]
+TURN 28
+P2 passes
+TURN 29
+P3 plays 10♥
+Pile: [10]
+TURN 30
+P4 plays J♣
+Pile: [J]
+TURN 31
+P1 plays Q♦
+Pile: [Q]
+TURN 32
+P3 passes
+TURN 33
+P4 plays J♥
+Pile: [J]
+TURN 34
+P1 passes
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+
+TRICK COMPLETE
+Winner: P4
+Run cards in trick: 10
+
+TURN 35
+P4 plays 6♣
+Pile: [6]
+TURN 36
+P1 plays 8♠
+Pile: [8]
+TURN 37
+P2 plays 9♣
+Pile: [9]
+TURN 38
+P3 plays 10♣
+Pile: [10]
+
+RUN ACTIVATED
+Chronology: [6, 8, 9, 10, 10]
+Run Sequence: [8, 9, 10]
+Pile: [10]
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+TURN 39
+P4 passes
+TURN 40
+P1 plays 9♠
+Pile: [9]
+TURN 41
+P2 passes
+TURN 42
+P3 plays 10♦
+Pile: [10]
+TURN 43
+P1 plays 9♦
+Pile: [9]
+TURN 44
+P3 passes
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 0 (P1)
+
+
+TRICK COMPLETE
+Winner: P1
+Run cards in trick: 6
+
+TURN 45
+P1 plays 3♠
+Pile: [3]
+TURN 46
+P2 plays 7♠
+Pile: [7]
+TURN 47
+P3 plays 9♥
+Pile: [9]
+TURN 48
+P4 plays Q♥
+Pile: [Q]
+TURN 49
+P1 plays K♦
+Pile: [K]
+TURN 50
+P2 plays A♣
+Pile: [A]
+
+RUN ACTIVATED
+Chronology: [3, 7, 9, 12, 13, 14, 14]
+Run Sequence: [12, 13, 14]
+Pile: [A]
+Multiplicity: 1
+currentPlayerIndex: 2 (P3)
+
+TURN 51
+P3 passes
+TURN 52
+P4 plays 2♥
+Pile: [2]
+
+RUN EXTENDED
+Chronology: [3, 7, 9, 12, 13, 14, 15, 15]
+Run Sequence: [12, 13, 14, 15]
+Pile: [2]
+Multiplicity: 1
+currentPlayerIndex: 0 (P1)
+
+TURN 53
+P1 passes
+TURN 54
+P2 plays A♦
+Pile: [A]
+TURN 55
+P4 plays 2♦
+Pile: [2]
+TURN 56
+P2 passes
+
+ON TOP GRANTED
+Owner: P4
+Reason: run
+State:
+  runOnTop.active: true
+  runOnTop.playerIndex: 3
+  currentPlayerIndex: 3 (P4)
+  tenRule.direction: null
+  runSeq: [12, 13, 14, 15]
+  pile: [2]
+Legal Plays:
+  1. A♠
+Pass Legal: no
+Chosen Action:
+  (pending — next owner turn)
+
+TURN 57
+P4 plays A♠
+Pile: []
+Chosen Action: A♠
+Decision Quality: optimal
+findCPUPlay suggestion: 8♦
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+
+TRICK COMPLETE
+Winner: P4
+Run cards in trick: 7
+
+TURN 58
+P4 plays 8♦
+Pile: [8]
+TURN 59
+P1 plays JOKER
+Pile: [JOKER]
+TURN 60
+P2 passes
+TURN 61
+P3 passes
+
+TRICK COMPLETE
+Winner: P1
+
+TURN 62
+P1 plays 5♥
+Pile: [5]
+TURN 63
+P2 plays K♠
+Pile: [K]
+TURN 64
+P3 plays A♥
+Pile: [A]
+TURN 65
+P2 plays 2♠
+Pile: [2]
+
+RUN ACTIVATED
+Chronology: [5, 13, 14, 15, 15]
+Run Sequence: [13, 14, 15]
+Pile: [2]
+Multiplicity: 1
+currentPlayerIndex: 2 (P3)
+
+TURN 66
+P3 passes
+
+ON TOP GRANTED
+Owner: P2
+Reason: run
+State:
+  runOnTop.active: true
+  runOnTop.playerIndex: 1
+  currentPlayerIndex: 1 (P2)
+  tenRule.direction: null
+  runSeq: [13, 14, 15]
+  pile: [2]
+Legal Plays:
+  (none)
+Pass Legal: yes
+Chosen Action:
+  (pending — next owner turn)
+
+TURN 67
+P2 passes
+Chosen Action: PASS
+Decision Quality: reasonable
+findCPUPlay suggestion: K♥
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 1 (P2)
+
+
+TRICK COMPLETE
+Winner: P2
+Run cards in trick: 3
+
+TURN 68
+P2 plays K♥
+Pile: [K]
+TURN 69
+P3 plays JOKER
+Pile: [JOKER]
+TURN 70
+P2 passes
+
+TRICK COMPLETE
+Winner: P3
+
+
+ROUND 1 SUMMARY
+Rankings (finish order):
+  1. P4 (President)
+  2. P1 (Neutral)
+  3. P3 (Neutral)
+  4. P2 (Asshole)
+Role assignments:
+  P1: Neutral
+  P2: Asshole
+  P3: Neutral
+  P4: President
+
+
+ROLE TRADE
+President received: JOKER (from P2)
+Asshole returned: 4♦
+Opening player after trade: P3
+Who owns 3♣: P1
+Who owns all rank-3 cards: P1:3♥,3♣,3♦ | P2:3♠
+⚠ Post-trade opener mismatch — opening player does not own 3♣
+
+------------------------------------------------------------------------
+ROUND 2
+Opening player: P3
+3♣ holder: P1
+Rank-3 cards: P1:3♥,3♣,3♦ | P2:3♠
+------------------------------------------------------------------------
+
+TURN 71
+P3 plays 5♠
+Pile: [5]
+TURN 72
+P4 plays 6♦
+Pile: [6]
+TURN 73
+P1 plays J♠
+Pile: [J]
+TURN 74
+P2 plays K♠
+Pile: [K]
+TURN 75
+P3 plays A♣
+Pile: [A]
+TURN 76
+P4 plays JOKER
+Pile: [JOKER]
+TURN 77
+P1 passes
+TURN 78
+P2 passes
+TURN 79
+P3 passes
+
+TRICK COMPLETE
+Winner: P4
+
+TURN 80
+P4 plays 5♣
+Pile: [5]
+TURN 81
+P1 plays 6♠
+Pile: [6]
+TURN 82
+P2 plays 7♣
+Pile: [7]
+
+RUN ACTIVATED
+Chronology: [5, 6, 7, 7]
+Run Sequence: [5, 6, 7]
+Pile: [7]
+Multiplicity: 1
+currentPlayerIndex: 2 (P3)
+
+TURN 83
+P3 plays 6♥
+Pile: [6]
+TURN 84
+P4 plays 7♥
+Pile: [7]
+TURN 85
+P1 passes
+TURN 86
+P2 plays 6♣
+Pile: [6]
+TURN 87
+P3 plays 7♦
+Pile: [7]
+TURN 88
+P4 passes
+TURN 89
+P2 plays 8♣
+Pile: [8]
+
+RUN BROKEN
+Chronology: [5, 6, 7, 6, 7, 6, 7, 8, 8]
+Run Sequence: [6, 7, 8]
+Pile: [8]
+Multiplicity: 1
+currentPlayerIndex: 2 (P3)
+
+
+RUN ACTIVATED
+Chronology: [5, 6, 7, 6, 7, 6, 7, 8, 8]
+Run Sequence: [6, 7, 8]
+Pile: [8]
+Multiplicity: 1
+currentPlayerIndex: 2 (P3)
+
+TURN 90
+P3 plays 9♠
+Pile: [9]
+
+RUN EXTENDED
+Chronology: [5, 6, 7, 6, 7, 6, 7, 8, 9, 9]
+Run Sequence: [6, 7, 8, 9]
+Pile: [9]
+Multiplicity: 1
+currentPlayerIndex: 1 (P2)
+
+TURN 91
+P2 plays 8♥
+Pile: [8]
+TURN 92
+P3 plays 9♣
+Pile: [9]
+TURN 93
+P2 plays 8♦
+Pile: [8]
+TURN 94
+P3 passes
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 1 (P2)
+
+
+TRICK COMPLETE
+Winner: P2
+Run cards in trick: 12
+
+TURN 95
+P2 plays 3♠
+Pile: [3]
+TURN 96
+P3 plays 8♠
+Pile: [8]
+TURN 97
+P4 plays 10♥
+Pile: [10]
+
+TEN RULE ACTIVATED
+Direction: higher
+Pile: [10]
+
+TURN 98
+P1 plays Q♠
+Pile: [Q]
+
+TEN RULE CLEARED
+Pile: [Q]
+
+TURN 99
+P2 plays A♠
+Pile: [A]
+TURN 100
+P3 plays 2♦
+Pile: [2]
+TURN 101
+P4 plays JOKER
+Pile: [JOKER]
+TURN 102
+P1 passes
+TURN 103
+P2 passes
+TURN 104
+P3 passes
+
+TRICK COMPLETE
+Winner: P4
+
+TURN 105
+P4 plays 7♠
+Pile: [7]
+TURN 106
+P1 plays Q♥
+Pile: [Q]
+TURN 107
+P2 passes
+TURN 108
+P3 plays K♣
+Pile: [K]
+TURN 109
+P4 plays A♦
+Pile: [A]
+
+RUN ACTIVATED
+Chronology: [7, 12, 13, 14, 14]
+Run Sequence: [12, 13, 14]
+Pile: [A]
+Multiplicity: 1
+currentPlayerIndex: 0 (P1)
+
+TURN 110
+P1 plays K♦
+Pile: [K]
+TURN 111
+P3 passes
+TURN 112
+P4 plays Q♣
+Pile: [Q]
+TURN 113
+P1 passes
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+
+TRICK COMPLETE
+Winner: P4
+Run cards in trick: 5
+
+TURN 114
+P4 plays 10♦
+Pile: [10]
+
+TEN RULE ACTIVATED
+Direction: higher
+Pile: [10]
+
+TURN 115
+P1 plays Q♦
+Pile: [Q]
+
+TEN RULE CLEARED
+Pile: [Q]
+
+TURN 116
+P2 passes
+TURN 117
+P3 plays 2♣
+Pile: [2]
+TURN 118
+P4 passes
+TURN 119
+P1 passes
+
+TRICK COMPLETE
+Winner: P3
+
+TURN 120
+P3 plays 10♠
+Pile: [10]
+
+TEN RULE ACTIVATED
+Direction: higher
+Pile: [10]
+
+TURN 121
+P4 plays J♣
+Pile: [J]
+
+TEN RULE CLEARED
+Pile: [J]
+
+TURN 122
+P1 plays A♥
+Pile: [A]
+TURN 123
+P2 passes
+TURN 124
+P3 plays 2♥
+Pile: [2]
+TURN 125
+P4 passes
+TURN 126
+P1 passes
+
+TRICK COMPLETE
+Winner: P3
+
+TURN 127
+P3 plays J♦
+Pile: [J]
+TURN 128
+P4 plays K♥
+Pile: [K]
+TURN 129
+P1 plays 2♠
+Pile: [2]
+TURN 130
+P2 passes
+TURN 131
+P4 passes
+
+TRICK COMPLETE
+Winner: P1
+
+TURN 132
+P1 plays 3♥
+Pile: [3]
+TURN 133
+P2 plays 4♣
+Pile: [4]
+TURN 134
+P4 plays J♥
+Pile: [J]
+TURN 135
+P1 passes
+TURN 136
+P2 passes
+
+TRICK COMPLETE
+Winner: P4
+
+TURN 137
+P1 plays 3♣
+Pile: [3]
+TURN 138
+P2 plays 4♦
+Pile: [4]
+TURN 139
+P1 plays 5♦
+Pile: [5]
+
+RUN ACTIVATED
+Chronology: [3, 4, 5, 5]
+Run Sequence: [3, 4, 5]
+Pile: [5]
+Multiplicity: 1
+currentPlayerIndex: 1 (P2)
+
+TURN 140
+P2 passes
+
+ON TOP GRANTED
+Owner: P1
+Reason: run
+State:
+  runOnTop.active: true
+  runOnTop.playerIndex: 0
+  currentPlayerIndex: 0 (P1)
+  tenRule.direction: null
+  runSeq: [3, 4, 5]
+  pile: [5]
+Legal Plays:
+  1. 4♠
+Pass Legal: no
+Chosen Action:
+  (pending — next owner turn)
+
+TURN 141
+P1 plays 4♠
+Pile: []
+Chosen Action: 4♠
+Decision Quality: optimal
+findCPUPlay suggestion: 3♦
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 0 (P1)
+
+
+TRICK COMPLETE
+Winner: P1
+Run cards in trick: 4
+
+TURN 142
+P1 plays 3♦
+Pile: [3]
+TURN 143
+P2 plays 5♥
+Pile: [5]
+TURN 144
+P1 passes
+
+TRICK COMPLETE
+Winner: P2
+
+TURN 145
+P2 plays 9♦
+Pile: [9]
+TURN 146
+P1 passes
+
+TRICK COMPLETE
+Winner: P2
+
+TURN 147
+P2 plays 9♥
+Pile: [9]
+TURN 148
+P1 passes
+
+TRICK COMPLETE
+Winner: P2
+
+TURN 149
+P2 plays 10♣
+Pile: [10]
+
+TEN RULE ACTIVATED
+Direction: lower
+Pile: [10]
+
+TURN 150
+P1 plays 4♥
+Pile: []
+
+TEN RULE CLEARED
+Pile: []
+
+
+TRICK COMPLETE
+Winner: P1
+
+
+ROUND 2 SUMMARY
+Rankings (finish order):
+  1. P3 (President)
+  2. P4 (Neutral)
+  3. P2 (Neutral)
+  4. P1 (Asshole)
+Role assignments:
+  P1: Asshole
+  P2: Neutral
+  P3: President
+  P4: Neutral
+
+
+ROLE TRADE
+President received: JOKER (from P1)
+Asshole returned: 3♣
+Opening player after trade: P2
+Who owns 3♣: P1
+Who owns all rank-3 cards: P1:3♣ | P2:3♥,3♠ | P4:3♦
+⚠ Post-trade opener mismatch — opening player does not own 3♣
+
+------------------------------------------------------------------------
+ROUND 3
+Opening player: P2
+3♣ holder: P1
+Rank-3 cards: P1:3♣ | P2:3♥,3♠ | P4:3♦
+------------------------------------------------------------------------
+
+TURN 151
+P2 plays 3♥
+Pile: [3]
+TURN 152
+P3 plays 4♣
+Pile: [4]
+TURN 153
+P4 plays 7♣
+Pile: [7]
+TURN 154
+P1 plays 10♦
+Pile: [10]
+
+TEN RULE ACTIVATED
+Direction: lower
+Pile: [10]
+
+TURN 155
+P2 plays 3♠
+Pile: [3]
+
+TEN RULE CLEARED
+Pile: [3]
+
+TURN 156
+P3 plays 4♥
+Pile: [4]
+TURN 157
+P4 plays 8♠
+Pile: [8]
+TURN 158
+P1 plays J♦
+Pile: [J]
+TURN 159
+P2 plays A♠
+Pile: [A]
+TURN 160
+P3 plays 2♦
+Pile: [2]
+TURN 161
+P4 passes
+TURN 162
+P1 passes
+TURN 163
+P2 plays JOKER
+Pile: [JOKER]
+TURN 164
+P3 passes
+
+TRICK COMPLETE
+Winner: P2
+
+TURN 165
+P2 plays 5♠
+Pile: [5]
+TURN 166
+P3 plays 6♠
+Pile: [6]
+TURN 167
+P4 plays 9♠
+Pile: [9]
+TURN 168
+P1 plays Q♥
+Pile: [Q]
+TURN 169
+P2 plays A♣
+Pile: [A]
+TURN 170
+P3 plays 2♥
+Pile: [2]
+TURN 171
+P4 passes
+TURN 172
+P1 passes
+TURN 173
+P2 passes
+
+TRICK COMPLETE
+Winner: P3
+
+TURN 174
+P3 plays 4♠
+Pile: [4]
+TURN 175
+P4 plays 9♥
+Pile: [9]
+TURN 176
+P1 plays Q♦
+Pile: [Q]
+TURN 177
+P2 passes
+TURN 178
+P3 plays JOKER
+Pile: [JOKER]
+TURN 179
+P4 passes
+TURN 180
+P1 passes
+
+TRICK COMPLETE
+Winner: P3
+
+TURN 181
+P3 plays 5♦
+Pile: [5]
+TURN 182
+P4 plays 10♠
+Pile: [10]
+
+TEN RULE ACTIVATED
+Direction: lower
+Pile: [10]
+
+TURN 183
+P1 plays 3♣
+Pile: [3]
+
+TEN RULE CLEARED
+Pile: [3]
+
+TURN 184
+P2 plays 5♣
+Pile: [5]
+TURN 185
+P3 plays 8♦
+Pile: [8]
+TURN 186
+P4 plays J♣
+Pile: [J]
+TURN 187
+P1 plays Q♠
+Pile: [Q]
+TURN 188
+P2 passes
+TURN 189
+P3 passes
+TURN 190
+P4 plays K♠
+Pile: [K]
+
+RUN ACTIVATED
+Chronology: [5, 10, 3, 5, 8, 11, 12, 13, 13]
+Run Sequence: [11, 12, 13]
+Pile: [K]
+Multiplicity: 1
+currentPlayerIndex: 0 (P1)
+
+TURN 191
+P1 plays A♥
+Pile: [A]
+
+RUN EXTENDED
+Chronology: [5, 10, 3, 5, 8, 11, 12, 13, 14, 14]
+Run Sequence: [11, 12, 13, 14]
+Pile: [A]
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+TURN 192
+P4 plays K♣
+Pile: [K]
+TURN 193
+P1 passes
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+
+TRICK COMPLETE
+Winner: P4
+Run cards in trick: 5
+
+TURN 194
+P4 plays 3♦
+Pile: [3]
+TURN 195
+P1 plays 6♦
+Pile: [6]
+TURN 196
+P2 plays 7♥
+Pile: [7]
+TURN 197
+P3 plays 8♣
+Pile: [8]
+
+RUN ACTIVATED
+Chronology: [3, 6, 7, 8, 8]
+Run Sequence: [6, 7, 8]
+Pile: [8]
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+TURN 198
+P4 passes
+TURN 199
+P1 plays 7♦
+Pile: [7]
+TURN 200
+P2 plays 6♥
+Pile: [6]
+TURN 201
+P3 plays 5♥
+Pile: [5]
+
+RUN BROKEN
+Chronology: [3, 6, 7, 8, 7, 6, 5, 5]
+Run Sequence: []
+Pile: [5]
+Multiplicity: 1
+currentPlayerIndex: 0 (P1)
+
+TURN 202
+P1 plays 6♣
+Pile: [6]
+
+RUN ACTIVATED
+Chronology: [3, 6, 7, 8, 7, 6, 5, 6, 6]
+Run Sequence: [6, 7, 8]
+Pile: [6]
+Multiplicity: 1
+currentPlayerIndex: 1 (P2)
+
+TURN 203
+P2 passes
+TURN 204
+P3 passes
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 0 (P1)
+
+
+TRICK COMPLETE
+Winner: P1
+Run cards in trick: 7
+
+TURN 205
+P1 plays 7♠
+Pile: [7]
+TURN 206
+P2 plays 8♥
+Pile: [8]
+TURN 207
+P3 plays 9♣
+Pile: [9]
+
+RUN ACTIVATED
+Chronology: [7, 8, 9, 9]
+Run Sequence: [7, 8, 9]
+Pile: [9]
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+TURN 208
+P4 passes
+TURN 209
+P1 passes
+TURN 210
+P2 plays 10♥
+Pile: [10]
+
+RUN EXTENDED
+Chronology: [7, 8, 9, 10, 10]
+Run Sequence: [7, 8, 9, 10]
+Pile: [10]
+Multiplicity: 1
+currentPlayerIndex: 2 (P3)
+
+TURN 211
+P3 passes
+
+ON TOP GRANTED
+Owner: P2
+Reason: run
+State:
+  runOnTop.active: true
+  runOnTop.playerIndex: 1
+  currentPlayerIndex: 1 (P2)
+  tenRule.direction: null
+  runSeq: [7, 8, 9, 10]
+  pile: [10]
+Legal Plays:
+  1. 9♦
+  2. J♠
+Pass Legal: no
+Chosen Action:
+  (pending — next owner turn)
+
+TURN 212
+P2 plays 9♦
+Pile: []
+Chosen Action: 9♦
+Decision Quality: optimal
+findCPUPlay suggestion: J♠
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 1 (P2)
+
+
+TRICK COMPLETE
+Winner: P2
+Run cards in trick: 5
+
+TURN 213
+P2 plays J♠
+Pile: [J]
+TURN 214
+P3 passes
+TURN 215
+P4 plays Q♣
+Pile: [Q]
+TURN 216
+P1 plays K♥
+Pile: [K]
+
+RUN ACTIVATED
+Chronology: [11, 12, 13, 13]
+Run Sequence: [11, 12, 13]
+Pile: [K]
+Multiplicity: 1
+currentPlayerIndex: 1 (P2)
+
+TURN 217
+P2 passes
+TURN 218
+P4 plays A♦
+Pile: [A]
+
+RUN EXTENDED
+Chronology: [11, 12, 13, 14, 14]
+Run Sequence: [11, 12, 13, 14]
+Pile: [A]
+Multiplicity: 1
+currentPlayerIndex: 0 (P1)
+
+TURN 219
+P1 plays K♦
+Pile: [K]
+TURN 220
+P4 passes
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 0 (P1)
+
+
+TRICK COMPLETE
+Winner: P1
+Run cards in trick: 5
+
+TURN 221
+P1 plays 2♣
+Pile: [2]
+TURN 222
+P2 passes
+TURN 223
+P3 passes
+TURN 224
+P4 passes
+
+TRICK COMPLETE
+Winner: P1
+
+TURN 225
+P2 plays J♥
+Pile: [J]
+TURN 226
+P3 passes
+TURN 227
+P4 plays 2♠
+Pile: []
+
+TRICK COMPLETE
+Winner: P4
+
+TURN 228
+P4 plays 4♦
+Pile: [4]
+TURN 229
+P3 plays 10♣
+Pile: [10]
+
+TEN RULE ACTIVATED
+Direction: higher
+Pile: [10]
+
+
+ROUND 3 SUMMARY
+Rankings (finish order):
+  1. P1 (President)
+  2. P2 (Neutral)
+  3. P4 (Neutral)
+  4. P3 (Asshole)
+Role assignments:
+  P1: President
+  P2: Neutral
+  P3: Asshole
+  P4: Neutral
+
+
+ROLE TRADE
+President received: 2♥ (from P3)
+Asshole returned: 3♠
+Opening player after trade: P4
+Who owns 3♣: P3
+Who owns all rank-3 cards: P1:3♦ | P3:3♣,3♥,3♠
+⚠ Post-trade opener mismatch — opening player does not own 3♣
+
+------------------------------------------------------------------------
+ROUND 4
+Opening player: P4
+3♣ holder: P3
+Rank-3 cards: P1:3♦ | P3:3♣,3♥,3♠
+------------------------------------------------------------------------
+
+TURN 230
+P4 plays 6♣
+Pile: [6]
+TURN 231
+P1 plays 8♦
+Pile: [8]
+TURN 232
+P2 plays 9♠
+Pile: [9]
+TURN 233
+P3 plays 10♦
+Pile: [10]
+
+RUN ACTIVATED
+Chronology: [6, 8, 9, 10, 10]
+Run Sequence: [8, 9, 10]
+Pile: [10]
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+TURN 234
+P4 plays 9♦
+Pile: [9]
+TURN 235
+P1 plays 8♣
+Pile: [8]
+TURN 236
+P2 plays 7♠
+Pile: [7]
+
+RUN BROKEN
+Chronology: [6, 8, 9, 10, 9, 8, 7, 7]
+Run Sequence: []
+Pile: [7]
+Multiplicity: 1
+currentPlayerIndex: 2 (P3)
+
+TURN 237
+P3 plays J♣
+Pile: [J]
+TURN 238
+P4 plays K♣
+Pile: [K]
+TURN 239
+P1 plays A♥
+Pile: [A]
+TURN 240
+P2 plays 2♣
+Pile: [2]
+
+RUN ACTIVATED
+Chronology: [6, 8, 9, 10, 9, 8, 7, 11, 13, 14, 15, 15]
+Run Sequence: [13, 14, 15]
+Pile: [2]
+Multiplicity: 1
+currentPlayerIndex: 2 (P3)
+
+TURN 241
+P3 plays A♣
+Pile: [A]
+TURN 242
+P4 passes
+TURN 243
+P1 plays 2♦
+Pile: [2]
+TURN 244
+P2 passes
+TURN 245
+P3 passes
+
+ON TOP GRANTED
+Owner: P1
+Reason: run
+State:
+  runOnTop.active: true
+  runOnTop.playerIndex: 0
+  currentPlayerIndex: 0 (P1)
+  tenRule.direction: null
+  runSeq: [13, 14, 15]
+  pile: [2]
+Legal Plays:
+  (none)
+Pass Legal: yes
+Chosen Action:
+  (pending — next owner turn)
+
+TURN 246
+P1 passes
+Chosen Action: PASS
+Decision Quality: reasonable
+findCPUPlay suggestion: 3♦
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 0 (P1)
+
+
+TRICK COMPLETE
+Winner: P1
+Run cards in trick: 5
+
+TURN 247
+P1 plays 3♦
+Pile: [3]
+TURN 248
+P2 plays 5♣
+Pile: [5]
+TURN 249
+P3 plays 6♦
+Pile: [6]
+TURN 250
+P4 plays 7♥
+Pile: [7]
+
+RUN ACTIVATED
+Chronology: [3, 5, 6, 7, 7]
+Run Sequence: [5, 6, 7]
+Pile: [7]
+Multiplicity: 1
+currentPlayerIndex: 0 (P1)
+
+TURN 251
+P1 passes
+TURN 252
+P2 plays 6♥
+Pile: [6]
+TURN 253
+P3 plays 5♠
+Pile: [5]
+TURN 254
+P4 passes
+TURN 255
+P2 plays 6♠
+Pile: [6]
+TURN 256
+P3 plays 7♣
+Pile: [7]
+TURN 257
+P2 passes
+
+ON TOP GRANTED
+Owner: P3
+Reason: run
+State:
+  runOnTop.active: true
+  runOnTop.playerIndex: 2
+  currentPlayerIndex: 2 (P3)
+  tenRule.direction: null
+  runSeq: [5, 6, 7]
+  pile: [7]
+Legal Plays:
+  (none)
+Pass Legal: yes
+Chosen Action:
+  (pending — next owner turn)
+
+TURN 258
+P3 passes
+Chosen Action: PASS
+Decision Quality: reasonable
+findCPUPlay suggestion: 3♣
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 2 (P3)
+
+
+TRICK COMPLETE
+Winner: P3
+Run cards in trick: 7
+
+TURN 259
+P3 plays 3♣
+Pile: [3]
+TURN 260
+P4 plays 8♠
+Pile: [8]
+TURN 261
+P1 plays J♥
+Pile: [J]
+TURN 262
+P2 plays Q♥
+Pile: [Q]
+TURN 263
+P3 plays K♦
+Pile: [K]
+
+RUN ACTIVATED
+Chronology: [3, 8, 11, 12, 13, 13]
+Run Sequence: [11, 12, 13]
+Pile: [K]
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+TURN 264
+P4 plays A♠
+Pile: [A]
+
+RUN EXTENDED
+Chronology: [3, 8, 11, 12, 13, 14, 14]
+Run Sequence: [11, 12, 13, 14]
+Pile: [A]
+Multiplicity: 1
+currentPlayerIndex: 0 (P1)
+
+TURN 265
+P1 plays 2♥
+Pile: [2]
+
+RUN EXTENDED
+Chronology: [3, 8, 11, 12, 13, 14, 15, 15]
+Run Sequence: [11, 12, 13, 14, 15]
+Pile: [2]
+Multiplicity: 1
+currentPlayerIndex: 1 (P2)
+
+TURN 266
+P2 passes
+TURN 267
+P3 passes
+TURN 268
+P4 plays A♦
+Pile: [A]
+TURN 269
+P1 passes
+
+RUN BROKEN
+Chronology: []
+Run Sequence: []
+Pile: []
+Multiplicity: 1
+currentPlayerIndex: 3 (P4)
+
+
+TRICK COMPLETE
+Winner: P4
+Run cards in trick: 6
+
+TURN 270
+P4 plays 8♥
+Pile: [8]
+TURN 271
+P1 plays Q♦
+Pile: [Q]
+TURN 272
+P2 plays K♠
+Pile: [K]
+TURN 273
+P3 passes
+TURN 274
+P4 plays JOKER
+Pile: [JOKER]
+TURN 275
+P1 passes
+TURN 276
+P2 passes
+
+TRICK COMPLETE
+Winner: P4
+
+TURN 277
+P4 plays 10♣
+Pile: [10]
+
+TEN RULE ACTIVATED
+Direction: higher
+Pile: [10]
+
+TURN 278
+P1 plays Q♠
+Pile: [Q]
+
+TEN RULE CLEARED
+Pile: [Q]
+
+TURN 279
+P2 plays K♥
+Pile: [K]
+TURN 280
+P3 passes
+TURN 281
+P4 passes
+TURN 282
+P1 plays JOKER
+Pile: [JOKER]
+TURN 283
+P2 passes
+
+TRICK COMPLETE
+Winner: P1
+
+TURN 284
+P1 plays 4♠
+Pile: [4]
+TURN 285
+P2 plays 7♦
+Pile: [7]
+TURN 286
+P3 plays Q♣
+Pile: [Q]
+TURN 287
+P4 passes
+TURN 288
+P1 passes
+TURN 289
+P2 plays 2♠
+Pile: [2]
+TURN 290
+P3 passes
+
+TRICK COMPLETE
+Winner: P2
+
+TURN 291
+P2 plays 9♣
+Pile: [9]
+TURN 292
+P3 passes
+TURN 293
+P4 plays 10♥
+Pile: [10]
+
+TEN RULE ACTIVATED
+Direction: lower
+Pile: [10]
+
+TURN 294
+P1 plays 4♦
+Pile: [4]
+
+TEN RULE CLEARED
+Pile: [4]
+
+TURN 295
+P2 plays 9♥
+Pile: [9]
+TURN 296
+P4 plays J♠
+Pile: [J]
+TURN 297
+P1 passes
+TURN 298
+P2 passes
+
+TRICK COMPLETE
+Winner: P4
+
+TURN 299
+P4 plays J♦
+Pile: [J]
+TURN 300
+P1 passes
+TURN 301
+P2 passes
+TURN 302
+P3 passes
+
+TRICK COMPLETE
+Winner: P4
+
+TURN 303
+P1 plays 5♦
+Pile: [5]
+TURN 304
+P2 plays 10♠
+Pile: [10]
+
+TEN RULE ACTIVATED
+Direction: lower
+Pile: [10]
+
+TURN 305
+P3 plays 3♥
+Pile: [3]
+
+TEN RULE CLEARED
+Pile: [3]
+
+TURN 306
+P1 plays 5♥
+Pile: [5]
+TURN 307
+P3 passes
+
+TRICK COMPLETE
+Winner: P1
+
+
+ROUND 4 SUMMARY
+Rankings (finish order):
+  1. P4 (President)
+  2. P2 (Neutral)
+  3. P1 (Neutral)
+  4. P3 (Asshole)
+Role assignments:
+  P1: Neutral
+  P2: Neutral
+  P3: Asshole
+  P4: President
+
+
+========================================================================
+GAME SUMMARY
+Total turns: 307
+Total tricks: 38
+Total runs activated: 19
+Total On Top grants: 6
+Total ten-rule activations: 11
+Total eliminations: 0
+Total warnings: 3
+
+Warnings:
+  [trade] turn 70 round 1: Post-trade opener mismatch — opening player does not own 3♣
+  [trade] turn 150 round 2: Post-trade opener mismatch — opening player does not own 3♣
+  [trade] turn 229 round 3: Post-trade opener mismatch — opening player does not own 3♣
+========================================================================

@@ -1,0 +1,174 @@
+# RC v1.0.61 — Exclusion List
+
+**Baseline:** production **v1.0.60** @ `249eabb`  
+**Rule:** If it is not Cluster A, Cluster B, release packaging, or gate verification — **exclude**.
+
+---
+
+## Modified files — excluded from minimal RC
+
+### Optional visual / UX polish
+
+| File | Reason |
+|------|--------|
+| `src/components/GamePlayArea.tsx` | Presence context prop; `PLAY_CARD_FLIGHT_MS` moved to util — not Cluster A/B |
+| `src/components/GameTable.tsx` | Turn-hint pill width tweak |
+| `src/components/OpponentRing.tsx` | Presence ring + seat chat props |
+| `src/components/OpponentSeat.tsx` | Presence ring refactor (large diff) |
+| `src/components/TableCardFlight.tsx` | Animation duration constant only |
+| `src/components/TrickWinShout.tsx` | `autoDismiss` prop — cosmetic |
+| `src/utils/playerDisplay.ts` | Pill label truncation tweak |
+| `server/botHostedRooms.js` | Bot think-delay jitter — BOTOPN; deferred per D-010 |
+
+### Gameplay-adjacent — not Cluster A/B (exclude unless bundled accidentally)
+
+| File | Reason |
+|------|--------|
+| `src/game/core.ts` | Ten-rule direction recovery — separate fix; not empty-hands Cluster A |
+| `src/game/socketAdapter.ts` | Seat chat listener — pairs with excluded seat-chat feature |
+| `src/utils/turnRingFlightVerify.ts` | Turn-ring highlight logic — not Cluster A/B |
+| `scripts/verify-turn-ring-highlight.mjs` | Dev verification script |
+
+### Studio / Mission Control only
+
+| File | Reason |
+|------|--------|
+| `App.tsx` | Mission Control route gate (`isMissionControlRoute`) — not gameplay |
+| `src/components/AppErrorBoundary.tsx` | Mission Control error surface |
+| `package.json` (studio scripts delta) | `studio:*` npm scripts; `web` script adds studio copy — **exclude studio script changes**; only take version bump |
+| `.github/workflows/deploy-web.yml` | `studio/**` path trigger + studio artifact test |
+| `scripts/fix-web-build-paths.js` | Copies `studio/` into web-build |
+| `404.html` | Mission Control redirect |
+| `scripts/pages-404.html` | Mission Control redirect |
+| `README.md` | Copy edit only |
+
+### Web infra (non-gameplay)
+
+| File | Reason |
+|------|--------|
+| `src/utils/readmeFallback.ts` | Static asset path refactor for studio/readme — not RC gameplay |
+
+---
+
+## Untracked files — excluded from minimal RC
+
+### Studio / Mission Control
+
+```
+studio/
+public/studio/
+scripts/studio/
+src/studio/
+src/screens/MissionControlScreen.tsx
+.cursor/rules/studio-orchestrator.mdc
+```
+
+### Investigations / docs only
+
+```
+P0_ROUND_TRANSITION_INVESTIGATION.md
+QA006_QA008_VERIFICATION.md
+TURN_OWNERSHIP_ELIMINATION.md
+ARCHITECTURE_GAPS.md          # modified — governance doc; update post-ship, not in RC bundle
+TURN_OWNERSHIP_INVESTIGATION.md
+gate-run-cluster-ab.txt
+test-results/
+```
+
+### Presence ring (flag off by default)
+
+```
+src/presence/
+src/components/PresenceRing.tsx
+src/components/PresenceRingHost.tsx
+src/components/LegacyTurnRing.tsx
+scripts/test-presence-ring.ts
+scripts/presence-ring-screenshots/
+scripts/presence-ring-smoke.mjs
+```
+
+### Seat chat (not Cluster A/B)
+
+```
+src/components/GameSeatChatButton.tsx
+src/utils/seatChat.ts
+```
+
+### Turn / animation polish (not Cluster A/B)
+
+```
+src/utils/playAnimationTiming.ts
+src/utils/turnTransitionDiagnostics.ts
+src/utils/multiplayerPresentationVerify.ts
+src/utils/staticAssetPaths.ts
+src/utils/fetchStaticAsset.ts
+scripts/turn-ownership/
+scripts/human-interaction/
+scripts/explore-gameplay-edge.mjs
+scripts/investigate-play-stack.mjs
+scripts/review-package-screenshots.mjs
+```
+
+### Gate / investigation scripts (optional locally; not deploy artifacts)
+
+```
+scripts/release-gate/bare-turn-sim.mjs
+scripts/release-gate/offline-seed-42003-min-repro.json
+scripts/release-gate/offline-seed-42003-min-repro.mjs
+```
+
+---
+
+## Co-located edits inside MUST-commit files (strip if possible)
+
+These live in files that **must** ship, but are **not** part of the minimal RC:
+
+### `src/screens/GameScreen.tsx` — strip before commit if feasible
+
+- Seat chat state, handlers, `GameSeatChatButton` render
+- Presence context / `PRESENCE_RING_V1` wiring
+- `turnTransitionDiagnostics` logging
+- `playFlightHold` / extended turn-ring logic
+- Run-on-top pass eligibility changes
+- CPU delay jitter (`randomCpuThinkDelayMs`)
+
+### `server/index.js` — strip before commit if feasible
+
+- `seatChat` gameAction block (~lines 1804–1819 in diff)
+- Run-on-top turn index sync on pass/play (~lines 1888–1897 in diff)
+
+---
+
+## MUST NOT commit
+
+| Category | Paths |
+|----------|-------|
+| Studio portal | `studio/**`, `public/studio/**`, `src/studio/**`, Mission Control screens/routes |
+| Cursor rules | `.cursor/**` |
+| Investigation artifacts | `gate-run-cluster-ab.txt`, `test-results/**`, `P0_*`, `QA006_*` |
+| BOTOPN-only server tuning | `server/botHostedRooms.js` delay jitter |
+| Deploy-studio workflow | `.github/workflows/deploy-web.yml` studio paths, `fix-web-build-paths.js` studio copy |
+| Local stale build | `web-build/**` (generated by `npm run build:web` at release time) |
+
+---
+
+## Uncertain — decide before commit
+
+| Item | Issue | Recommendation |
+|------|-------|----------------|
+| **`GameScreen.tsx` whole file vs cherry-pick** | File mixes Cluster A with seat chat, presence, run-on-top, turn-ring | **Cherry-pick Cluster A only** for true minimal RC |
+| **`server/index.js` whole file vs cherry-pick** | File mixes Cluster B with seatChat + run-on-top server | **Cherry-pick Cluster B only** |
+| **`src/game/core.ts` ten-rule recovery** | Gameplay fix; automated tests in `test-core.ts` | **Exclude** from v1.0.61 unless Director expands scope |
+| **Run-on-top pass fixes** (client + server) | Gameplay bugfix; co-located in both must-commit files | **Exclude** from minimal RC; ship v1.0.62 or bundle only if whole-file commit accepted |
+| **`scripts/test-core.ts`** | Tests for core.ts ten-rule change, not Cluster A | Include **only if** `core.ts` included; else include only Cluster A-relevant assertions |
+| **`ARCHITECTURE_GAPS.md`** | Post-ship governance update | Commit **after** deploy in separate doc commit, or same commit if required for process |
+
+---
+
+## Exclusion enforcement
+
+Before commit:
+
+1. `git diff --cached --name-only` must match INCLUDED list only.
+2. No `studio/`, `MissionControl`, `presence/`, or `GameSeatChatButton` paths unless Director explicitly expands RC scope.
+3. Run `npm run build:web` on staged tree — build must succeed without excluded imports.

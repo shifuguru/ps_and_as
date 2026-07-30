@@ -1,0 +1,45 @@
+GAME TRACE ANOMALY SUMMARY
+========================================================================
+Total games analyzed: 5
+Total runs activated: 95
+Total On Top grants: 23
+Total ten-rule activations: 48
+Total warnings: 12
+
+Run warnings: 0
+
+On Top warnings: 0
+
+Ten-rule warnings: 0
+
+Trade warnings: 12
+  seed 1001 R1 T85: Post-trade opener mismatch — opening player does not own 3♣
+  seed 1002 R1 T66: Post-trade opener mismatch — opening player does not own 3♣
+  seed 1002 R2 T129: Post-trade opener mismatch — opening player does not own 3♣
+  seed 1002 R3 T200: Post-trade opener mismatch — opening player does not own 3♣
+  seed 1003 R1 T69: Post-trade opener mismatch — opening player does not own 3♣
+  seed 1003 R2 T148: Post-trade opener mismatch — opening player does not own 3♣
+  seed 1003 R3 T224: Post-trade opener mismatch — opening player does not own 3♣
+  seed 1004 R1 T70: Post-trade opener mismatch — opening player does not own 3♣
+  seed 1004 R2 T150: Post-trade opener mismatch — opening player does not own 3♣
+  seed 1004 R3 T229: Post-trade opener mismatch — opening player does not own 3♣
+  seed 1005 R2 T142: Post-trade opener mismatch — opening player does not own 3♣
+  seed 1005 R3 T214: Post-trade opener mismatch — opening player does not own 3♣
+
+Turn ownership warnings: 0
+
+Other anomalies: 0
+
+Notable anomalies (first 30):
+  • [trade] game-1001 R1 T85: Post-trade opener mismatch — opening player does not own 3♣
+  • [trade] game-1002 R1 T66: Post-trade opener mismatch — opening player does not own 3♣
+  • [trade] game-1002 R2 T129: Post-trade opener mismatch — opening player does not own 3♣
+  • [trade] game-1002 R3 T200: Post-trade opener mismatch — opening player does not own 3♣
+  • [trade] game-1003 R1 T69: Post-trade opener mismatch — opening player does not own 3♣
+  • [trade] game-1003 R2 T148: Post-trade opener mismatch — opening player does not own 3♣
+  • [trade] game-1003 R3 T224: Post-trade opener mismatch — opening player does not own 3♣
+  • [trade] game-1004 R1 T70: Post-trade opener mismatch — opening player does not own 3♣
+  • [trade] game-1004 R2 T150: Post-trade opener mismatch — opening player does not own 3♣
+  • [trade] game-1004 R3 T229: Post-trade opener mismatch — opening player does not own 3♣
+  • [trade] game-1005 R2 T142: Post-trade opener mismatch — opening player does not own 3♣
+  • [trade] game-1005 R3 T214: Post-trade opener mismatch — opening player does not own 3♣
