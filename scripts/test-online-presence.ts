@@ -46,7 +46,7 @@ function run() {
   );
   assert.strictEqual(parseOnlinePresencePayload({ activePlayers: NaN }), null);
 
-  // Count-only production payloads must not wipe known names.
+  // Count-only production payloads must not wipe known names when count rises.
   const withNames = {
     count: 1,
     players: [{ displayName: "Casey" }],
@@ -74,6 +74,38 @@ function run() {
       count: 1,
       players: [{ displayName: "Drew" }],
       playersProvided: true,
+    },
+  );
+  // Count drop / zero must clear stale names (ghost "Player" after disconnect).
+  assert.deepStrictEqual(
+    mergeOnlinePresence(withNames, {
+      count: 0,
+      players: [],
+      playersProvided: false,
+    }),
+    {
+      count: 0,
+      players: [],
+      playersProvided: true,
+    },
+  );
+  assert.deepStrictEqual(
+    mergeOnlinePresence(
+      {
+        count: 2,
+        players: [{ displayName: "Amy" }, { displayName: "Casey" }],
+        playersProvided: true,
+      },
+      {
+        count: 1,
+        players: [],
+        playersProvided: false,
+      },
+    ),
+    {
+      count: 1,
+      players: [],
+      playersProvided: false,
     },
   );
 

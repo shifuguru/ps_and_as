@@ -360,6 +360,10 @@ const io = new Server(server, {
     credentials: false,
     methods: ["GET", "POST"],
   },
+  // Faster zombie detection — orphaned long-polls were leaving "Player" ghosts
+  // in the online list for hours between deploys.
+  pingInterval: 10000,
+  pingTimeout: 10000,
 });
 
 // Debugging: log engine and socket connection errors to help diagnose websocket/xhr issues
@@ -387,7 +391,7 @@ const rooms = {};
 /** Connected clients keyed by profileId (or socket id when profile unknown). */
 const presenceSocketsByIdentity = new Map();
 const socketPresenceIdentity = new Map();
-/** identity -> { displayName } */
+/** identity -> { displayName, announced } */
 const presenceMetaByIdentity = new Map();
 
 function presenceIdentity(profileId, socketId) {
@@ -401,7 +405,33 @@ function sanitizePresenceDisplayName(name) {
   return trimmed || 'Player';
 }
 
-function trackPresence(socket, profileId, displayName) {
+function socketIsConnected(socketId) {
+  return !!(socketId && io.sockets.sockets.has(socketId));
+}
+
+/**
+ * Drop presence entries whose sockets are no longer in the Socket.IO adapter.
+ * Orphaned long-polls / missed disconnects left ghost "Player" rows all day.
+ */
+function pruneStalePresence() {
+  let changed = false;
+  for (const [identity, sockets] of [...presenceSocketsByIdentity.entries()]) {
+    for (const sid of [...sockets]) {
+      if (socketIsConnected(sid)) continue;
+      sockets.delete(sid);
+      socketPresenceIdentity.delete(sid);
+      changed = true;
+    }
+    if (sockets.size === 0) {
+      presenceSocketsByIdentity.delete(identity);
+      presenceMetaByIdentity.delete(identity);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function trackPresence(socket, profileId, displayName, { announced = false } = {}) {
   const identity = presenceIdentity(profileId, socket.id);
   const previous = socketPresenceIdentity.get(socket.id);
   if (previous && previous !== identity) {
@@ -412,12 +442,23 @@ function trackPresence(socket, profileId, displayName) {
   }
   presenceSocketsByIdentity.get(identity).add(socket.id);
   socketPresenceIdentity.set(socket.id, identity);
+  const existing = presenceMetaByIdentity.get(identity);
+  const nextAnnounced = !!(announced || existing?.announced);
   if (displayName !== undefined) {
     presenceMetaByIdentity.set(identity, {
       displayName: sanitizePresenceDisplayName(displayName),
+      announced: nextAnnounced,
     });
-  } else if (!presenceMetaByIdentity.has(identity)) {
-    presenceMetaByIdentity.set(identity, { displayName: 'Player' });
+  } else if (!existing) {
+    presenceMetaByIdentity.set(identity, {
+      displayName: 'Player',
+      announced: nextAnnounced,
+    });
+  } else if (announced && !existing.announced) {
+    presenceMetaByIdentity.set(identity, {
+      ...existing,
+      announced: true,
+    });
   }
 }
 
@@ -439,16 +480,30 @@ function untrackPresence(socket) {
 }
 
 function totalOnlineConnectedPlayers() {
-  return presenceSocketsByIdentity.size;
+  pruneStalePresence();
+  let n = 0;
+  for (const [identity, sockets] of presenceSocketsByIdentity.entries()) {
+    if (sockets.size === 0) continue;
+    const meta = presenceMetaByIdentity.get(identity);
+    // Only count clients that announced a profile/name — bare handshakes
+    // used to inflate the list as ghost "Player" rows.
+    if (meta?.announced) n += 1;
+  }
+  return n;
 }
 
 function onlinePresencePayload() {
+  pruneStalePresence();
   const players = [...presenceMetaByIdentity.entries()]
-    .filter(([identity]) => presenceSocketsByIdentity.has(identity))
+    .filter(([identity, meta]) => {
+      if (!meta?.announced) return false;
+      const sockets = presenceSocketsByIdentity.get(identity);
+      return !!(sockets && sockets.size > 0);
+    })
     .map(([, meta]) => ({ displayName: meta.displayName }))
     .sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }));
   return {
-    activePlayers: totalOnlineConnectedPlayers(),
+    activePlayers: players.length,
     players,
   };
 }
@@ -456,6 +511,10 @@ function onlinePresencePayload() {
 function broadcastOnlinePlayerCount() {
   io.emit('onlinePlayerCount', onlinePresencePayload());
 }
+
+setInterval(() => {
+  if (pruneStalePresence()) broadcastOnlinePlayerCount();
+}, 15000).unref?.();
 
 // Assign roles based on finish order. Mutates gameState object.
 function assignRolesFromFinishOrder(gameState, playersCount, finishOrder) {
@@ -1359,7 +1418,9 @@ io.on('connection', (socket) => {
   console.log('conn', socket.id, 'transport:', transport, 'from', origin);
 
   const beforeConnect = totalOnlineConnectedPlayers();
-  trackPresence(socket, null);
+  // Do not announce on bare handshake — that left ghost "Player" rows when a
+  // long-poll died without registerPresence. Count/list after registerPresence.
+  trackPresence(socket, null, undefined, { announced: false });
   const afterConnect = totalOnlineConnectedPlayers();
   socket.emit('onlinePlayerCount', onlinePresencePayload());
   if (afterConnect !== beforeConnect) broadcastOnlinePlayerCount();
@@ -1388,7 +1449,7 @@ io.on('connection', (socket) => {
 
   socket.on('registerPresence', ({ profileId, displayName } = {}) => {
     const before = totalOnlineConnectedPlayers();
-    trackPresence(socket, profileId, displayName);
+    trackPresence(socket, profileId, displayName, { announced: true });
     const after = totalOnlineConnectedPlayers();
     socket.emit('onlinePlayerCount', onlinePresencePayload());
     if (after !== before || displayName !== undefined) broadcastOnlinePlayerCount();
@@ -2110,7 +2171,9 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`[Server] Socket ${socket.id} disconnected`);
 
-    if (untrackPresence(socket)) {
+    const presenceChanged = untrackPresence(socket);
+    const pruned = pruneStalePresence();
+    if (presenceChanged || pruned) {
       broadcastOnlinePlayerCount();
     }
     
