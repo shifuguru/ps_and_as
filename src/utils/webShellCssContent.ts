@@ -20,8 +20,8 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  * - Do not ship <meta name="theme-color"> — on iOS Home Screen it paints a
  *   frosted status-bar band (often stuck on default casino green). Prefer
  *   apple-mobile-web-app-status-bar-style=black-translucent + document wallpaper.
- * - Standalone shell uses inset:0 / --app-height:auto (not 100lvh) so a felt
- *   strip does not appear under the home indicator.
+ * - Standalone shell: explicit 100vh / 100lvh (large viewport). Fixed inset:0
+ *   alone uses the lying small viewport and leaves a bottom felt gap.
  */
 export function getWebShellCssText(feltTint: string): string {
   return `
@@ -29,9 +29,16 @@ export function getWebShellCssText(feltTint: string): string {
       --ps-felt-tint: ${feltTint};
       --ps-felt-tint-overlay: transparent;
       --ps-felt-texture: none;
-      --app-shell-h: 100%;
-      --app-height: auto;
+      --app-shell-h: 100dvh;
+      --app-height: var(--app-shell-h);
       --app-shell-top: 0px;
+    }
+    @media all and (display-mode: standalone) {
+      :root {
+        --app-shell-h: 100vh;
+        --app-height: 100vh;
+        --app-shell-top: 0px;
+      }
     }
     html {
       position: relative !important;
@@ -104,7 +111,7 @@ export function getWebShellCssText(feltTint: string): string {
       top: 0 !important;
       left: 0 !important;
       right: 0 !important;
-      bottom: 0 !important;
+      bottom: auto !important;
       width: 100% !important;
       margin: 0 !important;
       padding: 0 !important;
@@ -114,13 +121,24 @@ export function getWebShellCssText(feltTint: string): string {
       height: 100% !important;
       height: 100dvh !important;
       height: 100lvh !important;
+      height: 100vh !important;
       max-height: none !important;
       min-height: 100% !important;
       min-height: 100dvh !important;
       min-height: 100lvh !important;
+      min-height: 100vh !important;
       min-height: -webkit-fill-available !important;
       background-color: transparent !important;
       background-image: none !important;
+    }
+    @media all and (display-mode: standalone) {
+      body {
+        height: 100vh !important;
+        height: 100lvh !important;
+        min-height: 100vh !important;
+        min-height: 100lvh !important;
+        bottom: auto !important;
+      }
     }
     #ps-felt-layer,
     .ps-environment-layer {
@@ -174,7 +192,7 @@ export function getWebShellCssText(feltTint: string): string {
       top: var(--app-shell-top, 0px) !important;
       left: 0 !important;
       right: 0 !important;
-      bottom: 0 !important;
+      bottom: auto !important;
       display: flex !important;
       flex-direction: column !important;
       flex: 1 !important;
@@ -182,8 +200,7 @@ export function getWebShellCssText(feltTint: string): string {
       margin: 0 !important;
       padding: 0 !important;
       overflow: hidden !important;
-      /* Standalone: auto + bottom:0 = edge-to-edge. Safari tab: pixel --app-height. */
-      height: var(--app-height, auto) !important;
+      height: var(--app-height, 100dvh) !important;
       max-height: none !important;
       min-height: 0 !important;
       background-color: transparent !important;
@@ -194,9 +211,9 @@ export function getWebShellCssText(feltTint: string): string {
       top: var(--app-shell-top, 0px) !important;
       left: 0 !important;
       right: 0 !important;
-      bottom: 0 !important;
+      bottom: auto !important;
       width: 100% !important;
-      height: var(--app-height, auto) !important;
+      height: var(--app-height, 100dvh) !important;
       max-height: none !important;
       min-height: 0 !important;
       pointer-events: none !important;
@@ -209,14 +226,25 @@ export function getWebShellCssText(feltTint: string): string {
       top: var(--app-shell-top, 0px) !important;
       left: 0 !important;
       right: 0 !important;
-      bottom: 0 !important;
+      bottom: auto !important;
       width: 100% !important;
-      height: var(--app-height, auto) !important;
+      height: var(--app-height, 100dvh) !important;
       max-height: none !important;
       pointer-events: none !important;
       z-index: 300 !important;
       overflow: hidden !important;
       min-height: 0 !important;
+    }
+    @media all and (display-mode: standalone) {
+      #root,
+      #ps-body-portal,
+      #ps-overlay-portal {
+        height: 100vh !important;
+        height: 100lvh !important;
+        max-height: none !important;
+        bottom: auto !important;
+        top: 0 !important;
+      }
     }
     #ps-overlay-portal > * { pointer-events: auto; }
     .ps-felt-fixed {

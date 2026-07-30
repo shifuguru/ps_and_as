@@ -626,15 +626,14 @@ function AppContent() {
           (isMobileWeb()
             ? isStandaloneWebApp()
               ? ({
-                  // Home Screen: true edge-to-edge — no 100lvh clamp (that left
-                  // a felt strip under the home indicator on some iPhones).
+                  // Home Screen: full screen px from shell (screen.height-aware).
+                  // Fixed inset:0 alone undershoots on iOS standalone.
                   position: "fixed",
                   top: 0,
                   left: 0,
                   right: 0,
-                  bottom: 0,
                   width: "100%",
-                  height: "auto",
+                  height: shell.height > 0 ? shell.height : "100vh",
                   maxHeight: "none",
                   overflow: "hidden",
                 } as object)
