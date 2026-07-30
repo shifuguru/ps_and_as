@@ -40,6 +40,7 @@ import {
   getOrCreatePlayerId,
   type PlayerInfo,
 } from "../services/gameCenter";
+import { markDisplayNameChosen } from "../services/playerDisplayName";
 import { getLobbySession } from "../services/lobbySession";
 import { validateDisplayText, isValidDisplayText } from "../utils/profanityFilter";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
@@ -134,6 +135,7 @@ export default function Settings({
 
     try {
       await cachePlayerName(check.value);
+      await markDisplayNameChosen();
       setSavedName(check.value);
       setPlayerName(check.value);
       if (playerInfo) {

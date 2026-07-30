@@ -22,12 +22,14 @@ import type { LobbyMember } from "./src/game/network";
 import { MockAdapter } from "./src/game/network";
 import { isSocketAdapter } from "./src/game/socketAdapter";
 import { getOrCreatePlayerId } from "./src/services/gameCenter";
+import { resolveDisplayNameSetupState } from "./src/services/playerDisplayName";
 import {
   clearLobbySession,
   getLobbySession,
   saveLobbySession,
   type LobbySession,
 } from "./src/services/lobbySession";
+import DisplayNameSetupModal from "./src/components/DisplayNameSetupModal";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import FeltBackground from "./src/components/FeltBackground";
 import FullscreenBlurScrim from "./src/components/FullscreenBlurScrim";
@@ -40,7 +42,7 @@ import { useVisualViewportSize, useWebShellLayout } from "./src/hooks/useVisualV
 import { isMobileWeb, installWebShellCss } from "./src/utils/webViewport";
 import { useAppFonts } from "./src/hooks/useAppFonts";
 import { useBuildUpdateCheck } from "./src/hooks/useBuildUpdateCheck";
-import { useOnlinePresence } from "./src/hooks/useOnlinePlayerCount";
+import { useOnlinePresence, updateOnlinePresenceDisplayName } from "./src/hooks/useOnlinePlayerCount";
 import { useUpdateLogUnreadCount } from "./src/hooks/useUpdateLogUnreadCount";
 import { useWebEscapeKey } from "./src/hooks/useWebEscapeKey";
 import UpdateRequiredOverlay from "./src/components/UpdateRequiredOverlay";
@@ -82,6 +84,8 @@ function AppContent() {
   const [dealSeed, setDealSeed] = useState<number | undefined>(undefined);
   const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
+  const [nameSetupVisible, setNameSetupVisible] = useState(false);
+  const [nameSetupResolved, setNameSetupResolved] = useState(false);
   const [roomAdapter, setRoomAdapter] = useState<SocketAdapter | null>(null);
   // localAdapter is used for offline/mock games so we can reuse the same
   // MockAdapter instance between screens and avoid multiple adapters/logs.
@@ -96,7 +100,10 @@ function AppContent() {
   >(null);
   const { count: updateLogUnreadCount, markSeen: markUpdateLogSeen } =
     useUpdateLogUnreadCount(menuVisible, updateLogOpen);
-  const onlinePresence = useOnlinePresence(!splashVisible, localPlayerName);
+  const onlinePresence = useOnlinePresence(
+    !splashVisible && !nameSetupVisible && nameSetupResolved,
+    localPlayerName,
+  );
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -221,9 +228,10 @@ function AppContent() {
   }, [splashVisible, menuOpacity, splashOpacity]);
 
   const startRandomGame = async () => {
+    if (nameSetupVisible || !localPlayerName?.trim()) return;
     disconnectRoom();
     const playerInfo = await getOrCreatePlayerId();
-    const hostName = playerInfo.displayName || "Player";
+    const hostName = localPlayerName.trim();
     const savedTint = (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
     console.log("[App] Quick Game requested", {
       hostName,
@@ -259,16 +267,30 @@ function AppContent() {
   const [pendingRejoin, setPendingRejoin] = useState<LobbySession | null>(null);
 
   useEffect(() => {
-    if (menuVisible && screen === "menu") {
-      setHubRefreshKey((k) => k + 1);
-      if (!localPlayerName) {
-        void getOrCreatePlayerId().then((profile) => {
-          setLocalPlayerName(profile.displayName || "Player");
-          setLocalPlayerId(profile.id);
-        });
-      }
+    if (!menuVisible) return;
+    if (nameSetupResolved) {
+      if (screen === "menu") setHubRefreshKey((k) => k + 1);
+      return;
     }
-  }, [menuVisible, screen, localPlayerName]);
+    let cancelled = false;
+    void (async () => {
+      const resolved = await resolveDisplayNameSetupState();
+      if (cancelled) return;
+      setLocalPlayerId(resolved.profileId);
+      if (resolved.needsSetup) {
+        setNameSetupVisible(true);
+        setLocalPlayerName(null);
+      } else {
+        setNameSetupVisible(false);
+        setLocalPlayerName(resolved.displayName);
+      }
+      setNameSetupResolved(true);
+      if (screen === "menu") setHubRefreshKey((k) => k + 1);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [menuVisible, screen, nameSetupResolved]);
 
   useEffect(() => {
     console.log("[App] screen state", {
@@ -669,7 +691,12 @@ function AppContent() {
 
         {/* Main menu — consolidated with icons */}
         {menuVisible && screen === "menu" && (
-          <Animated.View style={[{ flex: 1 }, { opacity: menuOpacity }]}>
+          <Animated.View
+            style={[{ flex: 1 }, { opacity: menuOpacity }]}
+            pointerEvents={
+              !nameSetupResolved || nameSetupVisible ? "none" : "auto"
+            }
+          >
             {pendingRejoin ? (
               <View
                 style={[
@@ -727,9 +754,11 @@ function AppContent() {
               onNavigateSound={() => playEffect("click")}
               actions={{
                 onQuickGame: () => {
+                  if (nameSetupVisible || !localPlayerName) return;
                   void startRandomGame();
                 },
                 onHostLobby: () => {
+                  if (nameSetupVisible || !localPlayerName) return;
                   disconnectRoom();
                   setIsOnlineGame(false);
                   setRoomAdapter(null);
@@ -737,6 +766,7 @@ function AppContent() {
                   setScreen("create");
                 },
                 onJoinLobby: () => {
+                  if (nameSetupVisible || !localPlayerName) return;
                   disconnectRoom();
                   setIsOnlineGame(false);
                   setRoomAdapter(null);
@@ -751,6 +781,15 @@ function AppContent() {
             />
           </Animated.View>
         )}
+        <DisplayNameSetupModal
+          visible={menuVisible && nameSetupVisible}
+          onComplete={(name) => {
+            setLocalPlayerName(name);
+            setNameSetupVisible(false);
+            setNameSetupResolved(true);
+            updateOnlinePresenceDisplayName(name);
+          }}
+        />
         {menuVisible && screen === "create" && (
           <CreateGame 
             adapter={roomAdapter || undefined} 
