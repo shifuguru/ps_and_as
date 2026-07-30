@@ -1357,12 +1357,7 @@ io.on('connection', (socket) => {
   const origin = socket.handshake && socket.handshake.headers ? socket.handshake.headers.origin : 'unknown';
   const transport = socket.conn && socket.conn.transport ? socket.conn.transport.name : 'unknown';
   console.log('conn', socket.id, 'transport:', transport, 'from', origin);
-
-  const beforeConnect = totalOnlineConnectedPlayers();
-  trackPresence(socket, null);
-  const afterConnect = totalOnlineConnectedPlayers();
   socket.emit('onlinePlayerCount', onlinePresencePayload());
-  if (afterConnect !== beforeConnect) broadcastOnlinePlayerCount();
 
   // Send available rooms when client requests discovery
   socket.on('discoverRooms', () => {
