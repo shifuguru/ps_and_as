@@ -9,9 +9,9 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  *   → body offset behind status bar without height expanding → bottom gap.
  * Confirmed fix: height:100vh on html/body/#root. Keep black-translucent.
  *
- * Dynamic Island green strip: html background-color var(--ps-felt-tint).
- * html::before extends into safe-area-inset-top with textured felt;
- * html.ps-env-ready clears the solid sample colour.
+ * Dynamic Island / status bar: iOS samples html background-color. Transparent
+ * → dark frosted band (the v1.1.17 regression). Keep var(--ps-felt-tint) forever;
+ * update the CSS variable to the live theme tint. Never clear it on .ps-env-ready.
  *
  * Safe-area pads interactive chrome only (.ps-bottom-bar-shell) — never the shell.
  * Do not ship theme-color meta (frosted status-bar band on iOS).
@@ -59,10 +59,10 @@ export function getWebShellCssText(feltTint: string): string {
       top: calc(0px - env(safe-area-inset-top, 0px)) !important;
       width: 100% !important;
       height: calc(
-        100vh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom)
+        100vh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom) + 2px
       ) !important;
       height: calc(
-        100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)
+        100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 2px
       ) !important;
       min-height: 100vh !important;
       z-index: -1 !important;
@@ -79,9 +79,6 @@ export function getWebShellCssText(feltTint: string): string {
       background-repeat: no-repeat, no-repeat !important;
       background-attachment: scroll, scroll !important;
     }
-    html.ps-env-ready {
-      background-color: transparent !important;
-    }
     body {
       position: fixed !important;
       top: 0 !important;
@@ -97,7 +94,7 @@ export function getWebShellCssText(feltTint: string): string {
       overscroll-behavior: none !important;
       touch-action: manipulation !important;
       max-height: none !important;
-      background-color: transparent !important;
+      background-color: var(--ps-felt-tint) !important;
       background-image: none !important;
     }
     #ps-felt-layer,

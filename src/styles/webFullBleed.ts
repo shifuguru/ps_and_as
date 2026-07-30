@@ -83,8 +83,8 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
  * Remove <meta name="theme-color"> so iOS Home Screen does not paint a frosted
  * status-bar / safe-area chrome tint (it was stuck on default casino green via
  * the build-time #0f5132 meta + manifest). With apple-mobile-web-app-status-bar-style
- * black-translucent, the notch region composites the document background instead
- * of a separate themed blur band.
+ * black-translucent, the notch region composites html's background-color — keep
+ * that colour as the live felt tint (never transparent).
  */
 export function clearWebThemeColorMeta(doc: WebDocument): void {
   const head = (doc as { head?: any }).head;
@@ -182,7 +182,7 @@ export function ensureWebFeltBackdrop(
   const tintRgb = hexToRgb(env.displayTint) ?? { r: 15, g: 93, b: 47 };
   const tintOverlay = `rgba(${tintRgb.r}, ${tintRgb.g}, ${tintRgb.b}, ${env.tintOpacity})`;
 
-  // Document wallpaper — permanent; never cleared by ps-env-ready.
+  // Document wallpaper — permanent; never clear background-color (iOS samples it).
   const rootStyle = doc.documentElement.style;
   rootStyle.setProperty("--ps-felt-tint", env.displayTint);
   rootStyle.setProperty("--ps-felt-tint-overlay", tintOverlay);

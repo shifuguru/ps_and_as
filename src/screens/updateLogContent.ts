@@ -400,8 +400,8 @@ export const KNOWN_ISSUES: KnownIssue[] = [
   {
     title: "Home Screen edges on iPhone",
     status: "Looking into it",
-    updatedAt: nzst("2026-07-30T18:28"),
-    note: "From the Home Screen app, a thin white line can still show under the home bar. Under the Dynamic Island, the solid green strip is gone but a blurred grey/black band can remain instead of continuous felt.",
+    updatedAt: nzst("2026-07-30T18:34"),
+    note: "A dark tinted band under the Dynamic Island and a thin white line under the home bar can still show on the Home Screen app. A fix is in progress — force-close and reopen the app after updating to check.",
   },
   {
     title: "Achievement stats in lobbies",

@@ -12,10 +12,12 @@
  *   → body is offset behind the status bar WITHOUT expanding height → bottom gap.
  * Confirmed fix: height:100vh on html/body/#root. Keep black-translucent.
  *
- * Dynamic Island / top (separate from chin-gap): flat green behind the island
- * is html background-color: var(--ps-felt-tint) (#0f5132) sampled by iOS.
- * html::before extends into safe-area-inset-top with the textured felt stack;
- * html.ps-env-ready clears the solid sample colour so the island matches game felt.
+ * Dynamic Island / top (separate from chin-gap):
+ * iOS black-translucent samples html's background-color for the status-bar
+ * region. Transparent (or missing) colour → dark frosted band with a green/blue
+ * cast — NOT "texture showing through". Keep background-color: var(--ps-felt-tint)
+ * forever (updated to the live theme tint). Texture on html helps continuity;
+ * never clear the sample colour on .ps-env-ready.
  *
  * Edge-to-edge: shell fills the display with 100vh. Safe-area pads interactive
  * chrome only (.ps-bottom-bar-shell / content padding) — never shrinks the shell.
@@ -34,8 +36,8 @@
 /* Document owns wallpaper permanently — never cleared after env ready.
  *
  * Height MUST be 100vh (not 100%). Percentage height under black-translucent
- * is the chin-gap bug. Texture on html itself so the status-bar region samples
- * felt, not a flat default.
+ * is the chin-gap bug. background-color MUST stay a real felt tint — that is
+ * what iOS samples behind the Dynamic Island / status icons.
  */
 html {
   position: relative !important;
@@ -64,15 +66,11 @@ html {
 
 /* Full-display wallpaper plane.
  *
- * TOP / Dynamic Island (separate from the bottom chin-gap fix):
- * iOS black-translucent samples the document background for the status-bar
- * region. The game felt is texture + tint; a bare html background-color of
- * --ps-felt-tint (#0f5132) reads as a flat green strip behind the island.
- * This ::before carries the SAME texture+tint stack and extends into
- * safe-area-inset-top so the island sits on felt, not solid green.
+ * Extends into safe-area top/bottom (+2px) so island + home indicator sit on
+ * the same felt stack, and a 1px chin cannot flash the UA white canvas.
  *
  * Do NOT change html/body/#root away from height:100vh — that is the working
- * bottom chin-gap fix.
+ * bottom chin-gap fix. Do NOT set html background-color to transparent.
  */
 html::before {
   content: "" !important;
@@ -83,10 +81,10 @@ html::before {
   top: calc(0px - env(safe-area-inset-top, 0px)) !important;
   width: 100% !important;
   height: calc(
-    100vh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom)
+    100vh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom) + 2px
   ) !important;
   height: calc(
-    100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)
+    100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 2px
   ) !important;
   min-height: 100vh !important;
   z-index: -1 !important;
@@ -104,14 +102,6 @@ html::before {
   background-attachment: scroll, scroll !important;
 }
 
-/* Once texture is applied, stop using solid --ps-felt-tint as the status-bar
- * sample colour. iOS composites the translucent bar from html's background-color;
- * flat green here is the Dynamic Island strip. Transparent lets the textured
- * image / ::before read through under black-translucent. */
-html.ps-env-ready {
-  background-color: transparent !important;
-}
-
 body {
   position: fixed !important;
   top: 0 !important;
@@ -127,7 +117,8 @@ body {
   overscroll-behavior: none !important;
   touch-action: manipulation !important;
   max-height: none !important;
-  background-color: transparent !important;
+  /* Match document sample colour so a 1px shell undershoot stays felt, not white. */
+  background-color: var(--ps-felt-tint) !important;
   background-image: none !important;
 }
 
