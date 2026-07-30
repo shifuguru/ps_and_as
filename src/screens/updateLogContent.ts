@@ -32,7 +32,7 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-07-30T16:50"),
+    publishedAt: nzst("2026-07-30T16:47"),
     title: "True full-screen on Home Screen",
     items: [
       "Home Screen — the app fills the whole phone; no leftover gap or colour strip under the home bar",
