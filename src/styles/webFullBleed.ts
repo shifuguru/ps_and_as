@@ -117,10 +117,12 @@ export function syncWebAppearanceChrome(
   // Neutral appearance chrome only — never a felt hex.
   const themeColor = isDark ? "#000000" : "#ffffff";
   const veil = isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.55)";
+  const safeAreaFill = isDark ? "rgba(0,0,0,0.78)" : "rgba(255,255,255,0.82)";
 
   root.style.colorScheme = isDark ? "dark" : "light";
   root.setAttribute("data-ps-theme", isDark ? "dark" : "light");
   root.style.setProperty("--ps-status-veil", veil);
+  root.style.setProperty("--ps-safe-area-fill", safeAreaFill);
 
   const head = (doc as { head?: any }).head;
   if (!head?.querySelectorAll || !doc.createElement) return;
