@@ -215,9 +215,11 @@ function traceAppHeightApply(
  * Interactive shell geometry only.
  * Never resize html/body or the environment layer — those own the paint viewport.
  *
- * Home Screen (standalone): pin #root/portals to the display with inset:0.
- * Pixel heights from innerHeight can undershoot the real screen and leave a
- * felt-colored "footer" strip below the app — that is the PWA bug.
+ * Home Screen (standalone): always pin #root/portals to the display with
+ * inset:0 / 100lvh — including while the keyboard is open. Shrinking the shell
+ * for the keyboard exposes document wallpaper in the keyboard gap (the
+ * “background rising behind the keyboard” bug). Modals reposition themselves
+ * within visualViewport instead.
  * Safari tab: keep pixel height so the shell tracks the toolbar/keyboard.
  */
 function applyShellGeometry(
@@ -244,10 +246,8 @@ function applyShellGeometry(
     }
   }
 
-  const pinToDisplay =
-    isStandaloneWebApp() && topPx === 0 && !keyboardLikelyOpen(
-      (globalThis as { window?: WebWindow }).window ?? {},
-    );
+  // Always pin Home Screen PWAs — keyboard must not unpin the shell.
+  const pinToDisplay = isStandaloneWebApp();
 
   if (pinToDisplay) {
     doc.documentElement.style.setProperty(APP_SHELL_HEIGHT_VAR, "100lvh");
@@ -330,7 +330,8 @@ export function readWebShellHeight(win: WebWindow): number {
   const inner = Math.round(win.innerHeight ?? 0);
   const client = Math.round(doc?.documentElement?.clientHeight ?? 0);
 
-  if (vv && keyboardLikelyOpen(win)) {
+  // Standalone: never shrink for the keyboard (see applyShellGeometry).
+  if (!(isStandaloneWebApp()) && vv && keyboardLikelyOpen(win)) {
     return Math.round(vv.height);
   }
 
@@ -362,6 +363,7 @@ function captureShellHeightCalc(
   const visualBottom = vv
     ? Math.round(vv.height + (vv.offsetTop ?? 0))
     : 0;
+  const shrunkForKeyboard = keyboardOpen && !isStandaloneWebApp();
 
   return {
     inner,
@@ -375,14 +377,18 @@ function captureShellHeightCalc(
     visualBottom,
     keyboardLikelyOpen: keyboardOpen,
     chosen,
-    chosenBy: keyboardOpen
+    chosenBy: shrunkForKeyboard
       ? `keyboardLikelyOpen → Math.round(visualViewport.height) = ${chosen}`
-      : `Math.max(innerHeight=${inner}, documentElement.clientHeight=${client}, visualBottom(vv.height+offsetTop)=${visualBottom}) = ${chosen}`,
+      : isStandaloneWebApp() && keyboardOpen
+        ? `standalone+keyboard → pinned layout height ${chosen} (modal repositions; shell not shrunk)`
+        : `Math.max(innerHeight=${inner}, documentElement.clientHeight=${client}, visualBottom(vv.height+offsetTop)=${visualBottom}) = ${chosen}`,
   };
 }
 
-/** Top offset for the shell — only when the keyboard is open. */
+/** Top offset for the shell — only when the keyboard is open (Safari tab). */
 export function readWebShellTop(win: WebWindow): number {
+  // Home Screen app stays pinned at the display top even with the keyboard up.
+  if (isStandaloneWebApp()) return 0;
   if (!win.visualViewport || !keyboardLikelyOpen(win)) return 0;
   return Math.max(0, Math.round(win.visualViewport.offsetTop));
 }
@@ -474,6 +480,15 @@ export function installWebShellCss(feltTint: string): () => void {
   }
 
   doc.documentElement.style.setProperty("--ps-felt-tint", feltTint);
+
+  // Align PWA chrome with the boot felt tint (FeltBackground refines via displayTint).
+  const head = doc.head;
+  if (head?.querySelector) {
+    const metas = head.querySelectorAll('meta[name="theme-color"]');
+    if (metas?.length) {
+      for (const meta of metas) meta.setAttribute("content", feltTint);
+    }
+  }
 
   style.textContent = getWebShellCssText(feltTint);
 

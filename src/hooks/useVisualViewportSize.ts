@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Platform, ScaledSize, useWindowDimensions } from "react-native";
+import { isStandaloneWebApp } from "../utils/safariChrome";
 import {
   isMobileWeb,
   keyboardLikelyOpen,
@@ -26,7 +27,8 @@ function readVisualViewport(win: WebWindow): ScaledSize {
   const vv = win.visualViewport;
   let size: ScaledSize;
   if (vv) {
-    const keyboardOpen = keyboardLikelyOpen(win);
+    // Standalone keeps layout height at the full display; Safari tab tracks keyboard.
+    const keyboardOpen = keyboardLikelyOpen(win) && !isStandaloneWebApp();
     const layoutH = win.innerHeight ?? vv.height;
     const height = keyboardOpen
       ? vv.height
