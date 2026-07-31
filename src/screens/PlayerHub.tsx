@@ -2,7 +2,7 @@
  * Player Hub home — presentation layer over canonical PlayerStats.
  *
  * Panel order (player interest):
- * Identity → Play → Daily → Next Achievement → Recent Unlock →
+ * Brand → Identity → Play → (A2HS) → Daily → Next Achievement → Recent Unlock →
  * Journey → Friends → Stats → What's New → Support → footer nav
  *
  * Deferred (need telemetry or session handoff — not built here):
@@ -243,8 +243,6 @@ export default function PlayerHub({
           </Text>
           <Text style={styles.brandSubtitle}>Presidents & Assholes</Text>
 
-          <AddToHomeScreenBanner />
-
           {/* Identity — sole owner of XP progress */}
           <TouchableOpacity
             activeOpacity={0.94}
@@ -300,16 +298,11 @@ export default function PlayerHub({
                       <MenuIcon name="pencil" size={20} color={colors.accent} />
                     </View>
                   </View>
-                  {/* Reserved title slot — titles catalog not shipped yet */}
-                  <Text
-                    style={[
-                      styles.titleSlot,
-                      !playerTitle && styles.titleSlotEmpty,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {playerTitle ?? " "}
-                  </Text>
+                  {playerTitle ? (
+                    <Text style={styles.titleSlot} numberOfLines={1}>
+                      {playerTitle}
+                    </Text>
+                  ) : null}
                   <Text style={styles.identityMeta}>Level {level.level}</Text>
                   <Text style={styles.careerXp}>
                     {(stats?.xp ?? 0).toLocaleString()} XP
@@ -329,7 +322,6 @@ export default function PlayerHub({
 
           {/* Play — primary visit intent */}
           <BlurPanel intensity={52} style={[styles.card, styles.cardDepth]}>
-            <Text style={styles.sectionEyebrow}>Play</Text>
             <AppButton
               label="Quick Game"
               icon="bolt"
@@ -340,18 +332,20 @@ export default function PlayerHub({
             />
             <View style={styles.secondaryRow}>
               <AppButton
-                label="Offline"
-                icon="multiplayer"
+                label="Local Game"
+                icon="person"
                 variant="secondary"
                 style={{ flex: 1 }}
                 onPress={() => run(actions.onHostLobby)}
+                accessibilityLabel="Local Game — play with CPU or friends on this device"
               />
               <AppButton
-                label="Online"
-                icon="multiplayer"
+                label="Online Game"
+                icon="globe"
                 variant="secondary"
                 style={{ flex: 1 }}
                 onPress={() => run(actions.onJoinLobby)}
+                accessibilityLabel="Online Game — find or host a multiplayer table"
               />
             </View>
             {onlinePlayerCount > 0 ? (
@@ -375,6 +369,8 @@ export default function PlayerHub({
               </TouchableOpacity>
             ) : null}
           </BlurPanel>
+
+          <AddToHomeScreenBanner />
 
           {/* Daily Challenge — time-sensitive */}
           {dailyDef && dailyProgress ? (
@@ -591,7 +587,7 @@ export default function PlayerHub({
             </Text>
             <AppButton
               label="Support Development"
-              variant="primary"
+              variant="secondary"
               onPress={() => {
                 triggerHaptic("light");
                 setLightsOnOpen(true);
@@ -868,10 +864,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "600",
       fontStyle: "italic",
       marginTop: 2,
-      minHeight: 18,
-    },
-    titleSlotEmpty: {
-      opacity: 0,
     },
     identityMeta: {
       color: colors.textSecondary,

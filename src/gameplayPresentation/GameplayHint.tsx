@@ -17,7 +17,7 @@ const BAR_H = 40;
 /** Circular bulb control — same outer size as the message pill height. */
 const BULB_SIZE = BAR_H;
 const BULB_ICON = 20;
-/** Match ActionBar track width so the bulb lines up with Leave’s right edge. */
+/** Match ActionBar track width so the bulb lines up with the track’s right edge. */
 function actionTrackWidth(windowWidth: number): number {
   return Math.min(windowWidth - 32, 440);
 }
@@ -28,14 +28,14 @@ type Props = {
   visible?: boolean;
   /**
    * When true, start with message hidden.
-   * Bulb always stays pinned to the right (Leave edge).
+   * Bulb always stays pinned to the right edge of the action track.
    */
   startCollapsed?: boolean;
 };
 
 /**
  * Hint row: message pill + lightbulb.
- * Track width matches ActionBar; bulb is always on the right edge (Leave align).
+ * Track width matches ActionBar; bulb is always on the right edge.
  */
 export default function GameplayHint({
   message = "Tap a card to play",

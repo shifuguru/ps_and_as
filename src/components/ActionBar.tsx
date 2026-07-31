@@ -25,6 +25,7 @@ import {
   TURN_INTRO_PEAK,
   useTurnIntroAnimation,
 } from "../hooks/useTurnIntroAnimation";
+import { resolveActionBarTrackMode } from "./actionBarTrackMode";
 
 /** Fixed height budget for bottom-bar layout math (single action row). */
 export const ACTION_BAR_HEIGHT = 58;
@@ -36,14 +37,15 @@ type Props = {
   selectedCount: number;
   onPlay: () => void;
   onPass: () => void;
-  onQuit: () => void;
+  /** @deprecated Leave lives in GameplayHud — kept optional for call-site compatibility. */
+  onQuit?: () => void;
   playDisabled: boolean;
   passDisabled: boolean;
   isPlayerTurn?: boolean;
   noValidPlays?: boolean;
   /** Run / 10-rule on-top beat — pass ends the trick (already won). */
   onTopTurn?: boolean;
-  /** Hide play/pass during deal ceremony — leave stays visible. */
+  /** Hide play/pass during deal ceremony — Leave is in GameplayHud. */
   leaveOnly?: boolean;
   /** Bot open table — show Skip game in the pass/play row (spectator, etc.). */
   skipGameOnly?: boolean;
@@ -58,7 +60,6 @@ export default function ActionBar({
   selectedCount,
   onPlay,
   onPass,
-  onQuit,
   playDisabled,
   passDisabled,
   isPlayerTurn = false,
@@ -78,9 +79,6 @@ export default function ActionBar({
   const playIdleBg = colors.actionPrimaryDisabledBg;
   const playIdleBorder = colors.actionPrimaryDisabledBorder;
   const playIdleText = colors.actionPrimaryDisabledText;
-  const leaveBg = colors.leaveButtonLiveBg;
-  const leaveBorder = colors.leaveButtonLiveBorder;
-  const leaveText = colors.leaveButtonLiveText;
   const playTurnBgLow = hexToRgba(accent, isLight ? 0.1 : 0.14);
   const playTurnBgHigh = hexToRgba(accent, isLight ? 0.18 : 0.28);
   const playTurnBgRest = hexToRgba(accent, isLight ? 0.15 : 0.21);
@@ -123,6 +121,11 @@ export default function ActionBar({
       : "Pass Turn";
 
   const playReady = isPlayerTurn && !playDisabled && hasSelection;
+  const trackMode = resolveActionBarTrackMode({
+    leaveOnly,
+    skipGameOnly,
+    hasSkipHandler: !!onSkipGame,
+  });
 
   useEffect(() => {
     if (!showPassFlash) {
@@ -198,28 +201,9 @@ export default function ActionBar({
 
   const playEnabled = isPlayerTurn && !playDisabled;
 
-  const leaveButton = (
-    <TouchableOpacity
-      style={[
-        styles.leaveButton,
-        {
-          minHeight: buttonMinHeight,
-          backgroundColor: leaveBg,
-          borderColor: leaveBorder,
-          flex: leaveOnly || skipGameOnly ? 1 : 0.95,
-        },
-      ]}
-      onPress={() => {
-        triggerHaptic("light");
-        onQuit();
-      }}
-      accessibilityRole="button"
-      accessibilityLabel="Leave Game"
-      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-    >
-      <Text style={[styles.leaveText, { color: leaveText }]}>Leave</Text>
-    </TouchableOpacity>
-  );
+  if (trackMode === "empty") {
+    return null;
+  }
 
   return (
     <View
@@ -228,7 +212,7 @@ export default function ActionBar({
         { width: barWidth, maxWidth: barWidth, minHeight: actionBarHeight },
       ]}
     >
-      {skipGameOnly && onSkipGame ? (
+      {trackMode === "skip" && onSkipGame ? (
         <View style={[styles.actionTrack, { gap: actionTrackGap, minHeight: buttonMinHeight }]}>
           <TouchableOpacity
             style={[
@@ -249,11 +233,6 @@ export default function ActionBar({
           >
             <Text style={[styles.passText, { color: passIdleText }]}>Skip</Text>
           </TouchableOpacity>
-          {leaveButton}
-        </View>
-      ) : leaveOnly ? (
-        <View style={[styles.actionTrack, { gap: actionTrackGap, minHeight: buttonMinHeight }]}>
-          {leaveButton}
         </View>
       ) : (
         <View style={[styles.actionTrack, { gap: actionTrackGap, minHeight: buttonMinHeight }]}>
@@ -331,8 +310,6 @@ export default function ActionBar({
               {playLabel}
             </Text>
           </AnimatedTouchable>
-
-          {leaveButton}
         </View>
       )}
     </View>
@@ -403,13 +380,6 @@ const styles = StyleSheet.create({
       android: { elevation: 8 },
     }),
   },
-  leaveButton: {
-    borderRadius: CAPSULE_RADIUS,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    minHeight: 48,
-    ...BUTTON_CENTER,
-  },
   passText: buttonLabel(15, {
     fontWeight: "700",
     letterSpacing: 0.3,
@@ -422,8 +392,4 @@ const styles = StyleSheet.create({
     color: "#111",
     fontWeight: "900",
   },
-  leaveText: buttonLabel(15, {
-    fontWeight: "800",
-    letterSpacing: 0.2,
-  }),
 });
