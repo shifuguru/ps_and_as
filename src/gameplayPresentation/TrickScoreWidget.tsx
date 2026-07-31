@@ -242,11 +242,6 @@ function createStyles(
       height: 6,
       borderRadius: 2,
     },
-    zero: {
-      color: colors.textTertiary,
-      fontSize: HUD_TYPE.caption,
-      fontWeight: "600",
-    },
     count: {
       color: colors.textPrimary,
       fontSize: HUD_TYPE.body,
