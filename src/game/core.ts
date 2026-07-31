@@ -515,11 +515,15 @@ export function wouldActivateTenRule(
   ) {
     return false;
   }
-  for (const c of cards) {
-    const found = player.hand.findIndex(
-      (h) => h.suit === c.suit && h.value === c.value,
-    );
-    if (found === -1) return false;
+  {
+    const handCheck = player.hand.slice();
+    for (const c of cards) {
+      const found = handCheck.findIndex(
+        (h) => h.suit === c.suit && h.value === c.value,
+      );
+      if (found === -1) return false;
+      handCheck.splice(found, 1);
+    }
   }
   // Completing a Run with this 10 activates Runs, not Tens.
   if (
@@ -594,10 +598,14 @@ export function playCards(
     return { ...state };
   }
 
-  // check that player has all cards
-  for (const c of cards) {
-    const found = player.hand.findIndex((h) => h.suit === c.suit && h.value === c.value);
-    if (found === -1) return state;
+  // check that player has all cards (consume matches so duplicates cannot be forged)
+  {
+    const handCheck = player.hand.slice();
+    for (const c of cards) {
+      const found = handCheck.findIndex((h) => h.suit === c.suit && h.value === c.value);
+      if (found === -1) return state;
+      handCheck.splice(found, 1);
+    }
   }
 
   // NOTE: first-play (must include 3♣) validation is performed centrally in
