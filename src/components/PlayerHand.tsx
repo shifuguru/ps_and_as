@@ -33,6 +33,12 @@ import { resolveHandMetrics } from "../utils/compactGameLayout";
 import { buttonLabel } from "../styles/buttonStyles";
 import { useAppTheme } from "../context/ThemeContext";
 import type { BlurPreset } from "../styles/themeColors";
+import { hexToRgba } from "../utils/colorTheory";
+import {
+  TURN_INTRO_FADE,
+  TURN_INTRO_PEAK,
+  useTurnIntroAnimation,
+} from "../hooks/useTurnIntroAnimation";
 
 function scrollHintEdgeOpacity(preset: BlurPreset): number {
   return Math.min(0.82, preset.webOpacity + preset.scrimOpacity * 3.2);
@@ -594,6 +600,9 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   );
   const hiddenKeySet = useMemo(() => new Set(hiddenCardKeys), [hiddenCardKeys]);
   const { colors, blur } = useAppTheme();
+  const selectionLocked = !!disabled;
+  const handPlayable = !selectionLocked;
+  const turnIntro = useTurnIntroAnimation(handPlayable);
   const { width: windowWidth } = useWindowDimensions();
   const { height: shellHeight } = useVisualViewportSize();
   const handMetrics = useMemo(
@@ -1104,13 +1113,55 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     return () => node.removeEventListener("wheel", onWheel);
   }, [scrollX]);
 
+  const accent = colors.accent;
+  const turnGlowOpacity = handPlayable
+    ? turnIntro.interpolate({
+        inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
+        outputRange: [0, 0.55, 0.85, 0.42],
+      })
+    : 0;
+  const turnGlowScale = handPlayable
+    ? turnIntro.interpolate({
+        inputRange: [0, TURN_INTRO_PEAK, 1],
+        outputRange: [0.98, 1.02, 1],
+      })
+    : 1;
+
   return (
     <View
       ref={handOuterRef}
       style={[styles.handOuter, { height: handZoneHeight }]}
       onLayout={onLayout}
       {...(cards.length > 1 ? panResponder.panHandlers : {})}
+      accessibilityState={{ disabled: selectionLocked }}
+      accessibilityHint={
+        selectionLocked
+          ? "Browsing only — waiting for your turn"
+          : "Your turn — select cards to play"
+      }
     >
+      {handPlayable ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.turnActiveGlow,
+            {
+              borderColor: hexToRgba(accent, 0.55),
+              backgroundColor: hexToRgba(accent, 0.08),
+              opacity: turnGlowOpacity,
+              transform: [{ scaleY: turnGlowScale }],
+            },
+          ]}
+        />
+      ) : (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.turnWaitingWash,
+            { backgroundColor: hexToRgba(colors.textPrimary, 0.04) },
+          ]}
+        />
+      )}
       {showLeftPlayableHint ? (
         <ScrollPlayHint
           direction="left"
@@ -1140,6 +1191,8 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
             width: Math.max(stripWidth, layoutWidth),
             height: cardHeight + fanHeadroom,
             transform: [{ translateX: Animated.multiply(scrollX, -1) }],
+            // Waiting: still fully readable — mild settle, not a broken/disabled wash.
+            opacity: selectionLocked ? 0.92 : 1,
           },
         ]}
       >
@@ -1155,12 +1208,21 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
           const isPlayable = playableIndices[index] ?? true;
           const isFocused = index === displayFocusIndex;
           const isPressed = pressedIndex === index;
-          /** Dim unplayable cards only while selecting is allowed; off-turn keep cards readable. */
+          /**
+           * Gate play selection via `disabled` (not your turn / flight).
+           * Unplayable wash only while selecting is allowed.
+           * Browse/focus remains available either way (see handleCardPress).
+           */
           const cardInteractionLocked =
-            !inOutgoingPlay && (disabled ? false : !isPlayable);
+            !inOutgoingPlay && (selectionLocked ? false : !isPlayable);
           if (concealed) {
             return null;
           }
+          const waitingFocusHighlight = selectionLocked
+            ? isFocused
+              ? 0.28
+              : 0.06
+            : null;
           return (
             <View
               key={`${identity}-${index}`}
@@ -1197,15 +1259,17 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                 selected={isSelected}
                 compact={slot.compact && !isSelected}
                 highlight={
-                  inOutgoingPlay || isSelected
-                    ? 1
-                    : !disabled && isPlayable
-                      ? isFocused
-                        ? 0.65
-                        : 0.2
-                      : isFocused
-                        ? 0.35
-                        : 0
+                  waitingFocusHighlight != null
+                    ? waitingFocusHighlight
+                    : inOutgoingPlay || isSelected
+                      ? 1
+                      : isPlayable
+                        ? isFocused
+                          ? 0.72
+                          : 0.28
+                        : isFocused
+                          ? 0.35
+                          : 0
                 }
                 flash={index === startingCardIndex}
                 disabled={cardInteractionLocked}
@@ -1229,6 +1293,25 @@ const styles = StyleSheet.create({
     width: "100%",
     overflow: "visible",
     position: "relative",
+  },
+  turnActiveGlow: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    top: 2,
+    bottom: 2,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    zIndex: 0,
+  },
+  turnWaitingWash: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    top: 2,
+    bottom: 2,
+    borderRadius: 18,
+    zIndex: 0,
   },
   scrollHintLane: {
     position: "absolute",

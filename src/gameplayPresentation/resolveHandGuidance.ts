@@ -64,47 +64,49 @@ export function adjacentRunRankLabels(pileValue: number): string[] {
  * 8. Beat pile top
  */
 export function resolveHandGuidance(input: HandGuidanceInput): string {
-  if (!input.isHumanTurn) return "Waiting for your turn";
+  if (!input.isHumanTurn) return "Waiting — browse your hand";
 
   // Opening hint — excluded completely unless caller asserts full preconditions.
   if (input.mustLeadOpening) {
     const lead = input.openingLeadCard;
-    if (lead) return `Lead with your ${formatCardShort(lead)}`;
+    if (lead) return `YOUR TURN — lead ${formatCardShort(lead)}`;
     // Caller should not set mustLeadOpening without a card; refuse the generic
     // opening copy so mid-game forced leads never say "opening 3".
-    return "Lead any rank";
+    return "YOUR TURN — lead any rank";
   }
 
   if (input.noValidPlays) {
-    return input.onTopTurn ? "No beat — tap Skip" : "No valid plays — tap Pass";
+    return input.onTopTurn
+      ? "YOUR TURN — no beat, tap Skip"
+      : "YOUR TURN — tap Pass";
   }
 
   if (input.onTopTurn) {
-    return "Optional beat — play higher or Skip";
+    return "YOUR TURN — play higher or Skip";
   }
 
   // Sticky Runs: always spell the ±1 adjacent ranks (not "Beat …" / "Ready").
   if (input.inRun && input.pileTop) {
     const adjacent = adjacentRunRankLabels(input.pileTop.value);
     if (adjacent.length === 2) {
-      return `Play ${adjacent[0]} or ${adjacent[1]}`;
+      return `YOUR TURN — play ${adjacent[0]} or ${adjacent[1]}`;
     }
     if (adjacent.length === 1) {
-      return `Play ${adjacent[0]}`;
+      return `YOUR TURN — play ${adjacent[0]}`;
     }
   }
 
   if (input.selectedCount > 0) {
-    return "Ready — tap Play";
+    return "YOUR TURN — tap Play";
   }
 
   if (input.pileCount <= 0) {
-    return "Lead any rank";
+    return "YOUR TURN — lead any rank";
   }
 
   if (input.pileTop) {
-    return `Beat ${formatCardShort(input.pileTop)}`;
+    return `YOUR TURN — beat ${formatCardShort(input.pileTop)}`;
   }
 
-  return "Tap a card to play";
+  return "YOUR TURN — tap a card";
 }

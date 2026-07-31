@@ -64,12 +64,16 @@ export default function Settings({
   onBack,
   onNameSaved,
   onSkipDealAnimationsChange,
+  soundMuted,
+  onToggleSoundMute,
 }: {
   onWallpaperPreview?: (tint: string) => void;
   onWallpaperChange?: () => void;
   onBack?: () => void;
   onNameSaved?: (name: string) => void | Promise<void>;
   onSkipDealAnimationsChange?: (value: boolean) => void;
+  soundMuted?: boolean;
+  onToggleSoundMute?: () => void;
 }) {
   const {
     colors,
@@ -387,6 +391,31 @@ export default function Settings({
                 Dark card faces with white spades and clubs.
               </Text>
             </View>
+            {onToggleSoundMute ? (
+              <View style={[styles.settingBlock, styles.settingRowSpaced]}>
+                <View style={styles.settingHeaderRow}>
+                  <Text style={[styles.settingLabel, styles.settingLabelInline]}>
+                    Sound effects
+                  </Text>
+                  <View style={styles.settingHeaderSpacer} />
+                  <Switch
+                    value={!(soundMuted ?? false)}
+                    onValueChange={() => onToggleSoundMute()}
+                    trackColor={{
+                      false: colors.panelBorder,
+                      true: colors.accent,
+                    }}
+                    thumbColor={
+                      colors.mode === "light" ? "#ffffff" : colors.textPrimary
+                    }
+                    accessibilityLabel="Sound effects"
+                  />
+                </View>
+                <Text style={[styles.tintHint, styles.settingHint]}>
+                  Card taps, plays, passes, and your-turn cues.
+                </Text>
+              </View>
+            ) : null}
             <View
               style={[
                 styles.cardPreviewHost,
