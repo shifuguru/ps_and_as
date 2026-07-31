@@ -4,10 +4,16 @@ import type { Card } from "../game/ruleset";
 import type { TrickHistory } from "../game/core";
 import MenuIcon from "../components/MenuIcon";
 import { useAppTheme } from "../context/ThemeContext";
+import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import { hexToRgba } from "../utils/colorTheory";
+import { resolveCompactHeightTier } from "../utils/compactGameLayout";
 import { triggerHaptic } from "../utils/haptics";
 import { GAMEPLAY_PRESENTATION } from "./featureFlags";
-import { HUD_CARD_HEIGHT, HUD_CLUSTER_GAP } from "./hudLayout";
+import {
+  HUD_CLUSTER_GAP,
+  resolveHudCardHeight,
+  resolveHudDensity,
+} from "./hudLayout";
 import GameplayAchievementWidget from "./GameplayAchievementWidget";
 import RoundsInRowWidget from "./RoundsInRowWidget";
 import TrickScoreWidget, { type TrickScoreRow } from "./TrickScoreWidget";
@@ -130,15 +136,23 @@ export default function GameplayHud({
   statsRefreshKey = 0,
 }: Props) {
   const { colors } = useAppTheme();
+  const { height: shellHeight } = useVisualViewportSize();
+  const tier = resolveCompactHeightTier(shellHeight);
+  const density = resolveHudDensity(shellHeight, tier);
+  const hudCardHeight = resolveHudCardHeight(density);
   const [roundsCurrent, setRoundsCurrent] = useState(0);
   const [roundsBest, setRoundsBest] = useState(0);
   const lastSignal = React.useRef(0);
   const bottom = Math.max(0, feedbackBottom);
-  /** Tricks / Winning Play sit slightly above the resting-card feedback line. */
-  const trickWidgetsBottom = Math.round(bottom * 1.05);
+  /**
+   * Tricks / Winning Play share the resting-card feedback line.
+   * On short shells stay flush — lifting them eats the table.
+   */
+  const trickWidgetsBottom =
+    density === "comfortable" ? Math.round(bottom * 1.05) : bottom;
   const styles = useMemo(
-    () => createStyles(colors, trickWidgetsBottom),
-    [colors, trickWidgetsBottom],
+    () => createStyles(colors, trickWidgetsBottom, hudCardHeight, density),
+    [colors, trickWidgetsBottom, hudCardHeight, density],
   );
 
   useEffect(() => {
@@ -186,7 +200,11 @@ export default function GameplayHud({
         <View style={styles.topRow} pointerEvents="box-none">
           <View style={styles.corner} pointerEvents="box-none">
             {GAMEPLAY_PRESENTATION.roundsInRow ? (
-              <RoundsInRowWidget current={roundsCurrent} best={roundsBest} />
+              <RoundsInRowWidget
+                current={roundsCurrent}
+                best={roundsBest}
+                density={density}
+              />
             ) : null}
           </View>
           <View style={styles.utilRow}>
@@ -250,6 +268,7 @@ export default function GameplayHud({
                 <LastTrickWidget
                   info={lastTrick ?? null}
                   suppress={suppressLastTrick}
+                  density={density}
                 />
               ) : null}
             </View>
@@ -258,7 +277,7 @@ export default function GameplayHud({
               pointerEvents="box-none"
             >
               {GAMEPLAY_PRESENTATION.trickScore ? (
-                <TrickScoreWidget rows={trickRows} />
+                <TrickScoreWidget rows={trickRows} density={density} />
               ) : null}
             </View>
           </View>
@@ -276,20 +295,24 @@ export default function GameplayHud({
 function createStyles(
   colors: ReturnType<typeof useAppTheme>["colors"],
   feedbackBottom: number,
+  hudCardHeight: number,
+  density: ReturnType<typeof resolveHudDensity>,
 ) {
+  const dense = density !== "comfortable";
+  const utilSize = density === "ultra" ? 32 : dense ? 34 : 36;
   return StyleSheet.create({
     /** Above vignette (0), below play area / deal / bottom bar. */
     persistHost: {
       ...StyleSheet.absoluteFillObject,
       zIndex: 1,
       elevation: 1,
-      paddingHorizontal: 8,
+      paddingHorizontal: dense ? 6 : 8,
     },
     feedbackHost: {
       ...StyleSheet.absoluteFillObject,
       zIndex: 40,
       elevation: 40,
-      paddingHorizontal: 8,
+      paddingHorizontal: dense ? 6 : 8,
     },
     toastLayer: {
       ...StyleSheet.absoluteFillObject,
@@ -300,25 +323,25 @@ function createStyles(
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "flex-start",
-      gap: HUD_CLUSTER_GAP,
+      gap: dense ? 6 : HUD_CLUSTER_GAP,
     },
     prestigeCenter: {
       position: "absolute",
       left: 8,
       right: 8,
-      top: HUD_CARD_HEIGHT + HUD_CLUSTER_GAP + 4,
+      top: hudCardHeight + HUD_CLUSTER_GAP + 4,
       alignItems: "center",
     },
     utilRow: {
       flexDirection: "row",
       alignItems: "flex-start",
-      gap: HUD_CLUSTER_GAP,
+      gap: dense ? 6 : HUD_CLUSTER_GAP,
       paddingTop: 0,
     },
     utilBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: utilSize,
+      height: utilSize,
+      borderRadius: utilSize / 2,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: StyleSheet.hairlineWidth,
@@ -330,16 +353,16 @@ function createStyles(
     },
     bottomRow: {
       position: "absolute",
-      left: 8,
-      right: 8,
+      left: dense ? 6 : 8,
+      right: dense ? 6 : 8,
       bottom: feedbackBottom,
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "flex-end",
-      gap: 10,
+      gap: dense ? 6 : 10,
     },
     corner: {
-      maxWidth: "46%",
+      maxWidth: density === "ultra" ? "38%" : dense ? "42%" : "46%",
     },
     cornerRight: {
       alignItems: "flex-end",

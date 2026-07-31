@@ -1,14 +1,19 @@
 import {
   resolveBottomChromeMetrics,
+  resolveBottomContentMargin,
   resolveCompactHeightTier,
+  resolveControlsTopPad,
+  resolveHandHintSlot,
   resolveOpponentTopPad,
 } from "./compactGameLayout";
 import { computePlayAreaLayout } from "./tableLayout";
 
 /** Mirrors `BottomBar.bottomOuterPad` for iOS-style budget presets (Node-safe). */
-function budgetBottomOuterPad(safeBottom = 0): number {
-  const CONTENT_MARGIN = 18;
-  return Math.max(safeBottom, 12) + CONTENT_MARGIN;
+function budgetBottomOuterPad(shellHeight: number, safeBottom = 0): number {
+  const tier = resolveCompactHeightTier(shellHeight);
+  const margin = resolveBottomContentMargin(tier);
+  const floor = tier === "veryTight" || tier === "tight" ? 8 : 12;
+  return Math.max(safeBottom, floor) + margin;
 }
 
 export type GameScreenBudgetLine = {
@@ -51,7 +56,7 @@ export function computeGameScreenBudget(
   const handVisible = options.handVisible ?? true;
   const safeTop = preset.safeTop ?? 0;
   const safeBottom = preset.safeBottom ?? 0;
-  const outerPad = budgetBottomOuterPad(safeBottom);
+  const outerPad = budgetBottomOuterPad(preset.height, safeBottom);
   const chrome = resolveBottomChromeMetrics(
     preset.height,
     safeBottom,
@@ -71,11 +76,13 @@ export function computeGameScreenBudget(
     preset.height,
   );
 
+  const hintSlot = handVisible ? resolveHandHintSlot(chrome.tier) : 0;
+  const controlsTopPad = resolveControlsTopPad(chrome.tier);
   const lines: GameScreenBudgetLine[] = [
     { id: "safeTop", label: "Safe area top", px: safeTop },
     { id: "headerPad", label: "Header pad (+8)", px: 8 },
     { id: "playArea", label: "Play area (flex)", px: playAreaHeight },
-    { id: "bottomReserve", label: "Bottom reserve pad", px: 8 },
+    { id: "bottomStackPad", label: "Bottom stack pad", px: 2 },
     { id: "handFan", label: "Hand fan", px: handVisible ? chrome.fanHeight : 0 },
     {
       id: "handClearance",
@@ -89,15 +96,16 @@ export function computeGameScreenBudget(
     },
     {
       id: "handGap",
-      label: "Hand → action gap",
-      px: handVisible ? chrome.handControlsGap + 2 : 0,
+      label: "Hand → hint gap",
+      px: handVisible ? chrome.handControlsGap : 0,
     },
+    { id: "hintSlot", label: "Hint slot", px: hintSlot },
+    { id: "controlsTopPad", label: "Controls top pad", px: controlsTopPad },
     {
       id: "actionBar",
       label: "Action bar",
       px: chrome.actionBarHeight + chrome.actionBarPadding,
     },
-    { id: "bottomPad", label: "Bottom pad (+4)", px: 4 },
     { id: "safeBottom", label: "Safe area / home indicator", px: outerPad },
   ];
 

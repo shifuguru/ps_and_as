@@ -1,5 +1,11 @@
 export { GAMEPLAY_PRESENTATION } from "./featureFlags";
-export { HUD_CARD_HEIGHT, HUD_CLUSTER_GAP } from "./hudLayout";
+export {
+  HUD_CARD_HEIGHT,
+  HUD_CLUSTER_GAP,
+  resolveHudCardHeight,
+  resolveHudDensity,
+} from "./hudLayout";
+export type { HudDensity } from "./hudLayout";
 export { default as GameplayGlassPanel } from "./GameplayGlassPanel";
 export { default as GameplayAchievementWidget } from "./GameplayAchievementWidget";
 export { default as RoundsInRowWidget } from "./RoundsInRowWidget";

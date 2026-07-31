@@ -12,6 +12,7 @@ import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { ACTION_BAR_HEIGHT } from "./ActionBar";
 import { HAND_FAN_HEIGHT as DEFAULT_HAND_FAN_HEIGHT } from "./PlayerHand";
 import {
+  resolveBottomContentMargin,
   resolveControlsTopPad,
   resolveCompactHeightTier,
   resolveHandBaseline,
@@ -45,34 +46,53 @@ export const HAND_ZONE_TOP_CLEARANCE = 0;
 /** Extra lift above home-indicator safe area so Play / Leave clear the home bar. */
 const CONTENT_MARGIN = 18;
 
+function contentMarginForShell(shellHeight?: number): number {
+  if (shellHeight == null || shellHeight <= 0) return CONTENT_MARGIN;
+  return resolveBottomContentMargin(resolveCompactHeightTier(shellHeight));
+}
+
 function useWebBottomBarShell(): boolean {
   return Platform.OS === "web" && isMobileWeb();
 }
 
 /** Inner padding below controls inside the bar shell (above home indicator). */
-export function bottomContentInset(safeBottom = 0): number {
+export function bottomContentInset(
+  safeBottom = 0,
+  shellHeight?: number,
+): number {
+  const margin = contentMarginForShell(shellHeight);
   if (Platform.OS === "web" && isMobileWeb()) {
     // Home-indicator inset is on .ps-bottom-bar-shell via CSS env(safe-area-inset-bottom).
-    return CONTENT_MARGIN;
+    return margin;
   }
   const chrome = resolveWebBottomInset(safeBottom);
   if (Platform.OS === "ios") {
-    return Math.max(chrome, 8) + CONTENT_MARGIN;
+    return Math.max(chrome, 8) + margin;
   }
-  return chrome + 8;
+  return chrome + Math.min(8, margin);
 }
 
 /** Total bottom chrome height for layout reservation above the screen edge. */
-export function bottomOuterPad(safeBottom = 0): number {
+export function bottomOuterPad(safeBottom = 0, shellHeight?: number): number {
+  const margin = contentMarginForShell(shellHeight);
   if (Platform.OS === "web" && isMobileWeb()) {
-    return resolveWebBottomInset(safeBottom) + CONTENT_MARGIN;
+    return resolveWebBottomInset(safeBottom) + margin;
   }
-  return bottomContentInset(safeBottom);
+  return bottomContentInset(safeBottom, shellHeight);
 }
 
 /** Reserve scroll padding for a bottom panel with action track + leave (no hand). */
-export function menuBottomReserve(safeBottom = 0): number {
-  return ACTION_BAR_HEIGHT + 18 + BOTTOM_LEAVE_ROW_HEIGHT + bottomOuterPad(safeBottom) + 8;
+export function menuBottomReserve(
+  safeBottom = 0,
+  shellHeight?: number,
+): number {
+  return (
+    ACTION_BAR_HEIGHT +
+    18 +
+    BOTTOM_LEAVE_ROW_HEIGHT +
+    bottomOuterPad(safeBottom, shellHeight) +
+    8
+  );
 }
 
 /** Vertical space to reserve above the bottom sheet — HAND_BASELINE. */
@@ -81,7 +101,7 @@ export function reservedBottomHeight(
   handVisible = true,
   shellHeight?: number,
 ): number {
-  const outerPad = bottomOuterPad(safeBottom);
+  const outerPad = bottomOuterPad(safeBottom, shellHeight);
   if (shellHeight != null && shellHeight > 0) {
     return resolveHandBaseline(shellHeight, safeBottom, handVisible, outerPad);
   }
@@ -114,7 +134,8 @@ export default function BottomBar({
   minHeight,
 }: Props) {
   const insets = useLayoutInsets();
-  const contentInset = bottomContentInset(insets.bottom);
+  const { height: viewportHeight } = useVisualViewportSize();
+  const contentInset = bottomContentInset(insets.bottom, viewportHeight);
   const webShell = useWebBottomBarShell();
   const inOverlayPortal = useInWebOverlayPortal();
   const portalHost =
