@@ -29,7 +29,7 @@ type Props = {
  */
 export default function RoundsInRowWidget({
   current,
-  best,
+  best: _best,
   density = "comfortable",
 }: Props) {
   const { colors } = useAppTheme();
@@ -55,9 +55,6 @@ export default function RoundsInRowWidget({
       ? pipCount
       : Math.round(progress.fraction * pipCount),
   );
-
-  // `best` kept for API / future use — not shown in-panel (avoids extra chrome).
-  void best;
 
   return (
     <RunsPill
