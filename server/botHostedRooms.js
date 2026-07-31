@@ -844,7 +844,6 @@ function startBotHostedGame(roomId, ctx) {
         .filter((p) => !p.isSpectator)
         .map((p) => ({ id: p.id, name: p.name })),
       hostId: room.host,
-      dealSeed,
       skipDealAnimations: !!room.skipDealAnimations,
     });
     ctx.emitTradesCompleteIfReady(ctx.io, roomId, room.gameState, room.host);
@@ -1034,8 +1033,11 @@ function onBotRoomRoundFinished(room, roomId, ctx, hasLastHandReveal = false) {
 function afterBotRoomPlayerLeft(room, roomId, ctx) {
   if (!room?.isBotHosted) return false;
 
+  // Keep bots and every still-connected human (seated or spectator).
+  // Previously this also dropped all connected spectators whenever anyone
+  // left, which wiped remaining watchers / ready-to-promote state.
   room.players = room.players.filter(
-    (p) => isBotMember(p) || (!p.disconnectedAt && !p.isSpectator),
+    (p) => isBotMember(p) || !p.disconnectedAt,
   );
   ensureHumanHost(room);
 

@@ -5350,7 +5350,10 @@ function GameScreenBoard() {
           text: `${action.playerName} played ${formatCards(action.cards)}`,
           kind: "play",
         });
-        if (action.tenRuleDirection) {
+        if (
+          typeof action.tenRuleDirection === "string" &&
+          action.tenRuleDirection
+        ) {
           fullGameLog.push({
             text: `  → Called ${action.tenRuleDirection.toUpperCase()}`,
             kind: "info",
@@ -5404,6 +5407,7 @@ function GameScreenBoard() {
   const stickyRunActive = !!state.currentTrick?.runActive;
   if (
     state.tenRule?.active &&
+    typeof state.tenRule.direction === "string" &&
     state.tenRule.direction &&
     !state.tenRulePending &&
     !stickyRunActive
