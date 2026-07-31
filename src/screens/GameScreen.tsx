@@ -5694,6 +5694,7 @@ function GameScreenBoard() {
         lastTrick={lastTrickInfo}
         onOpenAchievements={onNavigateToAchievements}
         onOpenSettings={onNavigateToSettings}
+        onLeave={requestLeaveGame}
         statsRefreshKey={roundCompleteSignal + (state.trickHistory?.length ?? 0)}
         hideFeedback={
           !!ceremonyPrep ||
@@ -5812,7 +5813,6 @@ function GameScreenBoard() {
                 onPass={() => {}}
                 playDisabled
                 passDisabled
-                onQuit={requestLeaveGame}
                 onNavigateToSettings={onNavigateToSettings}
                 onNavigateToAchievements={onNavigateToAchievements}
               />
@@ -5832,7 +5832,6 @@ function GameScreenBoard() {
             selectedCount={handPlayInFlight ? 0 : selected.length}
             onPlay={handlePlayPress}
             onPass={handlePassPress}
-            onQuit={requestLeaveGame}
             onNavigateToSettings={onNavigateToSettings}
             onNavigateToAchievements={onNavigateToAchievements}
             playDisabled={gameplayLocked || !!handPlayInFlight || !isHumanTurn || roundOver || roundEndLastPlayHold || (!!localHumanId && hasPassedInCurrentTrick(state, localHumanId) && !humanRunOnTopTurn) || selected.length === 0 || !selectedCanPlay}
