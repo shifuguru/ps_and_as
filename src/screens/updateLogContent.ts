@@ -32,6 +32,16 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-07-31T17:10"),
+    title: "Roomier table on small phones",
+    items: [
+      "Round Streak — cleaner label (no extra “Rounds” or “Start a run”); rarer streaks still show their pips",
+      "Tricks — only players who’ve won a trick show up; on crowded tables it starts compact and you can tap to expand",
+      "Winning Play — shorter winner line, with readable size and padding again",
+      "Hand & seats — the glow behind your cards is gone; seats and table space scale better with 6–8 players on small phones",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-30T23:02"),
     title: "Clearer menus, Find Game & lobby",
     items: [
