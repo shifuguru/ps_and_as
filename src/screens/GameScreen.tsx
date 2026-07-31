@@ -4112,6 +4112,21 @@ function GameScreenBoard() {
   const handPlayInFlightRef = useRef(handPlayInFlight);
   handPlayInFlightRef.current = handPlayInFlight;
   handPlayInFlightKeyRef.current = handPlayInFlight?.playKey ?? null;
+  /** Plays currently shown on the table — used for flight SFX card counts. */
+  const flightSfxPlaysRef = useRef<TrickPlayDisplay[]>([]);
+  /** Keys that already played the throw/play cue (skip replaying on instant land). */
+  const flightPlaySfxStartedRef = useRef<Set<string>>(new Set());
+  const resolveFlightCardCount = useCallback((playKey: string) => {
+    const fromTable = flightSfxPlaysRef.current.find(
+      (p) => playDisplayKey(p) === playKey,
+    );
+    if (fromTable?.cards?.length) return fromTable.cards.length;
+    const outgoing = handPlayInFlightRef.current;
+    if (outgoing?.playKey === playKey && outgoing.cards.length) {
+      return outgoing.cards.length;
+    }
+    return 1;
+  }, []);
   const handlePlayFlightStarted = useCallback(
     (playKey: string) => {
       const startedAt = notePlayFlightStarted(playKey);
@@ -4123,8 +4138,11 @@ function GameScreenBoard() {
         playFlightKey: playKey,
         playFlightStartedAt: startedAt,
       });
+      // Hand → pile throw: all seats (local / remote / CPU), timed to the flight.
+      flightPlaySfxStartedRef.current.add(playKey);
+      void onPlaySound?.(playCardsSfxId(resolveFlightCardCount(playKey)));
     },
-    [state, pendingTablePlayFlights],
+    [state, pendingTablePlayFlights, onPlaySound, resolveFlightCardCount],
   );
 
   useEffect(() => {
@@ -4164,6 +4182,13 @@ function GameScreenBoard() {
         playFlightKey: playKey,
         playFlightLandedAt: landedAt,
       });
+      // Instant / skipped flights never fire started — still need a play cue.
+      if (!flightPlaySfxStartedRef.current.has(playKey)) {
+        void onPlaySound?.(playCardsSfxId(resolveFlightCardCount(playKey)));
+      } else {
+        void onPlaySound?.("card_land");
+      }
+      flightPlaySfxStartedRef.current.delete(playKey);
       setLocalPlayPresentationLatch((prev) => {
         if (prev?.playKey !== playKey) return prev;
         return { ...prev, playFlightLanded: true };
@@ -4177,7 +4202,14 @@ function GameScreenBoard() {
         completeHandPlayFlight(playKey);
       }
     },
-    [completeHandPlayFlight, scheduleLocalPlaySyncStuckTimeout, state, pendingTablePlayFlights],
+    [
+      completeHandPlayFlight,
+      scheduleLocalPlaySyncStuckTimeout,
+      state,
+      pendingTablePlayFlights,
+      onPlaySound,
+      resolveFlightCardCount,
+    ],
   );
   const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
@@ -4914,7 +4946,7 @@ function GameScreenBoard() {
       const { cards, playIndices } = pendingTenPlay;
       setPendingTenPlay(null);
       setSelected([]);
-      void onPlaySound?.(playCardsSfxId(cards.length));
+      // Play SFX fires on flight start (see handlePlayFlightStarted).
       void commitHumanPlayWithFlight(cards, playIndices, actor, direction);
       return;
     }
@@ -4996,7 +5028,7 @@ function GameScreenBoard() {
     }
 
     setSelected([]);
-    void onPlaySound?.(playCardsSfxId(cards.length));
+    // Play SFX fires on flight start (see handlePlayFlightStarted).
     await commitHumanPlayWithFlight(cards, playIndices, actor);
   };
 
@@ -5147,6 +5179,7 @@ function GameScreenBoard() {
     immediateTableClear || rankingsModalVisible
       ? EMPTY_TRICK_PLAYS
       : displayPlays;
+  flightSfxPlaysRef.current = tablePlaysForRender;
   const suppressTurnPresentation =
     betweenRoundsPresentation || roundEndLastPlayHold;
   const gameTableFadeOut =

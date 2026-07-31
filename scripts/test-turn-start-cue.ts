@@ -57,4 +57,36 @@ assert.strictEqual(playCardsSfxId(1), "card_play");
 assert.strictEqual(playCardsSfxId(2), "card_play_multi");
 assert.strictEqual(playCardsSfxId(4), "card_play_multi");
 
+/** Flight SFX: throw on start; land thud only if start already played. */
+function resolveFlightSfxEvents(
+  startedKeys: Set<string>,
+  playKey: string,
+  phase: "started" | "landed",
+): string[] {
+  if (phase === "started") {
+    startedKeys.add(playKey);
+    return ["card_play"];
+  }
+  if (!startedKeys.has(playKey)) {
+    return ["card_play"]; // instant / skipped flight
+  }
+  startedKeys.delete(playKey);
+  return ["card_land"];
+}
+
+const flightKeys = new Set<string>();
+assert.deepStrictEqual(
+  resolveFlightSfxEvents(flightKeys, "p1", "started"),
+  ["card_play"],
+);
+assert.deepStrictEqual(
+  resolveFlightSfxEvents(flightKeys, "p1", "landed"),
+  ["card_land"],
+);
+assert.deepStrictEqual(
+  resolveFlightSfxEvents(new Set(), "cpu", "landed"),
+  ["card_play"],
+  "instant land still gets a play cue",
+);
+
 console.log("test-turn-start-cue: ok");

@@ -1,5 +1,6 @@
 /**
  * Generate lightweight PCM WAV SFX for card play / turn cues.
+ * These are procedural placeholders — paper/felt flavored, not final assets.
  * Run: node scripts/generate-game-sfx.mjs
  */
 import fs from "fs";
@@ -65,72 +66,112 @@ function mix(...parts) {
   return out;
 }
 
-function tone(freq, duration, gain, attack = 0.004, release = 0.04) {
-  return env(duration, (t, p) => {
-    const a = t < attack ? t / attack : 1;
-    const r = p > 1 - release / duration ? (1 - p) / (release / duration) : 1;
-    return Math.sin(2 * Math.PI * freq * t) * gain * a * r;
-  });
-}
-
-function noiseBurst(duration, gain, decay = 0.035) {
+/** Soft low body — felt/thud, not a pure beep. */
+function thud(duration, gain, freq = 95) {
   return env(duration, (t) => {
-    const e = Math.exp(-t / decay);
-    return (Math.random() * 2 - 1) * gain * e;
+    const e = Math.exp(-t / (duration * 0.28));
+    // Slight pitch drop + noise grit so it reads as contact, not a tone.
+    const f = freq * (1 - t * 1.8);
+    const body = Math.sin(2 * Math.PI * f * t);
+    const grit = (Math.random() * 2 - 1) * 0.35;
+    return (body * 0.75 + grit * 0.25) * gain * e;
   });
 }
 
-// Soft paper tap — card select
+/** Band-limited-ish paper noise (high-passed random). */
+function paperNoise(duration, gain, decay = 0.03) {
+  let prev = 0;
+  return env(duration, (t) => {
+    const white = Math.random() * 2 - 1;
+    // Simple high-pass / crackle
+    const hp = white - prev;
+    prev = white * 0.85;
+    const e = Math.exp(-t / decay);
+    return hp * gain * e;
+  });
+}
+
+/** Short air flutter for cards leaving the hand / traveling. */
+function flutterWhoosh(duration, gain) {
+  return env(duration, (t, p) => {
+    const sweep = 1800 - p * 1100;
+    const vibr = Math.sin(2 * Math.PI * 28 * t) * 0.15;
+    const noise = Math.random() * 2 - 1;
+    const tone = Math.sin(2 * Math.PI * sweep * t) * 0.12;
+    const shape = Math.sin(Math.PI * Math.min(1, p * 1.15)) ** 1.4;
+    return (noise * 0.7 + tone + vibr * noise) * gain * shape;
+  });
+}
+
+// Soft paper tap — card select (avoid high sine “beep”)
 writeWav(
   "card_select.wav",
-  mix(noiseBurst(0.045, 0.22, 0.012), tone(920, 0.04, 0.08, 0.001, 0.03)),
+  mix(paperNoise(0.04, 0.28, 0.01), thud(0.05, 0.1, 140)),
 );
 
-// Single card play / drop onto table
+// Single card throw / travel toward the pile
 writeWav(
   "card_play.wav",
   mix(
-    noiseBurst(0.09, 0.32, 0.02),
-    tone(180, 0.1, 0.22, 0.002, 0.07),
-    tone(360, 0.07, 0.1, 0.002, 0.05),
+    flutterWhoosh(0.14, 0.22),
+    paperNoise(0.08, 0.18, 0.022),
+    thud(0.09, 0.14, 110),
   ),
 );
 
-// Multiple cards played together
+// Multiple cards together — staggered flutters
 writeWav(
   "card_play_multi.wav",
   mix(
-    noiseBurst(0.12, 0.28, 0.025),
-    tone(160, 0.12, 0.2, 0.002, 0.08),
+    flutterWhoosh(0.16, 0.2),
     (() => {
-      const a = tone(220, 0.08, 0.12, 0.002, 0.05);
-      const b = tone(280, 0.08, 0.1, 0.002, 0.05);
-      const out = new Float32Array(Math.floor(SAMPLE_RATE * 0.16));
-      const delay = Math.floor(SAMPLE_RATE * 0.035);
+      const a = paperNoise(0.07, 0.16, 0.018);
+      const b = paperNoise(0.07, 0.14, 0.02);
+      const out = new Float32Array(Math.floor(SAMPLE_RATE * 0.2));
+      const delay = Math.floor(SAMPLE_RATE * 0.04);
       for (let i = 0; i < a.length; i += 1) out[i] += a[i];
       for (let i = 0; i < b.length; i += 1) out[i + delay] += b[i];
       return out;
     })(),
+    thud(0.12, 0.16, 100),
   ),
 );
 
-// Pass — soft descending cue
+// Soft land / drop onto the pile
 writeWav(
-  "pass.wav",
-  mix(tone(420, 0.12, 0.14, 0.005, 0.08), tone(280, 0.14, 0.12, 0.02, 0.09)),
+  "card_land.wav",
+  mix(thud(0.1, 0.22, 85), paperNoise(0.055, 0.14, 0.016)),
 );
 
-// Local turn start — distinctive rising two-tone
+// Pass — soft descending air cue (still tonal, but quieter + noisier)
+writeWav(
+  "pass.wav",
+  mix(
+    paperNoise(0.1, 0.08, 0.05),
+    env(0.16, (t, p) => {
+      const f = 340 - p * 120;
+      const e = Math.exp(-t / 0.07);
+      return Math.sin(2 * Math.PI * f * t) * 0.09 * e;
+    }),
+  ),
+);
+
+// Local turn start — short bright knock + soft chime (not a ringtone)
 writeWav(
   "turn_start.wav",
   mix(
-    tone(523.25, 0.12, 0.18, 0.004, 0.06), // C5
+    thud(0.08, 0.18, 160),
+    paperNoise(0.06, 0.1, 0.02),
     (() => {
       const n = Math.floor(SAMPLE_RATE * 0.22);
       const out = new Float32Array(n);
-      const delay = Math.floor(SAMPLE_RATE * 0.08);
-      const second = tone(659.25, 0.14, 0.2, 0.004, 0.08); // E5
-      for (let i = 0; i < second.length; i += 1) out[i + delay] += second[i];
+      const delay = Math.floor(SAMPLE_RATE * 0.07);
+      for (let i = 0; i < n - delay; i += 1) {
+        const t = i / SAMPLE_RATE;
+        const e = Math.exp(-t / 0.08);
+        out[i + delay] += Math.sin(2 * Math.PI * 523 * t) * 0.1 * e;
+        out[i + delay] += Math.sin(2 * Math.PI * 784 * t) * 0.05 * e;
+      }
       return out;
     })(),
   ),
@@ -139,23 +180,23 @@ writeWav(
 // Deal flap
 writeWav(
   "card_deal.wav",
-  mix(noiseBurst(0.055, 0.18, 0.015), tone(640, 0.045, 0.07, 0.001, 0.03)),
+  mix(flutterWhoosh(0.07, 0.16), paperNoise(0.05, 0.14, 0.012)),
 );
 
-// Trick / pile clear
+// Trick / pile clear — scrape + soft gather
 writeWav(
   "pile_clear.wav",
   mix(
-    noiseBurst(0.14, 0.2, 0.04),
-    tone(240, 0.16, 0.1, 0.01, 0.1),
-    tone(160, 0.18, 0.08, 0.02, 0.12),
+    flutterWhoosh(0.18, 0.14),
+    paperNoise(0.14, 0.16, 0.05),
+    thud(0.16, 0.12, 70),
   ),
 );
 
-// Keep menu click usable
+// Keep menu click usable — short tick, not a beep
 writeWav(
   "button_click.wav",
-  mix(noiseBurst(0.03, 0.15, 0.008), tone(1100, 0.03, 0.1, 0.001, 0.02)),
+  mix(paperNoise(0.025, 0.2, 0.006), thud(0.03, 0.08, 220)),
 );
 
 console.log("game SFX generation complete");

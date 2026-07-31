@@ -20,6 +20,8 @@ function resolveEffectSource(effect: string): number | null {
       return require("../../assets/sounds/card_play.wav");
     case "card_play_multi":
       return require("../../assets/sounds/card_play_multi.wav");
+    case "card_land":
+      return require("../../assets/sounds/card_land.wav");
     case "pass":
       return require("../../assets/sounds/pass.wav");
     case "turn_start":
@@ -157,9 +159,11 @@ export function useMenuAudio() {
           ? 0.72
           : effect === "card_select"
             ? 0.45
-            : effect === "pass"
-              ? 0.5
-              : 0.6;
+            : effect === "card_land"
+              ? 0.48
+              : effect === "pass"
+                ? 0.5
+                : 0.6;
       const { sound } = await AudioModule.Audio.Sound.createAsync(source, {
         shouldPlay: true,
         volume,

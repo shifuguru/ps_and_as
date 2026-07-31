@@ -7,6 +7,7 @@ export type GameSfxId =
   | "card_select"
   | "card_play"
   | "card_play_multi"
+  | "card_land"
   | "pass"
   | "turn_start"
   | "card_deal"
