@@ -7,6 +7,8 @@ export type LobbySession = {
   playerName: string;
   isHost: boolean;
   roomName?: string;
+  /** Server-issued seat claim secret; required to reclaim after refresh. */
+  reconnectSecret?: string;
   savedAt: number;
 };
 
