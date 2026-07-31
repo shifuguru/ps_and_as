@@ -223,7 +223,7 @@ export function computePlayAreaLayout(
   const isWide = width >= 640;
 
   const tier = resolveCompactHeightTier(shellHeight ?? height);
-  const seat = computeSeatDimensions(width, height, shellHeight);
+  const seat = computeSeatDimensions(width, height, shellHeight, totalPlayers);
   const cx = width / 2;
   const sideMargin = isWide ? 12 : 8;
   const minTop =
@@ -232,6 +232,7 @@ export function computePlayAreaLayout(
     tier === "veryTight" ? 1 : tier === "tight" ? 2 : RING_BOTTOM_PAD;
   const ringBandBottom = height - ringBottomPad;
   const verticalBudget = ringBandBottom - minTop;
+  const crowdedTable = totalPlayers >= 6;
 
   const ringTopY = minTop + seat.footprintH * 0.22;
   const ringBottomY = ringBandBottom - seat.footprintH * 0.28;
@@ -243,19 +244,55 @@ export function computePlayAreaLayout(
    * (more air under the HUD, closer to the hand). On very short shells stay
    * nearer mid so seats and pills don’t collide with HUD / hand chrome.
    */
-  const viewportCy = height * (isVeryCompact ? 0.52 : isCompact ? 0.55 : 0.58);
+  const viewportCy =
+    height *
+    (isVeryCompact ? (crowdedTable ? 0.5 : 0.52) : isCompact ? 0.55 : 0.58);
   const ringCy = seatBandCy * 0.1 + viewportCy * 0.9;
 
   const seatReach =
     Math.max(seat.footprintW, seat.footprintH) * RING_SEAT_INSET;
 
   const maxCardW = width - sideMargin * 2;
-  const widthRatio = isWide ? 0.82 : isVeryCompact ? 0.9 : isCompact ? 0.88 : 0.86;
-  const heightRatio = isWide ? 0.6 : isVeryCompact ? 0.48 : isCompact ? 0.52 : 0.54;
+  const widthRatio = isWide
+    ? 0.82
+    : isVeryCompact
+      ? crowdedTable
+        ? 0.82
+        : 0.9
+      : isCompact
+        ? 0.88
+        : 0.86;
+  const heightRatio = isWide
+    ? 0.6
+    : isVeryCompact
+      ? crowdedTable
+        ? 0.42
+        : 0.48
+      : isCompact
+        ? 0.52
+        : 0.54;
 
-  const minCardZone = isVeryCompact ? 104 : isCompact ? 112 : 128;
-  const maxCardZoneW = isWide ? 300 : isVeryCompact ? 220 : 260;
-  const maxCardZoneH = isWide ? 280 : isVeryCompact ? 210 : 250;
+  const minCardZone = isVeryCompact
+    ? crowdedTable
+      ? 96
+      : 104
+    : isCompact
+      ? 112
+      : 128;
+  const maxCardZoneW = isWide
+    ? 300
+    : isVeryCompact
+      ? crowdedTable
+        ? 190
+        : 220
+      : 260;
+  const maxCardZoneH = isWide
+    ? 280
+    : isVeryCompact
+      ? crowdedTable
+        ? 180
+        : 210
+      : 250;
 
   let cardZoneWidth = clamp(
     Math.round(maxCardW * widthRatio),
@@ -291,7 +328,7 @@ export function computePlayAreaLayout(
     cardZoneHeight,
     cardZoneTop,
     seat,
-    { minTop, ringBandBottom, sideMargin },
+    { minTop, ringBandBottom, sideMargin, totalPlayers },
   );
 
   const maxCardClear = Math.max(

@@ -10,6 +10,8 @@ type Props = {
   height: number;
   /** Soft breathing under the pile while waiting for a lead. */
   waitingForPlay?: boolean;
+  /** SE / compact stages — quieter glow so it doesn’t read as a plate. */
+  compact?: boolean;
 };
 
 /**
@@ -20,6 +22,7 @@ export default function TableAmbience({
   width,
   height,
   waitingForPlay = false,
+  compact = false,
 }: Props) {
   const { colors, palette } = useAppTheme();
   const breath = useRef(new Animated.Value(0.35)).current;
@@ -27,8 +30,20 @@ export default function TableAmbience({
   const centre = colors.environment.centreLight;
 
   useEffect(() => {
-    const peak = waitingForPlay ? 0.55 : 0.32;
-    const trough = waitingForPlay ? 0.28 : 0.18;
+    const peak = compact
+      ? waitingForPlay
+        ? 0.28
+        : 0.16
+      : waitingForPlay
+        ? 0.55
+        : 0.32;
+    const trough = compact
+      ? waitingForPlay
+        ? 0.12
+        : 0.08
+      : waitingForPlay
+        ? 0.28
+        : 0.18;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(breath, {
@@ -47,17 +62,33 @@ export default function TableAmbience({
     );
     loop.start();
     return () => loop.stop();
-  }, [breath, waitingForPlay]);
+  }, [breath, waitingForPlay, compact]);
 
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(colors, compact), [colors, compact]);
   if (width <= 0 || height <= 0) return null;
 
   const cx = width / 2;
   const cy = height / 2;
-  const rx = Math.max(width * 0.28, 72);
-  const ry = Math.max(height * 0.18, 48);
-  const core = centre * (colors.mode === "light" ? 1.35 : 1.2);
-  const mid = centre * (colors.mode === "light" ? 0.5 : 0.35);
+  const rx = Math.max(width * (compact ? 0.22 : 0.28), compact ? 48 : 72);
+  const ry = Math.max(height * (compact ? 0.14 : 0.18), compact ? 32 : 48);
+  const core =
+    centre *
+    (compact
+      ? colors.mode === "light"
+        ? 0.7
+        : 0.55
+      : colors.mode === "light"
+        ? 1.35
+        : 1.2);
+  const mid =
+    centre *
+    (compact
+      ? colors.mode === "light"
+        ? 0.22
+        : 0.14
+      : colors.mode === "light"
+        ? 0.5
+        : 0.35);
 
   return (
     <View style={[styles.host, { width, height }]} pointerEvents="none">
@@ -90,14 +121,19 @@ export default function TableAmbience({
           />
         </Svg>
       </Animated.View>
-      <Text style={[styles.crest, gameTitleFaceStyle()]} numberOfLines={1}>
-        {"P's & A's"}
-      </Text>
+      {!compact ? (
+        <Text style={[styles.crest, gameTitleFaceStyle()]} numberOfLines={1}>
+          {"P's & A's"}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
-function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+function createStyles(
+  colors: ReturnType<typeof useAppTheme>["colors"],
+  compact: boolean,
+) {
   return StyleSheet.create({
     /** Positioning only — never paint a fill here. */
     host: {
@@ -117,7 +153,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       left: 0,
       right: 0,
       textAlign: "center",
-      fontSize: 22,
+      fontSize: compact ? 16 : 22,
       fontWeight: "700",
       color: hexToRgba(colors.accent, colors.mode === "light" ? 0.1 : 0.07),
       letterSpacing: 1.2,

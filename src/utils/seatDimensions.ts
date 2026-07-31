@@ -59,11 +59,20 @@ export function scaleForWidth(
   return wide ?? desktop ?? tablet ?? mobile;
 }
 
+/** Shrink seats when many players share a short / narrow ring. */
+export function playerCountSeatScale(totalPlayers: number): number {
+  if (totalPlayers >= 8) return 0.82;
+  if (totalPlayers >= 7) return 0.86;
+  if (totalPlayers >= 6) return 0.9;
+  return 1;
+}
+
 /** Seat / avatar sizes derived from available horizontal space. */
 export function computeSeatDimensions(
   width: number,
   height?: number,
   shellHeight?: number,
+  totalPlayers = 4,
 ): SeatDimensions {
   const tier = resolveCompactHeightTier(shellHeight ?? height ?? 900);
   const boost = (n: number) => boostWithTier(n, tier);
@@ -75,7 +84,8 @@ export function computeSeatDimensions(
   const localBand = scaleForWidth(width, 72, 88, 96, 104);
 
   const heightTight = height != null && height < 520;
-  const shrink = heightTight ? 0.92 : 1;
+  const shrink =
+    (heightTight ? 0.92 : 1) * playerCountSeatScale(totalPlayers);
 
   const scaledAvatar = boost(Math.round(avatar * shrink));
   const scaledAvatarLocal = boost(Math.round(avatarLocal * shrink));
@@ -200,17 +210,19 @@ export function computeSeatTableGap(
     minTop?: number;
     ringBandBottom?: number;
     sideMargin?: number;
+    totalPlayers?: number;
   },
 ): SeatTableGap {
   const minTop = options?.minTop ?? 30;
   const ringBandBottom = options?.ringBandBottom ?? height - 8;
   const sideMargin = options?.sideMargin ?? 8;
+  const crowd = playerCountSeatScale(options?.totalPlayers ?? 4);
 
   const cardCenterY = cardZoneTop + cardZoneHeight / 2;
   const cardClearRadius = Math.hypot(cardZoneWidth / 2, cardZoneHeight / 2);
 
-  const minGap = scaleForWidth(width, 12, 18, 24, 30);
-  const maxGap = scaleForWidth(width, 28, 44, 58, 74);
+  const minGap = Math.round(scaleForWidth(width, 12, 18, 24, 30) * crowd);
+  const maxGap = Math.round(scaleForWidth(width, 28, 44, 58, 74) * crowd);
 
   const hSlack = width / 2 - cardZoneWidth / 2 - sideMargin - seat.footprintW / 2;
   const vSlackTop =

@@ -64,7 +64,7 @@ export default function RoundsInRowWidget({
       showFlames={energyOn && !ultra}
       containFlames
       emberSpread="around"
-      maxFlameHeight={ultra ? 12 : dense ? 14 : 16}
+      maxFlameHeight={ultra ? 10 : dense ? 12 : 14}
       palette={palette}
       flameSeeds={flameSeeds}
       pillStyle={styles.effectShell}
@@ -123,51 +123,53 @@ function createStyles(
       overflow: "visible",
     },
     panel: {
-      minWidth: ultra ? 100 : dense ? 110 : 118,
-      maxWidth: ultra ? 128 : dense ? 136 : 148,
+      minWidth: ultra ? 96 : dense ? 104 : 112,
+      maxWidth: ultra ? 120 : dense ? 128 : 140,
       height: cardH,
-      justifyContent: "space-between",
-      gap: 0,
+      justifyContent: "flex-start",
+      gap: ultra ? 2 : dense ? 3 : 4,
+      padding: ultra ? 7 : dense ? 8 : 9,
     },
     header: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 4,
+      gap: 3,
       marginBottom: 0,
     },
-    fire: { fontSize: 12 },
+    fire: { fontSize: dense ? 10 : 11 },
     eyebrow: {
       color: accent,
-      fontSize: 9,
+      fontSize: ultra ? 8 : 9,
       fontWeight: "800",
-      letterSpacing: 0.6,
+      letterSpacing: 0.5,
       textTransform: "uppercase",
     },
     count: {
       color: colors.textPrimary,
-      fontSize: dense ? 24 : 26,
+      fontSize: ultra ? 20 : dense ? 22 : 24,
       fontWeight: "900",
       fontVariant: ["tabular-nums"],
       letterSpacing: -0.3,
-      lineHeight: dense ? 28 : 30,
+      lineHeight: ultra ? 22 : dense ? 24 : 26,
     },
     pipRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 4,
-      marginBottom: dense ? 0 : 2,
+      gap: 3,
+      marginTop: 1,
     },
     pip: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
+      width: dense ? 7 : 8,
+      height: dense ? 7 : 8,
+      borderRadius: dense ? 3.5 : 4,
     },
     rarityLabel: {
       color: accent,
-      fontSize: 9,
+      fontSize: 8,
       fontWeight: "800",
       letterSpacing: 0.5,
       textTransform: "uppercase",
+      marginTop: 2,
     },
   });
 }

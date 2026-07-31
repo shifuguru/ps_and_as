@@ -90,20 +90,25 @@ function PileSpotlight({
   centerY,
   cardW,
   cardH,
+  compact = false,
 }: {
   centerX: number;
   centerY: number;
   cardW: number;
   cardH: number;
+  /** SE / crowded tables — smaller, quieter so it doesn’t read as a plate. */
+  compact?: boolean;
 }) {
   if (centerX <= 0 || centerY <= 0 || cardW <= 0 || cardH <= 0) return null;
 
-  const rx = Math.round(Math.max(cardW * 1.55, 88));
-  const ry = Math.round(Math.max(cardH * 0.5, 36));
+  const rx = Math.round(Math.max(cardW * (compact ? 1.15 : 1.55), compact ? 56 : 88));
+  const ry = Math.round(Math.max(cardH * (compact ? 0.36 : 0.5), compact ? 24 : 36));
   const width = rx * 2;
   const height = ry * 2;
   const cx = width / 2;
   const cy = height / 2;
+  const core = compact ? 0.05 : 0.11;
+  const mid = compact ? 0.015 : 0.04;
 
   return (
     <View
@@ -121,8 +126,8 @@ function PileSpotlight({
       <Svg width={width} height={height}>
         <Defs>
           <RadialGradient id="pileSpotlightGrad" cx="50%" cy="50%" rx="50%" ry="50%">
-            <Stop offset="0%" stopColor="rgba(255,255,255,0.11)" stopOpacity={1} />
-            <Stop offset="45%" stopColor="rgba(255,255,255,0.04)" stopOpacity={1} />
+            <Stop offset="0%" stopColor={`rgba(255,255,255,${core})`} stopOpacity={1} />
+            <Stop offset="45%" stopColor={`rgba(255,255,255,${mid})`} stopOpacity={1} />
             <Stop offset="100%" stopColor="rgba(255,255,255,0)" stopOpacity={0} />
           </RadialGradient>
         </Defs>
@@ -468,6 +473,9 @@ export default function GameTable({
               width={stageWidth}
               height={stageHeight}
               waitingForPlay={plays.length === 0}
+              compact={
+                !!(layoutHint?.isVeryCompact || layoutHint?.isCompact)
+              }
             />
             <PileContactShadow
               centerX={pileSpotlightCenterX}
@@ -480,6 +488,9 @@ export default function GameTable({
               centerY={pileSpotlightCenterY}
               cardW={cardW || layout.cardWidth}
               cardH={cardH || layout.cardHeight}
+              compact={
+                !!(layoutHint?.isVeryCompact || layoutHint?.isCompact)
+              }
             />
           </>
         ) : null}

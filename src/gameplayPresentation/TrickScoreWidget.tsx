@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
@@ -20,30 +20,61 @@ type Props = {
   density?: HudDensity;
 };
 
+const MANY_PLAYERS = 6;
+
 /** Visual standings for tricks won this round — compact corner chip. */
 export default function TrickScoreWidget({
   rows,
   density = "comfortable",
 }: Props) {
   const { colors } = useAppTheme();
-  const dense = density !== "comfortable";
-  const ultra = density === "ultra";
+  const many = rows.length >= MANY_PLAYERS;
+  const dense = density !== "comfortable" || many;
+  const ultra = density === "ultra" || many;
+  /** 6–8p on short shells starts collapsed so the ring stays clear. */
+  const collapsible = many && density !== "comfortable";
+  const [expanded, setExpanded] = useState(!collapsible);
+
+  useEffect(() => {
+    setExpanded(!collapsible);
+  }, [collapsible, rows.length]);
+
   const styles = useMemo(
     () => createStyles(colors, dense, ultra),
     [colors, dense, ultra],
   );
   if (!rows.length) return null;
 
-  const sorted = [...rows].sort((a, b) => b.tricks - a.tricks || a.name.localeCompare(b.name));
+  const sorted = [...rows].sort(
+    (a, b) => b.tricks - a.tricks || a.name.localeCompare(b.name),
+  );
   const lead = sorted[0]?.tricks ?? 0;
+  const you = sorted.find((r) => r.isYou);
+  const leader = sorted[0];
 
-  return (
-    <GameplayGlassPanel compact style={styles.panel}>
+  const visibleRows = (() => {
+    if (!collapsible || expanded) return sorted;
+    const keep = new Map<string, TrickScoreRow>();
+    if (leader) keep.set(leader.id, leader);
+    if (you) keep.set(you.id, you);
+    // Preserve score order among the kept subset.
+    return sorted.filter((r) => keep.has(r.id));
+  })();
+
+  const hiddenCount = collapsible && !expanded
+    ? Math.max(0, sorted.length - visibleRows.length)
+    : 0;
+
+  const body = (
+    <>
       <View style={styles.header}>
         <Text style={styles.trophy}>🏆</Text>
         <Text style={styles.eyebrow}>Tricks</Text>
+        {collapsible ? (
+          <Text style={styles.expandCue}>{expanded ? "▴" : "▾"}</Text>
+        ) : null}
       </View>
-      {sorted.map((r) => {
+      {visibleRows.map((r) => {
         const accent = r.accent ?? (r.isYou ? colors.accent : colors.textTertiary);
         const leading = r.tricks > 0 && r.tricks === lead;
         return (
@@ -100,6 +131,27 @@ export default function TrickScoreWidget({
           </View>
         );
       })}
+      {hiddenCount > 0 ? (
+        <Text style={styles.moreHint}>+{hiddenCount} more</Text>
+      ) : null}
+    </>
+  );
+
+  if (!collapsible) {
+    return (
+      <GameplayGlassPanel compact style={styles.panel}>
+        {body}
+      </GameplayGlassPanel>
+    );
+  }
+
+  return (
+    <GameplayGlassPanel
+      compact
+      style={styles.panel}
+      onPress={() => setExpanded((v) => !v)}
+    >
+      {body}
     </GameplayGlassPanel>
   );
 }
@@ -129,6 +181,12 @@ function createStyles(
       fontWeight: "800",
       letterSpacing: 0.5,
       textTransform: "uppercase",
+      flex: 1,
+    },
+    expandCue: {
+      color: colors.textTertiary,
+      fontSize: 9,
+      fontWeight: "700",
     },
     row: {
       flexDirection: "row",
@@ -187,6 +245,13 @@ function createStyles(
     },
     countLead: {
       color: colors.accent,
+    },
+    moreHint: {
+      color: colors.textTertiary,
+      fontSize: 8,
+      fontWeight: "700",
+      textAlign: "center",
+      marginTop: 1,
     },
   });
 }

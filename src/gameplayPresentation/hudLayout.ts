@@ -10,7 +10,7 @@ import {
 
 /**
  * Outer height for Upcoming Achievement (matched when prestige is on).
- * Round Streak is shorter now — fewer in-panel lines, normal padding.
+ * Round Streak uses resolveHudCardHeight — shorter content stack.
  */
 export const HUD_CARD_HEIGHT = 108;
 
@@ -31,16 +31,16 @@ export function resolveHudDensity(
 }
 
 /**
- * Round Streak height — sized for title + number + pips (+ rarity on roomy).
- * Shorter from dropping descriptor copy, not from crushing type/padding.
+ * Round Streak height — title + number + pips (+ rarity on roomy).
+ * Kept short so the top seat isn’t crowded on SE.
  */
 export function resolveHudCardHeight(density: HudDensity): number {
   switch (density) {
     case "ultra":
-      return 86;
+      return 64;
     case "dense":
-      return 92;
+      return 70;
     default:
-      return 100;
+      return 82;
   }
 }
