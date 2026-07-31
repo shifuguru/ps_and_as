@@ -145,12 +145,9 @@ export default function LastTrickWidget({
               {playerInitials(shown.winnerName)}
             </Text>
           </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.wonBy}>Won by</Text>
-            <Text style={styles.winner} numberOfLines={1}>
-              {shown.winnerName}
-            </Text>
-          </View>
+          <Text style={styles.winner} numberOfLines={1}>
+            {shown.winnerName}
+          </Text>
         </View>
       </GameplayGlassPanel>
     </Animated.View>
@@ -162,60 +159,60 @@ function createStyles(
   density: HudDensity,
 ) {
   const dense = density !== "comfortable";
-  const ultra = density === "ultra";
   return StyleSheet.create({
     host: {
       alignSelf: "flex-start",
-      maxWidth: ultra ? 120 : dense ? 140 : 168,
+      maxWidth: dense ? 148 : 168,
     },
     panel: {
-      minWidth: ultra ? 108 : dense ? 124 : 148,
-      padding: ultra ? 8 : undefined,
+      minWidth: dense ? 132 : 148,
+      /** Keep glass padding — save height by dropping “Won by”, not by crushing. */
+      padding: dense ? 10 : 12,
+      gap: 0,
     },
     eyebrow: {
       color: colors.accent,
-      fontSize: ultra ? 8 : 9,
+      fontSize: 9,
       fontWeight: "800",
       letterSpacing: 0.7,
       textTransform: "uppercase",
-      marginBottom: ultra ? 3 : dense ? 4 : 6,
+      marginBottom: 6,
       textAlign: "center",
     },
     cards: {
       color: colors.textPrimary,
-      fontSize: ultra ? 15 : dense ? 17 : 20,
+      fontSize: dense ? 18 : 20,
       fontWeight: "800",
       textAlign: "center",
-      marginBottom: ultra ? 4 : dense ? 6 : 8,
+      marginBottom: 8,
     },
     winnerRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: ultra ? 5 : 8,
+      gap: 8,
+      minWidth: 0,
     },
     avatar: {
-      width: ultra ? 22 : dense ? 24 : 28,
-      height: ultra ? 22 : dense ? 24 : 28,
-      borderRadius: ultra ? 11 : dense ? 12 : 14,
+      width: dense ? 26 : 28,
+      height: dense ? 26 : 28,
+      borderRadius: dense ? 13 : 14,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: hexToRgba(colors.accent, 0.22),
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: hexToRgba(colors.accent, 0.5),
+      flexShrink: 0,
     },
     avatarText: {
       color: colors.accent,
-      fontSize: ultra ? 8 : 10,
+      fontSize: 10,
       fontWeight: "800",
     },
-    wonBy: {
-      color: colors.textTertiary,
-      fontSize: ultra ? 8 : 9,
-      fontWeight: "600",
-    },
     winner: {
+      flex: 1,
+      minWidth: 0,
       color: hexToRgba(colors.accent, 0.98),
-      fontSize: ultra ? 11 : 12,
+      fontSize: 12,
       fontWeight: "800",
     },
   });
