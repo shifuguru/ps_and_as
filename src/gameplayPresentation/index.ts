@@ -2,8 +2,11 @@ export { GAMEPLAY_PRESENTATION } from "./featureFlags";
 export {
   HUD_CARD_HEIGHT,
   HUD_CLUSTER_GAP,
+  HUD_TYPE,
+  HUD_GLASS_PAD,
   resolveHudCardHeight,
   resolveHudDensity,
+  hudGlassPadding,
 } from "./hudLayout";
 export type { HudDensity } from "./hudLayout";
 export { default as GameplayGlassPanel } from "./GameplayGlassPanel";

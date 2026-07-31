@@ -15,7 +15,7 @@ import {
   rarityForAchievementId,
 } from "../services/achievementRarity";
 import GameplayGlassPanel from "./GameplayGlassPanel";
-import { HUD_CARD_HEIGHT } from "./hudLayout";
+import { HUD_CARD_HEIGHT, HUD_TYPE } from "./hudLayout";
 
 type Props = {
   onOpenAchievements?: () => void;
@@ -125,7 +125,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       justifyContent: "space-between",
     },
     eyebrow: {
-      fontSize: 9,
+      fontSize: HUD_TYPE.eyebrow,
       fontWeight: "800",
       letterSpacing: 0.7,
       textTransform: "uppercase",
@@ -147,9 +147,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     desc: {
       color: colors.textSecondary,
-      fontSize: 10,
+      fontSize: HUD_TYPE.caption,
       fontWeight: "600",
-      lineHeight: 12,
+      lineHeight: 13,
     },
     rarityChip: {
       alignSelf: "flex-start",
@@ -160,7 +160,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       borderWidth: StyleSheet.hairlineWidth,
     },
     rarityText: {
-      fontSize: 9,
+      fontSize: HUD_TYPE.caption,
       fontWeight: "800",
       letterSpacing: 0.4,
       textTransform: "uppercase",

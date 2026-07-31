@@ -8,7 +8,12 @@ import {
   roundStreakRarityProgress,
 } from "../services/achievementRarity";
 import GameplayGlassPanel from "./GameplayGlassPanel";
-import { resolveHudCardHeight, type HudDensity } from "./hudLayout";
+import {
+  HUD_TYPE,
+  hudGlassPadding,
+  resolveHudCardHeight,
+  type HudDensity,
+} from "./hudLayout";
 import {
   RunsPill,
   flameSeedsFromPalette,
@@ -26,6 +31,7 @@ type Props = {
  * icon → title → count → rarity pips → rarity label (roomy only).
  * No “Start a run” copy — “run” means consecutive cards in this game.
  * Count is a bare number so “Round” isn’t repeated under the title.
+ * Type sizes follow HUD_TYPE (P0 coherence audit) — density omits lines only.
  */
 export default function RoundsInRowWidget({
   current,
@@ -64,7 +70,7 @@ export default function RoundsInRowWidget({
       showFlames={energyOn && !ultra}
       containFlames
       emberSpread="around"
-      maxFlameHeight={ultra ? 10 : dense ? 12 : 14}
+      maxFlameHeight={dense ? 12 : 16}
       palette={palette}
       flameSeeds={flameSeeds}
       pillStyle={styles.effectShell}
@@ -107,8 +113,7 @@ function createStyles(
   accent: string,
   density: HudDensity,
 ) {
-  const dense = density !== "comfortable";
-  const ultra = density === "ultra";
+  const pad = hudGlassPadding(density);
   const cardH = resolveHudCardHeight(density);
   return StyleSheet.create({
     root: {
@@ -123,49 +128,49 @@ function createStyles(
       overflow: "visible",
     },
     panel: {
-      minWidth: ultra ? 96 : dense ? 104 : 112,
-      maxWidth: ultra ? 120 : dense ? 128 : 140,
+      minWidth: 118,
+      maxWidth: 148,
       height: cardH,
       justifyContent: "flex-start",
-      gap: ultra ? 2 : dense ? 3 : 4,
-      padding: ultra ? 7 : dense ? 8 : 9,
+      gap: 4,
+      padding: pad,
     },
     header: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 3,
+      gap: 4,
       marginBottom: 0,
     },
-    fire: { fontSize: dense ? 10 : 11 },
+    fire: { fontSize: 12 },
     eyebrow: {
       color: accent,
-      fontSize: ultra ? 8 : 9,
+      fontSize: HUD_TYPE.eyebrow,
       fontWeight: "800",
-      letterSpacing: 0.5,
+      letterSpacing: 0.6,
       textTransform: "uppercase",
     },
     count: {
       color: colors.textPrimary,
-      fontSize: ultra ? 20 : dense ? 22 : 24,
+      fontSize: HUD_TYPE.display,
       fontWeight: "900",
       fontVariant: ["tabular-nums"],
       letterSpacing: -0.3,
-      lineHeight: ultra ? 22 : dense ? 24 : 26,
+      lineHeight: 26,
     },
     pipRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 3,
-      marginTop: 1,
+      gap: 4,
+      marginTop: 2,
     },
     pip: {
-      width: dense ? 7 : 8,
-      height: dense ? 7 : 8,
-      borderRadius: dense ? 3.5 : 4,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
     },
     rarityLabel: {
       color: accent,
-      fontSize: 8,
+      fontSize: HUD_TYPE.caption,
       fontWeight: "800",
       letterSpacing: 0.5,
       textTransform: "uppercase",

@@ -4,7 +4,11 @@ import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
 import { playerInitials } from "../utils/playerDisplay";
 import GameplayGlassPanel from "./GameplayGlassPanel";
-import type { HudDensity } from "./hudLayout";
+import {
+  HUD_TYPE,
+  hudGlassPadding,
+  type HudDensity,
+} from "./hudLayout";
 
 export type TrickScoreRow = {
   id: string;
@@ -16,7 +20,7 @@ export type TrickScoreRow = {
 
 type Props = {
   rows: TrickScoreRow[];
-  /** Shorter / narrower on SE-class shells so the table stays readable. */
+  /** Narrower / collapsible on SE-class shells — type stays on HUD_TYPE floors. */
   density?: HudDensity;
 };
 
@@ -29,10 +33,11 @@ export default function TrickScoreWidget({
 }: Props) {
   const { colors } = useAppTheme();
   const many = rows.length >= MANY_PLAYERS;
-  const dense = density !== "comfortable" || many;
-  const ultra = density === "ultra" || many;
+  const denseShell = density !== "comfortable";
+  /** 6+ players: initials-only rows to free width. */
+  const initialsOnly = many || density === "ultra";
   /** 6–8p on short shells starts collapsed so the ring stays clear. */
-  const collapsible = many && density !== "comfortable";
+  const collapsible = many && denseShell;
   const [expanded, setExpanded] = useState(!collapsible);
 
   useEffect(() => {
@@ -40,8 +45,8 @@ export default function TrickScoreWidget({
   }, [collapsible, rows.length]);
 
   const styles = useMemo(
-    () => createStyles(colors, dense, ultra),
-    [colors, dense, ultra],
+    () => createStyles(colors, density, initialsOnly),
+    [colors, density, initialsOnly],
   );
   if (!rows.length) return null;
 
@@ -57,13 +62,15 @@ export default function TrickScoreWidget({
     const keep = new Map<string, TrickScoreRow>();
     if (leader) keep.set(leader.id, leader);
     if (you) keep.set(you.id, you);
-    // Preserve score order among the kept subset.
     return sorted.filter((r) => keep.has(r.id));
   })();
 
-  const hiddenCount = collapsible && !expanded
-    ? Math.max(0, sorted.length - visibleRows.length)
-    : 0;
+  const hiddenCount =
+    collapsible && !expanded
+      ? Math.max(0, sorted.length - visibleRows.length)
+      : 0;
+
+  const showChips = density === "comfortable" && !many;
 
   const body = (
     <>
@@ -99,7 +106,7 @@ export default function TrickScoreWidget({
             >
               <Text style={styles.dotText}>{playerInitials(r.name)}</Text>
             </View>
-            {!ultra ? (
+            {!initialsOnly ? (
               <Text
                 style={[styles.name, r.isYou && styles.nameYou]}
                 numberOfLines={1}
@@ -107,7 +114,7 @@ export default function TrickScoreWidget({
                 {r.name}
               </Text>
             ) : null}
-            {!dense ? (
+            {showChips ? (
               <View style={styles.chipTrack}>
                 {Array.from({ length: Math.max(r.tricks, 0) }).map((_, i) => (
                   <View
@@ -158,26 +165,27 @@ export default function TrickScoreWidget({
 
 function createStyles(
   colors: ReturnType<typeof useAppTheme>["colors"],
-  dense: boolean,
-  ultra: boolean,
+  density: HudDensity,
+  initialsOnly: boolean,
 ) {
+  const pad = hudGlassPadding(density);
   return StyleSheet.create({
     panel: {
-      width: ultra ? 88 : dense ? 112 : 148,
+      width: initialsOnly ? 96 : 148,
       maxWidth: "100%",
-      gap: ultra ? 0 : 2,
-      padding: ultra ? 6 : dense ? 7 : 8,
+      gap: 2,
+      padding: pad,
     },
     header: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 3,
-      marginBottom: ultra ? 0 : 2,
+      gap: 4,
+      marginBottom: 2,
     },
-    trophy: { fontSize: ultra ? 8 : 9 },
+    trophy: { fontSize: HUD_TYPE.caption },
     eyebrow: {
       color: colors.accent,
-      fontSize: ultra ? 7 : 8,
+      fontSize: HUD_TYPE.eyebrow,
       fontWeight: "800",
       letterSpacing: 0.5,
       textTransform: "uppercase",
@@ -185,34 +193,36 @@ function createStyles(
     },
     expandCue: {
       color: colors.textTertiary,
-      fontSize: 9,
+      fontSize: HUD_TYPE.caption,
       fontWeight: "700",
     },
     row: {
       flexDirection: "row",
       alignItems: "center",
-      gap: ultra ? 3 : 4,
-      paddingVertical: ultra ? 0 : 1,
+      gap: 4,
+      paddingVertical: 1,
       paddingHorizontal: 2,
     },
+    /** Sized so initials can sit at the caption floor (10). */
     dot: {
-      width: ultra ? 14 : 16,
-      height: ultra ? 14 : 16,
-      borderRadius: ultra ? 7 : 8,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: StyleSheet.hairlineWidth,
+      flexShrink: 0,
     },
     dotText: {
       color: "#fff",
-      fontSize: ultra ? 5 : 6,
+      fontSize: HUD_TYPE.caption,
       fontWeight: "800",
     },
     name: {
       color: colors.textPrimary,
-      fontSize: dense ? 9 : 10,
+      fontSize: HUD_TYPE.caption,
       fontWeight: "700",
-      width: dense ? 28 : 36,
+      width: 36,
     },
     nameYou: {
       color: colors.accent,
@@ -223,7 +233,7 @@ function createStyles(
       flexWrap: "wrap",
       gap: 2,
       alignItems: "center",
-      minHeight: dense ? 0 : 8,
+      minHeight: showMinChipTrack(density, initialsOnly) ? 8 : 0,
     },
     trickChip: {
       width: 6,
@@ -232,15 +242,15 @@ function createStyles(
     },
     zero: {
       color: colors.textTertiary,
-      fontSize: 10,
+      fontSize: HUD_TYPE.caption,
       fontWeight: "600",
     },
     count: {
       color: colors.textPrimary,
-      fontSize: ultra ? 11 : 12,
+      fontSize: HUD_TYPE.body,
       fontWeight: "800",
       fontVariant: ["tabular-nums"],
-      minWidth: ultra ? 12 : 14,
+      minWidth: 14,
       textAlign: "right",
     },
     countLead: {
@@ -248,10 +258,14 @@ function createStyles(
     },
     moreHint: {
       color: colors.textTertiary,
-      fontSize: 8,
+      fontSize: HUD_TYPE.caption,
       fontWeight: "700",
       textAlign: "center",
-      marginTop: 1,
+      marginTop: 2,
     },
   });
+}
+
+function showMinChipTrack(density: HudDensity, initialsOnly: boolean): boolean {
+  return density === "comfortable" && !initialsOnly;
 }

@@ -6,7 +6,11 @@ import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
 import { playerInitials } from "../utils/playerDisplay";
 import GameplayGlassPanel from "./GameplayGlassPanel";
-import type { HudDensity } from "./hudLayout";
+import {
+  HUD_TYPE,
+  hudGlassPadding,
+  type HudDensity,
+} from "./hudLayout";
 
 const SUIT_GLYPH: Record<string, string> = {
   hearts: "♥",
@@ -158,21 +162,20 @@ function createStyles(
   colors: ReturnType<typeof useAppTheme>["colors"],
   density: HudDensity,
 ) {
-  const dense = density !== "comfortable";
+  const pad = hudGlassPadding(density);
   return StyleSheet.create({
     host: {
       alignSelf: "flex-start",
-      maxWidth: dense ? 148 : 168,
+      maxWidth: 168,
     },
     panel: {
-      minWidth: dense ? 132 : 148,
-      /** Keep glass padding — save height by dropping “Won by”, not by crushing. */
-      padding: dense ? 10 : 12,
+      minWidth: 148,
+      padding: pad,
       gap: 0,
     },
     eyebrow: {
       color: colors.accent,
-      fontSize: 9,
+      fontSize: HUD_TYPE.eyebrow,
       fontWeight: "800",
       letterSpacing: 0.7,
       textTransform: "uppercase",
@@ -181,7 +184,7 @@ function createStyles(
     },
     cards: {
       color: colors.textPrimary,
-      fontSize: dense ? 18 : 20,
+      fontSize: HUD_TYPE.value,
       fontWeight: "800",
       textAlign: "center",
       marginBottom: 8,
@@ -193,9 +196,9 @@ function createStyles(
       minWidth: 0,
     },
     avatar: {
-      width: dense ? 26 : 28,
-      height: dense ? 26 : 28,
-      borderRadius: dense ? 13 : 14,
+      width: 28,
+      height: 28,
+      borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: hexToRgba(colors.accent, 0.22),
@@ -205,14 +208,14 @@ function createStyles(
     },
     avatarText: {
       color: colors.accent,
-      fontSize: 10,
+      fontSize: HUD_TYPE.caption,
       fontWeight: "800",
     },
     winner: {
       flex: 1,
       minWidth: 0,
       color: hexToRgba(colors.accent, 0.98),
-      fontSize: 12,
+      fontSize: HUD_TYPE.emphasis,
       fontWeight: "800",
     },
   });
