@@ -7,6 +7,7 @@ import { useAppTheme } from "../context/ThemeContext";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import { hexToRgba } from "../utils/colorTheory";
 import { resolveCompactHeightTier } from "../utils/compactGameLayout";
+import { triggerHaptic } from "../utils/haptics";
 import { GAMEPLAY_PRESENTATION } from "./featureFlags";
 import {
   HUD_CLUSTER_GAP,
@@ -40,6 +41,8 @@ type Props = {
   lastTrick?: LastTrickInfo | null;
   onOpenAchievements?: () => void;
   onOpenSettings?: () => void;
+  /** Secondary leave control — never in the Pass/Play ActionBar track. */
+  onLeave?: () => void;
   /**
    * Hide tricks / winning play / prestige — not Round Streak, util buttons, or unlock toasts.
    * Persist chrome stays visible during deal (under seats / deal flights).
@@ -107,7 +110,7 @@ export function lastTrickFromEntry(
  * Persist layer (z below play area): Round Streak + Settings / Achievements.
  * Feedback layer: Winning Play, Tricks, XP toasts, optional prestige.
  *
- *   Round Streak                              [Stats] [Settings]
+ *   Round Streak                       [Leave] [Stats] [Settings]
  *              (Next Prestige — centered, off by default)
  *                    GAMEPLAY
  *   Winning Play               Tricks This Round
@@ -127,6 +130,7 @@ export default function GameplayHud({
   lastTrick,
   onOpenAchievements,
   onOpenSettings,
+  onLeave,
   hideFeedback = false,
   hideToasts = false,
   statsRefreshKey = 0,
@@ -204,6 +208,20 @@ export default function GameplayHud({
             ) : null}
           </View>
           <View style={styles.utilRow}>
+            {onLeave ? (
+              <TouchableOpacity
+                style={styles.utilBtn}
+                onPress={() => {
+                  triggerHaptic("light");
+                  onLeave();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Leave Game"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MenuIcon name="leave" size={16} color={colors.accent} />
+              </TouchableOpacity>
+            ) : null}
             {onOpenAchievements ? (
               <TouchableOpacity
                 style={styles.utilBtn}

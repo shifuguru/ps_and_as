@@ -283,7 +283,7 @@ export default function FindGame({
       <LobbyStatusBar
         playerCount={availableRooms.length}
         countLabel="Open"
-        roomName="Multiplayer"
+        roomName="Find Game"
         statusLabel="Server"
         statusValue={connectionLabel(connectionStatus)}
         topInset={insets.top}
