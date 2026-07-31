@@ -49,6 +49,8 @@ export default function TrickScoreWidget({
     [colors, density, initialsOnly],
   );
   if (!rows.length) return null;
+  /** Hide until the first trick is won — all-zero standings only add clutter. */
+  if (!rows.some((r) => r.tricks > 0)) return null;
 
   const sorted = [...rows].sort(
     (a, b) => b.tricks - a.tricks || a.name.localeCompare(b.name),
