@@ -10,16 +10,24 @@ import {
 } from "react-native";
 import MenuIcon from "../components/MenuIcon";
 import { useAppTheme } from "../context/ThemeContext";
+import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import { hexToRgba } from "../utils/colorTheory";
 import { triggerHaptic } from "../utils/haptics";
+import {
+  resolveCompactHeightTier,
+  resolveHandHintSlot,
+} from "../utils/compactGameLayout";
 
-const BAR_H = 40;
-/** Circular bulb control — same outer size as the message pill height. */
-const BULB_SIZE = BAR_H;
 const BULB_ICON = 20;
 /** Match ActionBar track width so the bulb lines up with Leave’s right edge. */
 function actionTrackWidth(windowWidth: number): number {
   return Math.min(windowWidth - 32, 440);
+}
+
+function hintBarHeight(shellHeight: number): number {
+  const slot = resolveHandHintSlot(resolveCompactHeightTier(shellHeight));
+  // Slot includes host paddingBottom — keep bar inside the reserved budget.
+  return Math.max(28, slot - (shellHeight < 720 ? 4 : 6));
 }
 
 type Props = {
@@ -44,8 +52,14 @@ export default function GameplayHint({
 }: Props) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
+  const { height: shellHeight } = useVisualViewportSize();
   const trackWidth = actionTrackWidth(width);
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const barH = hintBarHeight(shellHeight || 900);
+  const padBottom = resolveHandHintSlot(resolveCompactHeightTier(shellHeight || 900)) - barH;
+  const styles = useMemo(
+    () => createStyles(colors, barH, padBottom),
+    [colors, barH, padBottom],
+  );
   const [expanded, setExpanded] = useState(!startCollapsed);
   const hostOpacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
   const textOpacity = useRef(new Animated.Value(expanded ? 1 : 0)).current;
@@ -99,7 +113,7 @@ export default function GameplayHint({
         >
           <MenuIcon
             name="bulb"
-            size={BULB_ICON}
+            size={barH >= 36 ? BULB_ICON : 16}
             color={hexToRgba(colors.textPrimary, 0.92)}
           />
         </Pressable>
@@ -108,7 +122,11 @@ export default function GameplayHint({
   );
 }
 
-function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+function createStyles(
+  colors: ReturnType<typeof useAppTheme>["colors"],
+  barH: number,
+  padBottom: number,
+) {
   // Same glass band both modes — table lighting carries theme brightness.
   const glass = hexToRgba(
     colors.mode === "dark" ? "#06140e" : "#0a1a12",
@@ -118,21 +136,21 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     host: {
       width: "100%",
       alignItems: "center",
-      paddingBottom: 6,
-      minHeight: BAR_H + 6,
+      paddingBottom: Math.max(0, padBottom),
+      minHeight: barH + Math.max(0, padBottom),
       justifyContent: "center",
     },
     track: {
-      minHeight: BAR_H,
+      minHeight: barH,
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
+      gap: barH < 36 ? 6 : 8,
     },
     messagePill: {
       flex: 1,
-      minHeight: BAR_H,
-      borderRadius: BAR_H / 2,
-      paddingHorizontal: 16,
+      minHeight: barH,
+      borderRadius: barH / 2,
+      paddingHorizontal: barH < 36 ? 12 : 16,
       justifyContent: "center",
       backgroundColor: glass,
       borderWidth: StyleSheet.hairlineWidth,
@@ -145,15 +163,15 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     label: {
       color: colors.textPrimary,
-      fontSize: 14,
+      fontSize: barH < 36 ? 12 : 14,
       fontWeight: "700",
       textAlign: "center",
       letterSpacing: 0.2,
     },
     bulbBtn: {
-      width: BULB_SIZE,
-      height: BULB_SIZE,
-      borderRadius: BULB_SIZE / 2,
+      width: barH,
+      height: barH,
+      borderRadius: barH / 2,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: glass,

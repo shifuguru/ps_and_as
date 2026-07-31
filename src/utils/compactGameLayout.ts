@@ -26,8 +26,39 @@ const BASE_FAN_HEADROOM = HAND_SELECT_LIFT + MAX_CENTER_LIFT + 16;
 const BASE_FAN_BOTTOM_CLEARANCE =
   Math.ceil((BASE_HAND_CARD_W / 2) * 1.1 * Math.sin((18 * Math.PI) / 180)) + 2;
 
-/** Hint / instruction bar between hand and action track. */
+/** Hint / instruction bar between hand and action track (comfortable default). */
 export const HAND_HINT_SLOT = 46;
+
+/** Height budget for the hint row — smaller on SE-class shells. */
+export function resolveHandHintSlot(tier: CompactHeightTier): number {
+  switch (tier) {
+    case "veryTight":
+      return 34;
+    case "tight":
+      return 38;
+    case "compact":
+      return 42;
+    default:
+      return HAND_HINT_SLOT;
+  }
+}
+
+/**
+ * Extra lift above the home-indicator / safe bottom so Pass / Play clear the edge.
+ * Trimmed on short shells — felt already reads as the floor.
+ */
+export function resolveBottomContentMargin(tier: CompactHeightTier): number {
+  switch (tier) {
+    case "veryTight":
+      return 8;
+    case "tight":
+      return 10;
+    case "compact":
+      return 14;
+    default:
+      return 18;
+  }
+}
 
 export function resolveCompactHeightTier(shellHeight: number): CompactHeightTier {
   if (shellHeight >= 900) return "comfortable";
@@ -43,11 +74,11 @@ function handCardScale(tier: CompactHeightTier): number {
     case "standard":
       return 1;
     case "compact":
-      return 0.92;
+      return 0.9;
     case "tight":
-      return 0.86;
+      return 0.78;
     case "veryTight":
-      return 0.8;
+      return 0.72;
   }
 }
 
@@ -57,11 +88,11 @@ function fanHeadroomScale(tier: CompactHeightTier): number {
     case "standard":
       return 1;
     case "compact":
-      return 0.88;
+      return 0.86;
     case "tight":
-      return 0.82;
+      return 0.72;
     case "veryTight":
-      return 0.76;
+      return 0.66;
   }
 }
 
@@ -72,11 +103,11 @@ export function avatarBoostForTier(tier: CompactHeightTier): number {
     case "standard":
       return 1.24;
     case "compact":
-      return 1.14;
+      return 1.12;
     case "tight":
-      return 1.08;
+      return 1.04;
     case "veryTight":
-      return 1.02;
+      return 0.98;
   }
 }
 
@@ -104,10 +135,10 @@ export function resolveHandMetrics(shellHeight: number): HandLayoutMetrics {
 
   // Hand → hint/controls: tight stack (no glass plate breathing room).
   const handControlsGap =
-    tier === "veryTight" ? 2 : tier === "tight" ? 3 : tier === "compact" ? 4 : 4;
+    tier === "veryTight" ? 1 : tier === "tight" ? 2 : tier === "compact" ? 3 : 4;
   const handZoneTopClearance = 0;
   const handZoneBottomPad =
-    tier === "veryTight" ? 1 : tier === "tight" ? 1 : 2;
+    tier === "veryTight" || tier === "tight" ? 0 : 2;
 
   return {
     tier,
@@ -127,11 +158,11 @@ export function resolveActionBarHeight(tier: CompactHeightTier): number {
     case "standard":
       return 58;
     case "compact":
-      return 56;
-    case "tight":
       return 54;
+    case "tight":
+      return 48;
     case "veryTight":
-      return 52;
+      return 46;
   }
 }
 
@@ -141,11 +172,11 @@ export function resolveActionButtonMinHeight(tier: CompactHeightTier): number {
     case "standard":
       return 52;
     case "compact":
-      return 50;
+      return 48;
     case "tight":
-      return 48;
+      return 44;
     case "veryTight":
-      return 48;
+      return 42;
   }
 }
 
@@ -155,17 +186,18 @@ export function resolveActionTrackGap(tier: CompactHeightTier): number {
 
 /** Space above Pass / Play inside the bottom bar (tier-aware). */
 export function resolveControlsTopPad(tier: CompactHeightTier): number {
-  if (tier === "veryTight") return 2;
-  if (tier === "tight") return 3;
+  if (tier === "veryTight") return 1;
+  if (tier === "tight") return 2;
+  if (tier === "compact") return 3;
   return 4;
 }
 
 /** Top padding inside the opponent ring play area. */
 export function resolveOpponentTopPad(shellHeight: number): number {
   const tier = resolveCompactHeightTier(shellHeight);
-  if (tier === "veryTight") return 12;
-  if (tier === "tight") return 16;
-  if (tier === "compact") return 20;
+  if (tier === "veryTight") return 8;
+  if (tier === "tight") return 10;
+  if (tier === "compact") return 16;
   return 26;
 }
 
@@ -238,14 +270,16 @@ export function resolveBottomChromeMetrics(
   const hand = resolveHandMetrics(shellHeight);
   const actionBarHeight = resolveActionBarHeight(hand.tier);
   const controlsTopPad = resolveControlsTopPad(hand.tier);
+  const hintSlot = resolveHandHintSlot(hand.tier);
   // Was 8/12 for frosted BottomBar breathing room — no longer needed.
-  const actionBarPadding = hand.tier === "veryTight" ? 4 : 6;
+  const actionBarPadding =
+    hand.tier === "veryTight" ? 2 : hand.tier === "tight" ? 4 : 6;
   const handSection = handVisible
     ? hand.fanHeight +
       hand.handZoneTopClearance +
       hand.handZoneBottomPad +
       hand.handControlsGap +
-      HAND_HINT_SLOT
+      hintSlot
     : 0;
   const reservedHeight =
     2 +
@@ -278,7 +312,9 @@ export function localHandShuffleScreenCenter(
   const handZoneHeight =
     chrome.fanHeight + chrome.handZoneTopClearance + chrome.handZoneBottomPad;
   const controlsBlock =
-    chrome.actionBarHeight + chrome.actionBarPadding + HAND_HINT_SLOT;
+    chrome.actionBarHeight +
+    chrome.actionBarPadding +
+    resolveHandHintSlot(chrome.tier);
   const gapBlock = chrome.handControlsGap;
   const centerFromBottom =
     bottomOuterPad + controlsBlock + gapBlock + handZoneHeight / 2;

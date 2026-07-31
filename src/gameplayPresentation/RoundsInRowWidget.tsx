@@ -8,7 +8,7 @@ import {
   roundStreakRarityProgress,
 } from "../services/achievementRarity";
 import GameplayGlassPanel from "./GameplayGlassPanel";
-import { HUD_CARD_HEIGHT } from "./hudLayout";
+import { resolveHudCardHeight, type HudDensity } from "./hudLayout";
 import {
   RunsPill,
   flameSeedsFromPalette,
@@ -18,6 +18,7 @@ import {
 type Props = {
   current: number;
   best: number;
+  density?: HudDensity;
 };
 
 /**
@@ -26,19 +27,25 @@ type Props = {
  * Accent follows achievement rarity palette by streak threshold.
  * Flame / sparkle energy uses that same accent (pill as fuel).
  */
-export default function RoundsInRowWidget({ current, best }: Props) {
+export default function RoundsInRowWidget({
+  current,
+  best,
+  density = "comfortable",
+}: Props) {
   const { colors } = useAppTheme();
   const progress = roundStreakRarityProgress(current);
   const accent = RARITY_COLOR[progress.rarity];
   const energyOn = current > 0;
+  const dense = density !== "comfortable";
+  const ultra = density === "ultra";
   const palette = useMemo(() => paletteFromAccent(accent), [accent]);
   const flameSeeds = useMemo(
     () => flameSeedsFromPalette(palette),
     [palette],
   );
   const styles = useMemo(
-    () => createStyles(colors, accent),
-    [colors, accent],
+    () => createStyles(colors, accent, density),
+    [colors, accent, density],
   );
 
   const pipCount = Math.min(5, Math.max(3, progress.target));
@@ -56,11 +63,11 @@ export default function RoundsInRowWidget({ current, best }: Props) {
     <RunsPill
       active={energyOn}
       style={styles.root}
-      showGlow={energyOn}
-      showFlames={energyOn}
+      showGlow={energyOn && !ultra}
+      showFlames={energyOn && !ultra}
       containFlames
       emberSpread="around"
-      maxFlameHeight={16}
+      maxFlameHeight={ultra ? 10 : dense ? 12 : 16}
       palette={palette}
       flameSeeds={flameSeeds}
       pillStyle={styles.effectShell}
@@ -76,9 +83,11 @@ export default function RoundsInRowWidget({ current, best }: Props) {
             {current === 1 ? " Round" : " Rounds"}
           </Text>
         </Text>
-        <Text style={styles.descriptor} numberOfLines={1}>
-          {current <= 0 ? "Start a run" : bestLine ?? "Keep it going"}
-        </Text>
+        {!ultra ? (
+          <Text style={styles.descriptor} numberOfLines={1}>
+            {current <= 0 ? "Start a run" : bestLine ?? "Keep it going"}
+          </Text>
+        ) : null}
         <View style={styles.pipRow}>
           {Array.from({ length: pipCount }).map((_, i) => (
             <View
@@ -93,7 +102,9 @@ export default function RoundsInRowWidget({ current, best }: Props) {
             />
           ))}
         </View>
-        <Text style={styles.rarityLabel}>{RARITY_LABEL[progress.rarity]}</Text>
+        {!dense ? (
+          <Text style={styles.rarityLabel}>{RARITY_LABEL[progress.rarity]}</Text>
+        ) : null}
       </GameplayGlassPanel>
     </RunsPill>
   );
@@ -102,7 +113,11 @@ export default function RoundsInRowWidget({ current, best }: Props) {
 function createStyles(
   colors: ReturnType<typeof useAppTheme>["colors"],
   accent: string,
+  density: HudDensity,
 ) {
+  const dense = density !== "comfortable";
+  const ultra = density === "ultra";
+  const cardH = resolveHudCardHeight(density);
   return StyleSheet.create({
     root: {
       alignSelf: "flex-start",
@@ -116,11 +131,12 @@ function createStyles(
       overflow: "visible",
     },
     panel: {
-      minWidth: 118,
-      maxWidth: 148,
-      height: HUD_CARD_HEIGHT,
+      minWidth: ultra ? 96 : dense ? 108 : 118,
+      maxWidth: ultra ? 120 : dense ? 132 : 148,
+      height: cardH,
       justifyContent: "space-between",
       gap: 0,
+      padding: ultra ? 8 : undefined,
     },
     header: {
       flexDirection: "row",
@@ -128,43 +144,43 @@ function createStyles(
       gap: 4,
       marginBottom: 0,
     },
-    fire: { fontSize: 12 },
+    fire: { fontSize: ultra ? 10 : 12 },
     eyebrow: {
       color: accent,
-      fontSize: 9,
+      fontSize: ultra ? 8 : 9,
       fontWeight: "800",
       letterSpacing: 0.6,
       textTransform: "uppercase",
     },
     count: {
       color: colors.textPrimary,
-      fontSize: 22,
+      fontSize: ultra ? 18 : dense ? 20 : 22,
       fontWeight: "900",
       fontVariant: ["tabular-nums"],
       letterSpacing: -0.3,
-      lineHeight: 26,
+      lineHeight: ultra ? 22 : dense ? 24 : 26,
     },
     countUnit: {
-      fontSize: 12,
+      fontSize: ultra ? 11 : 12,
       fontWeight: "700",
       color: colors.textSecondary,
     },
     descriptor: {
       color: colors.textSecondary,
-      fontSize: 10,
+      fontSize: dense ? 9 : 10,
       fontWeight: "600",
       marginBottom: 2,
     },
     pipRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 4,
-      marginBottom: 2,
+      gap: ultra ? 3 : 4,
+      marginBottom: dense ? 0 : 2,
     },
     pip: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
+      width: ultra ? 6 : 8,
+      height: ultra ? 6 : 8,
+      borderRadius: ultra ? 3 : 4,
     },
     rarityLabel: {
       color: accent,

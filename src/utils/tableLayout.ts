@@ -240,9 +240,10 @@ export function computePlayAreaLayout(
    * Optical centre = current trick (primary anchor).
    * Ring cy follows this centre — seats orbit the trick, not the reverse.
    * Biased below geometric mid so pile + avatars sit lower in the play band
-   * (more air under the HUD, closer to the hand).
+   * (more air under the HUD, closer to the hand). On very short shells stay
+   * nearer mid so seats and pills don’t collide with HUD / hand chrome.
    */
-  const viewportCy = height * 0.58;
+  const viewportCy = height * (isVeryCompact ? 0.52 : isCompact ? 0.55 : 0.58);
   const ringCy = seatBandCy * 0.1 + viewportCy * 0.9;
 
   const seatReach =
@@ -252,9 +253,9 @@ export function computePlayAreaLayout(
   const widthRatio = isWide ? 0.82 : isVeryCompact ? 0.9 : isCompact ? 0.88 : 0.86;
   const heightRatio = isWide ? 0.6 : isVeryCompact ? 0.48 : isCompact ? 0.52 : 0.54;
 
-  const minCardZone = isVeryCompact ? 96 : isCompact ? 112 : 128;
-  const maxCardZoneW = isWide ? 300 : isVeryCompact ? 210 : 260;
-  const maxCardZoneH = isWide ? 280 : isVeryCompact ? 200 : 250;
+  const minCardZone = isVeryCompact ? 104 : isCompact ? 112 : 128;
+  const maxCardZoneW = isWide ? 300 : isVeryCompact ? 220 : 260;
+  const maxCardZoneH = isWide ? 280 : isVeryCompact ? 210 : 250;
 
   let cardZoneWidth = clamp(
     Math.round(maxCardW * widthRatio),

@@ -5016,7 +5016,7 @@ function GameScreenBoard() {
     return localHandShuffleScreenCenter(
       shellWidth || windowWidth,
       viewportHeight,
-      bottomOuterPad(insets.bottom),
+      bottomOuterPad(insets.bottom, viewportHeight),
     );
   }, [
     localCeremonyDeal,
@@ -5040,13 +5040,13 @@ function GameScreenBoard() {
     viewportHeight,
     insets.bottom || 0,
     handReserveActive,
-    bottomOuterPad(insets.bottom || 0),
+    bottomOuterPad(insets.bottom || 0, viewportHeight),
   );
   const handFeedbackBottom = resolveHandFeedbackBottom(
     viewportHeight,
     insets.bottom || 0,
     handReserveActive,
-    bottomOuterPad(insets.bottom || 0),
+    bottomOuterPad(insets.bottom || 0, viewportHeight),
   );
   const contentTopPadding = insets.top + 8;
   // Rebuild every render — pile / trick / history can update independently.
