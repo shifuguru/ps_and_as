@@ -8,7 +8,10 @@ import {
   type CompactHeightTier,
 } from "../utils/compactGameLayout";
 
-/** Outer height for Upcoming Achievement + Round Streak (matched pair). */
+/**
+ * Outer height for Upcoming Achievement (matched when prestige is on).
+ * Round Streak is shorter now — fewer in-panel lines, normal padding.
+ */
 export const HUD_CARD_HEIGHT = 108;
 
 /** Consistent gap between sibling HUD chrome (cards / util buttons). */
@@ -27,14 +30,17 @@ export function resolveHudDensity(
   return "comfortable";
 }
 
-/** Round Streak / prestige card height — shorter on SE-class shells. */
+/**
+ * Round Streak height — sized for title + number + pips (+ rarity on roomy).
+ * Shorter from dropping descriptor copy, not from crushing type/padding.
+ */
 export function resolveHudCardHeight(density: HudDensity): number {
   switch (density) {
     case "ultra":
-      return 72;
+      return 86;
     case "dense":
-      return 84;
+      return 92;
     default:
-      return HUD_CARD_HEIGHT;
+      return 100;
   }
 }

@@ -33,12 +33,6 @@ import { resolveHandMetrics } from "../utils/compactGameLayout";
 import { buttonLabel } from "../styles/buttonStyles";
 import { useAppTheme } from "../context/ThemeContext";
 import type { BlurPreset } from "../styles/themeColors";
-import { hexToRgba } from "../utils/colorTheory";
-import {
-  TURN_INTRO_FADE,
-  TURN_INTRO_PEAK,
-  useTurnIntroAnimation,
-} from "../hooks/useTurnIntroAnimation";
 
 function scrollHintEdgeOpacity(preset: BlurPreset): number {
   return Math.min(0.82, preset.webOpacity + preset.scrimOpacity * 3.2);
@@ -601,8 +595,6 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   const hiddenKeySet = useMemo(() => new Set(hiddenCardKeys), [hiddenCardKeys]);
   const { colors, blur } = useAppTheme();
   const selectionLocked = !!disabled;
-  const handPlayable = !selectionLocked;
-  const turnIntro = useTurnIntroAnimation(handPlayable);
   const { width: windowWidth } = useWindowDimensions();
   const { height: shellHeight } = useVisualViewportSize();
   const handMetrics = useMemo(
@@ -1113,20 +1105,6 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     return () => node.removeEventListener("wheel", onWheel);
   }, [scrollX]);
 
-  const accent = colors.accent;
-  const turnGlowOpacity = handPlayable
-    ? turnIntro.interpolate({
-        inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
-        outputRange: [0, 0.55, 0.85, 0.42],
-      })
-    : 0;
-  const turnGlowScale = handPlayable
-    ? turnIntro.interpolate({
-        inputRange: [0, TURN_INTRO_PEAK, 1],
-        outputRange: [0.98, 1.02, 1],
-      })
-    : 1;
-
   return (
     <View
       ref={handOuterRef}
@@ -1140,28 +1118,6 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
           : "Your turn — select cards to play"
       }
     >
-      {handPlayable ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.turnActiveGlow,
-            {
-              borderColor: hexToRgba(accent, 0.55),
-              backgroundColor: hexToRgba(accent, 0.08),
-              opacity: turnGlowOpacity,
-              transform: [{ scaleY: turnGlowScale }],
-            },
-          ]}
-        />
-      ) : (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.turnWaitingWash,
-            { backgroundColor: hexToRgba(colors.textPrimary, 0.04) },
-          ]}
-        />
-      )}
       {showLeftPlayableHint ? (
         <ScrollPlayHint
           direction="left"
@@ -1293,25 +1249,6 @@ const styles = StyleSheet.create({
     width: "100%",
     overflow: "visible",
     position: "relative",
-  },
-  turnActiveGlow: {
-    position: "absolute",
-    left: 8,
-    right: 8,
-    top: 2,
-    bottom: 2,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    zIndex: 0,
-  },
-  turnWaitingWash: {
-    position: "absolute",
-    left: 8,
-    right: 8,
-    top: 2,
-    bottom: 2,
-    borderRadius: 18,
-    zIndex: 0,
   },
   scrollHintLane: {
     position: "absolute",

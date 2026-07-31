@@ -22,10 +22,10 @@ type Props = {
 };
 
 /**
- * Session round streak — hierarchy matches concept:
- * icon → title → count → descriptor → rarity pips.
- * Accent follows achievement rarity palette by streak threshold.
- * Flame / sparkle energy uses that same accent (pill as fuel).
+ * Session round streak — hierarchy:
+ * icon → title → count → rarity pips → rarity label (roomy only).
+ * No “Start a run” copy — “run” means consecutive cards in this game.
+ * Count is a bare number so “Round” isn’t repeated under the title.
  */
 export default function RoundsInRowWidget({
   current,
@@ -56,8 +56,8 @@ export default function RoundsInRowWidget({
       : Math.round(progress.fraction * pipCount),
   );
 
-  const bestLine =
-    best > current ? `Best ${best}` : best > 0 ? `Best ${best}` : null;
+  // `best` kept for API / future use — not shown in-panel (avoids extra chrome).
+  void best;
 
   return (
     <RunsPill
@@ -67,7 +67,7 @@ export default function RoundsInRowWidget({
       showFlames={energyOn && !ultra}
       containFlames
       emberSpread="around"
-      maxFlameHeight={ultra ? 10 : dense ? 12 : 16}
+      maxFlameHeight={ultra ? 12 : dense ? 14 : 16}
       palette={palette}
       flameSeeds={flameSeeds}
       pillStyle={styles.effectShell}
@@ -77,17 +77,12 @@ export default function RoundsInRowWidget({
           <Text style={styles.fire}>🔥</Text>
           <Text style={styles.eyebrow}>Round Streak</Text>
         </View>
-        <Text style={styles.count}>
+        <Text
+          style={styles.count}
+          accessibilityLabel={`${current} ${current === 1 ? "round" : "rounds"}`}
+        >
           {current}
-          <Text style={styles.countUnit}>
-            {current === 1 ? " Round" : " Rounds"}
-          </Text>
         </Text>
-        {!ultra ? (
-          <Text style={styles.descriptor} numberOfLines={1}>
-            {current <= 0 ? "Start a run" : bestLine ?? "Keep it going"}
-          </Text>
-        ) : null}
         <View style={styles.pipRow}>
           {Array.from({ length: pipCount }).map((_, i) => (
             <View
@@ -131,12 +126,11 @@ function createStyles(
       overflow: "visible",
     },
     panel: {
-      minWidth: ultra ? 96 : dense ? 108 : 118,
-      maxWidth: ultra ? 120 : dense ? 132 : 148,
+      minWidth: ultra ? 100 : dense ? 110 : 118,
+      maxWidth: ultra ? 128 : dense ? 136 : 148,
       height: cardH,
       justifyContent: "space-between",
       gap: 0,
-      padding: ultra ? 8 : undefined,
     },
     header: {
       flexDirection: "row",
@@ -144,43 +138,32 @@ function createStyles(
       gap: 4,
       marginBottom: 0,
     },
-    fire: { fontSize: ultra ? 10 : 12 },
+    fire: { fontSize: 12 },
     eyebrow: {
       color: accent,
-      fontSize: ultra ? 8 : 9,
+      fontSize: 9,
       fontWeight: "800",
       letterSpacing: 0.6,
       textTransform: "uppercase",
     },
     count: {
       color: colors.textPrimary,
-      fontSize: ultra ? 18 : dense ? 20 : 22,
+      fontSize: dense ? 24 : 26,
       fontWeight: "900",
       fontVariant: ["tabular-nums"],
       letterSpacing: -0.3,
-      lineHeight: ultra ? 22 : dense ? 24 : 26,
-    },
-    countUnit: {
-      fontSize: ultra ? 11 : 12,
-      fontWeight: "700",
-      color: colors.textSecondary,
-    },
-    descriptor: {
-      color: colors.textSecondary,
-      fontSize: dense ? 9 : 10,
-      fontWeight: "600",
-      marginBottom: 2,
+      lineHeight: dense ? 28 : 30,
     },
     pipRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: ultra ? 3 : 4,
+      gap: 4,
       marginBottom: dense ? 0 : 2,
     },
     pip: {
-      width: ultra ? 6 : 8,
-      height: ultra ? 6 : 8,
-      borderRadius: ultra ? 3 : 4,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
     },
     rarityLabel: {
       color: accent,
