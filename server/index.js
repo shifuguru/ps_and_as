@@ -45,7 +45,10 @@ const { computeRoundXpByPlayerId } = require('./roundXp');
 const tableRoster = require('./tableRoster');
 const gameSync = require('./gameSync');
 const { advancePastInactiveSeats } = require('./turnAdvance');
-const { adjustSeatIndexAfterRemoval } = require('./seatIndex');
+const {
+  adjustSeatIndexAfterRemoval,
+  lastPlayIndexAfterRemoval,
+} = require('./seatIndex');
 const {
   validateDisplayText,
   normalizeRoomCode,
@@ -974,13 +977,9 @@ function removePlayerFromActiveGame(room, playerId) {
     return;
   }
 
-  if (wasLeader) {
-    gs.lastPlayPlayerIndex = resolveTrickLeaderIndex(gs);
-  } else {
-    const remapped = adjustSeatIndexAfterRemoval(gs.lastPlayPlayerIndex, idx);
-    gs.lastPlayPlayerIndex =
-      remapped === null || remapped === undefined ? null : remapped;
-  }
+  // Never call resolveTrickLeaderIndex while a stale lastPlayPlayerIndex still
+  // aliases a surviving seat after the splice — resolve by living player id.
+  gs.lastPlayPlayerIndex = lastPlayIndexAfterRemoval(gs, idx, wasLeader);
 
   if (gs.runOnTop?.active) {
     if (wasRunOnTop) {
