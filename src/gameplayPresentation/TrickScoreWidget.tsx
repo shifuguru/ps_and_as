@@ -32,27 +32,30 @@ export default function TrickScoreWidget({
   density = "comfortable",
 }: Props) {
   const { colors } = useAppTheme();
-  const many = rows.length >= MANY_PLAYERS;
+  /** Only players who have taken a trick — zeros stay off the list. */
+  const scored = useMemo(
+    () => rows.filter((r) => r.tricks > 0),
+    [rows],
+  );
+  const many = scored.length >= MANY_PLAYERS;
   const denseShell = density !== "comfortable";
-  /** 6+ players: initials-only rows to free width. */
+  /** Many scorers: initials-only rows to free width. */
   const initialsOnly = many || density === "ultra";
-  /** 6–8p on short shells starts collapsed so the ring stays clear. */
+  /** Long lists on short shells start collapsed so the ring stays clear. */
   const collapsible = many && denseShell;
   const [expanded, setExpanded] = useState(!collapsible);
 
   useEffect(() => {
     setExpanded(!collapsible);
-  }, [collapsible, rows.length]);
+  }, [collapsible, scored.length]);
 
   const styles = useMemo(
     () => createStyles(colors, density, initialsOnly),
     [colors, density, initialsOnly],
   );
-  if (!rows.length) return null;
-  /** Hide until the first trick is won — all-zero standings only add clutter. */
-  if (!rows.some((r) => r.tricks > 0)) return null;
+  if (!scored.length) return null;
 
-  const sorted = [...rows].sort(
+  const sorted = [...scored].sort(
     (a, b) => b.tricks - a.tricks || a.name.localeCompare(b.name),
   );
   const lead = sorted[0]?.tricks ?? 0;
@@ -118,7 +121,7 @@ export default function TrickScoreWidget({
             ) : null}
             {showChips ? (
               <View style={styles.chipTrack}>
-                {Array.from({ length: Math.max(r.tricks, 0) }).map((_, i) => (
+                {Array.from({ length: r.tricks }).map((_, i) => (
                   <View
                     key={i}
                     style={[
@@ -127,9 +130,6 @@ export default function TrickScoreWidget({
                     ]}
                   />
                 ))}
-                {r.tricks === 0 ? (
-                  <Text style={styles.zero}>—</Text>
-                ) : null}
               </View>
             ) : (
               <View style={styles.chipTrack} />
