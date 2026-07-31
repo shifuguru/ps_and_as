@@ -73,7 +73,13 @@ function AppContent() {
   // menuVisible: whether the main menu should be shown (after splash fully hidden)
   const [splashVisible, setSplashVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
-  const { playEffect, toggleMute, isMuted, muted } = useMenuAudio();
+  const { playEffect, toggleMute, muted } = useMenuAudio();
+  const playGameSound = useCallback(
+    (effect: string) => {
+      void playEffect(effect);
+    },
+    [playEffect],
+  );
   const [screen, setScreen] = useState<
     "menu" | "create" | "find" | "game"
   >("menu");
@@ -980,6 +986,7 @@ function AppContent() {
             isSpectator={isOnlineGame && isSpectator}
             onNavigateToAchievements={openAchievements}
             onNavigateToSettings={openSettings}
+            onPlaySound={playGameSound}
             onBack={() => {
               if (isOnlineGame && activeRoomId && roomAdapter) {
                 roomAdapter.leaveRoom(activeRoomId);
@@ -1012,6 +1019,10 @@ function AppContent() {
                   }
                 }}
                 onBack={closeSettings}
+                soundMuted={muted}
+                onToggleSoundMute={() => {
+                  void toggleMute();
+                }}
                 onNameSaved={(name) => {
                   setLocalPlayerName(name);
                   const roomId = activeRoomIdRef.current ?? joinedRoomIdRef.current;

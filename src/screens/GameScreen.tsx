@@ -149,6 +149,9 @@ import { resolveHandGuidance } from "../gameplayPresentation/resolveHandGuidance
 import GameplayVignette from "../gameplayPresentation/GameplayVignette";
 import { GAMEPLAY_PRESENTATION } from "../gameplayPresentation/featureFlags";
 import { pushGameplayToast } from "../gameplayPresentation/progressionToastBus";
+import { playCardsSfxId, type PlaySoundFn } from "../audio/gameSfx";
+import { useTurnStartCue } from "../hooks/useTurnStartCue";
+import { triggerHaptic } from "../utils/haptics";
 import RoundCompleteModal from "../components/RoundCompleteModal";
 import LastHandRevealOverlay from "../components/LastHandRevealOverlay";
 import LeaveGameConfirmModal from "../components/LeaveGameConfirmModal";
@@ -523,6 +526,7 @@ function GameScreen({
   onBack,
   onNavigateToAchievements,
   onNavigateToSettings,
+  onPlaySound,
 }: {
   initialPlayers?: string[];
   initialLobbyPlayers?: LobbyMember[];
@@ -535,6 +539,7 @@ function GameScreen({
   onBack?: () => void;
   onNavigateToAchievements?: () => void;
   onNavigateToSettings?: () => void;
+  onPlaySound?: PlaySoundFn;
 } = {}) {
   const [state, setState] = useState<GameState | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -3623,6 +3628,7 @@ function GameScreen({
         spectatorMode,
         onNavigateToAchievements,
         onNavigateToSettings,
+        onPlaySound,
         emitDebug,
         roleById,
         tableSeats,
@@ -3746,6 +3752,7 @@ function GameScreenBoard() {
     spectatorMode,
     onNavigateToAchievements,
     onNavigateToSettings,
+    onPlaySound,
     emitDebug,
     roleById,
     tableSeats,
@@ -3867,6 +3874,7 @@ function GameScreenBoard() {
     spectatorMode: boolean;
     onNavigateToAchievements: (() => void) | undefined;
     onNavigateToSettings: (() => void) | undefined;
+    onPlaySound: PlaySoundFn | undefined;
     emitDebug: (event: string, details: any) => void;
     roleById: Record<string, GameState["players"][number]["role"]>;
     tableSeats: ReturnType<typeof buildTableSeatConfig>;
@@ -4104,6 +4112,21 @@ function GameScreenBoard() {
   const handPlayInFlightRef = useRef(handPlayInFlight);
   handPlayInFlightRef.current = handPlayInFlight;
   handPlayInFlightKeyRef.current = handPlayInFlight?.playKey ?? null;
+  /** Plays currently shown on the table — used for flight SFX card counts. */
+  const flightSfxPlaysRef = useRef<TrickPlayDisplay[]>([]);
+  /** Keys that already played the throw/play cue (skip replaying on instant land). */
+  const flightPlaySfxStartedRef = useRef<Set<string>>(new Set());
+  const resolveFlightCardCount = useCallback((playKey: string) => {
+    const fromTable = flightSfxPlaysRef.current.find(
+      (p) => playDisplayKey(p) === playKey,
+    );
+    if (fromTable?.cards?.length) return fromTable.cards.length;
+    const outgoing = handPlayInFlightRef.current;
+    if (outgoing?.playKey === playKey && outgoing.cards.length) {
+      return outgoing.cards.length;
+    }
+    return 1;
+  }, []);
   const handlePlayFlightStarted = useCallback(
     (playKey: string) => {
       const startedAt = notePlayFlightStarted(playKey);
@@ -4115,8 +4138,11 @@ function GameScreenBoard() {
         playFlightKey: playKey,
         playFlightStartedAt: startedAt,
       });
+      // Hand → pile throw: all seats (local / remote / CPU), timed to the flight.
+      flightPlaySfxStartedRef.current.add(playKey);
+      void onPlaySound?.(playCardsSfxId(resolveFlightCardCount(playKey)));
     },
-    [state, pendingTablePlayFlights],
+    [state, pendingTablePlayFlights, onPlaySound, resolveFlightCardCount],
   );
 
   useEffect(() => {
@@ -4156,6 +4182,13 @@ function GameScreenBoard() {
         playFlightKey: playKey,
         playFlightLandedAt: landedAt,
       });
+      // Instant / skipped flights never fire started — still need a play cue.
+      if (!flightPlaySfxStartedRef.current.has(playKey)) {
+        void onPlaySound?.(playCardsSfxId(resolveFlightCardCount(playKey)));
+      } else {
+        void onPlaySound?.("card_land");
+      }
+      flightPlaySfxStartedRef.current.delete(playKey);
       setLocalPlayPresentationLatch((prev) => {
         if (prev?.playKey !== playKey) return prev;
         return { ...prev, playFlightLanded: true };
@@ -4169,7 +4202,14 @@ function GameScreenBoard() {
         completeHandPlayFlight(playKey);
       }
     },
-    [completeHandPlayFlight, scheduleLocalPlaySyncStuckTimeout, state, pendingTablePlayFlights],
+    [
+      completeHandPlayFlight,
+      scheduleLocalPlaySyncStuckTimeout,
+      state,
+      pendingTablePlayFlights,
+      onPlaySound,
+      resolveFlightCardCount,
+    ],
   );
   const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
@@ -4492,6 +4532,42 @@ function GameScreenBoard() {
   const actingPlayerId =
     isHumanTurn && myPlayerId ? myPlayerId : displayTurnPlayer.id;
 
+  useTurnStartCue(
+    isHumanTurn && !roundOver && !gameplayLocked && !readOnlyGame,
+    () => {
+      void onPlaySound?.("turn_start");
+      triggerHaptic("medium");
+    },
+  );
+
+  const prevStackCollectingRef = useRef(false);
+  useEffect(() => {
+    if (stackCollecting && !prevStackCollectingRef.current) {
+      void onPlaySound?.("pile_clear");
+    }
+    prevStackCollectingRef.current = !!stackCollecting;
+  }, [stackCollecting, onPlaySound]);
+
+  const prevCeremonyPhaseRef = useRef(ceremonyDealProgress.phase);
+  useEffect(() => {
+    const phase = ceremonyDealProgress.phase;
+    if (
+      phase === "deal" &&
+      prevCeremonyPhaseRef.current !== "deal" &&
+      ceremonyPrep
+    ) {
+      void onPlaySound?.("card_deal");
+    }
+    if (
+      phase === "shuffle" &&
+      prevCeremonyPhaseRef.current !== "shuffle" &&
+      ceremonyPrep
+    ) {
+      void onPlaySound?.("shuffle");
+    }
+    prevCeremonyPhaseRef.current = phase;
+  }, [ceremonyDealProgress.phase, ceremonyPrep, onPlaySound]);
+
   const humanCanAckPass =
     !!myPlayerId &&
     canAcknowledgmentPass(state, myPlayerId) &&
@@ -4718,10 +4794,15 @@ function GameScreenBoard() {
       emitDebug("ui:select:blocked:passed", { playerId: ownerIdForHand });
       return;
     }
+    if (!isHumanTurn) {
+      // Browse/focus only — PlayerHand already scrolls; never select off-turn.
+      return;
+    }
     setFocused(idx);
 
     if (isJoker(card)) {
       setSelected((s) => (s.includes(idx) ? [] : [idx]));
+      void onPlaySound?.("card_select");
       return;
     }
 
@@ -4745,6 +4826,7 @@ function GameScreenBoard() {
           setSelected(sameAll);
         }
       }
+      void onPlaySound?.("card_select");
       return;
     }
 
@@ -4763,6 +4845,7 @@ function GameScreenBoard() {
     } else {
       setSelected(selectSameRankNearTap(sameAll, take, idx));
     }
+    void onPlaySound?.("card_select");
   };
 
   const commitHumanPlayWithFlight = async (
@@ -4863,6 +4946,7 @@ function GameScreenBoard() {
       const { cards, playIndices } = pendingTenPlay;
       setPendingTenPlay(null);
       setSelected([]);
+      // Play SFX fires on flight start (see handlePlayFlightStarted).
       void commitHumanPlayWithFlight(cards, playIndices, actor, direction);
       return;
     }
@@ -4944,6 +5028,7 @@ function GameScreenBoard() {
     }
 
     setSelected([]);
+    // Play SFX fires on flight start (see handlePlayFlightStarted).
     await commitHumanPlayWithFlight(cards, playIndices, actor);
   };
 
@@ -4966,6 +5051,7 @@ function GameScreenBoard() {
       playerName: actor.name,
       before: snapshotState(state),
     });
+    void onPlaySound?.("pass");
     if (onlineMultiplayer) {
       const optimistic = passTurn(state, actor.id);
       if (optimistic !== state) {
@@ -5093,6 +5179,7 @@ function GameScreenBoard() {
     immediateTableClear || rankingsModalVisible
       ? EMPTY_TRICK_PLAYS
       : displayPlays;
+  flightSfxPlaysRef.current = tablePlaysForRender;
   const suppressTurnPresentation =
     betweenRoundsPresentation || roundEndLastPlayHold;
   const gameTableFadeOut =
@@ -5607,6 +5694,7 @@ function GameScreenBoard() {
         lastTrick={lastTrickInfo}
         onOpenAchievements={onNavigateToAchievements}
         onOpenSettings={onNavigateToSettings}
+        onLeave={requestLeaveGame}
         statsRefreshKey={roundCompleteSignal + (state.trickHistory?.length ?? 0)}
         hideFeedback={
           !!ceremonyPrep ||
@@ -5679,6 +5767,7 @@ function GameScreenBoard() {
           {GAMEPLAY_PRESENTATION.handGuidance && handInBottomBar ? (
             <GameplayHint
               message={handGuidanceMessage}
+              yourTurn={isHumanTurn && !gameplayLocked && !roundOver}
               visible={!gameplayLocked && !roundOver && !tradePhase}
             />
           ) : null}
@@ -5724,7 +5813,6 @@ function GameScreenBoard() {
                 onPass={() => {}}
                 playDisabled
                 passDisabled
-                onQuit={requestLeaveGame}
                 onNavigateToSettings={onNavigateToSettings}
                 onNavigateToAchievements={onNavigateToAchievements}
               />
@@ -5744,7 +5832,6 @@ function GameScreenBoard() {
             selectedCount={handPlayInFlight ? 0 : selected.length}
             onPlay={handlePlayPress}
             onPass={handlePassPress}
-            onQuit={requestLeaveGame}
             onNavigateToSettings={onNavigateToSettings}
             onNavigateToAchievements={onNavigateToAchievements}
             playDisabled={gameplayLocked || !!handPlayInFlight || !isHumanTurn || roundOver || roundEndLastPlayHold || (!!localHumanId && hasPassedInCurrentTrick(state, localHumanId) && !humanRunOnTopTurn) || selected.length === 0 || !selectedCanPlay}
