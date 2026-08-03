@@ -37,10 +37,10 @@ Use this file to drive engineering work — not conversation memory.
 | 4 | BOTOPN disconnect immediately demotes seated human mid-round | **Existing** — Bot-open disconnect model vs standard rooms |
 | 5 | Online pass applies local `passTurn` without server repair pipeline | **New gap** — Online pass optimistic local mutation |
 | 6 | Client `repairStuckTurnPointer` on every `gameStateSync` | **Stale / not confirmed** — no client repair in `GameScreen.tsx` today; do not track |
-| 7 | Seated `playerReadyForNextRound` not gated on `betweenRounds` | **Existing gap extension** — Ready-for-next-round gating (spectator guard shipped; seated open) |
+| 7 | Seated `playerReadyForNextRound` not gated on `betweenRounds` | **Resolved on critical-issues branch** — seated + `tryStartNextRoundIfReady` gated |
 | 8 | Rankings before last hand — fixes shipped, verification incomplete | **Existing** — Rankings before last hand (online) |
 | 9 | In-game grace 20–30 s random, not fixed 15 s | **Existing** — Disconnect timeout |
-| 10 | `gameAction` ten-rule branch does not validate chooser | **New gap** — Ten-rule chooser server validation |
+| 10 | `gameAction` ten-rule branch does not validate chooser | **Resolved** — server chooser + direction guard |
 
 **Also noted (not new gaps):** BOTOPN pass-on-run stall RC-1 loop mitigation shipped (`repairTurnPointerAndReschedule` in `server/botHostedRooms.js`); late-round out leader + all passed trick finalize shipped (What's New Jun 2026). Both are mitigations under **Turn Ownership Invariant**, not closure of that gap.
 
@@ -64,7 +64,7 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 | **P0** | **Rankings before last hand (online)** | Complete verification (Tests 1–3). Confirm reconnect replay (`emitBetweenRoundsSnapshot` on seated `joinRoom` / `requestGameState`). Update gap status when verified. |
 | **P0** | **CPU takeover after disconnect** | Investigate implementation plan. Define ownership, reclaim, timeout, and resume behaviour. Close architecture gap before expanding disconnect features. |
 | **P0** | **Returning player after timeout** | Ship with CPU takeover (late reclaim). |
-| **P1** | **Ready-for-next-round gating** | Spectator `betweenRounds` guard shipped (v1.0.54). **Remaining:** gate seated `playerReadyForNextRound` on `betweenRounds`; verify spectator paths (multiple spectators, dead-hand, BOTOPN, leave). Add regression coverage. |
+| **P1** | **Ready-for-next-round gating** | **Resolved on critical-issues branch** — seated + `tryStartNextRoundIfReady` gated on `betweenRounds`. Optional: broader spectator/dead-hand/BOTOPN ready matrix. |
 | **P1** | **Disconnect timeout** | Align 15 s grace with server + UI. |
 | **P1** | **XP persistence** | Design account-independent persistence; document migration from browser-local progression. |
 | **P1** | **Mobile browser onboarding (PWA → Google)** | Install-first coach on mobile browser; decline path couples display name with Google Sign-in sync (Play Store / stats). |
@@ -76,8 +76,8 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 | Priority | Gaps |
 |----------|------|
 | **P0** | Rankings before last hand (online); CPU takeover after disconnect; Returning player after timeout |
-| **P1** | Ready-for-next-round gating; Disconnect timeout; XP and progression persistence; Mobile browser onboarding (PWA → Google) |
-| **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Ten-rule chooser server validation; Pause state presentation; Bot-open disconnect model vs standard rooms |
+| **P1** | Disconnect timeout; XP and progression persistence; Mobile browser onboarding (PWA → Google) (Ready-for-next-round seated gate resolved on critical-issues branch) |
+| **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Pause state presentation; Bot-open disconnect model vs standard rooms |
 
 **How to maintain:** When a gap is fixed, set `Status: Resolved` and add a one-line note with version or PR. When intent changes, update the architecture doc first, then close or rewrite the gap here.
 
@@ -220,20 +220,20 @@ Shipped: v1.0.46 Fix #1 (`roundOver` from `roundEnded` only); v1.0.51 reconnect 
 `playerReadyForNextRound` is accepted only **between rounds** (round complete, no `tenRulePending`) for **all** clients — seated and spectator. Spectators may ready for **dead-hand seat claim** only in that window. Ready latch must not start the next deal mid-round or from stale client state. Multiple spectators, dead-hand replacement, BOTOPN, and player-leave must not auto-seat the wrong human.
 
 **Current behaviour:**  
-v1.0.54: spectators gated with `betweenRounds` (`server/index.js` ~1961–1967). **Seated players are not gated** — `inRound` seated sockets can set `readyForNextRound[id] = true` at any time; `tryStartNextRoundIfReady` → `startNextRound` does not check `isRoundComplete`. UI normally hides ready behind `roundOver`, but the server handler accepts mid-round ready from seated sockets. Full regression matrix not yet run.
+v1.0.54: spectators gated with `betweenRounds`. **Seated + start gate (this branch):** `playerReadyForNextRound` rejects unless `betweenRounds`; `tryStartNextRoundIfReady` also requires round-complete / no `tenRulePending`. Regression: `scripts/test-seat-security.mjs` mid-round ready case.
 
 **Impact:**  
-Spectator mid-round ready (mitigated). Seated mid-round ready (latent): crafted or stale client could populate the ready map during live play and trigger `startNextRound` if all seated ids ready.
+Was: seated mid-round ready could latch and start the next deal. Mitigated for seated + start pipeline.
 
 **Files likely involved:**  
 `server/index.js` (`playerReadyForNextRound`, `tryStartNextRoundIfReady`, `startNextRound`, `isRoundComplete`), `server/botHostedRooms.js` (`promoteReadySpectators`), `server/tableRoster.js`, `src/screens/GameScreen.tsx` (`RoundCompleteModal`, `onToggleReady`), `src/game/socketAdapter.ts`
 
 **Priority:** P1
 
-**Status:** Open
+**Status:** Resolved — seated `betweenRounds` guard + `tryStartNextRoundIfReady` round-complete check (critical-issues branch)
 
 **Notes:**  
-Gameplay Auditor Finding 7 (2026-06-08). Ship seated `betweenRounds` guard alongside spectator guard. Verify spectator paths; add automated regression (multiple spectators, dead-hand swap, BOTOPN, leave mid-ready). Release gate `spectator-promote` covers spectator join path only. Related: dead-hand model in `MULTIPLAYER_ARCHITECTURE.md`.
+Gameplay Auditor Finding 7 (2026-06-08). Remaining optional: broader spectator/dead-hand/BOTOPN ready matrix beyond `spectator-promote` + seat-security mid-round case. Related: dead-hand model in `MULTIPLAYER_ARCHITECTURE.md`.
 
 ---
 
@@ -350,10 +350,10 @@ Gameplay Auditor Finding 5 (2026-06-08). Presentation-only workaround (pass latc
 During `tenRulePending`, only the player who played the 10 (`tenRuleChooserIndex()` / `lastPlayPlayerIndex`) may set Higher/Lower (`GAME_ARCHITECTURE.md` §5 TenRule, § Turn ownership).
 
 **Current behaviour:**  
-`gameAction` ten-rule branch checks `tenRulePending` only; turn gate is `player.id !== currentId` (with ack-pass exception). No compare to `tenRuleChooserIndex()`. `setTenRuleDirection` in core does not validate chooser (`server/index.js` ~1847–1852; `src/game/core.ts` ~730–757).
+`gameAction` ten-rule branch requires `tenRulePending`, compares the acting socket player to `tenRuleChooserIndex()`, and rejects invalid directions. Core `setTenRuleDirection` still does not re-check chooser (server gate is the authority boundary).
 
 **Impact:**  
-Latent rule violation when `currentPlayerIndex` is corrupted (see **Turn Ownership Invariant**); wrong seat can set pile-wide direction.
+Was: wrong seat could set Higher/Lower when turn pointer was stale. Mitigated by server chooser + direction guard.
 
 **Files likely involved:**  
 `server/index.js` (`gameAction`)  
@@ -361,10 +361,10 @@ Latent rule violation when `currentPlayerIndex` is corrupted (see **Turn Ownersh
 
 **Priority:** P2
 
-**Status:** Open
+**Status:** Resolved — server chooser + direction guard (critical-issues integrity patch)
 
 **Notes:**  
-Gameplay Auditor Finding 10 (2026-06-08). Fix is a small server guard; prioritize only if live repro traces here.
+Gameplay Auditor Finding 10 (2026-06-08). Optional follow-up: defend chooser inside `setTenRuleDirection` for local/hot-seat callers.
 
 ---
 
@@ -424,7 +424,7 @@ Short assessment of how well implementation matches documented architecture (as 
 | Area | Notes |
 |------|--------|
 | **Turn ownership** | Documented debt only; see gap **Turn Ownership Invariant** (fix on live bug, not proactive refactor). |
-| **Ready-for-next-round** | Spectator `betweenRounds` guard shipped; seated server gate and full regression pending (P1). |
+| **Ready-for-next-round** | Spectator + seated `betweenRounds` guards shipped; optional broader ready-matrix coverage remains. |
 | **Disconnect handling** | Pause works on standard rooms; grace duration and presentation do not match intent. |
 | **CPU takeover** | Documented target; not implemented for private online games (abort instead). |
 | **Persistence** | Local-first XP; cloud partial; accounts not built. |
