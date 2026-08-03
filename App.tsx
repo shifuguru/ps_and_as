@@ -1078,6 +1078,9 @@ function AppContent() {
                     roomAdapter.updatePlayerName(roomId, name);
                   }
                 }}
+                onProfileSynced={() => {
+                  setHubRefreshKey((k) => k + 1);
+                }}
                 onSkipDealAnimationsChange={(value) => {
                   const roomId = activeRoomIdRef.current ?? joinedRoomIdRef.current;
                   if (

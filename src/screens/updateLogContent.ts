@@ -32,6 +32,14 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-08-03T15:51"),
+    title: "Clearer Google sync",
+    items: [
+      "Settings shows Google linked (not Local profile) when your account is connected",
+      "Sync now tells you your Level and XP after syncing — and if cloud was empty, asks you to sync the Level 20 phone first",
+    ],
+  },
+  {
     publishedAt: nzst("2026-08-03T14:36"),
     title: "Phone install & Google sync",
     items: [
