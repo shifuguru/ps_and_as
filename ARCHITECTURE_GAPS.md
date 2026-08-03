@@ -424,7 +424,7 @@ Short assessment of how well implementation matches documented architecture (as 
 | Area | Notes |
 |------|--------|
 | **Turn ownership** | Documented debt only; see gap **Turn Ownership Invariant** (fix on live bug, not proactive refactor). |
-| **Ready-for-next-round** | Spectator `betweenRounds` guard shipped; seated server gate and full regression pending (P1). |
+| **Ready-for-next-round** | Spectator + seated `betweenRounds` guards shipped; optional broader ready-matrix coverage remains. |
 | **Disconnect handling** | Pause works on standard rooms; grace duration and presentation do not match intent. |
 | **CPU takeover** | Documented target; not implemented for private online games (abort instead). |
 | **Persistence** | Local-first XP; cloud partial; accounts not built. |
