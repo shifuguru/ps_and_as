@@ -341,20 +341,23 @@ app.get('/api/player-stats/:playerId', (req, res) => {
 
 app.put(
   '/api/player-stats/:playerId',
-  googlePlayerStatsGuard,
+  (req, res, next) => {
+    Promise.resolve(googlePlayerStatsGuard(req, res, next)).catch(next);
+  },
   (req, res) => {
-  const playerId = req.params.playerId;
-  if (!isValidPlayerId(playerId)) {
-    return res.status(400).json({ error: 'invalid_player_id' });
-  }
-  const stats = req.body?.stats;
-  if (!stats || typeof stats !== 'object') {
-    return res.status(400).json({ error: 'invalid_stats' });
-  }
-  const entry = upsertPlayerStats(playerId, stats);
-  res.set('Cache-Control', 'no-store');
-  return res.json(entry);
-});
+    const playerId = req.params.playerId;
+    if (!isValidPlayerId(playerId)) {
+      return res.status(400).json({ error: 'invalid_player_id' });
+    }
+    const stats = req.body?.stats;
+    if (!stats || typeof stats !== 'object') {
+      return res.status(400).json({ error: 'invalid_stats' });
+    }
+    const entry = upsertPlayerStats(playerId, stats);
+    res.set('Cache-Control', 'no-store');
+    return res.json(entry);
+  },
+);
 
 const server = http.createServer(app);
 
