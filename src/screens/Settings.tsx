@@ -50,6 +50,9 @@ import {
 } from "../services/googleAccountSync";
 import { getDisplayNameInputProps } from "../utils/displayNameInputProps";
 import { getLobbySession } from "../services/lobbySession";
+import { getPlayerStats } from "../services/playerStats";
+import { levelFromXp } from "../services/playerLevel";
+import { fetchCloudPlayerRecord } from "../services/playerStatsCloud";
 import { validateDisplayText, isValidDisplayText } from "../utils/profanityFilter";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
@@ -71,6 +74,7 @@ export default function Settings({
   onWallpaperChange,
   onBack,
   onNameSaved,
+  onProfileSynced,
   onSkipDealAnimationsChange,
   soundMuted,
   onToggleSoundMute,
@@ -79,6 +83,8 @@ export default function Settings({
   onWallpaperChange?: () => void;
   onBack?: () => void;
   onNameSaved?: (name: string) => void | Promise<void>;
+  /** Called after Google sync updates local stats/theme so the hub can refresh. */
+  onProfileSynced?: () => void;
   onSkipDealAnimationsChange?: (value: boolean) => void;
   soundMuted?: boolean;
   onToggleSoundMute?: () => void;
@@ -115,9 +121,11 @@ export default function Settings({
   } = useWebAppInstall();
   const [addToHomeWorking, setAddToHomeWorking] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [careerXp, setCareerXp] = useState(0);
   const googleStatus = getGoogleAccountSyncStatus();
   const googleReady = googleStatus === "ready";
   const googleLinked = !!playerInfo?.linkedAccountId?.startsWith("google:");
+  const careerLevel = levelFromXp(careerXp);
 
   useEffect(() => {
     void getLobbySession().then((session) => {
@@ -127,17 +135,51 @@ export default function Settings({
 
   useEffect(() => {
     void (async () => {
-      const [info, tint] = await Promise.all([
+      const [info, tint, stats] = await Promise.all([
         getOrCreatePlayerId(),
         getWallpaperTint(),
+        getPlayerStats(),
       ]);
       setPlayerInfo(info);
       setPlayerName(info.displayName);
       setSavedName(info.displayName);
+      setCareerXp(stats.xp ?? 0);
       const resolvedTint = tint ?? DEFAULT_FELT_COLOR;
       setPreviewTint(resolvedTint);
     })();
   }, []);
+
+  // Pull cloud career when opening Settings on a Google-linked install.
+  useEffect(() => {
+    if (!googleLinked) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { resetPlayerStatsRestore, ensurePlayerStatsRestored } =
+          await import("../services/playerStats");
+        resetPlayerStatsRestore();
+        await ensurePlayerStatsRestored();
+        if (cancelled) return;
+        const info = await getOrCreatePlayerId();
+        const stats = await getPlayerStats();
+        setPlayerInfo(info);
+        setPlayerName(info.displayName);
+        setSavedName(info.displayName);
+        setCareerXp(stats.xp ?? 0);
+        const tint = (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
+        setPreviewTint(tint);
+        setFeltTint(tint);
+        onWallpaperPreview?.(tint);
+        onProfileSynced?.();
+      } catch {
+        // Sync now can retry
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pull once per linked id
+  }, [googleLinked]);
 
   const previewTintNormalized = (previewTint ?? DEFAULT_FELT_COLOR).toLowerCase();
   const nameDirty = playerName.trim() !== savedName.trim();
@@ -222,7 +264,12 @@ export default function Settings({
                 <Text style={styles.profileName} numberOfLines={1}>
                   {savedName || "Player"}
                 </Text>
-                <Text style={styles.profileHint}>Local Profile</Text>
+                <Text style={styles.profileHint}>
+                  {googleLinked ? "Google linked" : "Local profile"}
+                </Text>
+                <Text style={styles.profileCareer}>
+                  Level {careerLevel} · {(careerXp ?? 0).toLocaleString()} XP
+                </Text>
               </View>
             </View>
 
@@ -268,6 +315,13 @@ export default function Settings({
                               getAppearancePreference,
                               getTextContrastPreference,
                             } = await import("../services/themePreferences");
+                            const linkedId = playerInfo?.linkedAccountId;
+                            const cloudBefore = linkedId
+                              ? await fetchCloudPlayerRecord(linkedId)
+                              : null;
+                            const cloudXp = cloudBefore?.stats?.xp ?? 0;
+                            const localBefore = await getPlayerStats();
+
                             resetPlayerStatsRestore();
                             await ensurePlayerStatsRestored();
                             const info = await getOrCreatePlayerId();
@@ -289,10 +343,29 @@ export default function Settings({
                             const ok = await pushLinkedCloudSnapshot({
                               interactive: true,
                             });
+                            const after = await getPlayerStats();
+                            setCareerXp(after.xp ?? 0);
+                            onProfileSynced?.();
                             if (!ok) {
                               Alert.alert(
                                 "Google sync",
                                 "Could not save to the server. Sign in again when prompted, or try once more.",
+                              );
+                              return;
+                            }
+                            const afterLevel = levelFromXp(after.xp ?? 0);
+                            if (cloudXp <= 0 && (localBefore.xp ?? 0) < 500) {
+                              Alert.alert(
+                                "Google sync",
+                                `This device is Level ${afterLevel} (${(after.xp ?? 0).toLocaleString()} XP).\n\nCloud had no career yet. On your Level 20 device, open Settings → Sync now first, then sync here again.`,
+                              );
+                            } else {
+                              Alert.alert(
+                                "Google sync",
+                                `Synced — Level ${afterLevel} · ${(after.xp ?? 0).toLocaleString()} XP` +
+                                  (cloudXp > 0
+                                    ? `\n(Cloud had ${cloudXp.toLocaleString()} XP)`
+                                    : ""),
                               );
                             }
                           } catch (err) {
@@ -350,6 +423,13 @@ export default function Settings({
                             setFeltTint(tint);
                             onWallpaperPreview?.(tint);
                           }
+                          const stats = await getPlayerStats();
+                          setCareerXp(stats.xp ?? 0);
+                          onProfileSynced?.();
+                          Alert.alert(
+                            "Google sync",
+                            `Linked — Level ${levelFromXp(stats.xp ?? 0)} · ${(stats.xp ?? 0).toLocaleString()} XP`,
+                          );
                         } catch (err) {
                           const message =
                             err instanceof Error
@@ -805,6 +885,12 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     fontSize: 12,
     marginTop: 2,
     fontWeight: "600",
+  },
+  profileCareer: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: "700",
   },
   autoSaveHint: {
     color: colors.textSecondary,

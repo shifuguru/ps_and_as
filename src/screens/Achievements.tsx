@@ -63,6 +63,7 @@ export default function Achievements({
 
   const [savedName, setSavedName] = useState("");
   const [stats, setStats] = useState<PlayerStats | null>(null);
+  const [googleLinked, setGoogleLinked] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadAll = useCallback(async () => {
@@ -73,6 +74,7 @@ export default function Achievements({
         getPlayerStats(),
       ]);
       setSavedName(info.displayName);
+      setGoogleLinked(!!info.linkedAccountId?.startsWith("google:"));
       setStats(playerStats);
     } catch (error) {
       console.error("[Achievements] Failed to load:", error);
@@ -142,12 +144,15 @@ export default function Achievements({
                 <Text style={styles.profileName} numberOfLines={1}>
                   {savedName || "Player"}
                 </Text>
-                <Text style={styles.profileHint}>Local Profile</Text>
+                <Text style={styles.profileHint}>
+                  {googleLinked ? "Google linked" : "Local profile"}
+                </Text>
               </View>
             </View>
             <Text style={styles.accountText}>
-              Stats are saved on this device. Online play also backs them up to
-              the game server so they can restore on the same account.
+              {googleLinked
+                ? "Stats sync to your Google account across devices. Use Settings → Sync now if another phone is ahead."
+                : "Stats are saved on this device. Link Google in Settings to keep XP across phones."}
             </Text>
             {onNavigateToSettings ? (
               <TouchableOpacity
