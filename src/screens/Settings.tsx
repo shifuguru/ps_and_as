@@ -286,11 +286,13 @@ export default function Settings({
                             await setTextContrastPreference(
                               await getTextContrastPreference(),
                             );
-                            const ok = await pushLinkedCloudSnapshot();
+                            const ok = await pushLinkedCloudSnapshot({
+                              interactive: true,
+                            });
                             if (!ok) {
                               Alert.alert(
                                 "Google sync",
-                                "Could not reach the server. Try again in a moment.",
+                                "Could not save to the server. Sign in again when prompted, or try once more.",
                               );
                             }
                           } catch (err) {

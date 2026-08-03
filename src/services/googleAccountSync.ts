@@ -47,8 +47,6 @@ type GoogleGisWindow = Window & {
 const GIS_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
 
 let gisLoadPromise: Promise<void> | null = null;
-let sessionIdToken: string | null = null;
-let sessionAccountId: string | null = null;
 
 export function getGoogleWebClientId(): string | null {
   try {
@@ -106,54 +104,103 @@ export function googleAccountSyncBlurb(
 }
 
 const TOKEN_STORAGE_KEY = "ps_and_as_google_id_token";
+const SESSION_STORAGE_KEY = "ps_and_as_google_session_token";
 const ACCOUNT_STORAGE_KEY = "ps_and_as_google_account_id";
 
-function webSessionStorage(): Storage | null {
+let sessionIdToken: string | null = null;
+let sessionAuthToken: string | null = null;
+let sessionAccountId: string | null = null;
+
+function webLocalStorage(): Storage | null {
   try {
-    const store = (globalThis as { sessionStorage?: Storage }).sessionStorage;
+    const store = (globalThis as { localStorage?: Storage }).localStorage;
     return store ?? null;
   } catch {
     return null;
   }
 }
 
-function persistGoogleSession(accountId: string, idToken: string): void {
-  sessionIdToken = idToken;
+function persistGoogleSession(accountId: string, opts: {
+  idToken?: string | null;
+  sessionToken?: string | null;
+}): void {
   sessionAccountId = accountId;
-  const store = webSessionStorage();
+  if (opts.idToken) sessionIdToken = opts.idToken;
+  if (opts.sessionToken) sessionAuthToken = opts.sessionToken;
+  const store = webLocalStorage();
   if (!store) return;
   try {
-    store.setItem(TOKEN_STORAGE_KEY, idToken);
     store.setItem(ACCOUNT_STORAGE_KEY, accountId);
+    if (opts.idToken) store.setItem(TOKEN_STORAGE_KEY, opts.idToken);
+    if (opts.sessionToken) store.setItem(SESSION_STORAGE_KEY, opts.sessionToken);
   } catch {
     // ignore quota / private mode
   }
 }
 
 function hydrateGoogleSessionFromStorage(): void {
-  if (sessionIdToken) return;
-  const store = webSessionStorage();
+  const store = webLocalStorage();
   if (!store) return;
   try {
-    const token = store.getItem(TOKEN_STORAGE_KEY);
-    const accountId = store.getItem(ACCOUNT_STORAGE_KEY);
-    if (token && accountId) {
-      sessionIdToken = token;
-      sessionAccountId = accountId;
+    if (!sessionAccountId) {
+      sessionAccountId = store.getItem(ACCOUNT_STORAGE_KEY);
+    }
+    if (!sessionAuthToken) {
+      sessionAuthToken = store.getItem(SESSION_STORAGE_KEY);
+    }
+    if (!sessionIdToken) {
+      sessionIdToken = store.getItem(TOKEN_STORAGE_KEY);
     }
   } catch {
     // ignore
   }
 }
 
+/** Bearer used for google: cloud writes — prefers long-lived server session. */
 export function getGoogleSessionIdToken(): string | null {
   hydrateGoogleSessionFromStorage();
-  return sessionIdToken;
+  return sessionAuthToken || sessionIdToken;
 }
 
 export function getGoogleSessionAccountId(): string | null {
   hydrateGoogleSessionFromStorage();
   return sessionAccountId;
+}
+
+function authUrl(): string {
+  const { getServerUrl } = require("../config/server") as typeof import("../config/server");
+  return `${getServerUrl().replace(/\/$/, "")}/api/auth/google`;
+}
+
+/** Exchange a Google ID token for a durable server session token. */
+export async function exchangeGoogleIdTokenForSession(
+  idToken: string,
+): Promise<{ accountId: string; sessionToken: string } | null> {
+  try {
+    const res = await fetch(authUrl(), {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ idToken }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      accountId?: string;
+      sessionToken?: string;
+    };
+    if (!data.accountId?.startsWith("google:") || !data.sessionToken) {
+      return null;
+    }
+    persistGoogleSession(data.accountId, {
+      idToken,
+      sessionToken: data.sessionToken,
+    });
+    return { accountId: data.accountId, sessionToken: data.sessionToken };
+  } catch {
+    return null;
+  }
 }
 
 function decodeJwtPayload(jwt: string): Record<string, unknown> {
@@ -217,7 +264,7 @@ function linkFromCredential(credential: string): GoogleAccountLink {
     (typeof payload.given_name === "string" && payload.given_name) ||
     undefined;
   const accountId = toGoogleAccountId(sub);
-  persistGoogleSession(accountId, credential);
+  persistGoogleSession(accountId, { idToken: credential });
   return {
     accountId,
     email,
@@ -419,7 +466,11 @@ export async function linkGoogleAccountAndSync(options?: {
     await import("./gameCenter");
   await cacheLinkedGameCenterId(link.accountId);
   await cachePlayerId(link.accountId);
-  persistGoogleSession(link.accountId, link.idToken);
+  persistGoogleSession(link.accountId, { idToken: link.idToken });
+
+  // Durable server session so later PUTs work after PWA restart (ID tokens expire ~1h).
+  const exchanged = await exchangeGoogleIdTokenForSession(link.idToken);
+  const authBearer = exchanged?.sessionToken || link.idToken;
 
   const {
     fetchCloudPlayerRecord,
@@ -475,12 +526,14 @@ export async function linkGoogleAccountAndSync(options?: {
   const push = await pushCloudPlayerRecord(
     link.accountId,
     { stats: mergedStats, profile },
-    link.idToken,
+    authBearer,
   );
   if (!push.ok) {
     throw new Error(
-      push.error === "google_auth_required" || push.status === 401
-        ? "Google sync could not save to the server. Try again."
+      push.error === "google_auth_required" ||
+        push.error === "google_auth_invalid" ||
+        push.status === 401
+        ? "Google sync could not save to the server. Try Sync now again."
         : `Google sync save failed (${push.error || push.status}).`,
     );
   }
@@ -495,12 +548,34 @@ export async function linkGoogleAccountAndSync(options?: {
 }
 
 /** Push current local stats + profile for a linked Google account. */
-export async function pushLinkedCloudSnapshot(): Promise<boolean> {
+export async function pushLinkedCloudSnapshot(options?: {
+  /** Re-prompt Google if we have no usable session/token. */
+  interactive?: boolean;
+}): Promise<boolean> {
   try {
     const { getOrCreatePlayerId } = await import("./gameCenter");
     const info = await getOrCreatePlayerId();
     const playerId = info.linkedAccountId || info.id;
     if (!playerId?.startsWith("google:")) return true;
+
+    hydrateGoogleSessionFromStorage();
+    let bearer = getGoogleSessionIdToken();
+
+    if (!bearer && options?.interactive !== false) {
+      const link = await requestGoogleAccountLink();
+      if (!link) return false;
+      if (link.accountId !== playerId) {
+        // Different Google account — still allow, but keep linked id as source of truth
+        console.warn(
+          "[googleAccountSync] signed-in account differs from linked profile id",
+        );
+      }
+      const exchanged = await exchangeGoogleIdTokenForSession(link.idToken);
+      bearer = exchanged?.sessionToken || link.idToken;
+    }
+
+    if (!bearer) return false;
+
     const { getPlayerStats } = await import("./playerStats");
     const {
       pushCloudPlayerRecord,
@@ -508,7 +583,25 @@ export async function pushLinkedCloudSnapshot(): Promise<boolean> {
     } = await import("./playerStatsCloud");
     const stats = await getPlayerStats();
     const profile = await readLocalCloudProfile();
-    const result = await pushCloudPlayerRecord(playerId, { stats, profile });
+    let result = await pushCloudPlayerRecord(playerId, { stats, profile }, bearer);
+
+    // Expired Google ID token / bad session — one interactive refresh.
+    if (
+      !result.ok &&
+      options?.interactive !== false &&
+      (result.status === 401 ||
+        result.status === 403 ||
+        result.error === "google_auth_required" ||
+        result.error === "google_auth_invalid" ||
+        result.error === "google_auth_mismatch")
+    ) {
+      const link = await requestGoogleAccountLink();
+      if (!link) return false;
+      const exchanged = await exchangeGoogleIdTokenForSession(link.idToken);
+      bearer = exchanged?.sessionToken || link.idToken;
+      result = await pushCloudPlayerRecord(playerId, { stats, profile }, bearer);
+    }
+
     return result.ok;
   } catch {
     return false;
