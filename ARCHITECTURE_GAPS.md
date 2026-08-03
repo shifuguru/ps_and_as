@@ -67,6 +67,7 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 | **P1** | **Ready-for-next-round gating** | Spectator `betweenRounds` guard shipped (v1.0.54). **Remaining:** gate seated `playerReadyForNextRound` on `betweenRounds`; verify spectator paths (multiple spectators, dead-hand, BOTOPN, leave). Add regression coverage. |
 | **P1** | **Disconnect timeout** | Align 15 s grace with server + UI. |
 | **P1** | **XP persistence** | Design account-independent persistence; document migration from browser-local progression. |
+| **P1** | **Mobile browser onboarding (PWA → Google)** | Install-first coach on mobile browser; decline path couples display name with Google Sign-in sync (Play Store / stats). |
 | **P2** | **Turn Ownership Invariant** | **Documentation only** unless a live bug traces here. Do not redesign `currentPlayerIndex` or new ownership APIs. Tests/validation only when supporting an active bug investigation. See [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.md). |
 | **P2** | Pause state presentation; Bot-open disconnect model | As capacity allows. |
 
@@ -75,7 +76,7 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 | Priority | Gaps |
 |----------|------|
 | **P0** | Rankings before last hand (online); CPU takeover after disconnect; Returning player after timeout |
-| **P1** | Ready-for-next-round gating; Disconnect timeout; XP and progression persistence |
+| **P1** | Ready-for-next-round gating; Disconnect timeout; XP and progression persistence; Mobile browser onboarding (PWA → Google) |
 | **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Ten-rule chooser server validation; Pause state presentation; Bot-open disconnect model vs standard rooms |
 
 **How to maintain:** When a gap is fixed, set `Status: Resolved` and add a one-line note with version or PR. When intent changes, update the architecture doc first, then close or rewrite the gap here.
@@ -257,7 +258,35 @@ Returning players may see reset stats; cross-device play does not share a guaran
 **Status:** Open
 
 **Notes:**  
-See `GAME_ARCHITECTURE.md` §7 Identity & persistence (future). Not a gameplay change — infrastructure / product track.
+See `GAME_ARCHITECTURE.md` §7 Identity & persistence (future). Not a gameplay change — infrastructure / product track. Mobile browser decline path now scaffolds Google Sign-in coupling (see **Mobile browser onboarding**); OAuth + durable account id still open.
+
+---
+
+## Mobile browser onboarding (PWA → Google)
+
+**Category:** Identity / onboarding
+
+**Intended behaviour:**  
+On mobile **browser tab** (not standalone PWA): instruct Add to Home Screen / install **before** display-name setup. If the player continues in the browser, couple first-run name choice with **Google Sign-in** so name + game stats can sync for Play Store / cross-device recovery. Standalone / desktop keep name-only setup.
+
+**Current behaviour (shipping funnel):**  
+Install coach runs before name gate when `shouldOfferAddToHomeScreen()` and name setup is still needed. Decline → name modal with Google Continue (GIS) when `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` is configured; otherwise short “coming soon” hint. Soft hub banner is dismissed when install is declined so players are not double-nagged.
+
+**Google link (web):**  
+`linkGoogleAccountAndSync` stores `google:{sub}` in the linked-account slot, re-keys cloud stats via `resetPlayerStatsRestore` + `ensurePlayerStatsRestored`, and sends Bearer ID token on PUT. Server enforces token verify for `google:` ids when `GOOGLE_CLIENT_ID` is set.
+
+**Still open:**  
+Configure production Google OAuth Web client + Authorized JavaScript origins / redirect URIs for GitHub Pages; set `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (Actions variable) and `GOOGLE_CLIENT_ID` (Railway). Android Play Games remains a separate track.
+
+**Files likely involved:**  
+`src/services/webOnboarding.ts`, `src/services/googleAccountSync.ts`, `src/components/WebInstallCoachModal.tsx`, `src/components/DisplayNameSetupModal.tsx`, `App.tsx`, `src/utils/webAppInstall.ts`
+
+**Priority:** P1
+
+**Status:** Open — funnel + web GIS client shipped; enable with client IDs; Play Games pending
+
+**Notes:**  
+Supports XP persistence gap. Do not invent a second account system — Google link should reuse cloud stats keyed by durable account id (same pattern as Game Center `linkedAccountId`).
 
 ---
 
@@ -399,7 +428,7 @@ Short assessment of how well implementation matches documented architecture (as 
 | **Disconnect handling** | Pause works on standard rooms; grace duration and presentation do not match intent. |
 | **CPU takeover** | Documented target; not implemented for private online games (abort instead). |
 | **Persistence** | Local-first XP; cloud partial; accounts not built. |
-| **Identity / accounts** | Profile id / socket identity only; no cross-device account recovery. |
+| **Identity / accounts** | Profile id / socket identity only; mobile browser funnel scaffolds Google sync; OAuth not built. |
 
 Work order: see **Priority order** in Workflow (top of this file).
 

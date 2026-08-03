@@ -65,14 +65,20 @@ export async function fetchCloudPlayerStats(
 export async function pushCloudPlayerStats(
   playerId: string,
   stats: PlayerStats,
+  idToken?: string | null,
 ): Promise<void> {
   if (!playerId?.trim()) return;
   try {
+    const { getGoogleSessionIdToken } = await import("./googleAccountSync");
+    const bearer =
+      (idToken && idToken.trim()) ||
+      (playerId.startsWith("google:") ? getGoogleSessionIdToken() : null);
     await fetch(statsUrl(playerId), {
       method: "PUT",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
+        ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
       },
       body: JSON.stringify({ stats }),
     });

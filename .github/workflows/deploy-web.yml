@@ -83,6 +83,7 @@ jobs:
         env:
           GITHUB_PAGES_BASE: /ps_and_as
           EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
           EXPO_PUBLIC_BUILD_ID: ${{ github.sha }}
           EXPO_PUBLIC_APP_VERSION: ${{ steps.version.outputs.version }}
           EXPO_PUBLIC_BASE_PATH: /ps_and_as

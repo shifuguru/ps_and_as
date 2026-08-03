@@ -420,10 +420,11 @@ Waiting for reconnect
 
 **Future architecture (guidance only — not active implementation):**
 
-- Account system with authenticated identity
+- Account system with authenticated identity (**Google Sign-in / Play Games** for Android & web browser-continue path)
 - Server-side progression as source of truth
 - Cross-device persistence (phone, desktop, reinstalled PWA)
 - Recoverable achievements, unlocks, and career XP after reinstall or cleared browser data
+- Mobile browser first-run: PWA install coach before display name; decline couples name + Google sync (funnel shipped; OAuth pending — see `ARCHITECTURE_GAPS.md`)
 
 **Purpose:** Prevent loss of XP, achievements, unlocks, and progression when a user reinstalls the PWA, clears browser data, or changes device. This section is planning context for GameScreen / Settings / cloud services — not a shipping feature.
 

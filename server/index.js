@@ -323,6 +323,8 @@ const {
   getPlayerStats: loadStoredPlayerStats,
   upsertPlayerStats,
 } = require('./playerStatsStore');
+const { createGooglePlayerStatsGuard } = require('./googleAuth');
+const googlePlayerStatsGuard = createGooglePlayerStatsGuard();
 
 app.get('/api/player-stats/:playerId', (req, res) => {
   const playerId = req.params.playerId;
@@ -337,19 +339,25 @@ app.get('/api/player-stats/:playerId', (req, res) => {
   return res.json(entry);
 });
 
-app.put('/api/player-stats/:playerId', (req, res) => {
-  const playerId = req.params.playerId;
-  if (!isValidPlayerId(playerId)) {
-    return res.status(400).json({ error: 'invalid_player_id' });
-  }
-  const stats = req.body?.stats;
-  if (!stats || typeof stats !== 'object') {
-    return res.status(400).json({ error: 'invalid_stats' });
-  }
-  const entry = upsertPlayerStats(playerId, stats);
-  res.set('Cache-Control', 'no-store');
-  return res.json(entry);
-});
+app.put(
+  '/api/player-stats/:playerId',
+  (req, res, next) => {
+    Promise.resolve(googlePlayerStatsGuard(req, res, next)).catch(next);
+  },
+  (req, res) => {
+    const playerId = req.params.playerId;
+    if (!isValidPlayerId(playerId)) {
+      return res.status(400).json({ error: 'invalid_player_id' });
+    }
+    const stats = req.body?.stats;
+    if (!stats || typeof stats !== 'object') {
+      return res.status(400).json({ error: 'invalid_stats' });
+    }
+    const entry = upsertPlayerStats(playerId, stats);
+    res.set('Cache-Control', 'no-store');
+    return res.json(entry);
+  },
+);
 
 const server = http.createServer(app);
 

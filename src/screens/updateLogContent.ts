@@ -32,6 +32,15 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-08-03T14:36"),
+    title: "Phone install & Google sync",
+    items: [
+      "On a phone browser, you’ll be asked to add the game to your home screen before picking a name — fuller screen, cleaner play",
+      "If you stay in the browser, you can link Google so your name and game stats can follow you across devices",
+      "Display name no longer pops up a password save prompt",
+    ],
+  },
+  {
     publishedAt: nzst("2026-07-31T17:10"),
     title: "Roomier table on small phones",
     items: [
