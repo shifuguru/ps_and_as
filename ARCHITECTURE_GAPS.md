@@ -364,7 +364,8 @@ Was: wrong seat could set Higher/Lower when turn pointer was stale. Mitigated by
 **Status:** Resolved — server chooser + direction guard (critical-issues integrity patch)
 
 **Notes:**  
-Gameplay Auditor Finding 10 (2026-06-08). Optional follow-up: defend chooser inside `setTenRuleDirection` for local/hot-seat callers.
+Gameplay Auditor Finding 10 (2026-06-08). Optional follow-up: defend chooser inside `setTenRuleDirection` for local/hot-seat callers.  
+Also: `playCards` / `gameAction` play now reject while `tenRulePending` so undirected 10s cannot be overwritten by a follow-up play (which left the next seat unable to pass).
 
 ---
 

@@ -134,7 +134,8 @@ function deadHandSeatOpen(room) {
     return botHosted.countHumansSeated(room) < 2;
   }
   if (!room.inGame) return activePlayerCount(room) === 2;
-  return gameHasDeadHandSlot(room) && activePlayerCount(room) === 2;
+  // Include away seats so a reconnect pause does not hide the dead-hand slot.
+  return gameHasDeadHandSlot(room) && seatedRosterCount(room) === 2;
 }
 
 function spectatorCount(room) {
@@ -142,10 +143,17 @@ function spectatorCount(room) {
   return room.players.filter((p) => !p.disconnectedAt && p.isSpectator).length;
 }
 
+/** Non-spectator seats including temporarily disconnected / away players. */
+function seatedRosterCount(room) {
+  return (room?.players || []).filter((p) => !p.isSpectator).length;
+}
+
 function shouldJoinAsSpectator(room) {
   if (!room?.inGame) return false;
   if (room.isBotHosted) return botHosted.shouldJoinBotRoomAsSpectator(room);
-  const seated = activePlayerCount(room);
+  // Count away seats too — otherwise a reconnect pause drops activePlayerCount
+  // below 2 and mid-match joiners are wrongly seated as full players.
+  const seated = seatedRosterCount(room);
   if (seated >= 3) return false;
   return seated >= 2;
 }
@@ -1739,7 +1747,7 @@ io.on('connection', (socket) => {
         socket.emit('error', { message: 'Game is full' });
         return;
       }
-      if (!room.isBotHosted && room.inGame && seated >= 3) {
+      if (!room.isBotHosted && room.inGame && seatedRosterCount(room) >= 3) {
         socket.emit('error', { message: 'Game is full' });
         return;
       }
@@ -2053,6 +2061,10 @@ io.on('connection', (socket) => {
     let next = working;
     if (action?.type === 'play') {
       if (action.playerId && action.playerId !== player.id) return;
+      if (working.tenRulePending) {
+        socket.emit('error', { message: 'Choose Higher or Lower first' });
+        return;
+      }
       // Atomic 10-rule direction must be validated the same way as the
       // dedicated tenRule action — otherwise a non-string truthy value is
       // persisted into state and crashes clients that call .toUpperCase().

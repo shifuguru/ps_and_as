@@ -53,6 +53,7 @@ function connectClient(name, profileId) {
       state.id = data.id;
       state.profileId = data.profileId ?? data.id;
       state.reconnectSecret = data.reconnectSecret ?? null;
+      state.isSpectator = !!data.isSpectator;
     });
     socket.on("lobbyUpdate", (data) => {
       state.lobby = data;
@@ -337,6 +338,68 @@ async function testProfileIdPreClaimDoesNotLockout() {
   console.log("  PASS profileId pre-claim does not lock out victim");
 }
 
+async function testPauseJoinIsSpectator() {
+  const roomId = roomCode("PJ");
+  const host = await createHost("Alice", `alice-${roomId}`, roomId);
+  const guest = await join("Bob", `bob-${roomId}`, roomId);
+  guest.socket.emit("toggleReady", { roomId, ready: true });
+  await wait(200);
+  host.socket.emit("startGame", { roomId });
+  await Promise.all(
+    [host, guest].map((c) => once(c.socket, "startGame", 15000)),
+  );
+  await wait(400);
+
+  const bobSecret = guest.state.reconnectSecret;
+  guest.socket.disconnect();
+  await wait(500);
+  if (!host.state.playerDisconnected) {
+    throw new Error("expected playerDisconnected during reconnect pause");
+  }
+
+  const carol = await join("Carol", `carol-${roomId}`, roomId);
+  if (!carol.state.id) {
+    throw new Error("Carol could not join during reconnect pause");
+  }
+  // connected payload + lobby must mark mid-match joiners as spectators
+  // even when activePlayerCount briefly drops to 1.
+  const carolLobby = (host.state.lobby?.players || []).find(
+    (p) => p.id === carol.state.id,
+  );
+  if (!carolLobby?.isSpectator && carol.state.isSpectator !== true) {
+    // Prefer lobby flag; fall back to connected payload if lobby lag.
+    const connectedSpec = carol.state.isSpectator === true;
+    const lobbySpec = carolLobby?.isSpectator === true;
+    if (!connectedSpec && !lobbySpec) {
+      throw new Error(
+        `Carol seated as player during pause (lobby=${JSON.stringify(carolLobby)} connectedSpec=${carol.state.isSpectator})`,
+      );
+    }
+  }
+  if (carolLobby && carolLobby.isSpectator !== true) {
+    throw new Error("Carol lobby seat is not spectator during pause join");
+  }
+
+  const bobBack = await join("Bob", `bob-${roomId}`, roomId, bobSecret);
+  if (bobBack.state.id !== guest.state.id) {
+    throw new Error("Bob failed to reclaim seat after pause");
+  }
+  await wait(300);
+  const seated = (host.state.lobby?.players || []).filter((p) => !p.isSpectator);
+  const spectators = (host.state.lobby?.players || []).filter((p) => p.isSpectator);
+  if (seated.length !== 2) {
+    throw new Error(
+      `expected 2 seated after reclaim, got ${seated.map((p) => p.name).join(",")}`,
+    );
+  }
+  if (!spectators.some((p) => p.id === carol.state.id)) {
+    throw new Error("Carol should remain spectator after Bob reconnects");
+  }
+
+  for (const c of [host, carol, bobBack]) c.socket.disconnect();
+  console.log("  PASS pause-join seats as spectator");
+}
+
 async function main() {
   console.log(`Seat security tests → ${SERVER}`);
   await testLiveSeatHijack();
@@ -346,6 +409,7 @@ async function main() {
   await testCrossRoomLeavePausesMatch();
   await testForgedRoundFinishedIgnored();
   await testMidRoundReadyIgnored();
+  await testPauseJoinIsSpectator();
   await testBotSeatClaimRejected();
   await testSkipBotTableRequiresMembership();
   console.log("All seat security checks passed.");

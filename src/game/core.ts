@@ -576,6 +576,12 @@ export function playCards(
   ) {
     return state;
   }
+  // Direction must be chosen via setTenRuleDirection (or atomic tenRuleDirection
+  // on the activating 10 play). Playing while pending skips Higher/Lower and can
+  // leave the next seat unable to pass.
+  if (state.tenRulePending) {
+    return state;
+  }
   // Very small validation: ensure it's that player's turn and they have the cards
   const pIndex = state.players.findIndex((p) => p.id === playerId);
   if (pIndex === -1) return state;
