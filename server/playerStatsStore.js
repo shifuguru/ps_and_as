@@ -32,6 +32,7 @@ function mergeStats(a, b) {
   const left = normalizeStats(a);
   const right = normalizeStats(b);
   const merged = {};
+  // Max per field (never sum) — prevents multi-device XP / counter glitches.
   for (const key of STAT_FIELDS) {
     merged[key] = Math.max(left[key], right[key]);
   }

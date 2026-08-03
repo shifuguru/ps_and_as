@@ -355,7 +355,6 @@ export async function restorePlayerStatsFromCloud(): Promise<PlayerStats> {
     mergePlayerStats,
     pushCloudPlayerRecord,
     applyCloudProfileLocally,
-    readLocalCloudProfile,
   } = await import("./playerStatsCloud");
   const remoteRecord = await fetchCloudPlayerRecord(playerId);
   if (remoteRecord?.profile) {
@@ -366,9 +365,11 @@ export async function restorePlayerStatsFromCloud(): Promise<PlayerStats> {
 
   if (!statsEqual(local, merged)) {
     await writeLocalPlayerStats(merged);
-  } else if (local.roundsPlayed > 0) {
-    const profile = await readLocalCloudProfile();
-    void pushCloudPlayerRecord(playerId, { stats: local, profile });
+    // Stats only — never piggyback local name/theme here (would clobber the
+    // other device's profile after a second install chooses its own name).
+    void pushCloudPlayerRecord(playerId, { stats: merged });
+  } else if (local.roundsPlayed > 0 && !remote) {
+    void pushCloudPlayerRecord(playerId, { stats: local });
   }
 
   if (merged.roundsPlayed > 0 && Platform.OS === "ios") {
@@ -427,11 +428,11 @@ async function savePlayerStats(stats: PlayerStats): Promise<void> {
   }
   const playerId = await resolveStatsPlayerId();
   if (playerId) {
-    const { pushCloudPlayerRecord, readLocalCloudProfile } = await import(
-      "./playerStatsCloud"
-    );
-    const profile = await readLocalCloudProfile();
-    void pushCloudPlayerRecord(playerId, { stats, profile });
+    // Profile (name/theme) is pushed only from explicit sync / Settings edits.
+    // Attaching it to every stats write let a second device overwrite cloud
+    // display name + felt after onboarding.
+    const { pushCloudPlayerRecord } = await import("./playerStatsCloud");
+    void pushCloudPlayerRecord(playerId, { stats });
   }
 }
 

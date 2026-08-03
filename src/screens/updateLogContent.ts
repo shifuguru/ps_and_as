@@ -37,6 +37,7 @@ export const UPDATE_ENTRIES: UpdateEntry[] = [
     items: [
       "Settings shows Google linked (not Local profile) when your account is connected",
       "Sync now tells you your Level and XP after syncing — and if cloud was empty, asks you to sync the Level 20 phone first",
+      "Name and theme no longer get overwritten by a second device’s stats sync — Sync now on your main device uploads them",
     ],
   },
   {

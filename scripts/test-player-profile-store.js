@@ -73,4 +73,24 @@ assert.deepStrictEqual(
   mergeStats({ xp: 40, roundsPlayed: 2 }, { xp: 10 }),
 );
 
+// Anti-exploit: syncing must take the higher XP, never total both sides.
+const maxed = mergeStats(
+  { xp: 1000, roundsPlayed: 20 },
+  { xp: 800, roundsPlayed: 15 },
+);
+assert.strictEqual(maxed.xp, 1000, "must not sum XP on sync");
+assert.notStrictEqual(maxed.xp, 1800);
+
+const xpId = `google:xp-max-${Date.now()}`;
+upsertPlayerStats(xpId, { xp: 500, roundsPlayed: 5 }, null);
+const afterHigher = upsertPlayerStats(xpId, { xp: 900, roundsPlayed: 8 }, null);
+assert.strictEqual(afterHigher.stats.xp, 900);
+const afterLower = upsertPlayerStats(xpId, { xp: 100, roundsPlayed: 2 }, null);
+assert.strictEqual(
+  afterLower.stats.xp,
+  900,
+  "lower XP upload must not reduce or sum career XP",
+);
+assert.strictEqual(afterLower.stats.roundsPlayed, 8);
+
 console.log("test-player-profile-store: all assertions passed");

@@ -273,7 +273,7 @@ On mobile **browser tab** (not standalone PWA): instruct Add to Home Screen / in
 Install coach runs before name gate when `shouldOfferAddToHomeScreen()` and name setup is still needed. Decline → name modal with Google Continue (GIS) when `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` is configured; otherwise short “coming soon” hint. Soft hub banner is dismissed when install is declined so players are not double-nagged.
 
 **Google link (web):**  
-`linkGoogleAccountAndSync` stores `google:{sub}`, exchanges the Google ID token for a **30-day server session** (`POST /api/auth/google`), then pulls/pushes cloud **stats + profile**. Settings shows **Google linked** (not “Local profile”) plus Level/XP, and **Sync now** reports cloud vs local XP. Standalone PWAs use an in-page Google button (skip FedCM/One Tap).
+`linkGoogleAccountAndSync` stores `google:{sub}`, exchanges the Google ID token for a **30-day server session** (`POST /api/auth/google`), then pulls/pushes cloud **stats + profile**. Settings shows **Google linked** (not “Local profile”) plus Level/XP, and **Sync now** reports cloud vs local XP. Standalone PWAs use an in-page Google button (skip FedCM/One Tap). Routine stats writes are **stats-only** so a second device cannot clobber cloud display name / theme; profile pushes happen from link, Sync now, and Settings name/theme edits. After cloud profile apply, ThemeContext + hub name refresh from storage.
 
 **Still open:**  
 **Persist Railway `server/data` volume** so `player-stats.json` survives redeploys — without it, Level/XP uploads are wiped on each deploy (likely why Level 20 did not appear on a second device). Optional `GOOGLE_SESSION_SECRET` on Railway. Android Play Games remains a separate track.

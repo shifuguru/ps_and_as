@@ -71,7 +71,7 @@ const ViewportDebugOverlay =
     : null;
 
 function AppContent() {
-  const { colors, ui, blur, feltTint, setFeltTint, refreshFeltTint } = useAppTheme();
+  const { colors, ui, blur, feltTint, setFeltTint, refreshFeltTint, reloadPreferencesFromStorage } = useAppTheme();
   const viewport = useVisualViewportSize();
   const shell = useWebShellLayout();
   // splashVisible: whether the splash overlay is still mounted
@@ -132,8 +132,18 @@ function AppContent() {
 
   useEffect(() => {
     void preloadGamePreferences();
-    void ensurePlayerStatsRestored();
-  }, []);
+    void (async () => {
+      await ensurePlayerStatsRestored();
+      await reloadPreferencesFromStorage();
+      try {
+        const { getCachedPlayerName } = await import("./src/services/gameCenter");
+        const name = (await getCachedPlayerName())?.trim();
+        if (name) setLocalPlayerName(name);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [reloadPreferencesFromStorage]);
 
   const { updateAvailable, latestBuild } = useBuildUpdateCheck(
     !splashVisible,
@@ -1080,6 +1090,18 @@ function AppContent() {
                 }}
                 onProfileSynced={() => {
                   setHubRefreshKey((k) => k + 1);
+                  void (async () => {
+                    await reloadPreferencesFromStorage();
+                    try {
+                      const { getCachedPlayerName } = await import(
+                        "./src/services/gameCenter"
+                      );
+                      const name = (await getCachedPlayerName())?.trim();
+                      if (name) setLocalPlayerName(name);
+                    } catch {
+                      // ignore
+                    }
+                  })();
                 }}
                 onSkipDealAnimationsChange={(value) => {
                   const roomId = activeRoomIdRef.current ?? joinedRoomIdRef.current;

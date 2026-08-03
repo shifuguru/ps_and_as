@@ -25,6 +25,11 @@ export type CloudPushResult = {
   error?: string;
 };
 
+/**
+ * Merge local + cloud career counters.
+ * Every field (including XP) is Math.max — never sum — so syncing two devices
+ * cannot be exploited as an XP duplicate glitch.
+ */
 export function mergePlayerStats(
   local: PlayerStats,
   remote: Partial<PlayerStats> | null | undefined,

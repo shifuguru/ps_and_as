@@ -41,6 +41,8 @@ type ThemeContextValue = {
   setTextContrastPreference: (preference: TextContrastPreference) => Promise<void>;
   setFeltTint: (hex: string) => void;
   refreshFeltTint: () => Promise<void>;
+  /** Re-read appearance / contrast / felt from storage (e.g. after cloud sync). */
+  reloadPreferencesFromStorage: () => Promise<void>;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -65,6 +67,7 @@ function buildValue(
     | "setTextContrastPreference"
     | "setFeltTint"
     | "refreshFeltTint"
+    | "reloadPreferencesFromStorage"
   >,
 ): ThemeContextValue {
   const { colors, palette } = buildThemeBundle(
@@ -136,11 +139,23 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setFeltTintState(tint ?? DEFAULT_FELT_COLOR);
   }, []);
 
+  const reloadPreferencesFromStorage = useCallback(async () => {
+    const [appearance, textContrast, tint] = await Promise.all([
+      getAppearancePreference(),
+      getTextContrastPreference(),
+      getWallpaperTint(),
+    ]);
+    setAppearancePreferenceState(appearance);
+    setTextContrastPreferenceState(textContrast);
+    setFeltTintState(tint ?? DEFAULT_FELT_COLOR);
+  }, []);
+
   const setters = {
     setAppearancePreference,
     setTextContrastPreference,
     setFeltTint,
     refreshFeltTint,
+    reloadPreferencesFromStorage,
   };
 
   const value = useMemo(
@@ -161,6 +176,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setTextContrastPreference,
       setFeltTint,
       refreshFeltTint,
+      reloadPreferencesFromStorage,
     ],
   );
 
@@ -203,6 +219,7 @@ export function useAppTheme(): ThemeContextValue {
       setTextContrastPreference: async () => {},
       setFeltTint: () => {},
       refreshFeltTint: async () => {},
+      reloadPreferencesFromStorage: async () => {},
     };
   }
   return ctx;

@@ -97,6 +97,7 @@ export default function Settings({
     setAppearancePreference,
     setTextContrastPreference,
     setFeltTint,
+    reloadPreferencesFromStorage,
   } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
@@ -160,11 +161,13 @@ export default function Settings({
         resetPlayerStatsRestore();
         await ensurePlayerStatsRestored();
         if (cancelled) return;
+        await reloadPreferencesFromStorage();
         const info = await getOrCreatePlayerId();
         const stats = await getPlayerStats();
         setPlayerInfo(info);
         setPlayerName(info.displayName);
         setSavedName(info.displayName);
+        await onNameSaved?.(info.displayName);
         setCareerXp(stats.xp ?? 0);
         const tint = (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
         setPreviewTint(tint);
@@ -311,10 +314,6 @@ export default function Settings({
                               resetPlayerStatsRestore,
                               ensurePlayerStatsRestored,
                             } = await import("../services/playerStats");
-                            const {
-                              getAppearancePreference,
-                              getTextContrastPreference,
-                            } = await import("../services/themePreferences");
                             const linkedId = playerInfo?.linkedAccountId;
                             const cloudBefore = linkedId
                               ? await fetchCloudPlayerRecord(linkedId)
@@ -329,20 +328,27 @@ export default function Settings({
                             setPlayerName(info.displayName);
                             setSavedName(info.displayName);
                             await onNameSaved?.(info.displayName);
+                            await reloadPreferencesFromStorage();
                             const tint =
                               (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
                             setPreviewTint(tint);
                             setFeltTint(tint);
                             onWallpaperPreview?.(tint);
-                            await setAppearancePreference(
-                              await getAppearancePreference(),
-                            );
-                            await setTextContrastPreference(
-                              await getTextContrastPreference(),
-                            );
                             const ok = await pushLinkedCloudSnapshot({
                               interactive: true,
                             });
+                            // Re-read after restore + push so Settings reflects cloud name/theme.
+                            await reloadPreferencesFromStorage();
+                            const infoAfter = await getOrCreatePlayerId();
+                            setPlayerInfo(infoAfter);
+                            setPlayerName(infoAfter.displayName);
+                            setSavedName(infoAfter.displayName);
+                            await onNameSaved?.(infoAfter.displayName);
+                            const tintAfter =
+                              (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
+                            setPreviewTint(tintAfter);
+                            setFeltTint(tintAfter);
+                            onWallpaperPreview?.(tintAfter);
                             const after = await getPlayerStats();
                             setCareerXp(after.xp ?? 0);
                             onProfileSynced?.();
@@ -354,10 +360,20 @@ export default function Settings({
                               return;
                             }
                             const afterLevel = levelFromXp(after.xp ?? 0);
+                            const cloudProfileName =
+                              cloudBefore?.profile?.displayName?.trim() || "";
                             if (cloudXp <= 0 && (localBefore.xp ?? 0) < 500) {
                               Alert.alert(
                                 "Google sync",
                                 `This device is Level ${afterLevel} (${(after.xp ?? 0).toLocaleString()} XP).\n\nCloud had no career yet. On your Level 20 device, open Settings → Sync now first, then sync here again.`,
+                              );
+                            } else if (
+                              !cloudProfileName &&
+                              (localBefore.xp ?? 0) < cloudXp
+                            ) {
+                              Alert.alert(
+                                "Google sync",
+                                `Synced stats — Level ${afterLevel} · ${(after.xp ?? 0).toLocaleString()} XP.\n\nCloud had no saved name/theme yet. On your main device, open Settings → Sync now to upload them, then sync here again.`,
                               );
                             } else {
                               Alert.alert(
@@ -365,6 +381,9 @@ export default function Settings({
                                 `Synced — Level ${afterLevel} · ${(after.xp ?? 0).toLocaleString()} XP` +
                                   (cloudXp > 0
                                     ? `\n(Cloud had ${cloudXp.toLocaleString()} XP)`
+                                    : "") +
+                                  (infoAfter.displayName
+                                    ? `\nName: ${infoAfter.displayName}`
                                     : ""),
                               );
                             }
