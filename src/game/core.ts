@@ -2720,8 +2720,10 @@ export function passTurn(state: GameState, playerId: string): GameState {
     }
     return { ...state };
   }
+  // Same reference so callers that treat `next === before` as "no-op" reject
+  // post-round pass attempts (online gameAction must not re-finalize).
   if (isRoundCompleteForLiving(state)) {
-    return { ...state };
+    return state;
   }
 
   if (

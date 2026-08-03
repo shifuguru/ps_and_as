@@ -1354,6 +1354,18 @@ function handleRoundFinished(roomId, finishOrder, hands) {
   if (!room) return;
   if (!room.gameState) room.gameState = {};
 
+  // Idempotent: once between-rounds finalization has run, do not reset Ready
+  // votes or re-broadcast roundEnded (stale/forged gameAction replays).
+  if (
+    room.gameState.roundXpAwardedAt &&
+    isRoundComplete(room.gameState) &&
+    !room.gameState.tenRulePending &&
+    room.gameState.readyForNextRound &&
+    Object.keys(room.gameState.readyForNextRound).length > 0
+  ) {
+    return;
+  }
+
   room.gameState.lastRoundOrder = livingFinishOrder(
     room.gameState,
     finishOrder || [],
@@ -2003,6 +2015,20 @@ io.on('connection', (socket) => {
     );
     if (!seatedInRound) {
       socket.emit('error', { message: 'You are not seated in this round yet' });
+      return;
+    }
+    // Between rounds: reject play/pass/ten-rule. passTurn returns a new object
+    // when the round is already complete, which would otherwise be accepted and
+    // re-trigger handleRoundFinished (wiping Ready votes).
+    if (
+      isRoundComplete(room.gameState) &&
+      !room.gameState.tenRulePending &&
+      (action?.type === 'play' ||
+        action?.type === 'pass' ||
+        action?.type === 'tenRule')
+    ) {
+      socket.emit('error', { message: 'Round already complete' });
+      emitBetweenRoundsSnapshot(socket, room);
       return;
     }
 
