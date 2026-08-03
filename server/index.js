@@ -323,8 +323,9 @@ const {
   getPlayerStats: loadStoredPlayerStats,
   upsertPlayerStats,
 } = require('./playerStatsStore');
-const { createGooglePlayerStatsGuard } = require('./googleAuth');
+const { createGooglePlayerStatsGuard, createGoogleAuthHandler } = require('./googleAuth');
 const googlePlayerStatsGuard = createGooglePlayerStatsGuard();
+const googleAuthHandler = createGoogleAuthHandler();
 
 app.get('/api/player-stats/:playerId', (req, res) => {
   const playerId = req.params.playerId;
@@ -338,6 +339,13 @@ app.get('/api/player-stats/:playerId', (req, res) => {
   res.set('Cache-Control', 'no-store');
   return res.json(entry);
 });
+
+app.post(
+  '/api/auth/google',
+  (req, res, next) => {
+    Promise.resolve(googleAuthHandler(req, res)).catch(next);
+  },
+);
 
 app.put(
   '/api/player-stats/:playerId',
