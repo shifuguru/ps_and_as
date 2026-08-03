@@ -17,6 +17,7 @@ import {
   displayTextError,
   validateDisplayText,
 } from "../utils/profanityFilter";
+import { getDisplayNameInputProps } from "../utils/displayNameInputProps";
 import { saveChosenDisplayName } from "../services/playerDisplayName";
 import {
   getGoogleAccountSyncStatus,
@@ -97,7 +98,7 @@ export default function DisplayNameSetupModal({
     try {
       const link = await requestGoogleAccountLink();
       if (!link) {
-        setError("Google Sign-in is not available yet. Enter a display name to continue.");
+        setError("Google account sync is not available yet. Enter a display name to continue.");
         return;
       }
       const preferred =
@@ -112,10 +113,10 @@ export default function DisplayNameSetupModal({
           return;
         }
       }
-      setError("Signed in — choose a display name to finish.");
+      setError("Linked — choose a display name to finish.");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Google Sign-in failed. Try again.";
+        err instanceof Error ? err.message : "Google account link failed. Try again.";
       setError(message);
     } finally {
       setGoogleBusy(false);
@@ -153,9 +154,30 @@ export default function DisplayNameSetupModal({
           <Text style={ui.modalTitle}>What should we call you?</Text>
           <Text style={styles.body}>
             {accountSync
-              ? "This is the name other players will see at the table. Pair it with Google Sign-in so your name and game stats stay in sync across devices and the Play Store build."
+              ? "This is the name other players will see at the table. Pair it with Google account sync so your name and game stats stay available across devices and the Play Store build."
               : "This is the name other players will see at the table — offline and online."}
           </Text>
+
+          <Text style={ui.fieldLabel}>Display Name</Text>
+          <TextInput
+            style={[ui.input, styles.input]}
+            value={name}
+            onChangeText={(text) => {
+              setName(text);
+              if (error) setError(null);
+            }}
+            onSubmitEditing={() => {
+              if (canContinue) void handleContinue();
+            }}
+            placeholder="Enter Your Name"
+            placeholderTextColor={colors.textQuaternary}
+            maxLength={20}
+            returnKeyType="done"
+            editable={!saving && !googleBusy}
+            accessibilityLabel="Display name"
+            {...getDisplayNameInputProps("ps-and-as-display-name-setup")}
+          />
+          {error ? <Text style={styles.error}>{error}</Text> : null}
 
           {showGoogle ? (
             <View style={styles.syncBlock}>
@@ -172,28 +194,6 @@ export default function DisplayNameSetupModal({
               />
             </View>
           ) : null}
-
-          <Text style={ui.fieldLabel}>Display Name</Text>
-          <TextInput
-            style={[ui.input, styles.input]}
-            value={name}
-            onChangeText={(text) => {
-              setName(text);
-              if (error) setError(null);
-            }}
-            onSubmitEditing={() => {
-              if (canContinue) void handleContinue();
-            }}
-            placeholder="Enter Your Name"
-            placeholderTextColor={colors.textQuaternary}
-            maxLength={20}
-            autoCapitalize="words"
-            autoCorrect={false}
-            returnKeyType="done"
-            editable={!saving && !googleBusy}
-            accessibilityLabel="Display name"
-          />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <AppButton
             label={saving ? "Saving…" : "Continue"}
@@ -224,7 +224,8 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     syncBlock: {
       alignSelf: "stretch",
-      marginBottom: 16,
+      marginTop: 8,
+      marginBottom: 8,
       gap: 10,
     },
     syncBlurb: {

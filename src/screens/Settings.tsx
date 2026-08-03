@@ -42,10 +42,10 @@ import {
 } from "../services/gameCenter";
 import { markDisplayNameChosen } from "../services/playerDisplayName";
 import {
-  getGoogleSignInButtonLabel,
   googleAccountSyncBlurb,
   isGoogleAccountSyncOffered,
 } from "../services/googleAccountSync";
+import { getDisplayNameInputProps } from "../utils/displayNameInputProps";
 import { getLobbySession } from "../services/lobbySession";
 import { validateDisplayText, isValidDisplayText } from "../utils/profanityFilter";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
@@ -222,9 +222,8 @@ export default function Settings({
               placeholder="Enter Your Name"
               placeholderTextColor={colors.textQuaternary}
               maxLength={20}
-              autoCapitalize="words"
-              autoCorrect={false}
               returnKeyType="done"
+              {...getDisplayNameInputProps("ps-and-as-display-name-settings")}
             />
             <Text style={styles.autoSaveHint}>Changes save automatically.</Text>
             {Platform.OS === "web" &&
@@ -232,7 +231,7 @@ export default function Settings({
             isGoogleAccountSyncOffered() ? (
               <Text style={styles.accountSyncHint}>
                 {googleAccountSyncBlurb()} Changing your name here stays on this
-                device until {getGoogleSignInButtonLabel()} links your account.
+                device until Google account sync links your profile.
               </Text>
             ) : null}
           </BlurPanel>

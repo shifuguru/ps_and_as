@@ -146,7 +146,7 @@ export default function WebInstallCoachModal({
           />
           <Text style={styles.declineHint}>
             Continuing in the browser lets you set your name next. Google
-            Sign-in will sync your name and game stats across devices.
+            account sync will keep your name and game stats across devices.
           </Text>
         </BlurPanel>
       </View>

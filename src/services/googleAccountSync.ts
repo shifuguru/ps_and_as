@@ -29,9 +29,9 @@ export function isGoogleAccountSyncOffered(): boolean {
 export function getGoogleSignInButtonLabel(
   status: GoogleAccountSyncStatus = getGoogleAccountSyncStatus(),
 ): string {
-  if (status === "ready") return "Sign in with Google";
-  if (status === "coming_soon") return "Sign in with Google (coming soon)";
-  return "Google Sign-in unavailable";
+  if (status === "ready") return "Continue with Google";
+  if (status === "coming_soon") return "Google account sync (coming soon)";
+  return "Google account sync unavailable";
 }
 
 /**
@@ -48,7 +48,7 @@ export async function requestGoogleAccountLink(): Promise<GoogleAccountLink | nu
 
 export function googleAccountSyncBlurb(status: GoogleAccountSyncStatus = getGoogleAccountSyncStatus()): string {
   if (status === "ready") {
-    return "Sign in with Google to keep your display name and game stats across devices and the Play Store build.";
+    return "Link Google to keep your display name and game stats across devices and Google Play.";
   }
-  return "Google Sign-in is coming soon — it will keep your display name and game stats synced across devices and the Play Store release.";
+  return "Google account sync is coming soon — it will keep your display name and game stats across devices and the Play Store release.";
 }
