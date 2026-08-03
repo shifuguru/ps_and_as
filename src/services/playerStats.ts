@@ -350,15 +350,25 @@ export async function restorePlayerStatsFromCloud(): Promise<PlayerStats> {
   const playerId = await resolveStatsPlayerId();
   if (!playerId) return local;
 
-  const { fetchCloudPlayerStats, mergePlayerStats, pushCloudPlayerStats } =
-    await import("./playerStatsCloud");
-  const remote = await fetchCloudPlayerStats(playerId);
+  const {
+    fetchCloudPlayerRecord,
+    mergePlayerStats,
+    pushCloudPlayerRecord,
+    applyCloudProfileLocally,
+    readLocalCloudProfile,
+  } = await import("./playerStatsCloud");
+  const remoteRecord = await fetchCloudPlayerRecord(playerId);
+  if (remoteRecord?.profile) {
+    await applyCloudProfileLocally(remoteRecord.profile);
+  }
+  const remote = remoteRecord?.stats ?? null;
   const merged = mergePlayerStats(local, remote);
 
   if (!statsEqual(local, merged)) {
     await writeLocalPlayerStats(merged);
   } else if (local.roundsPlayed > 0) {
-    void pushCloudPlayerStats(playerId, local);
+    const profile = await readLocalCloudProfile();
+    void pushCloudPlayerRecord(playerId, { stats: local, profile });
   }
 
   if (merged.roundsPlayed > 0 && Platform.OS === "ios") {
@@ -417,8 +427,11 @@ async function savePlayerStats(stats: PlayerStats): Promise<void> {
   }
   const playerId = await resolveStatsPlayerId();
   if (playerId) {
-    const { pushCloudPlayerStats } = await import("./playerStatsCloud");
-    void pushCloudPlayerStats(playerId, stats);
+    const { pushCloudPlayerRecord, readLocalCloudProfile } = await import(
+      "./playerStatsCloud"
+    );
+    const profile = await readLocalCloudProfile();
+    void pushCloudPlayerRecord(playerId, { stats, profile });
   }
 }
 

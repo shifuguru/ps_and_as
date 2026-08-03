@@ -16,6 +16,9 @@ const STAT_FIELDS = [
   "tricksWon",
 ];
 
+const APPEARANCE_VALUES = new Set(["system", "light", "dark"]);
+const CONTRAST_VALUES = new Set(["auto", "light", "dark"]);
+
 function normalizeStats(raw) {
   const out = {};
   for (const key of STAT_FIELDS) {
@@ -33,6 +36,34 @@ function mergeStats(a, b) {
     merged[key] = Math.max(left[key], right[key]);
   }
   return merged;
+}
+
+function normalizeProfile(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const out = {};
+  if (typeof raw.displayName === "string") {
+    const name = raw.displayName.trim().slice(0, 20);
+    if (name) out.displayName = name;
+  }
+  if (APPEARANCE_VALUES.has(raw.appearance)) {
+    out.appearance = raw.appearance;
+  }
+  if (CONTRAST_VALUES.has(raw.textContrast)) {
+    out.textContrast = raw.textContrast;
+  }
+  if (typeof raw.feltTint === "string") {
+    const tint = raw.feltTint.trim().toLowerCase();
+    if (/^#[0-9a-f]{6}$/.test(tint)) out.feltTint = tint;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** Incoming fields override existing; omit empty incoming. */
+function mergeProfile(existing, incoming) {
+  const left = normalizeProfile(existing) || {};
+  const right = normalizeProfile(incoming) || {};
+  const merged = { ...left, ...right };
+  return Object.keys(merged).length ? merged : null;
 }
 
 function loadStore() {
@@ -53,7 +84,7 @@ function saveStore(store) {
   fs.renameSync(tmp, DATA_FILE);
 }
 
-/** @type {Record<string, { stats: object, updatedAt: string }>} */
+/** @type {Record<string, { stats: object, profile?: object, updatedAt: string }>} */
 let cache = loadStore();
 
 function isValidPlayerId(playerId) {
@@ -66,21 +97,40 @@ function isValidPlayerId(playerId) {
 function getPlayerStats(playerId) {
   if (!isValidPlayerId(playerId)) return null;
   const entry = cache[playerId.trim()];
-  if (!entry?.stats) return null;
+  if (!entry?.stats && !entry?.profile) return null;
   return {
-    stats: normalizeStats(entry.stats),
+    stats: entry.stats ? normalizeStats(entry.stats) : normalizeStats({}),
+    profile: normalizeProfile(entry.profile),
     updatedAt: entry.updatedAt || null,
   };
 }
 
-function upsertPlayerStats(playerId, stats) {
+function upsertPlayerStats(playerId, stats, profile) {
   if (!isValidPlayerId(playerId)) return null;
   const id = playerId.trim();
-  const incoming = normalizeStats(stats);
-  const existing = cache[id]?.stats ? normalizeStats(cache[id].stats) : null;
-  const merged = existing ? mergeStats(existing, incoming) : incoming;
+  const existing = cache[id] || {};
+  const hasStats = stats && typeof stats === "object";
+  const incomingProfile = normalizeProfile(profile);
+
+  if (!hasStats && !incomingProfile && !existing.stats && !existing.profile) {
+    return null;
+  }
+
+  const mergedStats = hasStats
+    ? existing.stats
+      ? mergeStats(existing.stats, stats)
+      : normalizeStats(stats)
+    : existing.stats
+      ? normalizeStats(existing.stats)
+      : normalizeStats({});
+
+  const mergedProfile = incomingProfile
+    ? mergeProfile(existing.profile, incomingProfile)
+    : normalizeProfile(existing.profile);
+
   const entry = {
-    stats: merged,
+    stats: mergedStats,
+    ...(mergedProfile ? { profile: mergedProfile } : {}),
     updatedAt: new Date().toISOString(),
   };
   cache[id] = entry;
@@ -89,7 +139,11 @@ function upsertPlayerStats(playerId, stats) {
   } catch (err) {
     console.warn("[playerStatsStore] save failed:", err?.message || err);
   }
-  return entry;
+  return {
+    stats: entry.stats,
+    profile: entry.profile || null,
+    updatedAt: entry.updatedAt,
+  };
 }
 
 module.exports = {
@@ -99,4 +153,6 @@ module.exports = {
   upsertPlayerStats,
   mergeStats,
   normalizeStats,
+  normalizeProfile,
+  mergeProfile,
 };
