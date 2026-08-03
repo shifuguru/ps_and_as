@@ -507,24 +507,30 @@ export function completeWinnerReturn(
   trade: ClientPendingTrade,
   selectedReturn: Card[],
 ): boolean {
+  if (trade.completed) return false;
   if (selectedReturn.length !== trade.returnCount) return false;
 
   const winner = players.find((p) => p.id === trade.winnerId);
   const loser = players.find((p) => p.id === trade.loserId);
   if (!winner || !loser) return false;
 
+  // Consume matches so forged duplicate suit+value selections cannot pass.
+  const handCheck = winner.hand.slice();
+  const selectedCopy: Card[] = [];
   for (const c of selectedReturn) {
-    const found = winner.hand.some(
+    const found = handCheck.findIndex(
       (h) => h.suit === c.suit && h.value === c.value,
     );
-    if (!found) return false;
+    if (found === -1) return false;
+    selectedCopy.push(handCheck[found]);
+    handCheck.splice(found, 1);
   }
 
-  removeCardsFromHand(winner.hand, selectedReturn);
+  removeCardsFromHand(winner.hand, selectedCopy);
   winner.hand = winner.hand.concat(trade.incoming);
-  loser.hand = loser.hand.concat(selectedReturn);
+  loser.hand = loser.hand.concat(selectedCopy);
 
-  trade.returnedCards = selectedReturn.slice();
+  trade.returnedCards = selectedCopy.slice();
 
   trade.completed = true;
   return true;
@@ -698,10 +704,20 @@ export function executeCeremonyDeal(
     ? !!baseState.freshRound
     : shouldSkipPresidentAssholeTrade(streakAfterRound);
 
-  let players = clonePlayersForRound(
-    baseState.players.map((p) => ({ ...p, hand: [] })),
-  );
-  dealFreshHands(players, options.dealSeed);
+  let players;
+  if (
+    options.onlineAuthoritative &&
+    baseState.players.some((p) => (p.hand?.length ?? 0) > 0)
+  ) {
+    // Online: use server-dealt hands from sync (own faces + opponent placeholders).
+    // Never re-deal from a seed — seeds are not sent to clients.
+    players = clonePlayersForRound(baseState.players);
+  } else {
+    players = clonePlayersForRound(
+      baseState.players.map((p) => ({ ...p, hand: [] })),
+    );
+    dealFreshHands(players, options.dealSeed);
+  }
 
   let trades: ClientPendingTrade[] = [];
   const rolesById: Record<string, string> = {};
