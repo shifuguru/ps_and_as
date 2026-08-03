@@ -18,13 +18,31 @@ import {
   validateDisplayText,
 } from "../utils/profanityFilter";
 import { saveChosenDisplayName } from "../services/playerDisplayName";
+import {
+  getGoogleAccountSyncStatus,
+  getGoogleSignInButtonLabel,
+  googleAccountSyncBlurb,
+  isGoogleAccountSyncOffered,
+  requestGoogleAccountLink,
+} from "../services/googleAccountSync";
+
+export type DisplayNameSetupVariant = "default" | "browser-with-account-sync";
 
 type Props = {
   visible: boolean;
   onComplete: (name: string) => void;
+  /**
+   * After declining PWA install on mobile browser — couple name choice
+   * with upcoming Google Sign-in sync for Play Store / game stats.
+   */
+  variant?: DisplayNameSetupVariant;
 };
 
-export default function DisplayNameSetupModal({ visible, onComplete }: Props) {
+export default function DisplayNameSetupModal({
+  visible,
+  onComplete,
+  variant = "default",
+}: Props) {
   const { ui, blur, colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
@@ -38,9 +56,15 @@ export default function DisplayNameSetupModal({ visible, onComplete }: Props) {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+
+  const accountSync = variant === "browser-with-account-sync";
+  const googleStatus = getGoogleAccountSyncStatus();
+  const showGoogle = accountSync && isGoogleAccountSyncOffered();
+  const googleReady = googleStatus === "ready";
 
   const validation = validateDisplayText(name, "Player name");
-  const canContinue = validation.ok === true && !saving;
+  const canContinue = validation.ok === true && !saving && !googleBusy;
 
   const handleContinue = async () => {
     const check = validateDisplayText(name, "Player name");
@@ -63,6 +87,38 @@ export default function DisplayNameSetupModal({ visible, onComplete }: Props) {
       setError(message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    if (!googleReady) return;
+    setGoogleBusy(true);
+    setError(null);
+    try {
+      const link = await requestGoogleAccountLink();
+      if (!link) {
+        setError("Google Sign-in is not available yet. Enter a display name to continue.");
+        return;
+      }
+      const preferred =
+        (link.displayName?.trim() || name.trim() || "").slice(0, 20);
+      if (preferred) {
+        setName(preferred);
+        const check = validateDisplayText(preferred, "Player name");
+        if (check.ok) {
+          const saved = await saveChosenDisplayName(check.value);
+          triggerHaptic("light");
+          onComplete(saved);
+          return;
+        }
+      }
+      setError("Signed in — choose a display name to finish.");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Google Sign-in failed. Try again.";
+      setError(message);
+    } finally {
+      setGoogleBusy(false);
     }
   };
 
@@ -96,9 +152,26 @@ export default function DisplayNameSetupModal({ visible, onComplete }: Props) {
         >
           <Text style={ui.modalTitle}>What should we call you?</Text>
           <Text style={styles.body}>
-            This is the name other players will see at the table — offline and
-            online.
+            {accountSync
+              ? "This is the name other players will see at the table. Pair it with Google Sign-in so your name and game stats stay in sync across devices and the Play Store build."
+              : "This is the name other players will see at the table — offline and online."}
           </Text>
+
+          {showGoogle ? (
+            <View style={styles.syncBlock}>
+              <Text style={styles.syncBlurb}>
+                {googleAccountSyncBlurb(googleStatus)}
+              </Text>
+              <AppButton
+                label={getGoogleSignInButtonLabel(googleStatus)}
+                variant="secondary"
+                disabled={!googleReady || googleBusy || saving}
+                onPress={() => void handleGoogleSignIn()}
+                accessibilityLabel={getGoogleSignInButtonLabel(googleStatus)}
+                style={styles.googleBtn}
+              />
+            </View>
+          ) : null}
 
           <Text style={ui.fieldLabel}>Display Name</Text>
           <TextInput
@@ -117,7 +190,7 @@ export default function DisplayNameSetupModal({ visible, onComplete }: Props) {
             autoCapitalize="words"
             autoCorrect={false}
             returnKeyType="done"
-            editable={!saving}
+            editable={!saving && !googleBusy}
             accessibilityLabel="Display name"
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -148,6 +221,21 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       textAlign: "center",
       lineHeight: 22,
       marginBottom: 18,
+    },
+    syncBlock: {
+      alignSelf: "stretch",
+      marginBottom: 16,
+      gap: 10,
+    },
+    syncBlurb: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      lineHeight: 19,
+      textAlign: "center",
+      fontWeight: "600",
+    },
+    googleBtn: {
+      width: "100%",
     },
     input: {
       marginBottom: 8,

@@ -24,12 +24,17 @@ import { isSocketAdapter } from "./src/game/socketAdapter";
 import { getOrCreatePlayerId } from "./src/services/gameCenter";
 import { resolveDisplayNameSetupState } from "./src/services/playerDisplayName";
 import {
+  markWebInstallDeclined,
+  resolveWebOnboardingState,
+} from "./src/services/webOnboarding";
+import {
   clearLobbySession,
   getLobbySession,
   saveLobbySession,
   type LobbySession,
 } from "./src/services/lobbySession";
 import DisplayNameSetupModal from "./src/components/DisplayNameSetupModal";
+import WebInstallCoachModal from "./src/components/WebInstallCoachModal";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import FeltBackground from "./src/components/FeltBackground";
 import FullscreenBlurScrim from "./src/components/FullscreenBlurScrim";
@@ -91,8 +96,13 @@ function AppContent() {
   const [dealSeed, setDealSeed] = useState<number | undefined>(undefined);
   const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
+  const [installCoachVisible, setInstallCoachVisible] = useState(false);
+  const [installCoachResolved, setInstallCoachResolved] = useState(false);
   const [nameSetupVisible, setNameSetupVisible] = useState(false);
   const [nameSetupResolved, setNameSetupResolved] = useState(false);
+  const [nameSetupAccountSync, setNameSetupAccountSync] = useState(false);
+  const onboardingBlocking = installCoachVisible || nameSetupVisible;
+  const onboardingReady = installCoachResolved && nameSetupResolved;
   const [roomAdapter, setRoomAdapter] = useState<SocketAdapter | null>(null);
   // localAdapter is used for offline/mock games so we can reuse the same
   // MockAdapter instance between screens and avoid multiple adapters/logs.
@@ -108,7 +118,7 @@ function AppContent() {
   const { count: updateLogUnreadCount, markSeen: markUpdateLogSeen } =
     useUpdateLogUnreadCount(menuVisible, updateLogOpen);
   const onlinePresence = useOnlinePresence(
-    !splashVisible && !nameSetupVisible && nameSetupResolved,
+    !splashVisible && !onboardingBlocking && onboardingReady,
     localPlayerName,
   );
 
@@ -246,7 +256,7 @@ function AppContent() {
   }, [splashVisible]);
 
   const startRandomGame = async () => {
-    if (nameSetupVisible || !localPlayerName?.trim()) return;
+    if (onboardingBlocking || !localPlayerName?.trim()) return;
     disconnectRoom();
     const playerInfo = await getOrCreatePlayerId();
     const hostName = localPlayerName.trim();
@@ -286,7 +296,7 @@ function AppContent() {
 
   useEffect(() => {
     if (!menuVisible) return;
-    if (nameSetupResolved) {
+    if (installCoachResolved && nameSetupResolved) {
       if (screen === "menu") setHubRefreshKey((k) => k + 1);
       return;
     }
@@ -295,6 +305,25 @@ function AppContent() {
       const resolved = await resolveDisplayNameSetupState();
       if (cancelled) return;
       setLocalPlayerId(resolved.profileId);
+
+      const onboarding = await resolveWebOnboardingState({
+        needsDisplayNameSetup: resolved.needsSetup,
+      });
+      if (cancelled) return;
+
+      if (onboarding.phase === "install-coach") {
+        setInstallCoachVisible(true);
+        setInstallCoachResolved(false);
+        setNameSetupVisible(false);
+        setNameSetupAccountSync(false);
+        setLocalPlayerName(null);
+        return;
+      }
+
+      setInstallCoachVisible(false);
+      setInstallCoachResolved(true);
+      setNameSetupAccountSync(onboarding.coupleNameWithGoogleSync);
+
       if (resolved.needsSetup) {
         setNameSetupVisible(true);
         setLocalPlayerName(null);
@@ -308,7 +337,7 @@ function AppContent() {
     return () => {
       cancelled = true;
     };
-  }, [menuVisible, screen, nameSetupResolved]);
+  }, [menuVisible, screen, installCoachResolved, nameSetupResolved]);
 
   useEffect(() => {
     console.log("[App] screen state", {
@@ -713,7 +742,7 @@ function AppContent() {
           <Animated.View
             style={[{ flex: 1 }, { opacity: menuOpacity }]}
             pointerEvents={
-              !nameSetupResolved || nameSetupVisible ? "none" : "auto"
+              !onboardingReady || onboardingBlocking ? "none" : "auto"
             }
           >
             {pendingRejoin ? (
@@ -773,11 +802,11 @@ function AppContent() {
               onNavigateSound={() => playEffect("click")}
               actions={{
                 onQuickGame: () => {
-                  if (nameSetupVisible || !localPlayerName) return;
+                  if (onboardingBlocking || !localPlayerName) return;
                   void startRandomGame();
                 },
                 onHostLobby: () => {
-                  if (nameSetupVisible || !localPlayerName) return;
+                  if (onboardingBlocking || !localPlayerName) return;
                   disconnectRoom();
                   setIsOnlineGame(false);
                   setRoomAdapter(null);
@@ -785,7 +814,7 @@ function AppContent() {
                   setScreen("create");
                 },
                 onJoinLobby: () => {
-                  if (nameSetupVisible || !localPlayerName) return;
+                  if (onboardingBlocking || !localPlayerName) return;
                   disconnectRoom();
                   setIsOnlineGame(false);
                   setRoomAdapter(null);
@@ -800,8 +829,22 @@ function AppContent() {
             />
           </Animated.View>
         )}
+        <WebInstallCoachModal
+          visible={menuVisible && installCoachVisible}
+          onContinueInBrowser={() => {
+            void (async () => {
+              await markWebInstallDeclined();
+              setInstallCoachVisible(false);
+              setInstallCoachResolved(true);
+              // nameSetupResolved stays false → effect opens name + Google sync
+            })();
+          }}
+        />
         <DisplayNameSetupModal
           visible={menuVisible && nameSetupVisible}
+          variant={
+            nameSetupAccountSync ? "browser-with-account-sync" : "default"
+          }
           onComplete={(name) => {
             setLocalPlayerName(name);
             setNameSetupVisible(false);

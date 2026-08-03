@@ -41,6 +41,11 @@ import {
   type PlayerInfo,
 } from "../services/gameCenter";
 import { markDisplayNameChosen } from "../services/playerDisplayName";
+import {
+  getGoogleSignInButtonLabel,
+  googleAccountSyncBlurb,
+  isGoogleAccountSyncOffered,
+} from "../services/googleAccountSync";
 import { getLobbySession } from "../services/lobbySession";
 import { validateDisplayText, isValidDisplayText } from "../utils/profanityFilter";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
@@ -222,6 +227,14 @@ export default function Settings({
               returnKeyType="done"
             />
             <Text style={styles.autoSaveHint}>Changes save automatically.</Text>
+            {Platform.OS === "web" &&
+            showAddToHomeOffer &&
+            isGoogleAccountSyncOffered() ? (
+              <Text style={styles.accountSyncHint}>
+                {googleAccountSyncBlurb()} Changing your name here stays on this
+                device until {getGoogleSignInButtonLabel()} links your account.
+              </Text>
+            ) : null}
           </BlurPanel>
 
           <BlurPanel style={ui.panel} intensity={48}>
@@ -646,6 +659,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     color: colors.textSecondary,
     fontSize: 12,
     fontWeight: "600",
+  },
+  accountSyncHint: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "600",
+    marginTop: 10,
   },
   saveBtn: {
     borderRadius: 12,
