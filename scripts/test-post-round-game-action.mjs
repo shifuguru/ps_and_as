@@ -307,19 +307,37 @@ async function main() {
   if (!host.state.roundEnded) {
     throw new Error("expected roundEnded after play loop");
   }
-  const endedCountAfterFinish = host.state.roundEndedCount;
 
-  for (const c of clients) {
+  // Latch Ready on two seats only — all three would start the next deal.
+  for (const c of [host, guest]) {
     c.socket.emit("playerReadyForNextRound", { roomId: ROOM });
   }
   await wait(500);
-  await requestAllStates(clients);
+  // Prefer playerReadyUpdate over requestGameState (which replays roundEnded).
+  await wait(200);
 
-  const readyBefore = { ...(host.state.gameState?.readyForNextRound || {}) };
+  const readyBefore = {
+    ...(host.state.readyUpdate || host.state.gameState?.readyForNextRound || {}),
+  };
   const readyTrueCount = Object.values(readyBefore).filter(Boolean).length;
   if (readyTrueCount < 1) {
+    await requestAllStates(clients);
+    Object.assign(
+      readyBefore,
+      host.state.gameState?.readyForNextRound || {},
+    );
+  }
+  if (Object.values(readyBefore).filter(Boolean).length < 1) {
     throw new Error(
       `expected at least one Ready latch before post-round action, got ${JSON.stringify(readyBefore)}`,
+    );
+  }
+  if (
+    host.state.gameState?.phase &&
+    host.state.gameState.phase !== "ROUND_COMPLETE"
+  ) {
+    throw new Error(
+      `expected to stay between rounds, got phase=${host.state.gameState.phase}`,
     );
   }
 
@@ -328,32 +346,45 @@ async function main() {
   const actorId = host.state.gameState?.players?.[idx]?.id;
   const actor = clientForPlayer(clients, actorId) || host;
   actor.state.errors = [];
+  const awardedAtBefore = host.state.gameState?.roundXpAwardedAt;
   actor.socket.emit("gameAction", {
     roomId: ROOM,
     action: { type: "pass" },
   });
   await wait(600);
-  await requestAllStates(clients);
 
-  if (host.state.roundEndedCount !== endedCountAfterFinish) {
+  if (!actor.state.errors.some((m) => /round already complete/i.test(m))) {
     throw new Error(
-      `post-round pass re-emitted roundEnded (${endedCountAfterFinish} → ${host.state.roundEndedCount})`,
+      `expected Round already complete error, got ${JSON.stringify(actor.state.errors)}`,
     );
   }
 
-  const readyAfter = host.state.gameState?.readyForNextRound || {};
+  const readyAfter = {
+    ...(host.state.readyUpdate || {}),
+  };
+  // Ready update should still show latched votes (not wiped to all false).
   for (const id of Object.keys(readyBefore)) {
-    if (readyBefore[id] === true && readyAfter[id] !== true) {
+    if (readyBefore[id] === true && readyAfter[id] === false) {
       throw new Error(
         `post-round pass wiped Ready for ${id}: before=${JSON.stringify(readyBefore)} after=${JSON.stringify(readyAfter)}`,
       );
     }
   }
 
-  if (!actor.state.errors.some((m) => /round already complete/i.test(m))) {
-    throw new Error(
-      `expected Round already complete error, got ${JSON.stringify(actor.state.errors)}`,
-    );
+  await requestAllStates(clients);
+  const readySynced = host.state.gameState?.readyForNextRound || {};
+  for (const id of Object.keys(readyBefore)) {
+    if (readyBefore[id] === true && readySynced[id] !== true) {
+      throw new Error(
+        `post-round pass cleared Ready in sync for ${id}: before=${JSON.stringify(readyBefore)} after=${JSON.stringify(readySynced)}`,
+      );
+    }
+  }
+  if (
+    awardedAtBefore &&
+    host.state.gameState?.roundXpAwardedAt !== awardedAtBefore
+  ) {
+    throw new Error("post-round pass re-finalized round XP timestamp");
   }
 
   for (const c of clients) c.socket.disconnect();
