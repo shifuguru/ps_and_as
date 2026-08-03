@@ -44,6 +44,16 @@ async function run() {
   assert.strictEqual(getGoogleAccountSyncStatus(), "ready");
   assert.strictEqual(getGoogleSignInButtonLabel(), "Continue with Google");
 
+  // Runtime inject (GitHub Pages index.html) wins over env when both exist.
+  (globalThis as { __PS_AND_AS_GOOGLE_WEB_CLIENT_ID__?: string }).__PS_AND_AS_GOOGLE_WEB_CLIENT_ID__ =
+    "runtime-client.apps.googleusercontent.com";
+  assert.strictEqual(
+    getGoogleWebClientId(),
+    "runtime-client.apps.googleusercontent.com",
+  );
+  delete (globalThis as { __PS_AND_AS_GOOGLE_WEB_CLIENT_ID__?: string })
+    .__PS_AND_AS_GOOGLE_WEB_CLIENT_ID__;
+
   assert.strictEqual(toGoogleAccountId("abc123"), "google:abc123");
   assert.strictEqual(parseGoogleSub("google:abc123"), "abc123");
   assert.strictEqual(parseGoogleSub("install-xyz"), null);

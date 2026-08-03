@@ -52,11 +52,17 @@ let sessionAccountId: string | null = null;
 
 export function getGoogleWebClientId(): string | null {
   try {
-    const id = String(
-      (typeof process !== "undefined" &&
-        process.env?.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) ||
-        "",
-    ).trim();
+    if (Platform.OS === "web") {
+      const runtime = (
+        globalThis as { __PS_AND_AS_GOOGLE_WEB_CLIENT_ID__?: string }
+      ).__PS_AND_AS_GOOGLE_WEB_CLIENT_ID__;
+      const fromRuntime = typeof runtime === "string" ? runtime.trim() : "";
+      if (fromRuntime) return fromRuntime;
+    }
+    // Exact `process.env.EXPO_PUBLIC_*` access so Expo/Metro inlines at build time.
+    // Optional chaining (`process.env?.…`) is NOT replaced and stays empty on web.
+    const fromEnv = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+    const id = typeof fromEnv === "string" ? fromEnv.trim() : "";
     return id || null;
   } catch {
     return null;

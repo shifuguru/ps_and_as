@@ -182,6 +182,14 @@ function injectServerUrl(html) {
   return html.replace("<head>", `<head>\n    ${script}`);
 }
 
+function injectGoogleWebClientId(html) {
+  const clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
+  if (!clientId) return html;
+  const script = `<script>window.__PS_AND_AS_GOOGLE_WEB_CLIENT_ID__=${JSON.stringify(clientId)};</script>`;
+  if (html.includes("__PS_AND_AS_GOOGLE_WEB_CLIENT_ID__")) return html;
+  return html.replace("<head>", `<head>\n    ${script}`);
+}
+
 function readPackageVersion() {
   try {
     const pkg = JSON.parse(
@@ -401,6 +409,7 @@ function injectBuildMeta(html, meta) {
 let html = fs.readFileSync(buildIndex, "utf8");
 const buildMeta = resolveBuildMeta();
 html = injectServerUrl(html);
+html = injectGoogleWebClientId(html);
 html = injectEarlyShellHeight(html);
 html = injectBuildMeta(html, buildMeta);
 html = injectBootGuard(html);
