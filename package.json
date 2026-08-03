@@ -17,6 +17,7 @@
     "test-ten-lower-on-top": "npx tsx ./scripts/test-ten-lower-on-top.ts",
     "test-player-level": "npx tsx ./scripts/test-player-level.ts",
     "test-web-onboarding": "npx tsx ./scripts/test-web-onboarding.ts",
+    "test-google-account-sync": "npx tsx ./scripts/test-google-account-sync.ts",
     "test-daily-challenge": "npx tsx ./scripts/test-daily-challenge.ts",
     "test-action-bar-leave": "npx tsx ./scripts/test-action-bar-leave.ts",
     "bump-version": "node ./scripts/bump-version.js",

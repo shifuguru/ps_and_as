@@ -323,6 +323,8 @@ const {
   getPlayerStats: loadStoredPlayerStats,
   upsertPlayerStats,
 } = require('./playerStatsStore');
+const { createGooglePlayerStatsGuard } = require('./googleAuth');
+const googlePlayerStatsGuard = createGooglePlayerStatsGuard();
 
 app.get('/api/player-stats/:playerId', (req, res) => {
   const playerId = req.params.playerId;
@@ -337,7 +339,10 @@ app.get('/api/player-stats/:playerId', (req, res) => {
   return res.json(entry);
 });
 
-app.put('/api/player-stats/:playerId', (req, res) => {
+app.put(
+  '/api/player-stats/:playerId',
+  googlePlayerStatsGuard,
+  (req, res) => {
   const playerId = req.params.playerId;
   if (!isValidPlayerId(playerId)) {
     return res.status(400).json({ error: 'invalid_player_id' });

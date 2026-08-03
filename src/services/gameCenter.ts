@@ -18,7 +18,7 @@ export interface PlayerInfo {
   linkedAccountId: string | null;
   displayName: string;
   isAuthenticated: boolean;
-  source: "gamecenter" | "fallback";
+  source: "gamecenter" | "google" | "fallback";
 }
 
 const INSTALL_ID_KEY = "@player_install_id";
@@ -216,12 +216,13 @@ export async function getOrCreatePlayerId(): Promise<PlayerInfo> {
   }
 
   if (linkedAccountId) {
+    const isGoogle = linkedAccountId.startsWith("google:");
     return buildPlayerInfo(
       installId,
       cachedName || "Player",
       linkedAccountId,
-      false,
-      "gamecenter",
+      isGoogle,
+      isGoogle ? "google" : "gamecenter",
     );
   }
 

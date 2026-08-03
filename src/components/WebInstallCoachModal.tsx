@@ -145,8 +145,8 @@ export default function WebInstallCoachModal({
             style={styles.secondaryBtn}
           />
           <Text style={styles.declineHint}>
-            Continuing in the browser lets you set your name next. Google
-            account sync will keep your name and game stats across devices.
+            Or continue in the browser and set your name — Google can sync
+            stats later.
           </Text>
         </BlurPanel>
       </View>

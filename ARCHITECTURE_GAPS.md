@@ -270,17 +270,20 @@ See `GAME_ARCHITECTURE.md` §7 Identity & persistence (future). Not a gameplay c
 On mobile **browser tab** (not standalone PWA): instruct Add to Home Screen / install **before** display-name setup. If the player continues in the browser, couple first-run name choice with **Google Sign-in** so name + game stats can sync for Play Store / cross-device recovery. Standalone / desktop keep name-only setup.
 
 **Current behaviour (shipping funnel):**  
-Install coach runs before name gate when `shouldOfferAddToHomeScreen()` and name setup is still needed. Decline → name modal with Google account-sync copy + coming-soon Sign in control. Soft hub banner is dismissed when install is declined so players are not double-nagged.
+Install coach runs before name gate when `shouldOfferAddToHomeScreen()` and name setup is still needed. Decline → name modal with Google Continue (GIS) when `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` is configured; otherwise short “coming soon” hint. Soft hub banner is dismissed when install is declined so players are not double-nagged.
+
+**Google link (web):**  
+`linkGoogleAccountAndSync` stores `google:{sub}` in the linked-account slot, re-keys cloud stats via `resetPlayerStatsRestore` + `ensurePlayerStatsRestored`, and sends Bearer ID token on PUT. Server enforces token verify for `google:` ids when `GOOGLE_CLIENT_ID` is set.
 
 **Still open:**  
-Real Google Identity / Play Games link, profile-id merge, and cloud restore on account link (`resetPlayerStatsRestore`). No web OAuth yet.
+Configure production Google OAuth Web client + Authorized JavaScript origins / redirect URIs for GitHub Pages; set `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (Actions variable) and `GOOGLE_CLIENT_ID` (Railway). Android Play Games remains a separate track.
 
 **Files likely involved:**  
 `src/services/webOnboarding.ts`, `src/services/googleAccountSync.ts`, `src/components/WebInstallCoachModal.tsx`, `src/components/DisplayNameSetupModal.tsx`, `App.tsx`, `src/utils/webAppInstall.ts`
 
 **Priority:** P1
 
-**Status:** Open — funnel shipped; Google Sign-in backend pending
+**Status:** Open — funnel + web GIS client shipped; enable with client IDs; Play Games pending
 
 **Notes:**  
 Supports XP persistence gap. Do not invent a second account system — Google link should reuse cloud stats keyed by durable account id (same pattern as Game Center `linkedAccountId`).

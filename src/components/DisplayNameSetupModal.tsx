@@ -22,9 +22,8 @@ import { saveChosenDisplayName } from "../services/playerDisplayName";
 import {
   getGoogleAccountSyncStatus,
   getGoogleSignInButtonLabel,
-  googleAccountSyncBlurb,
   isGoogleAccountSyncOffered,
-  requestGoogleAccountLink,
+  linkGoogleAccountAndSync,
 } from "../services/googleAccountSync";
 
 export type DisplayNameSetupVariant = "default" | "browser-with-account-sync";
@@ -32,10 +31,7 @@ export type DisplayNameSetupVariant = "default" | "browser-with-account-sync";
 type Props = {
   visible: boolean;
   onComplete: (name: string) => void;
-  /**
-   * After declining PWA install on mobile browser — couple name choice
-   * with upcoming Google Sign-in sync for Play Store / game stats.
-   */
+  /** After declining PWA install — offer Google sync with name setup. */
   variant?: DisplayNameSetupVariant;
 };
 
@@ -96,28 +92,24 @@ export default function DisplayNameSetupModal({
     setGoogleBusy(true);
     setError(null);
     try {
-      const link = await requestGoogleAccountLink();
-      if (!link) {
-        setError("Google account sync is not available yet. Enter a display name to continue.");
+      const result = await linkGoogleAccountAndSync({
+        preferredDisplayName: name.trim() || null,
+      });
+      if (result.displayName) {
+        setName(result.displayName);
+        triggerHaptic("light");
+        onComplete(result.displayName);
         return;
       }
-      const preferred =
-        (link.displayName?.trim() || name.trim() || "").slice(0, 20);
-      if (preferred) {
-        setName(preferred);
-        const check = validateDisplayText(preferred, "Player name");
-        if (check.ok) {
-          const saved = await saveChosenDisplayName(check.value);
-          triggerHaptic("light");
-          onComplete(saved);
-          return;
-        }
-      }
-      setError("Linked — choose a display name to finish.");
+      setError("Choose a display name to finish.");
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Google account link failed. Try again.";
-      setError(message);
+      if (/cancelled/i.test(message)) {
+        setError(null);
+      } else {
+        setError(message);
+      }
     } finally {
       setGoogleBusy(false);
     }
@@ -154,8 +146,8 @@ export default function DisplayNameSetupModal({
           <Text style={ui.modalTitle}>What should we call you?</Text>
           <Text style={styles.body}>
             {accountSync
-              ? "This is the name other players will see at the table. Pair it with Google account sync so your name and game stats stay available across devices and the Play Store build."
-              : "This is the name other players will see at the table — offline and online."}
+              ? "Shown at the table. Link Google to sync stats."
+              : "Shown to other players at the table."}
           </Text>
 
           <Text style={ui.fieldLabel}>Display Name</Text>
@@ -179,22 +171,6 @@ export default function DisplayNameSetupModal({
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          {showGoogle ? (
-            <View style={styles.syncBlock}>
-              <Text style={styles.syncBlurb}>
-                {googleAccountSyncBlurb(googleStatus)}
-              </Text>
-              <AppButton
-                label={getGoogleSignInButtonLabel(googleStatus)}
-                variant="secondary"
-                disabled={!googleReady || googleBusy || saving}
-                onPress={() => void handleGoogleSignIn()}
-                accessibilityLabel={getGoogleSignInButtonLabel(googleStatus)}
-                style={styles.googleBtn}
-              />
-            </View>
-          ) : null}
-
           <AppButton
             label={saving ? "Saving…" : "Continue"}
             variant="primary"
@@ -203,6 +179,23 @@ export default function DisplayNameSetupModal({
             accessibilityLabel="Continue with display name"
             style={styles.continueBtn}
           />
+
+          {showGoogle && googleReady ? (
+            <AppButton
+              label={
+                googleBusy
+                  ? "Connecting…"
+                  : getGoogleSignInButtonLabel(googleStatus)
+              }
+              variant="secondary"
+              disabled={googleBusy || saving}
+              onPress={() => void handleGoogleSignIn()}
+              accessibilityLabel={getGoogleSignInButtonLabel(googleStatus)}
+              style={styles.googleBtn}
+            />
+          ) : showGoogle ? (
+            <Text style={styles.syncHint}>Google sync coming soon</Text>
+          ) : null}
         </BlurPanel>
       </View>
     </Modal>
@@ -222,21 +215,17 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       lineHeight: 22,
       marginBottom: 18,
     },
-    syncBlock: {
-      alignSelf: "stretch",
-      marginTop: 8,
-      marginBottom: 8,
-      gap: 10,
-    },
-    syncBlurb: {
-      color: colors.textSecondary,
-      fontSize: 13,
-      lineHeight: 19,
-      textAlign: "center",
-      fontWeight: "600",
-    },
     googleBtn: {
       width: "100%",
+      marginTop: 10,
+    },
+    syncHint: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 18,
+      textAlign: "center",
+      fontWeight: "600",
+      marginTop: 12,
     },
     input: {
       marginBottom: 8,

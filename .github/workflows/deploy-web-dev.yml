@@ -63,6 +63,7 @@ jobs:
           EXPO_PUBLIC_BASE_PATH: /ps_and_as/dev
           DEPLOY_CHANNEL: development
           EXPO_PUBLIC_SERVER_URL: ${{ steps.server.outputs.url }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
           EXPO_PUBLIC_BUILD_ID: dev-${{ github.sha }}
           EXPO_PUBLIC_APP_VERSION: ${{ github.ref_name }}-${{ github.sha }}
 

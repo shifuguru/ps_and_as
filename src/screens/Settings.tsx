@@ -42,8 +42,10 @@ import {
 } from "../services/gameCenter";
 import { markDisplayNameChosen } from "../services/playerDisplayName";
 import {
-  googleAccountSyncBlurb,
+  getGoogleAccountSyncStatus,
+  getGoogleSignInButtonLabel,
   isGoogleAccountSyncOffered,
+  linkGoogleAccountAndSync,
 } from "../services/googleAccountSync";
 import { getDisplayNameInputProps } from "../utils/displayNameInputProps";
 import { getLobbySession } from "../services/lobbySession";
@@ -110,6 +112,10 @@ export default function Settings({
     requestInstall,
   } = useWebAppInstall();
   const [addToHomeWorking, setAddToHomeWorking] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const googleStatus = getGoogleAccountSyncStatus();
+  const googleReady = googleStatus === "ready";
+  const googleLinked = !!playerInfo?.linkedAccountId?.startsWith("google:");
 
   useEffect(() => {
     void getLobbySession().then((session) => {
@@ -226,13 +232,63 @@ export default function Settings({
               {...getDisplayNameInputProps("ps-and-as-display-name-settings")}
             />
             <Text style={styles.autoSaveHint}>Changes save automatically.</Text>
-            {Platform.OS === "web" &&
-            showAddToHomeOffer &&
-            isGoogleAccountSyncOffered() ? (
-              <Text style={styles.accountSyncHint}>
-                {googleAccountSyncBlurb()} Changing your name here stays on this
-                device until Google account sync links your profile.
-              </Text>
+            {Platform.OS === "web" && isGoogleAccountSyncOffered() ? (
+              <View style={styles.googleSyncBlock}>
+                {googleLinked ? (
+                  <Text style={styles.accountSyncHint}>
+                    Google linked — stats sync across devices.
+                  </Text>
+                ) : googleReady ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.saveBtn,
+                      styles.saveBtnActive,
+                      { marginTop: 12 },
+                      googleBusy && { opacity: 0.6 },
+                    ]}
+                    disabled={googleBusy}
+                    onPress={() => {
+                      void (async () => {
+                        setGoogleBusy(true);
+                        try {
+                          const result = await linkGoogleAccountAndSync({
+                            preferredDisplayName: playerName.trim() || null,
+                          });
+                          const info = await getOrCreatePlayerId();
+                          setPlayerInfo(info);
+                          if (result.displayName) {
+                            setPlayerName(result.displayName);
+                            setSavedName(result.displayName);
+                            await onNameSaved?.(result.displayName);
+                          }
+                        } catch (err) {
+                          const message =
+                            err instanceof Error
+                              ? err.message
+                              : "Google link failed";
+                          if (!/cancelled/i.test(message)) {
+                            Alert.alert("Google sync", message);
+                          }
+                        } finally {
+                          setGoogleBusy(false);
+                        }
+                      })();
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.saveBtnText, styles.saveBtnTextActive]}>
+                      {googleBusy
+                        ? "Connecting…"
+                        : getGoogleSignInButtonLabel(googleStatus)}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.accountSyncHint}>
+                    Google sync coming soon — keeps your name and stats across
+                    devices.
+                  </Text>
+                )}
+              </View>
             ) : null}
           </BlurPanel>
 
@@ -665,6 +721,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     lineHeight: 18,
     fontWeight: "600",
     marginTop: 10,
+  },
+  googleSyncBlock: {
+    marginTop: 4,
   },
   saveBtn: {
     borderRadius: 12,
