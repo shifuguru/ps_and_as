@@ -100,16 +100,59 @@ export function googleAccountSyncBlurb(
   status: GoogleAccountSyncStatus = getGoogleAccountSyncStatus(),
 ): string {
   if (status === "ready") {
-    return "Keep your name and stats across devices.";
+    return "Keep your name, stats, and theme across devices.";
   }
   return "Google sync coming soon.";
 }
 
+const TOKEN_STORAGE_KEY = "ps_and_as_google_id_token";
+const ACCOUNT_STORAGE_KEY = "ps_and_as_google_account_id";
+
+function webSessionStorage(): Storage | null {
+  try {
+    const store = (globalThis as { sessionStorage?: Storage }).sessionStorage;
+    return store ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function persistGoogleSession(accountId: string, idToken: string): void {
+  sessionIdToken = idToken;
+  sessionAccountId = accountId;
+  const store = webSessionStorage();
+  if (!store) return;
+  try {
+    store.setItem(TOKEN_STORAGE_KEY, idToken);
+    store.setItem(ACCOUNT_STORAGE_KEY, accountId);
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+function hydrateGoogleSessionFromStorage(): void {
+  if (sessionIdToken) return;
+  const store = webSessionStorage();
+  if (!store) return;
+  try {
+    const token = store.getItem(TOKEN_STORAGE_KEY);
+    const accountId = store.getItem(ACCOUNT_STORAGE_KEY);
+    if (token && accountId) {
+      sessionIdToken = token;
+      sessionAccountId = accountId;
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export function getGoogleSessionIdToken(): string | null {
+  hydrateGoogleSessionFromStorage();
   return sessionIdToken;
 }
 
 export function getGoogleSessionAccountId(): string | null {
+  hydrateGoogleSessionFromStorage();
   return sessionAccountId;
 }
 
@@ -174,8 +217,7 @@ function linkFromCredential(credential: string): GoogleAccountLink {
     (typeof payload.given_name === "string" && payload.given_name) ||
     undefined;
   const accountId = toGoogleAccountId(sub);
-  sessionIdToken = credential;
-  sessionAccountId = accountId;
+  persistGoogleSession(accountId, credential);
   return {
     accountId,
     email,
@@ -184,8 +226,19 @@ function linkFromCredential(credential: string): GoogleAccountLink {
   };
 }
 
+function isStandaloneLike(): boolean {
+  try {
+    const { isStandaloneWebApp } = require("../utils/safariChrome") as typeof import("../utils/safariChrome");
+    return isStandaloneWebApp();
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Prompt Google Sign-in (One Tap when available, otherwise a Google button overlay).
+ * Prompt Google Sign-in.
+ * Standalone PWAs skip One Tap/FedCM (often forces a full page reload) and
+ * use an in-page Google button overlay instead.
  */
 export async function requestGoogleAccountLink(): Promise<GoogleAccountLink | null> {
   if (getGoogleAccountSyncStatus() !== "ready") {
@@ -267,7 +320,7 @@ export async function requestGoogleAccountLink(): Promise<GoogleAccountLink | nu
         "font-weight:800;font-size:18px;margin-bottom:8px;";
 
       const hint = doc.createElement("div");
-      hint.textContent = "Sync your name and game stats across devices.";
+      hint.textContent = "Sync your name, stats, and theme across devices.";
       hint.style.cssText =
         "font-size:13px;line-height:18px;opacity:0.75;margin-bottom:16px;";
 
@@ -289,7 +342,11 @@ export async function requestGoogleAccountLink(): Promise<GoogleAccountLink | nu
         "padding:10px",
         "cursor:pointer",
       ].join(";");
-      cancel.onclick = () => finish(null);
+      cancel.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        finish(null);
+      };
 
       card.appendChild(title);
       card.appendChild(hint);
@@ -316,8 +373,14 @@ export async function requestGoogleAccountLink(): Promise<GoogleAccountLink | nu
       cancel_on_tap_outside: true,
       context: "signin",
       ux_mode: "popup",
-      use_fedcm_for_prompt: true,
+      // FedCM/One Tap often navigates the PWA document; prefer in-page button.
+      use_fedcm_for_prompt: false,
     });
+
+    if (isStandaloneLike()) {
+      showButtonOverlay();
+      return;
+    }
 
     gis.prompt((notification) => {
       if (settled) return;
@@ -330,33 +393,66 @@ export async function requestGoogleAccountLink(): Promise<GoogleAccountLink | nu
   });
 }
 
+export type GoogleLinkSyncResult = {
+  accountId: string;
+  displayName: string | null;
+  appearance?: AppearancePreferenceLike;
+  textContrast?: TextContrastPreferenceLike;
+  feltTint?: string;
+};
+
+type AppearancePreferenceLike = "system" | "light" | "dark";
+type TextContrastPreferenceLike = "auto" | "light" | "dark";
+
 /**
- * Persist Google link, optional display name, and re-key cloud stats restore.
+ * Persist Google link, pull cloud profile+stats, apply locally, push merged snapshot.
  */
 export async function linkGoogleAccountAndSync(options?: {
   preferredDisplayName?: string | null;
-}): Promise<{ accountId: string; displayName: string | null }> {
+}): Promise<GoogleLinkSyncResult> {
   const link = await requestGoogleAccountLink();
   if (!link) {
     throw new Error("Google Sign-in cancelled");
   }
 
-  const {
-    cacheLinkedGameCenterId,
-    cachePlayerId,
-  } = await import("./gameCenter");
+  const { cacheLinkedGameCenterId, cachePlayerId, getCachedPlayerName } =
+    await import("./gameCenter");
   await cacheLinkedGameCenterId(link.accountId);
   await cachePlayerId(link.accountId);
+  persistGoogleSession(link.accountId, link.idToken);
 
-  let displayName: string | null = null;
-  const preferred =
+  const {
+    fetchCloudPlayerRecord,
+    applyCloudProfileLocally,
+    readLocalCloudProfile,
+    pushCloudPlayerRecord,
+  } = await import("./playerStatsCloud");
+
+  const remote = await fetchCloudPlayerRecord(link.accountId);
+
+  // Prefer cloud display name (device 1) over this device's local / Google JWT name.
+  const localName =
     options?.preferredDisplayName?.trim() ||
+    (await getCachedPlayerName())?.trim() ||
+    "";
+  const chosenName =
+    remote?.profile?.displayName?.trim() ||
+    localName ||
     link.displayName?.trim() ||
     "";
-  if (preferred) {
+
+  // Theme: prefer cloud when present so device 2 inherits device 1 choices.
+  const profileToApply = {
+    ...(remote?.profile || {}),
+    ...(chosenName ? { displayName: chosenName.slice(0, 20) } : {}),
+  };
+  const applied = await applyCloudProfileLocally(profileToApply);
+
+  let displayName = applied?.displayName ?? null;
+  if (!displayName && chosenName) {
     try {
       const { saveChosenDisplayName } = await import("./playerDisplayName");
-      displayName = await saveChosenDisplayName(preferred.slice(0, 20));
+      displayName = await saveChosenDisplayName(chosenName.slice(0, 20));
     } catch {
       displayName = null;
     }
@@ -367,16 +463,55 @@ export async function linkGoogleAccountAndSync(options?: {
     ensurePlayerStatsRestored,
     getPlayerStats,
   } = await import("./playerStats");
+
+  // Merge remote stats under the google: id (restore uses linkedAccountId).
   resetPlayerStatsRestore();
   await ensurePlayerStatsRestored();
+  const mergedStats = await getPlayerStats();
 
-  try {
-    const stats = await getPlayerStats();
-    const { pushCloudPlayerStats } = await import("./playerStatsCloud");
-    await pushCloudPlayerStats(link.accountId, stats, link.idToken);
-  } catch {
-    // Local link succeeded; cloud push can retry on later saves.
+  const profile = await readLocalCloudProfile();
+  if (displayName) profile.displayName = displayName;
+
+  const push = await pushCloudPlayerRecord(
+    link.accountId,
+    { stats: mergedStats, profile },
+    link.idToken,
+  );
+  if (!push.ok) {
+    throw new Error(
+      push.error === "google_auth_required" || push.status === 401
+        ? "Google sync could not save to the server. Try again."
+        : `Google sync save failed (${push.error || push.status}).`,
+    );
   }
 
-  return { accountId: link.accountId, displayName };
+  return {
+    accountId: link.accountId,
+    displayName,
+    appearance: applied?.appearance,
+    textContrast: applied?.textContrast,
+    feltTint: applied?.feltTint,
+  };
 }
+
+/** Push current local stats + profile for a linked Google account. */
+export async function pushLinkedCloudSnapshot(): Promise<boolean> {
+  try {
+    const { getOrCreatePlayerId } = await import("./gameCenter");
+    const info = await getOrCreatePlayerId();
+    const playerId = info.linkedAccountId || info.id;
+    if (!playerId?.startsWith("google:")) return true;
+    const { getPlayerStats } = await import("./playerStats");
+    const {
+      pushCloudPlayerRecord,
+      readLocalCloudProfile,
+    } = await import("./playerStatsCloud");
+    const stats = await getPlayerStats();
+    const profile = await readLocalCloudProfile();
+    const result = await pushCloudPlayerRecord(playerId, { stats, profile });
+    return result.ok;
+  } catch {
+    return false;
+  }
+}
+

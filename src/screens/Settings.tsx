@@ -46,6 +46,7 @@ import {
   getGoogleSignInButtonLabel,
   isGoogleAccountSyncOffered,
   linkGoogleAccountAndSync,
+  pushLinkedCloudSnapshot,
 } from "../services/googleAccountSync";
 import { getDisplayNameInputProps } from "../utils/displayNameInputProps";
 import { getLobbySession } from "../services/lobbySession";
@@ -88,6 +89,7 @@ export default function Settings({
     palette,
     appearancePreference,
     setAppearancePreference,
+    setTextContrastPreference,
     setFeltTint,
   } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -157,6 +159,9 @@ export default function Settings({
         setPlayerInfo({ ...playerInfo, displayName: check.value });
       }
       await onNameSaved?.(check.value);
+      if (playerInfo?.linkedAccountId?.startsWith("google:")) {
+        void pushLinkedCloudSnapshot();
+      }
       return true;
     } catch (error) {
       console.error("[Settings] Failed to save name:", error);
@@ -168,6 +173,9 @@ export default function Settings({
   const persistFeltColor = async (hex: string) => {
     await setWallpaperTint(hex);
     onWallpaperChange?.();
+    if (playerInfo?.linkedAccountId?.startsWith("google:")) {
+      void pushLinkedCloudSnapshot();
+    }
   };
 
   const updatePreview = (hex: string) => {
@@ -235,9 +243,76 @@ export default function Settings({
             {Platform.OS === "web" && isGoogleAccountSyncOffered() ? (
               <View style={styles.googleSyncBlock}>
                 {googleLinked ? (
-                  <Text style={styles.accountSyncHint}>
-                    Google linked — stats sync across devices.
-                  </Text>
+                  <>
+                    <Text style={styles.accountSyncHint}>
+                      Google linked — name, stats, and theme sync across
+                      devices.
+                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.saveBtn,
+                        styles.saveBtnActive,
+                        { marginTop: 12 },
+                        googleBusy && { opacity: 0.6 },
+                      ]}
+                      disabled={googleBusy}
+                      onPress={() => {
+                        void (async () => {
+                          setGoogleBusy(true);
+                          try {
+                            const {
+                              resetPlayerStatsRestore,
+                              ensurePlayerStatsRestored,
+                            } = await import("../services/playerStats");
+                            const {
+                              getAppearancePreference,
+                              getTextContrastPreference,
+                            } = await import("../services/themePreferences");
+                            resetPlayerStatsRestore();
+                            await ensurePlayerStatsRestored();
+                            const info = await getOrCreatePlayerId();
+                            setPlayerInfo(info);
+                            setPlayerName(info.displayName);
+                            setSavedName(info.displayName);
+                            await onNameSaved?.(info.displayName);
+                            const tint =
+                              (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
+                            setPreviewTint(tint);
+                            setFeltTint(tint);
+                            onWallpaperPreview?.(tint);
+                            await setAppearancePreference(
+                              await getAppearancePreference(),
+                            );
+                            await setTextContrastPreference(
+                              await getTextContrastPreference(),
+                            );
+                            const ok = await pushLinkedCloudSnapshot();
+                            if (!ok) {
+                              Alert.alert(
+                                "Google sync",
+                                "Could not reach the server. Try again in a moment.",
+                              );
+                            }
+                          } catch (err) {
+                            const message =
+                              err instanceof Error
+                                ? err.message
+                                : "Sync failed";
+                            Alert.alert("Google sync", message);
+                          } finally {
+                            setGoogleBusy(false);
+                          }
+                        })();
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Text
+                        style={[styles.saveBtnText, styles.saveBtnTextActive]}
+                      >
+                        {googleBusy ? "Syncing…" : "Sync now"}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
                 ) : googleReady ? (
                   <TouchableOpacity
                     style={[
@@ -260,6 +335,18 @@ export default function Settings({
                             setPlayerName(result.displayName);
                             setSavedName(result.displayName);
                             await onNameSaved?.(result.displayName);
+                          }
+                          if (result.appearance) {
+                            await setAppearancePreference(result.appearance);
+                          }
+                          if (result.textContrast) {
+                            await setTextContrastPreference(result.textContrast);
+                          }
+                          if (result.feltTint) {
+                            const tint = result.feltTint;
+                            setPreviewTint(tint);
+                            setFeltTint(tint);
+                            onWallpaperPreview?.(tint);
                           }
                         } catch (err) {
                           const message =
@@ -284,8 +371,8 @@ export default function Settings({
                   </TouchableOpacity>
                 ) : (
                   <Text style={styles.accountSyncHint}>
-                    Google sync coming soon — keeps your name and stats across
-                    devices.
+                    Google sync coming soon — keeps your name, stats, and theme
+                    across devices.
                   </Text>
                 )}
               </View>
@@ -304,7 +391,14 @@ export default function Settings({
                 { id: "dark", label: "Dark" },
               ]}
               value={appearancePreference}
-              onChange={(value) => void setAppearancePreference(value as AppearancePreference)}
+              onChange={(value) => {
+                void (async () => {
+                  await setAppearancePreference(value as AppearancePreference);
+                  if (playerInfo?.linkedAccountId?.startsWith("google:")) {
+                    void pushLinkedCloudSnapshot();
+                  }
+                })();
+              }}
               colors={colors}
             />
 

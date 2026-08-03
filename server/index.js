@@ -350,10 +350,20 @@ app.put(
       return res.status(400).json({ error: 'invalid_player_id' });
     }
     const stats = req.body?.stats;
-    if (!stats || typeof stats !== 'object') {
+    const profile = req.body?.profile;
+    const hasStats = stats && typeof stats === 'object';
+    const hasProfile = profile && typeof profile === 'object';
+    if (!hasStats && !hasProfile) {
       return res.status(400).json({ error: 'invalid_stats' });
     }
-    const entry = upsertPlayerStats(playerId, stats);
+    const entry = upsertPlayerStats(
+      playerId,
+      hasStats ? stats : null,
+      hasProfile ? profile : null,
+    );
+    if (!entry) {
+      return res.status(400).json({ error: 'invalid_stats' });
+    }
     res.set('Cache-Control', 'no-store');
     return res.json(entry);
   },
