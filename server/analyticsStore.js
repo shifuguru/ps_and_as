@@ -28,6 +28,7 @@ const SERVER_EVENTS = new Set([
   "match_started",
   "round_completed",
   "match_aborted",
+  "player_left_in_game",
   "player_disconnected_in_game",
   "player_reconnected",
   "bot_player_demoted",

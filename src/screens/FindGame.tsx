@@ -251,21 +251,19 @@ export default function FindGame({
       setError("Room codes are 4–8 letters and numbers.");
       return;
     }
-    if (isBotPublicRoomCode(code)) {
-      setError("No public games available right now. Host a game or try again later.");
-      return;
-    }
     handleJoinRoom(code);
   };
 
-  /** D-010 — hide bot-hosted public table from Find Game listing. */
-  const publicRooms = useMemo(
-    () =>
-      availableRooms.filter(
-        (room) => !room.isBotHosted && !isBotPublicRoomCode(room.roomId),
-      ),
-    [availableRooms],
-  );
+  /** Prefer human lobbies first; keep Open Bot Table as a cold-start fallback. */
+  const publicRooms = useMemo(() => {
+    const rooms = [...availableRooms];
+    rooms.sort((a, b) => {
+      const aBot = a.isBotHosted || isBotPublicRoomCode(a.roomId) ? 1 : 0;
+      const bBot = b.isBotHosted || isBotPublicRoomCode(b.roomId) ? 1 : 0;
+      return aBot - bBot;
+    });
+    return rooms;
+  }, [availableRooms]);
 
   const handleHost = () => {
     if (!requireName()) return;
@@ -456,7 +454,8 @@ export default function FindGame({
               <View style={styles.emptyState}>
                 <Text style={ui.emptyTitle}>No Public Games Available</Text>
                 <Text style={ui.emptyBody}>
-                  Host above and share the room code, or check again later.
+                  Host above and share the room code, or refresh for the Open Bot
+                  Table.
                 </Text>
               </View>
             ) : (

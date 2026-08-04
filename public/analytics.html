@@ -146,7 +146,19 @@
     <p class="sub">Presidents &amp; Assholes — first-party counters from the game server.</p>
 
     <div class="toolbar">
-      <input id="token" type="password" placeholder="Read token (if set)" autocomplete="off" />
+      <input
+        id="token"
+        type="text"
+        name="ps-analytics-read-token"
+        placeholder="Read token (if set)"
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
+        data-1p-ignore="true"
+        data-lpignore="true"
+        data-form-type="other"
+      />
       <button type="button" id="save">Save &amp; refresh</button>
       <button type="button" class="secondary" id="reload">Refresh</button>
       <span class="status" id="status">Loading…</span>
@@ -166,8 +178,11 @@
     <h2>Recent events</h2>
     <div class="recent" id="recent"></div>
     <p class="hint">
-      Data API: <code>/api/analytics/summary</code> on the game server.
-      Set env <code>ANALYTICS_TOKEN</code> to require a token. Bookmark this page after deploy.
+      <code>round_completed</code> / bot <code>match_started</code> only count when a human is seated
+      (idle Open Bot Table autopilot is ignored).
+      Confirmed Leave on a standard online match increments <code>player_left_in_game</code> then
+      <code>match_aborted</code> immediately; disconnect drops still wait for reconnect grace before abort.
+      API: <code>/api/analytics/summary</code>. Optional env <code>ANALYTICS_TOKEN</code>.
     </p>
   </main>
   <script>
@@ -182,6 +197,7 @@
       "match_started",
       "round_completed",
       "match_aborted",
+      "player_left_in_game",
       "player_disconnected_in_game",
       "player_reconnected",
       "bot_player_demoted",
