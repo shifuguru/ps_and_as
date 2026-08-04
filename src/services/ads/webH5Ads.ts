@@ -1,5 +1,8 @@
 /**
  * Google H5 Games Ad Placement API (web).
+ * Loader + adBreak/adConfig stubs are injected into index.html at build time
+ * (see scripts/fix-web-build-paths.js). This module only requests breaks.
+ *
  * @see https://developers.google.com/ad-placement/docs/example
  */
 
@@ -47,98 +50,16 @@ function getAdsClientId(): string | null {
 
 function isAdsTestMode(): boolean {
   const flag = process.env.EXPO_PUBLIC_ADS_TEST?.trim();
-  if (flag === "1" || flag === "true") return true;
-  // No publisher id → simulate so UI flows can be tested locally.
-  return !getAdsClientId();
+  return flag === "1" || flag === "true";
 }
 
-let scriptLoading: Promise<boolean> | null = null;
-let scriptReady = false;
-
-function ensureAdSenseScript(): Promise<boolean> {
-  if (Platform.OS !== "web") return Promise.resolve(false);
-  if (!canLoadPersonalizedAds()) return Promise.resolve(false);
-  if (scriptReady) return Promise.resolve(true);
-  if (scriptLoading) return scriptLoading;
-
-  const client = getAdsClientId();
-  if (!client) {
-    scriptReady = false;
-    return Promise.resolve(false);
+/** True when head inject (or runtime) exposed adBreak. */
+function h5ApiReady(): boolean {
+  try {
+    return typeof (globalThis as H5Window).adBreak === "function";
+  } catch {
+    return false;
   }
-
-  scriptLoading = new Promise((resolve) => {
-    try {
-      const w = globalThis as H5Window;
-      if (typeof w.adBreak === "function") {
-        scriptReady = true;
-        resolve(true);
-        return;
-      }
-      const doc = globalThis.document;
-      if (!doc) {
-        resolve(false);
-        return;
-      }
-      const existing = doc.querySelector('script[data-ps-adsense="1"]');
-      if (existing) {
-        scriptReady = typeof w.adBreak === "function";
-        resolve(scriptReady);
-        return;
-      }
-      const s = doc.createElement("script");
-      s.async = true;
-      s.dataset.psAdsense = "1";
-      s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(client)}`;
-      s.crossOrigin = "anonymous";
-      const init = doc.createElement("script");
-      init.dataset.psAdsenseInit = "1";
-      init.text = `
-        window.adsbygoogle = window.adsbygoogle || [];
-        var adBreak = adConfig = function(){};
-        (adsbygoogle=window.adsbygoogle||[]).push({
-          google_ad_client: ${JSON.stringify(client)},
-          enable_page_level_ads: true,
-          overlays: {bottom: true}
-        });
-      `;
-      // H5 Games snippet: load API then init adBreak/adConfig from adsbygoogle channel.
-      // Official pattern uses data-ad-frequency-hint on the adsbygoogle.js tag.
-      s.setAttribute("data-ad-client", client);
-      s.setAttribute("data-ad-frequency-hint", "120s");
-      if (isAdsTestMode() || process.env.EXPO_PUBLIC_ADS_TEST === "1") {
-        s.setAttribute("data-ad-channel", "H5_Games");
-        s.setAttribute("data-ad-test", "on");
-      }
-      s.onload = () => {
-        try {
-          // Ad Placement API attaches adBreak after the channel loads.
-          const channel = doc.createElement("script");
-          channel.text = `
-            window.adConfig = window.adConfig || function(o){};
-            window.adBreak = window.adBreak || function(o){ if(o&&o.adBreakDone) o.adBreakDone({breakStatus:'notReady'}); };
-          `;
-          doc.head.appendChild(channel);
-          // Prefer official afs/ads loader when available via adsbygoogle push.
-          (w.adsbygoogle = w.adsbygoogle || []).push({});
-        } catch {
-          // ignore
-        }
-        scriptReady = true;
-        resolve(true);
-      };
-      s.onerror = () => {
-        scriptReady = false;
-        resolve(false);
-      };
-      doc.head.appendChild(init);
-      doc.head.appendChild(s);
-    } catch {
-      resolve(false);
-    }
-  });
-
-  return scriptLoading;
 }
 
 async function simulateBreak(
@@ -165,14 +86,14 @@ export async function showH5AdBreak(
     return { shown: false, breakStatus: "noConsent" };
   }
 
-  const ready = await ensureAdSenseScript();
-  const w = globalThis as H5Window;
+  const client = getAdsClientId();
+  // Local / missing publisher: simulate so UI + XP can be tested.
+  if (!client || isAdsTestMode()) {
+    return simulateBreak(type, name);
+  }
 
-  if (!ready || typeof w.adBreak !== "function" || isAdsTestMode()) {
-    // Dev / missing publisher: simulate so rewarded XP + cadence can be tested.
-    if (isAdsTestMode() || !getAdsClientId()) {
-      return simulateBreak(type, name);
-    }
+  const w = globalThis as H5Window;
+  if (!h5ApiReady()) {
     return { shown: false, breakStatus: "notReady" };
   }
 
@@ -211,7 +132,6 @@ export async function showH5AdBreak(
           }
         },
       });
-      // Safety timeout if adBreakNever calls back
       setTimeout(() => {
         releaseAdsAudio();
         finish({ shown: false, breakStatus: "timeout" });
