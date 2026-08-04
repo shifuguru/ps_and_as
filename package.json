@@ -20,6 +20,7 @@
     "test-google-account-sync": "npx tsx ./scripts/test-google-account-sync.ts",
     "test-daily-challenge": "npx tsx ./scripts/test-daily-challenge.ts",
     "test-ads-entitlement": "npx tsx ./scripts/test-ads-entitlement.ts && node ./scripts/test-ads-entitlement-store.mjs",
+    "test-analytics": "node ./scripts/test-analytics-store.js",
     "test-action-bar-leave": "npx tsx ./scripts/test-action-bar-leave.ts",
     "bump-version": "node ./scripts/bump-version.js",
     "test-multiplayer": "node ./scripts/test-multiplayer.mjs",

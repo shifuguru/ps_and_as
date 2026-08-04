@@ -67,6 +67,10 @@ import {
   getViewportExperiment,
   isViewportDebugEnabled,
 } from "./src/debug/viewportDebug";
+import {
+  trackAnalyticsEvent,
+  trackHubViewedOnce,
+} from "./src/services/analytics";
 
 const ViewportDebugOverlay =
   Platform.OS === "web" &&
@@ -331,6 +335,7 @@ function AppContent() {
     }
     setRoomAdapter(null);
     setJoinedRoomId(null);
+    trackAnalyticsEvent("quick_game_started");
     setScreen("game");
   };
 
@@ -338,6 +343,24 @@ function AppContent() {
   const [wallpaperSource, setWallpaperSource] = useState<any>(require("./assets/ps_and_as_bg.png"));
   const [wallpaperRawUri, setWallpaperRawUri] = useState<string | null>(null);
   const [pendingRejoin, setPendingRejoin] = useState<LobbySession | null>(null);
+
+  useEffect(() => {
+    if (
+      menuVisible &&
+      screen === "menu" &&
+      installCoachResolved &&
+      nameSetupResolved &&
+      !nameSetupVisible
+    ) {
+      trackHubViewedOnce();
+    }
+  }, [
+    menuVisible,
+    screen,
+    installCoachResolved,
+    nameSetupResolved,
+    nameSetupVisible,
+  ]);
 
   useEffect(() => {
     if (!menuVisible) return;
@@ -848,10 +871,12 @@ function AppContent() {
               actions={{
                 onQuickGame: () => {
                   if (onboardingBlocking || !localPlayerName) return;
+                  trackAnalyticsEvent("cta_quick_game");
                   void startRandomGame();
                 },
                 onHostLobby: () => {
                   if (onboardingBlocking || !localPlayerName) return;
+                  trackAnalyticsEvent("cta_local_game");
                   disconnectRoom();
                   setIsOnlineGame(false);
                   setRoomAdapter(null);
@@ -860,6 +885,7 @@ function AppContent() {
                 },
                 onJoinLobby: () => {
                   if (onboardingBlocking || !localPlayerName) return;
+                  trackAnalyticsEvent("cta_online_game");
                   disconnectRoom();
                   setIsOnlineGame(false);
                   setRoomAdapter(null);
@@ -878,6 +904,7 @@ function AppContent() {
           visible={menuVisible && installCoachVisible}
           onContinueInBrowser={() => {
             void (async () => {
+              trackAnalyticsEvent("install_coach_continued");
               await markWebInstallDeclined();
               setInstallCoachVisible(false);
               setInstallCoachResolved(true);
@@ -891,6 +918,7 @@ function AppContent() {
             nameSetupAccountSync ? "browser-with-account-sync" : "default"
           }
           onComplete={(name) => {
+            trackAnalyticsEvent("name_setup_completed");
             setLocalPlayerName(name);
             setNameSetupVisible(false);
             setNameSetupResolved(true);

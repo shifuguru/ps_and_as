@@ -71,6 +71,7 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 | **P2** | **Turn Ownership Invariant** | **Documentation only** unless a live bug traces here. Do not redesign `currentPlayerIndex` or new ownership APIs. Tests/validation only when supporting an active bug investigation. See [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.md). |
 | **P2** | Pause state presentation; Bot-open disconnect model | As capacity allows. |
 | **P2** | **Ad monetization (H5 + Remove Ads)** | Ship web H5 ads + Stripe Remove Ads; native AdMob later. |
+| **P2** | **Product analytics (DIY)** | First-party counters + live dashboard; no third-party SaaS required. |
 
 ### Priority order (gap register)
 
@@ -78,7 +79,7 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 |----------|------|
 | **P0** | Rankings before last hand (online); CPU takeover after disconnect; Returning player after timeout |
 | **P1** | Disconnect timeout; XP and progression persistence; Mobile browser onboarding (PWA → Google) (Ready-for-next-round seated gate resolved on critical-issues branch) |
-| **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Pause state presentation; Bot-open disconnect model vs standard rooms; Ad monetization (H5 + Remove Ads) |
+| **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Pause state presentation; Bot-open disconnect model vs standard rooms; Ad monetization (H5 + Remove Ads); Product analytics (DIY) |
 
 **How to maintain:** When a gap is fixed, set `Status: Resolved` and add a one-line note with version or PR. When intent changes, update the architecture doc first, then close or rewrite the gap here.
 
@@ -426,6 +427,31 @@ Investigation: [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.
 **Priority:** P2
 
 **Notes:** Entitlement lives on cloud profile (`adsRemoved`), not career XP counters. XP grants still go through `commitRoundXpEarned`. Phase 2: native AdMob, XP booster packs.
+
+---
+
+## Product analytics (DIY)
+
+**Category:** Ops / product
+
+**Intended behaviour:**  
+First-party event counters on the game server (no third-party analytics SaaS). Operators can view a live summary (activation CTAs, online match start/abort/reconnect, rounds completed) from a simple dashboard — preferably reachable from GitHub Pages and/or the Railway server — without shipping PII (no display names or room codes).
+
+**Current behaviour:**  
+Career `PlayerStats`, Game Center, and `/api/online-players` presence exist. There is no product event pipeline or live ops dashboard for funnels / multiplayer reliability.
+
+**Impact:**  
+Cannot measure Day-0 activation or disconnect→abort rates from production; P0 multiplayer work is harder to validate after ship.
+
+**Files likely involved:**  
+`server/analyticsStore.js`, `server/index.js`, `public/analytics.html`, `src/services/analytics.ts`
+
+**Priority:** P2
+
+**Status:** Partial — server counters, client beacons, and live dashboard shipped
+
+**Notes:**  
+Server-authoritative online events + allowlisted client beacons. Dashboard at `public/analytics.html` (GitHub Pages) and `/analytics` on the game server. Optional `ANALYTICS_TOKEN` gates summary reads. Not a substitute for closing P0 disconnect gaps.
 
 ---
 

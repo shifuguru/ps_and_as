@@ -838,6 +838,17 @@ function startBotHostedGame(roomId, ctx) {
     const dealSeed = Math.floor(Math.random() * 2147483647);
     ctx.beginAuthoritativeRound(room, dealSeed);
     room.inGame = true;
+    try {
+      const analytics = require('./analyticsStore');
+      const seats = room.players.filter((p) => !p.isSpectator).length;
+      analytics.track('match_started', {
+        kind: 'bot',
+        public: !!room.isPublic,
+        seats,
+      });
+    } catch (_) {
+      /* analytics must never block bot tables */
+    }
     ctx.broadcastGameState(ctx.io, room);
     ctx.io.to(roomId).emit('startGame', {
       players: room.players
