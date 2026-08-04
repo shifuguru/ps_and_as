@@ -4729,6 +4729,16 @@ function GameScreenBoard() {
   const prevTrickHistoryLen = useRef(0);
   const [roundCompleteSignal, setRoundCompleteSignal] = useState(0);
   const prevRankingsVisible = useRef(false);
+  const [rewardedAdAvailable, setRewardedAdAvailable] = useState(false);
+  const [rewardedAdXp, setRewardedAdXp] = useState(75);
+  const [rewardedAdRemaining, setRewardedAdRemaining] = useState(0);
+  const [rewardedAdBusy, setRewardedAdBusy] = useState(false);
+  const [rewardedBonusXp, setRewardedBonusXp] = useState(0);
+  const forcedAdInFlight = useRef(false);
+
+  useEffect(() => {
+    if (!rankingsModalVisible) setRewardedBonusXp(0);
+  }, [rankingsModalVisible]);
 
   useEffect(() => {
     if (!roundOver && !lastHandReveal) return;
@@ -4738,9 +4748,85 @@ function GameScreenBoard() {
   useEffect(() => {
     if (rankingsModalVisible && !prevRankingsVisible.current) {
       setRoundCompleteSignal((n) => n + 1);
+      // Forced interstitial cadence (every N rounds) — never blocks Ready forever.
+      if (!forcedAdInFlight.current && Platform.OS === "web") {
+        forcedAdInFlight.current = true;
+        void (async () => {
+          try {
+            const { maybeShowForcedInterstitialOnRankings } = await import(
+              "../services/ads/AdsService"
+            );
+            await maybeShowForcedInterstitialOnRankings();
+          } catch {
+            // ignore — rankings stay usable
+          } finally {
+            forcedAdInFlight.current = false;
+          }
+        })();
+      }
+      void (async () => {
+        try {
+          const { getRewardedAdUiState } = await import(
+            "../services/ads/AdsService"
+          );
+          const ui = await getRewardedAdUiState();
+          setRewardedAdAvailable(ui.available);
+          setRewardedAdXp(ui.xp);
+          setRewardedAdRemaining(ui.remaining);
+        } catch {
+          setRewardedAdAvailable(false);
+        }
+      })();
     }
     prevRankingsVisible.current = rankingsModalVisible;
   }, [rankingsModalVisible]);
+
+  const handleWatchRewardedAd = useCallback(() => {
+    if (rewardedAdBusy || spectatorMode) return;
+    setRewardedAdBusy(true);
+    void (async () => {
+      try {
+        const { showRewardedAdForXp } = await import(
+          "../services/ads/AdsService"
+        );
+        const { commitRoundXpEarned } = await import("../services/playerStats");
+        const result = await showRewardedAdForXp();
+        if (result.ok && result.xpGranted > 0) {
+          await commitRoundXpEarned(result.xpGranted, 0);
+          setRewardedBonusXp((n) => n + result.xpGranted);
+        }
+        const { getRewardedAdUiState } = await import(
+          "../services/ads/AdsService"
+        );
+        const ui = await getRewardedAdUiState();
+        setRewardedAdAvailable(ui.available && ui.remaining > 0);
+        setRewardedAdRemaining(ui.remaining);
+        setRewardedAdXp(ui.xp);
+      } catch {
+        // ignore
+      } finally {
+        setRewardedAdBusy(false);
+      }
+    })();
+  }, [rewardedAdBusy, spectatorMode]);
+
+  const displayScoreboardXp = useMemo(() => {
+    if (!myPlayerId || rewardedBonusXp <= 0) return scoreboardXpByPlayerId;
+    return {
+      ...scoreboardXpByPlayerId,
+      [myPlayerId]:
+        (scoreboardXpByPlayerId[myPlayerId] ?? 0) + rewardedBonusXp,
+    };
+  }, [scoreboardXpByPlayerId, myPlayerId, rewardedBonusXp]);
+
+  const displayScoreboardRoundXp = useMemo(() => {
+    if (!myPlayerId || rewardedBonusXp <= 0) return scoreboardRoundXpByPlayerId;
+    return {
+      ...scoreboardRoundXpByPlayerId,
+      [myPlayerId]:
+        (scoreboardRoundXpByPlayerId[myPlayerId] ?? 0) + rewardedBonusXp,
+    };
+  }, [scoreboardRoundXpByPlayerId, myPlayerId, rewardedBonusXp]);
 
   useEffect(() => {
     // Authoritative: snapshot is built from the completed trick at pause start.
@@ -6005,8 +6091,8 @@ function GameScreenBoard() {
         )}
         players={state.players.filter((p) => !isDeadHandPlayer(p))}
         readyStates={scoreboardReadyStates}
-        playerXp={scoreboardXpByPlayerId}
-        playerRoundXp={scoreboardRoundXpByPlayerId}
+        playerXp={displayScoreboardXp}
+        playerRoundXp={displayScoreboardRoundXp}
         xpAnimationReady={xpAnimationReady}
         localPlayerId={myPlayerId ?? undefined}
         avatarBordersByPlayerId={avatarBordersByPlayerId}
@@ -6020,6 +6106,11 @@ function GameScreenBoard() {
         leaveConfirmVisible={leaveConfirmVisible}
         onLeaveCancel={cancelLeaveGame}
         onLeaveConfirm={confirmLeaveGame}
+        rewardedAdAvailable={rewardedAdAvailable && rewardedAdRemaining > 0}
+        rewardedAdXp={rewardedAdXp}
+        rewardedAdRemaining={rewardedAdRemaining}
+        rewardedAdBusy={rewardedAdBusy}
+        onWatchRewardedAd={handleWatchRewardedAd}
         onToggleReady={() => {
           const id = myPlayerId;
           if (!id) return;

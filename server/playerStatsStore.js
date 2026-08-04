@@ -55,14 +55,25 @@ function normalizeProfile(raw) {
     const tint = raw.feltTint.trim().toLowerCase();
     if (/^#[0-9a-f]{6}$/.test(tint)) out.feltTint = tint;
   }
+  // Entitlement: only trust true from server-side setters; clients strip this.
+  if (raw.adsRemoved === true) out.adsRemoved = true;
   return Object.keys(out).length ? out : null;
 }
 
-/** Incoming fields override existing; omit empty incoming. */
+/** Strip purchase entitlements from client-supplied profile bodies. */
+function stripClientEntitlements(raw) {
+  if (!raw || typeof raw !== "object") return raw;
+  const { adsRemoved: _ignored, ...rest } = raw;
+  return rest;
+}
+
+/** Incoming fields override existing; omit empty incoming. Never clears adsRemoved. */
 function mergeProfile(existing, incoming) {
   const left = normalizeProfile(existing) || {};
   const right = normalizeProfile(incoming) || {};
   const merged = { ...left, ...right };
+  // Once granted, adsRemoved sticks even if incoming omitted it.
+  if (left.adsRemoved === true) merged.adsRemoved = true;
   return Object.keys(merged).length ? merged : null;
 }
 
@@ -110,7 +121,8 @@ function upsertPlayerStats(playerId, stats, profile) {
   const id = playerId.trim();
   const existing = cache[id] || {};
   const hasStats = stats && typeof stats === "object";
-  const incomingProfile = normalizeProfile(profile);
+  // Client PUTs must not set adsRemoved — strip before normalize/merge.
+  const incomingProfile = normalizeProfile(stripClientEntitlements(profile));
 
   if (!hasStats && !incomingProfile && !existing.stats && !existing.profile) {
     return null;
@@ -146,13 +158,44 @@ function upsertPlayerStats(playerId, stats, profile) {
   };
 }
 
+/** Server-only entitlement grant (Stripe webhook). */
+function setAdsRemoved(playerId, removed) {
+  if (!isValidPlayerId(playerId)) return null;
+  const id = playerId.trim();
+  const existing = cache[id] || {};
+  const profile = normalizeProfile(existing.profile) || {};
+  if (removed) profile.adsRemoved = true;
+  else delete profile.adsRemoved;
+
+  const entry = {
+    stats: existing.stats
+      ? normalizeStats(existing.stats)
+      : normalizeStats({}),
+    profile,
+    updatedAt: new Date().toISOString(),
+  };
+  cache[id] = entry;
+  try {
+    saveStore(cache);
+  } catch (err) {
+    console.warn("[playerStatsStore] save failed:", err?.message || err);
+  }
+  return {
+    stats: entry.stats,
+    profile: entry.profile || null,
+    updatedAt: entry.updatedAt,
+  };
+}
+
 module.exports = {
   STAT_FIELDS,
   isValidPlayerId,
   getPlayerStats,
   upsertPlayerStats,
+  setAdsRemoved,
   mergeStats,
   normalizeStats,
   normalizeProfile,
   mergeProfile,
+  stripClientEntitlements,
 };

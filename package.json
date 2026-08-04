@@ -19,6 +19,7 @@
     "test-web-onboarding": "npx tsx ./scripts/test-web-onboarding.ts",
     "test-google-account-sync": "npx tsx ./scripts/test-google-account-sync.ts",
     "test-daily-challenge": "npx tsx ./scripts/test-daily-challenge.ts",
+    "test-ads-entitlement": "npx tsx ./scripts/test-ads-entitlement.ts && node ./scripts/test-ads-entitlement-store.mjs",
     "test-action-bar-leave": "npx tsx ./scripts/test-action-bar-leave.ts",
     "bump-version": "node ./scripts/bump-version.js",
     "test-multiplayer": "node ./scripts/test-multiplayer.mjs",
@@ -66,6 +67,7 @@
     "react-native-worklets": "0.5.1",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
+    "stripe": "^17.7.0",
     "ts-node": "^10.9.2",
     "typescript": "~5.9.2"
   },

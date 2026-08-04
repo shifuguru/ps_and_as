@@ -54,6 +54,7 @@ export function useMenuAudio() {
 
   useEffect(() => {
     let cancelled = false;
+    let unsubAdsAudio: (() => void) | null = null;
 
     const load = async () => {
       let initMuted = false;
@@ -118,12 +119,34 @@ export function useMenuAudio() {
       } catch (e) {
         console.warn("menu ambience failed to load", e);
       }
+
+      try {
+        const { subscribeAdsAudioSuppress } = await import(
+          "../services/ads/adsAudioBridge"
+        );
+        if (cancelled) return;
+        unsubAdsAudio = subscribeAdsAudioSuppress((suppressed) => {
+          const sound = bgSound.current;
+          if (!sound) return;
+          const wantMute = suppressed || mutedRef.current;
+          void sound.setIsMutedAsync?.(wantMute).catch(() => {
+            void sound.setStatusAsync?.({ isMuted: wantMute }).catch(() => {});
+          });
+        });
+      } catch {
+        // ignore
+      }
     };
 
     void load();
 
     return () => {
       cancelled = true;
+      try {
+        unsubAdsAudio?.();
+      } catch {
+        // ignore
+      }
       if (bgSound.current) {
         void bgSound.current.unloadAsync();
         bgSound.current = null;
@@ -144,6 +167,14 @@ export function useMenuAudio() {
   }, []);
 
   const playEffect = useCallback(async (effect: GameSfxId | string) => {
+    try {
+      const { isAdsAudioSuppressed } = await import(
+        "../services/ads/adsAudioBridge"
+      );
+      if (isAdsAudioSuppressed()) return;
+    } catch {
+      // ignore
+    }
     if (mutedRef.current) return;
     const AudioModule = audioModuleRef.current;
     if (!AudioModule) return;

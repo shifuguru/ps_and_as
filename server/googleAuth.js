@@ -185,6 +185,36 @@ function createGooglePlayerStatsGuard() {
 }
 
 /**
+ * Require a valid Google bearer (session or ID token) for billing routes.
+ * Sets req.googleSub / req.googlePlayerId.
+ */
+function createGoogleBearerRequired() {
+  return async function googleBearerRequired(req, res, next) {
+    const audiences = readAllowedAudiences();
+    if (audiences.length === 0) {
+      return res.status(503).json({ error: "google_auth_unconfigured" });
+    }
+    const token = extractBearer(req);
+    if (!token) {
+      return res.status(401).json({ error: "google_auth_required" });
+    }
+    try {
+      const auth = await authenticateGoogleBearer(token, null, audiences);
+      if (!auth?.sub) {
+        return res.status(401).json({ error: "google_auth_invalid" });
+      }
+      req.googleAuth = auth;
+      req.googleSub = auth.sub;
+      req.googlePlayerId = `google:${auth.sub}`;
+      return next();
+    } catch (err) {
+      console.warn("[googleAuth] bearer verify failed:", err?.message || err);
+      return res.status(401).json({ error: "google_auth_invalid" });
+    }
+  };
+}
+
+/**
  * POST /api/auth/google  body: { idToken }
  * → { accountId, sessionToken, expiresAt }
  */
@@ -232,5 +262,6 @@ module.exports = {
   verifyGoogleSessionToken,
   issueGoogleSessionToken,
   createGooglePlayerStatsGuard,
+  createGoogleBearerRequired,
   createGoogleAuthHandler,
 };

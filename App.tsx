@@ -15,6 +15,10 @@ import { ThemeProvider, useAppTheme } from "./src/context/ThemeContext";
 import { CardAppearanceProvider } from "./src/context/CardAppearanceContext";
 import { preloadGamePreferences } from "./src/services/gamePreferences";
 import { ensurePlayerStatsRestored } from "./src/services/playerStats";
+import { preloadAdsConsent } from "./src/services/ads/adsConsent";
+import { preloadAdsEntitlement } from "./src/services/ads/adsEntitlement";
+import AdsConsentBanner from "./src/components/AdsConsentBanner";
+import PrivacyPolicyModal from "./src/components/PrivacyPolicyModal";
 import { useMenuAudio } from "./src/hooks/useMenuAudio";
 import AnimatedBackground from "./src/components/AnimatedBackground";
 import { SocketAdapter } from "./src/game/socketAdapter";
@@ -92,6 +96,7 @@ function AppContent() {
   const [achievementsOpen, setAchievementsOpen] = useState(false);
   const [updateLogOpen, setUpdateLogOpen] = useState(false);
   const [readmeOpen, setReadmeOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[] | null>(null);
   const [dealSeed, setDealSeed] = useState<number | undefined>(undefined);
   const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
@@ -133,6 +138,45 @@ function AppContent() {
   useEffect(() => {
     void preloadGamePreferences();
     void ensurePlayerStatsRestored();
+    void preloadAdsConsent();
+    void preloadAdsEntitlement();
+    // Stripe return: refresh Remove Ads entitlement from cloud.
+    if (Platform.OS === "web") {
+      void (async () => {
+        try {
+          const {
+            consumePurchaseQueryParam,
+            refreshAdsEntitlementFromCloud,
+          } = await import("./src/services/ads/removeAdsPurchase");
+          const purchase = consumePurchaseQueryParam();
+          if (purchase === "remove_ads_success") {
+            const ok = await refreshAdsEntitlementFromCloud();
+            if (ok) {
+              Alert.alert(
+                "Thanks!",
+                "Forced ads are removed on this Google-linked account.",
+              );
+            } else {
+              Alert.alert(
+                "Purchase received",
+                "If ads still appear, open Settings after a moment — sync may still be catching up.",
+              );
+            }
+          }
+          // Deep-link to privacy modal
+          try {
+            const loc = (globalThis as { location?: Location }).location;
+            if (loc?.search?.includes("privacy=1")) {
+              setPrivacyOpen(true);
+            }
+          } catch {
+            // ignore
+          }
+        } catch {
+          // ignore
+        }
+      })();
+    }
   }, []);
 
   const { updateAvailable, latestBuild } = useBuildUpdateCheck(
@@ -1145,6 +1189,13 @@ function AppContent() {
         ) : null}
         </View>
     </View>
+    {menuVisible && !splashVisible ? (
+      <AdsConsentBanner onOpenPrivacy={() => setPrivacyOpen(true)} />
+    ) : null}
+    <PrivacyPolicyModal
+      visible={privacyOpen}
+      onClose={() => setPrivacyOpen(false)}
+    />
     {ViewportDebugOverlay ? <ViewportDebugOverlay /> : null}
     </>
   );
