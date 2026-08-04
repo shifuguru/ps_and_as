@@ -515,11 +515,15 @@ export function wouldActivateTenRule(
   ) {
     return false;
   }
-  for (const c of cards) {
-    const found = player.hand.findIndex(
-      (h) => h.suit === c.suit && h.value === c.value,
-    );
-    if (found === -1) return false;
+  {
+    const handCheck = player.hand.slice();
+    for (const c of cards) {
+      const found = handCheck.findIndex(
+        (h) => h.suit === c.suit && h.value === c.value,
+      );
+      if (found === -1) return false;
+      handCheck.splice(found, 1);
+    }
   }
   // Completing a Run with this 10 activates Runs, not Tens.
   if (
@@ -564,6 +568,20 @@ export function playCards(
   cards: Card[],
   options?: PlayCardsOptions,
 ): GameState {
+  // Reject malformed atomic 10-rule direction before mutating state.
+  if (
+    options?.tenRuleDirection != null &&
+    options.tenRuleDirection !== "higher" &&
+    options.tenRuleDirection !== "lower"
+  ) {
+    return state;
+  }
+  // Direction must be chosen via setTenRuleDirection (or atomic tenRuleDirection
+  // on the activating 10 play). Playing while pending skips Higher/Lower and can
+  // leave the next seat unable to pass.
+  if (state.tenRulePending) {
+    return state;
+  }
   // Very small validation: ensure it's that player's turn and they have the cards
   const pIndex = state.players.findIndex((p) => p.id === playerId);
   if (pIndex === -1) return state;
@@ -594,10 +612,14 @@ export function playCards(
     return { ...state };
   }
 
-  // check that player has all cards
-  for (const c of cards) {
-    const found = player.hand.findIndex((h) => h.suit === c.suit && h.value === c.value);
-    if (found === -1) return state;
+  // check that player has all cards (consume matches so duplicates cannot be forged)
+  {
+    const handCheck = player.hand.slice();
+    for (const c of cards) {
+      const found = handCheck.findIndex((h) => h.suit === c.suit && h.value === c.value);
+      if (found === -1) return state;
+      handCheck.splice(found, 1);
+    }
   }
 
   // NOTE: first-play (must include 3♣) validation is performed centrally in
@@ -2704,8 +2726,10 @@ export function passTurn(state: GameState, playerId: string): GameState {
     }
     return { ...state };
   }
+  // Same reference so callers that treat `next === before` as "no-op" reject
+  // post-round pass attempts (online gameAction must not re-finalize).
   if (isRoundCompleteForLiving(state)) {
-    return { ...state };
+    return state;
   }
 
   if (

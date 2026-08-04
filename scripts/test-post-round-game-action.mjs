@@ -1,10 +1,9 @@
 /**
- * Verifies seated reconnect replay during ROUND_COMPLETE (private room).
- * Uses the same play loop as test-multiplayer-rounds.mjs but does NOT ready-up
- * (so the table stays between rounds).
+ * Regression: after ROUND_COMPLETE, gameAction play/pass must not re-run
+ * handleRoundFinished and wipe Ready votes.
  *
- *   node server/index.js
- *   node scripts/test-reconnect-round-complete.mjs
+ *   npm run server
+ *   node scripts/test-post-round-game-action.mjs
  */
 import { io } from "socket.io-client";
 import { createRequire } from "module";
@@ -20,7 +19,8 @@ const {
 } = require("../server/gameBridge.js");
 
 const SERVER = process.env.SERVER_URL ?? "http://localhost:4000";
-const ROOM = "RC" + String(Math.floor(Math.random() * 900000 + 100000)).slice(0, 6);
+const ROOM =
+  "PR" + String(Math.floor(Math.random() * 900000 + 100000)).slice(0, 6);
 const MAX_TURN_STEPS = 600;
 
 function wait(ms) {
@@ -46,38 +46,40 @@ function connectClient(name, profileId) {
     const state = {
       id: null,
       gameState: null,
-      dealSeed: null,
       roundEnded: null,
-      phase: null,
+      roundEndedCount: 0,
+      readyUpdate: null,
+      errors: [],
     };
 
     socket.on("connect", () => resolve({ socket, state, name, profileId }));
     socket.on("connect_error", (err) => reject(err));
+    socket.on("error", (data) => {
+      state.errors.push(data?.message ?? String(data));
+    });
     socket.on("connected", (data) => {
       state.id = data.profileId ?? data.id;
-      state.reconnectSecret = data.reconnectSecret ?? null;
     });
     socket.on("gameStateSync", (data) => {
       state.gameState = data.gameState;
-      state.phase = data.gameState?.phase ?? null;
-    });
-    socket.on("startGame", (data) => {
-      state.dealSeed = data.dealSeed ?? null;
     });
     socket.on("roundEnded", (data) => {
       state.roundEnded = data;
+      state.roundEndedCount += 1;
+    });
+    socket.on("playerReadyUpdate", (data) => {
+      state.readyUpdate = data?.readyForNextRound ?? null;
     });
   });
 }
 
-async function joinPlayer(name, profileId, reconnectSecret) {
+async function joinPlayer(name, profileId) {
   const client = await connectClient(name, profileId);
   client.socket.emit("joinRoom", {
     roomId: ROOM,
     name,
     profileId,
     clientBuildId: "dev",
-    ...(reconnectSecret ? { reconnectSecret } : {}),
   });
   await once(client.socket, "connected");
   return client;
@@ -121,7 +123,9 @@ async function resolvePendingTrades(clients, host) {
     if (key === "president") {
       winnerId = Object.keys(roles).find((id) => roles[id] === "president");
     } else if (key === "vicePresident") {
-      winnerId = Object.keys(roles).find((id) => roles[id] === "vice_president");
+      winnerId = Object.keys(roles).find(
+        (id) => roles[id] === "vice_president",
+      );
     }
     if (!winnerId) continue;
 
@@ -131,8 +135,8 @@ async function resolvePendingTrades(clients, host) {
     winnerClient.socket.emit("requestGameState", { roomId: ROOM });
     await wait(150);
     const hand =
-      winnerClient.state.gameState?.players.find((p) => p.id === winnerId)?.hand ??
-      [];
+      winnerClient.state.gameState?.players.find((p) => p.id === winnerId)
+        ?.hand ?? [];
     const need = trade.count || 1;
     const selected = pickLowestCards(hand, need);
     winnerClient.socket.emit("playerTradeSelection", {
@@ -224,7 +228,6 @@ async function emitAction(client, action) {
   await wait(120);
 }
 
-/** Play until round complete — does NOT ready-up for next round. */
 async function playToRoundComplete(clients, host) {
   await requestAllStates(clients);
   await resolvePendingTrades(clients, host);
@@ -276,19 +279,19 @@ async function playToRoundComplete(clients, host) {
 }
 
 async function main() {
-  console.log(`Reconnect round-complete tests → ${SERVER} room ${ROOM}`);
+  console.log(`Post-round gameAction tests → ${SERVER} room ${ROOM}`);
 
-  const host = await connectClient("Host", "profile-rc-replay-host");
+  const host = await connectClient("Host", "profile-pr-host");
   host.socket.emit("createRoom", {
     roomId: ROOM,
     name: "Host",
-    profileId: "profile-rc-replay-host",
+    profileId: "profile-pr-host",
     isPublic: false,
   });
   await once(host.socket, "connected");
 
-  const guest = await joinPlayer("Guest", "profile-rc-replay-guest");
-  const third = await joinPlayer("Third", "profile-rc-replay-third");
+  const guest = await joinPlayer("Guest", "profile-pr-guest");
+  const third = await joinPlayer("Third", "profile-pr-third");
   const clients = [host, guest, third];
 
   for (const c of [guest, third]) {
@@ -301,56 +304,92 @@ async function main() {
   await wait(500);
 
   await playToRoundComplete(clients, host);
+  if (!host.state.roundEnded) {
+    throw new Error("expected roundEnded after play loop");
+  }
 
-  const guestClient = clients[1];
-  guestClient.state.roundEnded = null;
-  guestClient.socket.emit("requestGameState", { roomId: ROOM });
-  await wait(400);
+  // Latch Ready on two seats only — all three would start the next deal.
+  for (const c of [host, guest]) {
+    c.socket.emit("playerReadyForNextRound", { roomId: ROOM });
+  }
+  await wait(500);
+  // Prefer playerReadyUpdate over requestGameState (which replays roundEnded).
+  await wait(200);
 
-  if (guestClient.state.phase !== "ROUND_COMPLETE") {
-    throw new Error(
-      `requestGameState replay: expected ROUND_COMPLETE, got ${guestClient.state.phase}`,
+  const readyBefore = {
+    ...(host.state.readyUpdate || host.state.gameState?.readyForNextRound || {}),
+  };
+  const readyTrueCount = Object.values(readyBefore).filter(Boolean).length;
+  if (readyTrueCount < 1) {
+    await requestAllStates(clients);
+    Object.assign(
+      readyBefore,
+      host.state.gameState?.readyForNextRound || {},
     );
   }
-  if (!guestClient.state.roundEnded) {
+  if (Object.values(readyBefore).filter(Boolean).length < 1) {
     throw new Error(
-      "requestGameState replay: seated client did not receive roundEnded",
+      `expected at least one Ready latch before post-round action, got ${JSON.stringify(readyBefore)}`,
     );
   }
-  console.log("  PASS Test 3b — seated requestGameState replay receives roundEnded");
-
-  guestClient.state.roundEnded = null;
-  guestClient.socket.disconnect();
-  await wait(300);
-
-  const guestSecret = guestClient.state.reconnectSecret;
-  if (!guestSecret) {
-    throw new Error("guest never received reconnectSecret on connected");
+  if (
+    host.state.gameState?.phase &&
+    host.state.gameState.phase !== "ROUND_COMPLETE"
+  ) {
+    throw new Error(
+      `expected to stay between rounds, got phase=${host.state.gameState.phase}`,
+    );
   }
-  const rejoin = await connectClient("Guest", "profile-rc-replay-guest");
-  rejoin.socket.emit("joinRoom", {
+
+  // Stale/forged pass from whoever currentPlayerIndex still points at.
+  const idx = host.state.gameState?.currentPlayerIndex ?? 0;
+  const actorId = host.state.gameState?.players?.[idx]?.id;
+  const actor = clientForPlayer(clients, actorId) || host;
+  actor.state.errors = [];
+  const awardedAtBefore = host.state.gameState?.roundXpAwardedAt;
+  actor.socket.emit("gameAction", {
     roomId: ROOM,
-    name: "Guest",
-    profileId: "profile-rc-replay-guest",
-    clientBuildId: "dev",
-    reconnectSecret: guestSecret,
+    action: { type: "pass" },
   });
-  await once(rejoin.socket, "connected");
-  await wait(400);
+  await wait(600);
 
-  if (rejoin.state.phase !== "ROUND_COMPLETE") {
+  if (!actor.state.errors.some((m) => /round already complete/i.test(m))) {
     throw new Error(
-      `joinRoom replay: expected ROUND_COMPLETE, got ${rejoin.state.phase}`,
+      `expected Round already complete error, got ${JSON.stringify(actor.state.errors)}`,
     );
   }
-  if (!rejoin.state.roundEnded) {
-    throw new Error("joinRoom replay: seated reconnect did not receive roundEnded");
+
+  const readyAfter = {
+    ...(host.state.readyUpdate || {}),
+  };
+  // Ready update should still show latched votes (not wiped to all false).
+  for (const id of Object.keys(readyBefore)) {
+    if (readyBefore[id] === true && readyAfter[id] === false) {
+      throw new Error(
+        `post-round pass wiped Ready for ${id}: before=${JSON.stringify(readyBefore)} after=${JSON.stringify(readyAfter)}`,
+      );
+    }
   }
-  console.log("  PASS Test 3a — seated joinRoom replay receives roundEnded");
+
+  await requestAllStates(clients);
+  const readySynced = host.state.gameState?.readyForNextRound || {};
+  for (const id of Object.keys(readyBefore)) {
+    if (readyBefore[id] === true && readySynced[id] !== true) {
+      throw new Error(
+        `post-round pass cleared Ready in sync for ${id}: before=${JSON.stringify(readyBefore)} after=${JSON.stringify(readySynced)}`,
+      );
+    }
+  }
+  if (
+    awardedAtBefore &&
+    host.state.gameState?.roundXpAwardedAt !== awardedAtBefore
+  ) {
+    throw new Error("post-round pass re-finalized round XP timestamp");
+  }
 
   for (const c of clients) c.socket.disconnect();
-  rejoin.socket.disconnect();
-  console.log("All reconnect replay checks passed.");
+  console.log("  PASS post-round gameAction does not reset Ready / re-emit roundEnded");
+  console.log("All post-round gameAction checks passed.");
 }
 
 main().catch((err) => {
