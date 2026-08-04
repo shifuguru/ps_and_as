@@ -2,8 +2,12 @@
  * Player Hub home — presentation layer over canonical PlayerStats.
  *
  * Panel order (player interest):
- * Brand → Identity → Rules → Play → (A2HS) → Daily → Next Achievement →
+ * Brand → Pitch → Identity → Rules → Play → (A2HS) → Daily → Next Achievement →
  * Recent Unlock → Journey → Friends → Stats → What's New → Support
+ *
+ * Day-0 (roundsPlayed === 0): Brand → Pitch → Rules → Play (+ helper) →
+ * Identity → (A2HS) → XP nudge → What's New → Support
+ * (skip empty Daily / Next Achievement / Journey / Stats)
  *
  * Deferred (need telemetry or session handoff — not built here):
  * - Last Match panel after round complete
@@ -208,6 +212,10 @@ export default function PlayerHub({
   };
 
   const level = levelProgressFromXp(stats?.xp ?? 0);
+  /** Cold open: no rounds yet — answer what/why/start before empty meta chrome. */
+  const statsReady = stats !== null;
+  const hasPlayed = (stats?.roundsPlayed ?? 0) > 0;
+  const isDay0 = statsReady && !hasPlayed;
   const dailyProgress =
     dailyDef && dailyState && stats
       ? dailyChallengeProgress(dailyDef, dailyState, stats)
@@ -219,6 +227,96 @@ export default function PlayerHub({
   const recentAccent = recentRarity
     ? RARITY_COLOR[recentRarity]
     : colors.accent;
+
+  const identityPanel = (
+    <BlurPanel intensity={54} style={[styles.card, styles.identityCard]}>
+      <View style={styles.identityRow}>
+        <Animated.View
+          style={[
+            styles.avatarStack,
+            { transform: [{ scale: ringPulse }] },
+          ]}
+        >
+          <HubProgressRing
+            size={RING_SIZE}
+            progress={level.fraction}
+            strokeWidth={5}
+            trackColor={hexToRgba(colors.accent, 0.2)}
+            fillColor={colors.accent}
+          >
+            <View style={styles.avatarCore}>
+              {border ? (
+                <AvatarRewardBorder
+                  design={border}
+                  avatarSize={AVATAR_SIZE}
+                />
+              ) : null}
+              <View
+                style={[
+                  styles.avatarInner,
+                  !border && styles.avatarBare,
+                ]}
+              >
+                <Text style={styles.avatarText}>
+                  {playerInitials(displayName)}
+                </Text>
+              </View>
+            </View>
+          </HubProgressRing>
+          <View style={styles.levelBadge}>
+            <Text style={styles.levelBadgeText}>{level.level}</Text>
+          </View>
+        </Animated.View>
+
+        <View style={styles.identityBody}>
+          <View style={styles.nameRow}>
+            <Text style={styles.displayName} numberOfLines={1}>
+              {displayName || "Player"}
+            </Text>
+            <View style={styles.identityActions}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => run(actions.onOpenAchievements)}
+                accessibilityRole="button"
+                accessibilityLabel="Open achievements"
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                style={styles.identityActionBtn}
+              >
+                <MenuIcon name="trophy" size={18} color={colors.accent} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => run(actions.onOpenSettings)}
+                accessibilityRole="button"
+                accessibilityLabel="Open settings"
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                style={styles.identityActionBtn}
+              >
+                <MenuIcon name="gear" size={18} color={colors.accent} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          {playerTitle ? (
+            <Text style={styles.titleSlot} numberOfLines={1}>
+              {playerTitle}
+            </Text>
+          ) : null}
+          <Text style={styles.identityMeta}>Level {level.level}</Text>
+          <Text style={styles.careerXp}>
+            {(stats?.xp ?? 0).toLocaleString()} XP
+          </Text>
+          <ProgressMeter
+            progress={level.fraction}
+            label="To next level"
+            valueLabel={`${level.xpIntoLevel} / ${level.xpForLevel}`}
+            style={{ marginTop: 8 }}
+            animated
+            prestige
+          />
+        </View>
+      </View>
+    </BlurPanel>
+  );
 
   return (
     <ScreenContainer ignoreHeaderOffset style={[{ flex: 1 }, style]}>
@@ -242,95 +340,12 @@ export default function PlayerHub({
             P&apos;s & A&apos;s
           </Text>
           <Text style={styles.brandSubtitle}>Presidents & Assholes</Text>
+          <Text style={styles.brandPitch}>
+            Race to empty your hand. Finish first and become President.
+          </Text>
 
-          {/* Identity — sole owner of XP progress */}
-          <BlurPanel intensity={54} style={[styles.card, styles.identityCard]}>
-              <View style={styles.identityRow}>
-                <Animated.View
-                  style={[
-                    styles.avatarStack,
-                    { transform: [{ scale: ringPulse }] },
-                  ]}
-                >
-                  <HubProgressRing
-                    size={RING_SIZE}
-                    progress={level.fraction}
-                    strokeWidth={5}
-                    trackColor={hexToRgba(colors.accent, 0.2)}
-                    fillColor={colors.accent}
-                  >
-                    <View style={styles.avatarCore}>
-                      {border ? (
-                        <AvatarRewardBorder
-                          design={border}
-                          avatarSize={AVATAR_SIZE}
-                        />
-                      ) : null}
-                      <View
-                        style={[
-                          styles.avatarInner,
-                          !border && styles.avatarBare,
-                        ]}
-                      >
-                        <Text style={styles.avatarText}>
-                          {playerInitials(displayName)}
-                        </Text>
-                      </View>
-                    </View>
-                  </HubProgressRing>
-                  <View style={styles.levelBadge}>
-                    <Text style={styles.levelBadgeText}>{level.level}</Text>
-                  </View>
-                </Animated.View>
-
-                <View style={styles.identityBody}>
-                  <View style={styles.nameRow}>
-                    <Text style={styles.displayName} numberOfLines={1}>
-                      {displayName || "Player"}
-                    </Text>
-                    <View style={styles.identityActions}>
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={() => run(actions.onOpenAchievements)}
-                        accessibilityRole="button"
-                        accessibilityLabel="Open achievements"
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        style={styles.identityActionBtn}
-                      >
-                        <MenuIcon name="trophy" size={18} color={colors.accent} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={() => run(actions.onOpenSettings)}
-                        accessibilityRole="button"
-                        accessibilityLabel="Open settings"
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        style={styles.identityActionBtn}
-                      >
-                        <MenuIcon name="gear" size={18} color={colors.accent} />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                  {playerTitle ? (
-                    <Text style={styles.titleSlot} numberOfLines={1}>
-                      {playerTitle}
-                    </Text>
-                  ) : null}
-                  <Text style={styles.identityMeta}>Level {level.level}</Text>
-                  <Text style={styles.careerXp}>
-                    {(stats?.xp ?? 0).toLocaleString()} XP
-                  </Text>
-                  <ProgressMeter
-                    progress={level.fraction}
-                    label="To next level"
-                    valueLabel={`${level.xpIntoLevel} / ${level.xpForLevel}`}
-                    style={{ marginTop: 8 }}
-                    animated
-                    prestige
-                  />
-                </View>
-              </View>
-          </BlurPanel>
+          {/* Returning / loading: identity before play. Day-0: play first. */}
+          {!isDay0 ? identityPanel : null}
 
           <AppButton
             label="Game Rules"
@@ -348,9 +363,18 @@ export default function PlayerHub({
               icon="bolt"
               variant="primary"
               onPress={() => run(actions.onQuickGame)}
-              accessibilityLabel="Quick Game"
+              accessibilityLabel={
+                isDay0
+                  ? "Quick Game. Practice versus AI and learn in one round"
+                  : "Quick Game"
+              }
               style={styles.primaryCta}
             />
+            {isDay0 ? (
+              <Text style={styles.playHelper}>
+                Practice versus AI. Learn in one round.
+              </Text>
+            ) : null}
             <View style={styles.secondaryRow}>
               <AppButton
                 label="Local Game"
@@ -391,10 +415,18 @@ export default function PlayerHub({
             ) : null}
           </View>
 
+          {isDay0 ? identityPanel : null}
+
           <AddToHomeScreenBanner />
 
-          {/* Daily Challenge — time-sensitive */}
-          {dailyDef && dailyProgress ? (
+          {isDay0 ? (
+            <Text style={styles.day0Nudge}>
+              Play a round to start tracking XP and unlocks.
+            </Text>
+          ) : null}
+
+          {/* Daily Challenge — time-sensitive (after first play) */}
+          {hasPlayed && dailyDef && dailyProgress ? (
             <BlurPanel
               intensity={44}
               style={[
@@ -432,7 +464,7 @@ export default function PlayerHub({
           ) : null}
 
           {/* Next Achievement — short-term chase */}
-          {nextAch ? (
+          {hasPlayed && nextAch ? (
             <NextAchievementCard
               next={nextAch}
               onPress={() => run(actions.onOpenAchievements)}
@@ -440,7 +472,7 @@ export default function PlayerHub({
           ) : null}
 
           {/* Recent Unlock — celebration when fresh */}
-          {recent && recentRarity ? (
+          {hasPlayed && recent && recentRarity ? (
             <BlurPanel
               intensity={44}
               style={[
@@ -483,7 +515,7 @@ export default function PlayerHub({
           ) : null}
 
           {/* Continue Your Journey — longer-arc goals */}
-          {goals.length > 0 ? (
+          {hasPlayed && goals.length > 0 ? (
             <BlurPanel intensity={44} style={[styles.card, styles.utilityCard]}>
               <Text style={styles.sectionTitle}>Continue Your Journey</Text>
               <View style={styles.goalStack}>
@@ -504,7 +536,7 @@ export default function PlayerHub({
           ) : null}
 
           {/* Friends placeholder — wide layouts only (slot for Join / Spectate later) */}
-          {showFriendsPlaceholder ? (
+          {hasPlayed && showFriendsPlaceholder ? (
             <BlurPanel
               intensity={40}
               style={[styles.card, styles.utilityCard, styles.friendsCard]}
@@ -519,44 +551,46 @@ export default function PlayerHub({
           ) : null}
 
           {/* Stats Snapshot */}
-          <BlurPanel intensity={44} style={[styles.card, styles.utilityCard]}>
-            <Text style={styles.sectionTitle}>Stats Snapshot</Text>
-            {featured ? (
-              <View style={styles.featuredStat}>
-                <Text style={styles.featuredValue}>{featured.value}</Text>
-                <Text style={styles.featuredLabel}>{featured.label}</Text>
-                <Text style={styles.goalSub}>{featured.hint}</Text>
+          {hasPlayed ? (
+            <BlurPanel intensity={44} style={[styles.card, styles.utilityCard]}>
+              <Text style={styles.sectionTitle}>Stats Snapshot</Text>
+              {featured ? (
+                <View style={styles.featuredStat}>
+                  <Text style={styles.featuredValue}>{featured.value}</Text>
+                  <Text style={styles.featuredLabel}>{featured.label}</Text>
+                  <Text style={styles.goalSub}>{featured.hint}</Text>
+                </View>
+              ) : null}
+              <View style={styles.statsGrid}>
+                <StatCell
+                  label="Rounds"
+                  value={String(stats?.roundsPlayed ?? 0)}
+                  styles={styles}
+                />
+                <StatCell
+                  label="Win Rate"
+                  value={`${stats ? winRate(stats) : 0}%`}
+                  styles={styles}
+                />
+                <StatCell
+                  label="Presidents"
+                  value={String(stats?.timesPresident ?? 0)}
+                  styles={styles}
+                />
+                <StatCell
+                  label="Tricks Won"
+                  value={String(stats?.tricksWon ?? 0)}
+                  styles={styles}
+                />
               </View>
-            ) : null}
-            <View style={styles.statsGrid}>
-              <StatCell
-                label="Rounds"
-                value={String(stats?.roundsPlayed ?? 0)}
-                styles={styles}
-              />
-              <StatCell
-                label="Win Rate"
-                value={`${stats ? winRate(stats) : 0}%`}
-                styles={styles}
-              />
-              <StatCell
-                label="Presidents"
-                value={String(stats?.timesPresident ?? 0)}
-                styles={styles}
-              />
-              <StatCell
-                label="Tricks Won"
-                value={String(stats?.tricksWon ?? 0)}
-                styles={styles}
-              />
-            </View>
-            <TouchableOpacity
-              onPress={() => run(actions.onOpenAchievements)}
-              style={styles.linkBtn}
-            >
-              <Text style={styles.linkBtnText}>View Full Stats</Text>
-            </TouchableOpacity>
-          </BlurPanel>
+              <TouchableOpacity
+                onPress={() => run(actions.onOpenAchievements)}
+                style={styles.linkBtn}
+              >
+                <Text style={styles.linkBtnText}>View Full Stats</Text>
+              </TouchableOpacity>
+            </BlurPanel>
+          ) : null}
 
           {/* What's New */}
           <TouchableOpacity
@@ -676,14 +710,39 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontSize: 13,
       textAlign: "center",
       letterSpacing: 1.2,
-      marginBottom: 10,
+      marginBottom: 6,
       fontWeight: "600",
       ...onFeltTextStyle(colors.onFelt, "accent"),
+    },
+    brandPitch: {
+      fontSize: 15,
+      textAlign: "center",
+      lineHeight: 21,
+      fontWeight: "600",
+      marginBottom: 10,
+      paddingHorizontal: 8,
+      ...onFeltTextStyle(colors.onFelt, "secondary"),
     },
     playHero: {
       gap: 10,
       marginTop: 4,
       marginBottom: 4,
+    },
+    playHelper: {
+      fontSize: 13,
+      textAlign: "center",
+      fontWeight: "600",
+      lineHeight: 18,
+      marginTop: -4,
+      marginBottom: 2,
+      ...onFeltTextStyle(colors.onFelt, "secondary"),
+    },
+    day0Nudge: {
+      fontSize: 13,
+      textAlign: "center",
+      fontWeight: "600",
+      lineHeight: 18,
+      ...onFeltTextStyle(colors.onFelt, "secondary"),
     },
     rulesEntryButton: {
       width: "100%",
