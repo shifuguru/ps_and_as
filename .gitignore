@@ -35,6 +35,7 @@ yarn-error.*
 .env*.local
 
 server/data/player-stats.json
+server/data/analytics.json
 
 # QA League harness output
 reports/qa/
