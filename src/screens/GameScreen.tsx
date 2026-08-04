@@ -3629,6 +3629,7 @@ function GameScreen({
         activeTrade,
         spectatorMode,
         onNavigateToAchievements,
+        onNavigateToReadMe,
         onNavigateToSettings,
         onPlaySound,
         emitDebug,
@@ -3753,6 +3754,7 @@ function GameScreenBoard() {
     activeTrade,
     spectatorMode,
     onNavigateToAchievements,
+    onNavigateToReadMe,
     onNavigateToSettings,
     onPlaySound,
     emitDebug,
@@ -3875,6 +3877,7 @@ function GameScreenBoard() {
     activeTrade: ClientPendingTrade | null;
     spectatorMode: boolean;
     onNavigateToAchievements: (() => void) | undefined;
+    onNavigateToReadMe: (() => void) | undefined;
     onNavigateToSettings: (() => void) | undefined;
     onPlaySound: PlaySoundFn | undefined;
     emitDebug: (event: string, details: any) => void;

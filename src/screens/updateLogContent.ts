@@ -32,12 +32,13 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-08-04T22:12"),
+    publishedAt: nzst("2026-08-04T22:16"),
     title: "Settings, achievements & rules easier to reach",
     items: [
       "Home — gear and trophy sit next to your name; the old Settings and Achievements buttons at the bottom are gone",
       "Home — Game Rules sits under your profile, above Quick Game",
       "In-game — a small Rules button in the top corner opens the rules any time",
+      "Fix — starting a game no longer crashes looking for the Rules button wiring",
     ],
   },
   {
