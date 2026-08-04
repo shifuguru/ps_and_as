@@ -525,6 +525,7 @@ function GameScreen({
   isSpectator = false,
   onBack,
   onNavigateToAchievements,
+  onNavigateToReadMe,
   onNavigateToSettings,
   onPlaySound,
 }: {
@@ -538,6 +539,7 @@ function GameScreen({
   isSpectator?: boolean;
   onBack?: () => void;
   onNavigateToAchievements?: () => void;
+  onNavigateToReadMe?: () => void;
   onNavigateToSettings?: () => void;
   onPlaySound?: PlaySoundFn;
 } = {}) {
@@ -5697,6 +5699,7 @@ function GameScreenBoard() {
         roundCompleteSignal={roundCompleteSignal}
         lastTrick={lastTrickInfo}
         onOpenAchievements={onNavigateToAchievements}
+        onOpenReadMe={onNavigateToReadMe}
         onOpenSettings={onNavigateToSettings}
         onLeave={requestLeaveGame}
         statsRefreshKey={roundCompleteSignal + (state.trickHistory?.length ?? 0)}

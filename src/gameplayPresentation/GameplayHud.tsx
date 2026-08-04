@@ -40,6 +40,7 @@ type Props = {
   roundCompleteSignal: number;
   lastTrick?: LastTrickInfo | null;
   onOpenAchievements?: () => void;
+  onOpenReadMe?: () => void;
   onOpenSettings?: () => void;
   /** Secondary leave control — never in the Pass/Play ActionBar track. */
   onLeave?: () => void;
@@ -107,10 +108,10 @@ export function lastTrickFromEntry(
 /**
  * Full-screen feedback chrome.
  *
- * Persist layer (z below play area): Round Streak + Settings / Achievements.
+ * Persist layer (z below play area): Round Streak + utility actions.
  * Feedback layer: Winning Play, Tricks, XP toasts, optional prestige.
  *
- *   Round Streak                       [Leave] [Stats] [Settings]
+ *   Round Streak                [Leave] [Rules] [Stats] [Settings]
  *              (Next Prestige — centered, off by default)
  *                    GAMEPLAY
  *   Winning Play               Tricks This Round
@@ -129,6 +130,7 @@ export default function GameplayHud({
   roundCompleteSignal,
   lastTrick,
   onOpenAchievements,
+  onOpenReadMe,
   onOpenSettings,
   onLeave,
   hideFeedback = false,
@@ -231,6 +233,17 @@ export default function GameplayHud({
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <MenuIcon name="trophy" size={16} color={colors.accent} />
+              </TouchableOpacity>
+            ) : null}
+            {onOpenReadMe ? (
+              <TouchableOpacity
+                style={styles.utilBtn}
+                onPress={onOpenReadMe}
+                accessibilityRole="button"
+                accessibilityLabel="Game rules"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MenuIcon name="list" size={16} color={colors.accent} />
               </TouchableOpacity>
             ) : null}
             {onOpenSettings ? (

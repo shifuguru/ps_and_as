@@ -1032,6 +1032,7 @@ function AppContent() {
             roomId={activeRoomId ?? joinedRoomId ?? undefined}
             isSpectator={isOnlineGame && isSpectator}
             onNavigateToAchievements={openAchievements}
+            onNavigateToReadMe={openReadMe}
             onNavigateToSettings={openSettings}
             onPlaySound={playGameSound}
             onBack={() => {
