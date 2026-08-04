@@ -84,6 +84,7 @@ jobs:
           GITHUB_PAGES_BASE: /ps_and_as
           EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
           EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+          EXPO_PUBLIC_ADSENSE_CLIENT: ${{ vars.EXPO_PUBLIC_ADSENSE_CLIENT }}
           EXPO_PUBLIC_BUILD_ID: ${{ github.sha }}
           EXPO_PUBLIC_APP_VERSION: ${{ steps.version.outputs.version }}
           EXPO_PUBLIC_BASE_PATH: /ps_and_as
@@ -104,7 +105,17 @@ jobs:
           grep -q 'web-shell.css' web-build/index.html
           grep -qE '(--app-shell-h:|--app-height:|100(l|d)vh)' web-build/web-shell.css
           ! grep -q 'height: 100vh' web-build/web-shell.css
+          if [ -n "$EXPO_PUBLIC_ADSENSE_CLIENT" ]; then
+            grep -q "$EXPO_PUBLIC_ADSENSE_CLIENT" web-build/index.html
+            grep -q 'data-ps-adsense="1"' web-build/index.html
+            grep -q 'var adBreak = adConfig' web-build/index.html
+            echo "AdSense H5 snippet present in index.html."
+          else
+            echo "::warning::EXPO_PUBLIC_ADSENSE_CLIENT unset — ads will simulate until the GitHub Actions variable is set."
+          fi
           echo "Build artifact looks valid."
+        env:
+          EXPO_PUBLIC_ADSENSE_CLIENT: ${{ vars.EXPO_PUBLIC_ADSENSE_CLIENT }}
 
       - name: Merge into Pages artifact (production slot)
         run: node scripts/merge-pages-artifact.js --slot=root --source=web-build --output=pages-artifact

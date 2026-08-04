@@ -190,12 +190,44 @@ function injectGoogleWebClientId(html) {
   return html.replace("<head>", `<head>\n    ${script}`);
 }
 
+/**
+ * Inject AdSense + H5 Games Ad Placement API into <head>.
+ * Required for AdSense site verification and live adBreak()/adConfig().
+ * @see https://developers.google.com/ad-placement/docs/example
+ */
 function injectAdSenseClient(html) {
   const clientId = process.env.EXPO_PUBLIC_ADSENSE_CLIENT?.trim();
   if (!clientId) return html;
-  const script = `<script>window.__PS_AND_AS_ADSENSE_CLIENT__=${JSON.stringify(clientId)};</script>`;
-  if (html.includes("__PS_AND_AS_ADSENSE_CLIENT__")) return html;
-  return html.replace("<head>", `<head>\n    ${script}`);
+  if (!/^ca-pub-\d+$/.test(clientId)) {
+    console.warn(
+      `[fix-web-build-paths] EXPO_PUBLIC_ADSENSE_CLIENT looks invalid: ${clientId}`,
+    );
+  }
+  const testMode =
+    process.env.EXPO_PUBLIC_ADS_TEST === "1" ||
+    process.env.EXPO_PUBLIC_ADS_TEST === "true";
+  const configScript = `<script>window.__PS_AND_AS_ADSENSE_CLIENT__=${JSON.stringify(clientId)};</script>`;
+  const loaderAttrs = [
+    `src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${clientId}"`,
+    'crossorigin="anonymous"',
+    `data-ad-client="${clientId}"`,
+    'data-ad-frequency-hint="120s"',
+    'data-ps-adsense="1"',
+  ];
+  if (testMode) loaderAttrs.push('data-ad-test="on"');
+  const loaderScript = `<script async ${loaderAttrs.join(" ")}></script>`;
+  // Official H5 stub: queues until the real Ad Placement API replaces adBreak/adConfig.
+  const h5InitScript = `<script data-ps-adsense-init="1">window.adsbygoogle = window.adsbygoogle || []; var adBreak = adConfig = function(o) {adsbygoogle.push(o);}</script>`;
+  const block = `${configScript}\n    ${loaderScript}\n    ${h5InitScript}`;
+  if (html.includes("__PS_AND_AS_ADSENSE_CLIENT__")) {
+    // Still ensure loader/H5 stubs exist (e.g. stale config-only inject).
+    if (html.includes("data-ps-adsense=")) return html;
+    return html.replace(
+      /<script>window\.__PS_AND_AS_ADSENSE_CLIENT__=[^<]*<\/script>/,
+      block,
+    );
+  }
+  return html.replace("<head>", `<head>\n    ${block}`);
 }
 
 function readPackageVersion() {
