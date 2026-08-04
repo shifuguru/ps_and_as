@@ -102,6 +102,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.36": "Wild Draw Four Energy",
   "1.1.37": "Misdeal Mayhem",
   "1.1.38": "Double Down Darling",
+  "1.1.39": "Shuffle Or Scramble",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
