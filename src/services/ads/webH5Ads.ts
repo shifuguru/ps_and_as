@@ -1,8 +1,9 @@
 /**
  * Google H5 Games Ad Placement API (web).
  * Loader + adBreak/adConfig stubs are injected into index.html at build time
- * (see scripts/fix-web-build-paths.js). This module only requests breaks.
+ * (see scripts/fix-web-build-paths.js).
  *
+ * Rewarded ads use beforeReward(showAdFn) — not a plain interstitial.
  * @see https://developers.google.com/ad-placement/docs/example
  */
 
@@ -24,6 +25,9 @@ type AdBreakPlacement = {
   name: string;
   beforeAd?: () => void;
   afterAd?: () => void;
+  beforeReward?: (showAdFn: () => void) => void;
+  adViewed?: () => void;
+  adDismissed?: () => void;
   adBreakDone?: (info: { breakStatus?: string }) => void;
 };
 
@@ -33,6 +37,11 @@ type H5Window = Window & {
   __PS_AND_AS_ADSENSE_CLIENT__?: string;
   adsbygoogle?: unknown[];
 };
+
+/** Max wait for adBreakDone — stub never fires it. */
+const AD_BREAK_TIMEOUT_MS = 12_000;
+/** Poll for real H5 API to replace the adsbygoogle.push stub. */
+const H5_READY_WAIT_MS = 4_000;
 
 function getAdsClientId(): string | null {
   if (Platform.OS !== "web") return null;
@@ -53,12 +62,62 @@ function isAdsTestMode(): boolean {
   return flag === "1" || flag === "true";
 }
 
-/** True when head inject (or runtime) exposed adBreak. */
+/**
+ * Official head stub is `function(o){adsbygoogle.push(o)}`.
+ * Until AdSense/H5 replaces it, adBreakDone never runs → UI hangs.
+ */
+function isAdBreakStub(): boolean {
+  try {
+    const fn = (globalThis as H5Window).adBreak;
+    if (typeof fn !== "function") return true;
+    const src = Function.prototype.toString.call(fn);
+    return /adsbygoogle\.push/i.test(src);
+  } catch {
+    return true;
+  }
+}
+
 function h5ApiReady(): boolean {
   try {
-    return typeof (globalThis as H5Window).adBreak === "function";
+    return (
+      typeof (globalThis as H5Window).adBreak === "function" && !isAdBreakStub()
+    );
   } catch {
     return false;
+  }
+}
+
+function waitForH5Api(maxMs = H5_READY_WAIT_MS): Promise<boolean> {
+  if (h5ApiReady()) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const tick = () => {
+      if (h5ApiReady()) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() - start >= maxMs) {
+        resolve(false);
+        return;
+      }
+      setTimeout(tick, 150);
+    };
+    tick();
+  });
+}
+
+/** Call once after consent — primes interstitial/reward inventory when H5 is live. */
+export function configureH5AdsSound(soundOn: boolean): void {
+  if (Platform.OS !== "web") return;
+  try {
+    const w = globalThis as H5Window;
+    if (typeof w.adConfig !== "function" || isAdBreakStub()) return;
+    w.adConfig({
+      sound: soundOn ? "on" : "off",
+      preloadAdBreaks: "on",
+    });
+  } catch {
+    // ignore
   }
 }
 
@@ -87,25 +146,38 @@ export async function showH5AdBreak(
   }
 
   const client = getAdsClientId();
-  // Local / missing publisher: simulate so UI + XP can be tested.
   if (!client || isAdsTestMode()) {
     return simulateBreak(type, name);
   }
 
-  const w = globalThis as H5Window;
-  if (!h5ApiReady()) {
-    return { shown: false, breakStatus: "notReady" };
+  const ready = await waitForH5Api();
+  if (!ready) {
+    // Site/H5 not serving yet — fail fast so the UI does not stick on "Loading…".
+    if (typeof console !== "undefined" && console.info) {
+      console.info(
+        "[ads] H5 Ad Placement API still a stub — AdSense review / H5 allowlist pending?",
+      );
+    }
+    return { shown: false, breakStatus: "h5NotReady" };
   }
+
+  const w = globalThis as H5Window;
 
   return new Promise((resolve) => {
     let settled = false;
+    let rewardedViewed = false;
     const finish = (result: AdBreakResult) => {
       if (settled) return;
       settled = true;
+      releaseAdsAudio();
       resolve(result);
     };
+    const timer = setTimeout(() => {
+      finish({ shown: false, breakStatus: "timeout" });
+    }, AD_BREAK_TIMEOUT_MS);
+
     try {
-      w.adBreak!({
+      const placement: AdBreakPlacement = {
         type,
         name,
         beforeAd: () => {
@@ -115,14 +187,13 @@ export async function showH5AdBreak(
           releaseAdsAudio();
         },
         adBreakDone: (info) => {
-          releaseAdsAudio();
+          clearTimeout(timer);
           const status = info?.breakStatus || "done";
           if (type === "reward") {
-            const ok =
-              status === "viewed" ||
-              status === "rewarded" ||
-              status === "dismissed";
-            finish({ shown: ok, breakStatus: status });
+            finish({
+              shown: rewardedViewed,
+              breakStatus: rewardedViewed ? "rewarded" : status,
+            });
           } else {
             const shown =
               status === "viewed" ||
@@ -131,13 +202,28 @@ export async function showH5AdBreak(
             finish({ shown, breakStatus: status });
           }
         },
-      });
-      setTimeout(() => {
-        releaseAdsAudio();
-        finish({ shown: false, breakStatus: "timeout" });
-      }, 120_000);
+      };
+
+      if (type === "reward") {
+        // User already tapped "Watch ad" — show immediately when inventory exists.
+        placement.beforeReward = (showAdFn) => {
+          try {
+            showAdFn();
+          } catch {
+            // ignore
+          }
+        };
+        placement.adViewed = () => {
+          rewardedViewed = true;
+        };
+        placement.adDismissed = () => {
+          rewardedViewed = false;
+        };
+      }
+
+      w.adBreak!(placement);
     } catch {
-      releaseAdsAudio();
+      clearTimeout(timer);
       finish({ shown: false, breakStatus: "error" });
     }
   });
@@ -145,6 +231,18 @@ export async function showH5AdBreak(
 
 export function isH5AdsConfigured(): boolean {
   return Platform.OS === "web" && !!getAdsClientId();
+}
+
+export function getH5AdsDiagnostics(): {
+  client: string | null;
+  stub: boolean;
+  ready: boolean;
+} {
+  return {
+    client: getAdsClientId(),
+    stub: isAdBreakStub(),
+    ready: h5ApiReady(),
+  };
 }
 
 export { getAdsClientId, isAdsTestMode };

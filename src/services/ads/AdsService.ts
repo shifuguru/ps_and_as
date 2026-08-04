@@ -67,21 +67,45 @@ export async function showRewardedAdForXp(): Promise<RewardedAdAttempt> {
   }
 
   const result = await showH5AdBreak("reward", "rankings_xp_boost");
-  // Simulated / viewed / rewarded count as success.
   const status = result.breakStatus || "";
   const success =
     result.shown ||
-    result.simulated ||
+    result.simulated === true ||
     status === "viewed" ||
     status === "rewarded" ||
     status === "simulated";
 
   if (!success) {
-    return { ok: false, xpGranted: 0, reason: status || "notShown", result };
+    return {
+      ok: false,
+      xpGranted: 0,
+      reason: status || "notShown",
+      result,
+    };
   }
 
   await recordRewardedAdClaim();
   return { ok: true, xpGranted: REWARDED_AD_XP, result };
+}
+
+/** Player-facing copy when a rewarded break fails. */
+export function rewardedAdFailureMessage(reason?: string): string {
+  switch (reason) {
+    case "h5NotReady":
+    case "timeout":
+    case "notReady":
+      return "Ads are not available yet. AdSense may still be under review, or H5 game ads are not enabled on this account.";
+    case "noConsent":
+      return "Accept ads in the consent banner to unlock watch-for-XP.";
+    case "dailyCap":
+      return "Daily watch-for-XP limit reached. Come back tomorrow.";
+    case "frequencyCapped":
+    case "noAdPreloaded":
+    case "other":
+      return "No ad ready right now. Try again in a bit.";
+    default:
+      return "Could not show an ad. Try again later.";
+  }
 }
 
 export async function getRewardedAdUiState(): Promise<{

@@ -8,7 +8,7 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Platform, LayoutChangeEvent, useWindowDimensions } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Platform, LayoutChangeEvent, useWindowDimensions, Alert } from "react-native";
 import {
   createGame,
   createGameFromLobby,
@@ -4786,24 +4786,25 @@ function GameScreenBoard() {
     setRewardedAdBusy(true);
     void (async () => {
       try {
-        const { showRewardedAdForXp } = await import(
-          "../services/ads/AdsService"
-        );
+        const {
+          showRewardedAdForXp,
+          rewardedAdFailureMessage,
+          getRewardedAdUiState,
+        } = await import("../services/ads/AdsService");
         const { commitRoundXpEarned } = await import("../services/playerStats");
         const result = await showRewardedAdForXp();
         if (result.ok && result.xpGranted > 0) {
           await commitRoundXpEarned(result.xpGranted, 0);
           setRewardedBonusXp((n) => n + result.xpGranted);
+        } else if (result.reason) {
+          Alert.alert("Ad unavailable", rewardedAdFailureMessage(result.reason));
         }
-        const { getRewardedAdUiState } = await import(
-          "../services/ads/AdsService"
-        );
         const ui = await getRewardedAdUiState();
         setRewardedAdAvailable(ui.available && ui.remaining > 0);
         setRewardedAdRemaining(ui.remaining);
         setRewardedAdXp(ui.xp);
       } catch {
-        // ignore
+        Alert.alert("Ad unavailable", "Could not show an ad. Try again later.");
       } finally {
         setRewardedAdBusy(false);
       }
