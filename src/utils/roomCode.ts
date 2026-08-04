@@ -3,7 +3,7 @@ export const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export const ROOM_CODE_LENGTH = 6;
 
-/** Public bot-hosted matchmaking room — hidden from Find Game per D-010. */
+/** Public bot-hosted matchmaking room shown on Find Game as a cold-start table. */
 export const BOT_PUBLIC_ROOM_CODE = "BOTOPN";
 
 export function isBotPublicRoomCode(code: string): boolean {
