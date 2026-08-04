@@ -10,6 +10,7 @@ analytics._resetForTests();
 assert.strictEqual(analytics.isAllowedEvent("hub_viewed", "client"), true);
 assert.strictEqual(analytics.isAllowedEvent("match_started", "client"), false);
 assert.strictEqual(analytics.isAllowedEvent("match_started", "server"), true);
+assert.strictEqual(analytics.isAllowedEvent("player_left_in_game", "server"), true);
 assert.strictEqual(analytics.isAllowedEvent("evil_event", "server"), false);
 
 assert.deepStrictEqual(

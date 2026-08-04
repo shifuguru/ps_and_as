@@ -451,7 +451,7 @@ Cannot measure Day-0 activation or disconnect→abort rates from production; P0 
 **Status:** Partial — server counters, client beacons, and live dashboard shipped
 
 **Notes:**  
-Server-authoritative online events + allowlisted client beacons. Dashboard at `public/analytics.html` (GitHub Pages) and `/analytics` on the game server. Optional `ANALYTICS_TOKEN` gates summary reads. Not a substitute for closing P0 disconnect gaps.
+Server-authoritative online events + allowlisted client beacons. Dashboard at `public/analytics.html` (GitHub Pages) and `/analytics` on the game server. Optional `ANALYTICS_TOKEN` gates summary reads. Idle BOTOPN autopilot rounds are excluded; confirmed Leave on standard rooms aborts immediately for analytics + table fairness. Not a substitute for closing P0 disconnect gaps.
 
 ---
 

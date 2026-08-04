@@ -840,12 +840,17 @@ function startBotHostedGame(roomId, ctx) {
     room.inGame = true;
     try {
       const analytics = require('./analyticsStore');
-      const seats = room.players.filter((p) => !p.isSpectator).length;
-      analytics.track('match_started', {
-        kind: 'bot',
-        public: !!room.isPublic,
-        seats,
-      });
+      const humanSeats = room.players.filter(
+        (p) => !p.isSpectator && !isBotMember(p) && !isBotPlayerId(p.id),
+      ).length;
+      // Autopilot BOTOPN with zero humans is noise — only count when someone sat down.
+      if (humanSeats > 0) {
+        analytics.track('match_started', {
+          kind: 'bot',
+          public: !!room.isPublic,
+          seats: humanSeats,
+        });
+      }
     } catch (_) {
       /* analytics must never block bot tables */
     }

@@ -150,6 +150,18 @@ function seatedRosterCount(room) {
   return (room?.players || []).filter((p) => !p.isSpectator).length;
 }
 
+/** True if a non-bot human holds a seat (including away) — used to ignore idle BOTOPN autopilot. */
+function roomHasHumanSeatForAnalytics(room) {
+  return (room?.players || []).some(
+    (p) =>
+      p &&
+      !p.isSpectator &&
+      !botHosted.isBotMember(p) &&
+      !isCpuLobbyId(p.id) &&
+      !isCpuLobbyId(p.profileId),
+  );
+}
+
 function shouldJoinAsSpectator(room) {
   if (!room?.inGame) return false;
   if (room.isBotHosted) return botHosted.shouldJoinBotRoomAsSpectator(room);
@@ -975,19 +987,31 @@ function markPlayerAway(roomId, player, reason = 'disconnected') {
   if (!room || !player) return;
   if (player.disconnectedAt) return;
 
-  const graceMs = room.inGame && !player.isSpectator
-    ? inGameAwayGraceMs()
+  const seatedInGame = room.inGame && !player.isSpectator;
+  // Confirmed Leave ends a standard match immediately — reconnect grace is for drops, not quits.
+  const immediateLeaveAbort =
+    seatedInGame && reason === 'left' && !room.isBotHosted;
+
+  const graceMs = seatedInGame
+    ? immediateLeaveAbort
+      ? 0
+      : inGameAwayGraceMs()
     : LOBBY_DISCONNECT_GRACE;
 
   player.disconnectedAt = Date.now();
   player.awayReason = reason;
   player.reconnectUntil = Date.now() + graceMs;
 
-  if (room.inGame && !player.isSpectator && room.gameState) {
-    analytics.track('player_disconnected_in_game', {
-      kind: room.isBotHosted ? 'bot' : 'standard',
-      reason: String(reason || 'disconnected'),
-    });
+  if (seatedInGame && room.gameState) {
+    const kind = room.isBotHosted ? 'bot' : 'standard';
+    if (reason === 'left') {
+      analytics.track('player_left_in_game', { kind });
+    } else {
+      analytics.track('player_disconnected_in_game', {
+        kind,
+        reason: String(reason || 'disconnected'),
+      });
+    }
     if (room.isBotHosted) {
       demoteBotTablePlayerToSpectator(room, roomId, player);
       io.to(roomId).emit('playerDisconnected', {
@@ -997,7 +1021,7 @@ function markPlayerAway(roomId, player, reason = 'disconnected') {
         reason,
         reconnectUntil: player.reconnectUntil,
       });
-    } else {
+    } else if (!immediateLeaveAbort) {
       broadcastGameState(io, room);
       io.to(roomId).emit('playerDisconnected', {
         playerId: player.id,
@@ -1007,6 +1031,11 @@ function markPlayerAway(roomId, player, reason = 'disconnected') {
         reconnectUntil: player.reconnectUntil,
       });
     }
+  }
+
+  if (immediateLeaveAbort) {
+    finalizeAwayPlayerRemoval(roomId, player.id);
+    return;
   }
 
   io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
@@ -1408,9 +1437,10 @@ function abortOnlineGame(roomId, message, reason = 'other') {
   const room = rooms[roomId];
   if (!room) return;
   const wasInGame = !!room.inGame;
+  const hadHuman = roomHasHumanSeatForAnalytics(room);
   if (room.isBotHosted) {
     console.log(`[Server] Resetting bot room ${roomId}: ${message}`);
-    if (wasInGame) {
+    if (wasInGame && hadHuman) {
       analytics.track('match_aborted', { kind: 'bot', reason: String(reason) });
     }
     io.to(roomId).emit('gameAborted', { roomId, message });
@@ -1518,10 +1548,13 @@ function handleRoundFinished(roomId, finishOrder, hands) {
   const roundXpByPlayerId = computeRoundXpByPlayerId(room.gameState);
   room.gameState.roundXpByPlayerId = roundXpByPlayerId;
   room.gameState.roundXpAwardedAt = Date.now();
-  analytics.track('round_completed', {
-    kind: room.isBotHosted ? 'bot' : 'standard',
-    public: !!room.isPublic,
-  });
+  // Idle Open Bot Table keeps finishing rounds with no humans — don't count those.
+  if (roomHasHumanSeatForAnalytics(room)) {
+    analytics.track('round_completed', {
+      kind: room.isBotHosted ? 'bot' : 'standard',
+      public: !!room.isPublic,
+    });
+  }
 
   if (room.isBotHosted) {
     botHosted.onBotRoomRoundFinished(
