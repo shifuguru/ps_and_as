@@ -11,6 +11,8 @@ export type CloudPlayerProfile = {
   appearance?: AppearancePreference;
   textContrast?: TextContrastPreference;
   feltTint?: string;
+  /** Server-verified Remove Ads entitlement — client cannot grant via PUT. */
+  adsRemoved?: boolean;
 };
 
 export type CloudPlayerRecord = {
@@ -86,6 +88,7 @@ function normalizeRemoteProfile(
     const tint = raw.feltTint.trim().toLowerCase();
     if (/^#[0-9a-f]{6}$/.test(tint)) out.feltTint = tint;
   }
+  if (raw.adsRemoved === true) out.adsRemoved = true;
   return Object.keys(out).length ? out : null;
 }
 
@@ -265,6 +268,14 @@ export async function applyCloudProfileLocally(
     try {
       const { setWallpaperTint } = await import("./wallpaper");
       await setWallpaperTint(normalized.feltTint);
+    } catch {
+      // ignore
+    }
+  }
+  if (normalized.adsRemoved === true) {
+    try {
+      const { applyCloudAdsRemoved } = await import("./ads/adsEntitlement");
+      await applyCloudAdsRemoved(true);
     } catch {
       // ignore
     }

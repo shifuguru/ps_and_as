@@ -56,6 +56,12 @@ type Props = {
   leaveConfirmVisible?: boolean;
   onLeaveCancel?: () => void;
   onLeaveConfirm?: () => void;
+  /** Opt-in rewarded ad for XP (Remove Ads does not hide this). */
+  rewardedAdAvailable?: boolean;
+  rewardedAdXp?: number;
+  rewardedAdRemaining?: number;
+  rewardedAdBusy?: boolean;
+  onWatchRewardedAd?: () => void;
 };
 
 const AVATAR_SIZE = 40;
@@ -375,6 +381,11 @@ export default function RoundCompleteModal({
   leaveConfirmVisible = false,
   onLeaveCancel,
   onLeaveConfirm,
+  rewardedAdAvailable = false,
+  rewardedAdXp = 75,
+  rewardedAdRemaining = 0,
+  rewardedAdBusy = false,
+  onWatchRewardedAd,
 }: Props) {
   const { colors, ui, blur, palette } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -565,6 +576,24 @@ export default function RoundCompleteModal({
                   ? "Bots are ready. Tap below to take the dead hand\u2019s seat."
                   : "Tap below to take the dead hand\u2019s seat next round."}
               </Text>
+            ) : null}
+
+            {rewardedAdAvailable && onWatchRewardedAd && !spectatorMode ? (
+              <AppButton
+                label={
+                  rewardedAdBusy
+                    ? "Loading ad…"
+                    : `Watch ad · +${rewardedAdXp} XP`
+                }
+                variant="secondary"
+                disabled={rewardedAdBusy || rewardedAdRemaining <= 0}
+                onPress={() => {
+                  triggerHaptic("light");
+                  onWatchRewardedAd();
+                }}
+                accessibilityLabel={`Watch an ad for ${rewardedAdXp} XP`}
+                style={{ marginBottom: 10 }}
+              />
             ) : null}
 
             <View style={styles.footerActions}>

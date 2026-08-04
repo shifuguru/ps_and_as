@@ -17,6 +17,7 @@ import ScreenTopBar from "../components/ScreenTopBar";
 import FeltColorPicker from "../components/FeltColorPicker";
 import MenuIcon from "../components/MenuIcon";
 import AddToHomeScreenModal from "../components/AddToHomeScreenModal";
+import PrivacyPolicyModal from "../components/PrivacyPolicyModal";
 import BottomBar, {
   BottomBarControls,
   BottomBarLeave,
@@ -122,6 +123,9 @@ export default function Settings({
   const [addToHomeWorking, setAddToHomeWorking] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [careerXp, setCareerXp] = useState(0);
+  const [adsRemoved, setAdsRemoved] = useState(false);
+  const [purchaseBusy, setPurchaseBusy] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const googleStatus = getGoogleAccountSyncStatus();
   const googleReady = googleStatus === "ready";
   const googleLinked = !!playerInfo?.linkedAccountId?.startsWith("google:");
@@ -131,6 +135,16 @@ export default function Settings({
     void getLobbySession().then((session) => {
       setOnlineGuest(!!session && !session.isHost);
     });
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      const { preloadAdsEntitlement, areForcedAdsRemoved } = await import(
+        "../services/ads/adsEntitlement"
+      );
+      await preloadAdsEntitlement();
+      setAdsRemoved(await areForcedAdsRemoved());
+    })();
   }, []);
 
   useEffect(() => {
@@ -462,6 +476,89 @@ export default function Settings({
           </BlurPanel>
 
           <BlurPanel style={ui.panel} intensity={48}>
+            <Text style={ui.panelEyebrow}>Support</Text>
+            <Text style={styles.tintHint}>
+              Ads help cover servers. Forced ads appear every few rounds; you can
+              optionally watch an ad for XP. Remove Ads skips forced ads only.
+            </Text>
+            {adsRemoved ? (
+              <Text style={styles.accountSyncHint}>
+                Forced ads removed — thanks for supporting the game.
+              </Text>
+            ) : Platform.OS === "web" ? (
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.saveBtn,
+                    styles.saveBtnActive,
+                    purchaseBusy && { opacity: 0.6 },
+                  ]}
+                  disabled={purchaseBusy}
+                  onPress={() => {
+                    void (async () => {
+                      if (!googleLinked) {
+                        Alert.alert(
+                          "Link Google first",
+                          "Remove Ads requires a Google-linked account so your purchase restores on other devices.",
+                        );
+                        return;
+                      }
+                      setPurchaseBusy(true);
+                      try {
+                        const { createRemoveAdsCheckoutSession } = await import(
+                          "../services/ads/removeAdsPurchase"
+                        );
+                        const result = await createRemoveAdsCheckoutSession();
+                        if (!result.ok) {
+                          const msg =
+                            result.error === "billing_not_configured" ||
+                            result.error === "http_503"
+                              ? "Purchases are not configured on the server yet."
+                              : result.error === "google_required"
+                                ? "Link Google first, then try again."
+                                : "Could not start checkout. Try again later.";
+                          Alert.alert("Remove Ads", msg);
+                          return;
+                        }
+                        if (typeof window !== "undefined") {
+                          window.location.assign(result.url);
+                        }
+                      } catch {
+                        Alert.alert("Remove Ads", "Checkout failed.");
+                      } finally {
+                        setPurchaseBusy(false);
+                      }
+                    })();
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove forced ads for 19 New Zealand dollars"
+                >
+                  <Text style={[styles.saveBtnText, styles.saveBtnTextActive]}>
+                    {purchaseBusy
+                      ? "Opening checkout…"
+                      : "Remove forced ads — NZ$19"}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={[styles.autoSaveHint, { marginTop: 8 }]}>
+                  One-time purchase via Stripe. Rewarded watch-for-XP stays
+                  available.
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.accountSyncHint}>
+                Remove Ads is available on the web version.
+              </Text>
+            )}
+            <TouchableOpacity
+              style={{ marginTop: 12 }}
+              onPress={() => setPrivacyOpen(true)}
+              accessibilityRole="link"
+            >
+              <Text style={styles.linkLike}>Privacy</Text>
+            </TouchableOpacity>
+          </BlurPanel>
+
+          <BlurPanel style={ui.panel} intensity={48}>
             <Text style={ui.panelEyebrow}>Appearance</Text>
             <Text style={styles.tintHint}>
               Choose light or dark panels, or follow your device setting.
@@ -774,6 +871,10 @@ export default function Settings({
         visible={addToHomeOpen}
         onClose={() => setAddToHomeOpen(false)}
       />
+      <PrivacyPolicyModal
+        visible={privacyOpen}
+        onClose={() => setPrivacyOpen(false)}
+      />
     </ScreenContainer>
   );
 }
@@ -903,6 +1004,12 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     lineHeight: 18,
     fontWeight: "600",
     marginTop: 10,
+  },
+  linkLike: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
   googleSyncBlock: {
     marginTop: 4,

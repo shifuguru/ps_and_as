@@ -309,6 +309,21 @@ function startNextRound(roomId) {
 
 const app = express();
 app.use(cors({ origin: true, credentials: false }));
+
+// Stripe webhook needs the raw body — mount before express.json().
+const {
+  createCheckoutSessionHandler,
+  stripeWebhookHandler,
+  isBillingConfigured,
+} = require("./stripeBilling");
+app.post(
+  "/api/billing/webhook",
+  express.raw({ type: "application/json" }),
+  (req, res, next) => {
+    Promise.resolve(stripeWebhookHandler(req, res)).catch(next);
+  },
+);
+
 app.use(express.json({ limit: "16kb" }));
 
 // Simple health endpoint
@@ -339,9 +354,10 @@ const {
   getPlayerStats: loadStoredPlayerStats,
   upsertPlayerStats,
 } = require('./playerStatsStore');
-const { createGooglePlayerStatsGuard, createGoogleAuthHandler } = require('./googleAuth');
+const { createGooglePlayerStatsGuard, createGoogleAuthHandler, createGoogleBearerRequired } = require('./googleAuth');
 const googlePlayerStatsGuard = createGooglePlayerStatsGuard();
 const googleAuthHandler = createGoogleAuthHandler();
+const googleBearerRequired = createGoogleBearerRequired();
 
 app.get('/api/player-stats/:playerId', (req, res) => {
   const playerId = req.params.playerId;
@@ -360,6 +376,25 @@ app.post(
   '/api/auth/google',
   (req, res, next) => {
     Promise.resolve(googleAuthHandler(req, res)).catch(next);
+  },
+);
+
+app.get('/api/billing/status', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    removeAds: isBillingConfigured(),
+    currency: 'NZD',
+    priceLabel: 'NZ$19',
+  });
+});
+
+app.post(
+  '/api/billing/create-checkout-session',
+  (req, res, next) => {
+    Promise.resolve(googleBearerRequired(req, res, next)).catch(next);
+  },
+  (req, res, next) => {
+    Promise.resolve(createCheckoutSessionHandler(req, res)).catch(next);
   },
 );
 

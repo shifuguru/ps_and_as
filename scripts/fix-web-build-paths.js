@@ -190,6 +190,14 @@ function injectGoogleWebClientId(html) {
   return html.replace("<head>", `<head>\n    ${script}`);
 }
 
+function injectAdSenseClient(html) {
+  const clientId = process.env.EXPO_PUBLIC_ADSENSE_CLIENT?.trim();
+  if (!clientId) return html;
+  const script = `<script>window.__PS_AND_AS_ADSENSE_CLIENT__=${JSON.stringify(clientId)};</script>`;
+  if (html.includes("__PS_AND_AS_ADSENSE_CLIENT__")) return html;
+  return html.replace("<head>", `<head>\n    ${script}`);
+}
+
 function readPackageVersion() {
   try {
     const pkg = JSON.parse(
@@ -410,6 +418,7 @@ let html = fs.readFileSync(buildIndex, "utf8");
 const buildMeta = resolveBuildMeta();
 html = injectServerUrl(html);
 html = injectGoogleWebClientId(html);
+html = injectAdSenseClient(html);
 html = injectEarlyShellHeight(html);
 html = injectBuildMeta(html, buildMeta);
 html = injectBootGuard(html);

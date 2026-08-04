@@ -70,6 +70,7 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 | **P1** | **Mobile browser onboarding (PWA → Google)** | Install-first coach on mobile browser; decline path couples display name with Google Sign-in sync (Play Store / stats). |
 | **P2** | **Turn Ownership Invariant** | **Documentation only** unless a live bug traces here. Do not redesign `currentPlayerIndex` or new ownership APIs. Tests/validation only when supporting an active bug investigation. See [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.md). |
 | **P2** | Pause state presentation; Bot-open disconnect model | As capacity allows. |
+| **P2** | **Ad monetization (H5 + Remove Ads)** | Ship web H5 ads + Stripe Remove Ads; native AdMob later. |
 
 ### Priority order (gap register)
 
@@ -77,7 +78,7 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 |----------|------|
 | **P0** | Rankings before last hand (online); CPU takeover after disconnect; Returning player after timeout |
 | **P1** | Disconnect timeout; XP and progression persistence; Mobile browser onboarding (PWA → Google) (Ready-for-next-round seated gate resolved on critical-issues branch) |
-| **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Pause state presentation; Bot-open disconnect model vs standard rooms |
+| **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Pause state presentation; Bot-open disconnect model vs standard rooms; Ad monetization (H5 + Remove Ads) |
 
 **How to maintain:** When a gap is fixed, set `Status: Resolved` and add a one-line note with version or PR. When intent changes, update the architecture doc first, then close or rewrite the gap here.
 
@@ -402,6 +403,29 @@ Late-round stalls (“waiting for out player”), bot turn loop exits without re
 
 **Notes:**  
 Investigation: [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.md). **Root cause is the fallback contract**, not individual assignment sites. Mitigations shipped (not closure): pass-path out actor → `advanceOffPriorPasser`; late-round out leader + all living passed → trick finalize (What's New Jun 2026); BOTOPN pass-on-run RC-1 loop reschedule (`repairTurnPointerAndReschedule`, `CPU_STALL_INVESTIGATION.md`). Release gate `turn-headless` passes; live BOTOPN stall gate in `test-release-gate.mjs`. Gameplay Auditor Finding 3 reaffirmed (2026-06-08). Finding 6 (client repair on sync) **not confirmed** in current `GameScreen.tsx`. **Not an active implementation stream:** do not redesign `currentPlayerIndex`, introduce ownership APIs, or expand docs unless a **live bug** traces here. Tests/validation only when supporting that investigation. Future work: see investigation doc § Suggested future work.
+
+---
+
+## Ad monetization (H5 + Remove Ads)
+
+**Category:** Product / revenue
+
+**Documented intent:** Cover AI + server costs (~$40–50 NZD/mo) without breaking fair play. Web-first Google H5 Games Ads; native AdMob later behind the same client API.
+
+**Current behaviour:** No ads, no IAP, no billing.
+
+**Target behaviour:**
+
+- Forced interstitial every **3** completed rounds at rankings (after last-hand), never mid-turn / trades / ceremonies / disconnect.
+- Opt-in rewarded ad on rankings: **+75 XP**, max **3/day**; Remove Ads does **not** block rewarded.
+- One-time **Remove Ads** (~$19 NZD) via Stripe Checkout; requires Google link; server webhook sets `adsRemoved` (client cannot grant).
+- Consent banner before loading AdSense; privacy policy reachable from Settings.
+
+**Status:** In progress
+
+**Priority:** P2
+
+**Notes:** Entitlement lives on cloud profile (`adsRemoved`), not career XP counters. XP grants still go through `commitRoundXpEarned`. Phase 2: native AdMob, XP booster packs.
 
 ---
 
