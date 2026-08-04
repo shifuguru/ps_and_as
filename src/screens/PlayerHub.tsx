@@ -341,7 +341,7 @@ export default function PlayerHub({
           </Text>
           <Text style={styles.brandSubtitle}>Presidents & Assholes</Text>
           <Text style={styles.brandPitch}>
-            Race to empty your hand — finish first, become President.
+            Race to empty your hand. Finish first and become President.
           </Text>
 
           {/* Returning / loading: identity before play. Day-0: play first. */}
@@ -365,14 +365,14 @@ export default function PlayerHub({
               onPress={() => run(actions.onQuickGame)}
               accessibilityLabel={
                 isDay0
-                  ? "Quick Game — practice versus AI, learn in one round"
+                  ? "Quick Game. Practice versus AI and learn in one round"
                   : "Quick Game"
               }
               style={styles.primaryCta}
             />
             {isDay0 ? (
               <Text style={styles.playHelper}>
-                Practice vs AI — learn in one round
+                Practice versus AI. Learn in one round.
               </Text>
             ) : null}
             <View style={styles.secondaryRow}>
