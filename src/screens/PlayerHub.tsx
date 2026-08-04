@@ -3,7 +3,7 @@
  *
  * Panel order (player interest):
  * Brand → Identity → Play → (A2HS) → Daily → Next Achievement → Recent Unlock →
- * Journey → Friends → Stats → What's New → Support → footer nav
+ * Journey → Friends → Stats → What's New → Support → footer actions
  *
  * Deferred (need telemetry or session handoff — not built here):
  * - Last Match panel after round complete
@@ -244,13 +244,7 @@ export default function PlayerHub({
           <Text style={styles.brandSubtitle}>Presidents & Assholes</Text>
 
           {/* Identity — sole owner of XP progress */}
-          <TouchableOpacity
-            activeOpacity={0.94}
-            onPress={() => run(actions.onOpenSettings)}
-            accessibilityRole="button"
-            accessibilityLabel="Open player profile settings"
-          >
-            <BlurPanel intensity={54} style={[styles.card, styles.identityCard]}>
+          <BlurPanel intensity={54} style={[styles.card, styles.identityCard]}>
               <View style={styles.identityRow}>
                 <Animated.View
                   style={[
@@ -294,8 +288,27 @@ export default function PlayerHub({
                     <Text style={styles.displayName} numberOfLines={1}>
                       {displayName || "Player"}
                     </Text>
-                    <View style={styles.pencilBtn}>
-                      <MenuIcon name="pencil" size={20} color={colors.accent} />
+                    <View style={styles.identityActions}>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => run(actions.onOpenAchievements)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Open achievements"
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        style={styles.identityActionBtn}
+                      >
+                        <MenuIcon name="trophy" size={18} color={colors.accent} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => run(actions.onOpenSettings)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Open settings"
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        style={styles.identityActionBtn}
+                      >
+                        <MenuIcon name="gear" size={18} color={colors.accent} />
+                      </TouchableOpacity>
                     </View>
                   </View>
                   {playerTitle ? (
@@ -317,8 +330,7 @@ export default function PlayerHub({
                   />
                 </View>
               </View>
-            </BlurPanel>
-          </TouchableOpacity>
+          </BlurPanel>
 
           {/* Play — primary visit intent sits on felt (no competing glass shell) */}
           <View style={styles.playHero}>
@@ -592,22 +604,6 @@ export default function PlayerHub({
 
           <View style={styles.footerNav}>
             <AppButton
-              label="Settings"
-              icon="gear"
-              variant="secondary"
-              onPress={() => run(actions.onOpenSettings)}
-              accessibilityLabel="Settings"
-              style={styles.footerNavButton}
-            />
-            <AppButton
-              label="Achievements"
-              icon="trophy"
-              variant="secondary"
-              onPress={() => run(actions.onOpenAchievements)}
-              accessibilityLabel="Achievements"
-              style={styles.footerNavButton}
-            />
-            <AppButton
               label="Read Me"
               icon="list"
               variant="secondary"
@@ -815,13 +811,18 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       alignItems: "center",
       gap: 8,
     },
+    identityActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
     displayName: {
       flex: 1,
       color: colors.textPrimary,
       fontSize: 22,
       fontWeight: "800",
     },
-    pencilBtn: {
+    identityActionBtn: {
       padding: 8,
       borderRadius: 999,
       backgroundColor: hexToRgba(colors.accent, 0.14),
@@ -1017,7 +1018,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginTop: 4,
     },
     footerNavButton: {
-      minWidth: 140,
+      minWidth: 180,
       flexGrow: 1,
       flexBasis: 0,
     },
