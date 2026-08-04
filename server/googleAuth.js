@@ -13,6 +13,34 @@ const crypto = require("crypto");
 const SESSION_PREFIX = "psas1.";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
+/** Structured auth log — never include tokens, secrets, or raw emails. */
+function logAuthEvent(event, fields = {}) {
+  const line = {
+    event,
+    at: new Date().toISOString(),
+    ...fields,
+  };
+  if (event.endsWith("_ok") || event.endsWith("_issued")) {
+    console.log(JSON.stringify(line));
+  } else {
+    console.warn(JSON.stringify(line));
+  }
+}
+
+function playerIdLogFields(playerId) {
+  if (typeof playerId !== "string" || !playerId) return {};
+  return {
+    playerIdKind: playerId.startsWith("google:")
+      ? "google"
+      : playerId.startsWith("device-")
+        ? "device"
+        : playerId.startsWith("G:")
+          ? "gamecenter"
+          : "other",
+    playerIdLen: playerId.length,
+  };
+}
+
 function readAllowedAudiences() {
   const raw =
     process.env.GOOGLE_CLIENT_IDS ||
@@ -26,12 +54,22 @@ function readAllowedAudiences() {
 }
 
 function getSessionSecret() {
-  return (
-    process.env.GOOGLE_SESSION_SECRET ||
+  const dedicated = process.env.GOOGLE_SESSION_SECRET;
+  if (dedicated && String(dedicated).trim()) {
+    return String(dedicated).trim();
+  }
+  const fallback =
     process.env.GOOGLE_CLIENT_ID ||
     process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
-    ""
-  );
+    "";
+  if (fallback && !getSessionSecret._warnedFallback) {
+    getSessionSecret._warnedFallback = true;
+    logAuthEvent("google_session_secret_fallback", {
+      reason: "GOOGLE_SESSION_SECRET_unset",
+      hint: "Set a dedicated Railway secret; do not rely on the public client ID",
+    });
+  }
+  return fallback;
 }
 
 function parseGoogleSub(playerId) {
@@ -158,27 +196,43 @@ function createGooglePlayerStatsGuard() {
     if (audiences.length === 0) {
       if (!warnedMissingClientId) {
         warnedMissingClientId = true;
-        console.warn(
-          "[googleAuth] GOOGLE_CLIENT_ID unset — google: stats writes are unrestricted",
-        );
+        logAuthEvent("google_auth_unconfigured", {
+          route: "player_stats_guard",
+        });
       }
       return next();
     }
 
     const token = extractBearer(req);
     if (!token) {
+      logAuthEvent("google_auth_denied", {
+        reason: "missing_bearer",
+        ...playerIdLogFields(playerId),
+      });
       return res.status(401).json({ error: "google_auth_required" });
     }
 
     try {
       const auth = await authenticateGoogleBearer(token, sub, audiences);
       if (!auth) {
+        logAuthEvent("google_auth_denied", {
+          reason: "mismatch_or_invalid",
+          ...playerIdLogFields(playerId),
+        });
         return res.status(403).json({ error: "google_auth_mismatch" });
       }
+      logAuthEvent("google_auth_ok", {
+        route: "player_stats_guard",
+        ...playerIdLogFields(playerId),
+      });
       req.googleAuth = auth;
       return next();
     } catch (err) {
-      console.warn("[googleAuth] token verify failed:", err?.message || err);
+      logAuthEvent("google_auth_denied", {
+        reason: "verify_error",
+        message: err?.message || String(err),
+        ...playerIdLogFields(playerId),
+      });
       return res.status(401).json({ error: "google_auth_invalid" });
     }
   };
@@ -222,23 +276,44 @@ function createGoogleAuthHandler() {
   return async function googleAuthHandler(req, res) {
     const audiences = readAllowedAudiences();
     if (audiences.length === 0) {
+      logAuthEvent("google_auth_denied", {
+        route: "auth_exchange",
+        reason: "unconfigured",
+      });
       return res.status(503).json({ error: "google_auth_unconfigured" });
     }
     const idToken =
       typeof req.body?.idToken === "string" ? req.body.idToken.trim() : "";
     if (!idToken) {
+      logAuthEvent("google_auth_denied", {
+        route: "auth_exchange",
+        reason: "missing_id_token",
+      });
       return res.status(400).json({ error: "missing_id_token" });
     }
     try {
       const payload = await verifyGoogleIdToken(idToken, audiences);
       if (!payload?.sub) {
+        logAuthEvent("google_auth_denied", {
+          route: "auth_exchange",
+          reason: "invalid_id_token",
+        });
         return res.status(401).json({ error: "google_auth_invalid" });
       }
       const sessionToken = issueGoogleSessionToken(payload.sub, payload.email);
       if (!sessionToken) {
+        logAuthEvent("google_auth_denied", {
+          route: "auth_exchange",
+          reason: "session_unconfigured",
+        });
         return res.status(503).json({ error: "google_session_unconfigured" });
       }
       const exp = Date.now() + SESSION_TTL_MS;
+      logAuthEvent("google_session_issued", {
+        route: "auth_exchange",
+        ...playerIdLogFields(`google:${payload.sub}`),
+        hasEmail: typeof payload.email === "string" && !!payload.email,
+      });
       res.set("Cache-Control", "no-store");
       return res.json({
         accountId: `google:${payload.sub}`,
@@ -248,7 +323,11 @@ function createGoogleAuthHandler() {
         displayName: payload.name || payload.given_name || null,
       });
     } catch (err) {
-      console.warn("[googleAuth] exchange failed:", err?.message || err);
+      logAuthEvent("google_auth_denied", {
+        route: "auth_exchange",
+        reason: "exchange_error",
+        message: err?.message || String(err),
+      });
       return res.status(401).json({ error: "google_auth_invalid" });
     }
   };

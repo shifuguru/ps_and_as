@@ -24,6 +24,10 @@
     "bump-version": "node ./scripts/bump-version.js",
     "test-multiplayer": "node ./scripts/test-multiplayer.mjs",
     "test-hand-confidentiality": "node ./scripts/test-hand-confidentiality.mjs",
+    "test-google-session-auth": "node ./scripts/test-google-session-auth.js",
+    "audit:prod": "npm audit --omit=dev --audit-level=high && npm audit --omit=dev --audit-level=high --prefix server",
+    "delete-player-stats": "node ./scripts/delete-player-stats.js",
+    "backup-player-stats": "node ./scripts/backup-player-stats.js",
     "test-hand-browse-vs-play": "npx tsx ./scripts/test-hand-browse-vs-play.ts",
     "test-hand-guidance": "npx tsx ./scripts/test-hand-guidance.ts",
     "test-turn-start-cue": "npx tsx ./scripts/test-turn-start-cue.ts",
@@ -74,6 +78,11 @@
   "devDependencies": {
     "@react-native-community/cli": "latest",
     "@types/react": "~19.1.0"
+  },
+  "overrides": {
+    "postcss": "8.5.25",
+    "@xmldom/xmldom": "0.9.10",
+    "ws@7.5.10": "7.5.13"
   },
   "private": true
 }

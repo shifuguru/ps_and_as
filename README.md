@@ -8,6 +8,10 @@ Play against AI opponents, challenge friends online, or learn the game with Quic
 
 **🎮 Play Online:** https://shifuguru.github.io/ps_and_as/
 
+**Privacy:** [Privacy policy](https://shifuguru.github.io/ps_and_as/privacy.html) · **Security:** [SECURITY.md](./SECURITY.md)
+
+Compliance / trust docs for operators: [data inventory](./docs/data-inventory.md) · [SOC 2 readiness](./docs/soc2-readiness.md)
+
 ---
 
 # 📖 Contents

@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   Switch,
   Platform,
+  Linking,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import BlurPanel from "../components/BlurPanel";
@@ -60,6 +61,10 @@ import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import Card from "../components/Card";
 import type { Card as CardType } from "../game/ruleset";
 import { useWebAppInstall } from "../hooks/useWebAppInstall";
+import {
+  resolvePrivacyUrl,
+  resolveSecurityPolicyUrl,
+} from "../config/privacyUrl";
 
 const CARD_PREVIEW_W = 54;
 const CARD_PREVIEW_H = 78;
@@ -854,6 +859,37 @@ export default function Settings({
                   : "Shuffle and deal animations are experimental. Off by default."}
               </Text>
             </View>
+          </BlurPanel>
+
+          <BlurPanel style={ui.panel} intensity={48}>
+            <Text style={ui.panelEyebrow}>Privacy & security</Text>
+            <Text style={[styles.tintHint, styles.settingHint]}>
+              How we handle names, Game Center, Google sync, and cloud stats.
+            </Text>
+            <TouchableOpacity
+              style={[styles.saveBtn, styles.saveBtnActive, { marginTop: 12 }]}
+              onPress={() => {
+                void Linking.openURL(resolvePrivacyUrl()).catch(() => {});
+              }}
+              activeOpacity={0.85}
+              accessibilityRole="link"
+              accessibilityLabel="Open privacy policy"
+            >
+              <Text style={[styles.saveBtnText, styles.saveBtnTextActive]}>
+                Privacy policy
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveBtn, { marginTop: 10 }]}
+              onPress={() => {
+                void Linking.openURL(resolveSecurityPolicyUrl()).catch(() => {});
+              }}
+              activeOpacity={0.85}
+              accessibilityRole="link"
+              accessibilityLabel="Open security policy"
+            >
+              <Text style={styles.saveBtnText}>Security & data requests</Text>
+            </TouchableOpacity>
           </BlurPanel>
         </View>
       </ScrollView>

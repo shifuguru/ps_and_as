@@ -259,7 +259,7 @@ Returning players may see reset stats; cross-device play does not share a guaran
 **Status:** Open
 
 **Notes:**  
-See `GAME_ARCHITECTURE.md` §7 Identity & persistence (future). Not a gameplay change — infrastructure / product track. Mobile browser decline path now scaffolds Google Sign-in coupling (see **Mobile browser onboarding**); OAuth + durable account id still open.
+See `GAME_ARCHITECTURE.md` §7 Identity & persistence (future). Not a gameplay change — infrastructure / product track. Mobile browser decline path now scaffolds Google Sign-in coupling (see **Mobile browser onboarding**); OAuth + durable account id still open. Railway durability ops documented in [docs/ops-persistence.md](./docs/ops-persistence.md) (volume mount still required on the live service).
 
 ---
 
@@ -279,8 +279,11 @@ Install coach runs before name gate when `shouldOfferAddToHomeScreen()` and name
 **Still open:**  
 **Persist Railway `server/data` volume** so `player-stats.json` survives redeploys — without it, Level/XP uploads are wiped on each deploy (likely why Level 20 did not appear on a second device). Optional `GOOGLE_SESSION_SECRET` on Railway. Android Play Games remains a separate track.
 
+**Ops path (docs + scripts shipped; volume still operator action):**  
+[docs/ops-persistence.md](./docs/ops-persistence.md), `scripts/backup-player-stats.js`, `scripts/delete-player-stats.js`, notes in `railway.toml`. Mount volume at `/app/server/data` on Railway to close the wipe-on-redeploy failure mode.
+
 **Files likely involved:**  
-`src/services/webOnboarding.ts`, `src/services/googleAccountSync.ts`, `src/components/WebInstallCoachModal.tsx`, `src/components/DisplayNameSetupModal.tsx`, `App.tsx`, `src/utils/webAppInstall.ts`
+`src/services/webOnboarding.ts`, `src/services/googleAccountSync.ts`, `src/components/WebInstallCoachModal.tsx`, `src/components/DisplayNameSetupModal.tsx`, `App.tsx`, `src/utils/webAppInstall.ts`, `server/playerStatsStore.js`
 
 **Priority:** P1
 

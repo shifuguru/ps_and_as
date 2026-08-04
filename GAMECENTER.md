@@ -192,8 +192,12 @@ playerId: "device-16984..."     // Fallback
 ## Production Considerations
 
 ### 1. Privacy Policy
-If using GameCenter, disclose in privacy policy:
+Player-facing policy: [privacy.html](https://shifuguru.github.io/ps_and_as/privacy.html) (source: `public/privacy.html`).
+
+If using GameCenter, disclose (already covered in that page):
 > "We use GameCenter to identify players in multiplayer games. Your GameCenter display name and player ID are shared with other players in your game."
+
+Security / deletion contact: [SECURITY.md](./SECURITY.md).
 
 ### 2. Player ID Stability
 - **GameCenter IDs**: Stable forever (tied to Apple ID)
