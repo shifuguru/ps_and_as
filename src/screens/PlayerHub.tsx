@@ -2,8 +2,8 @@
  * Player Hub home — presentation layer over canonical PlayerStats.
  *
  * Panel order (player interest):
- * Brand → Identity → Play → (A2HS) → Daily → Next Achievement → Recent Unlock →
- * Journey → Friends → Stats → What's New → Support → footer actions
+ * Brand → Identity → Rules → Play → (A2HS) → Daily → Next Achievement →
+ * Recent Unlock → Journey → Friends → Stats → What's New → Support
  *
  * Deferred (need telemetry or session handoff — not built here):
  * - Last Match panel after round complete
@@ -332,6 +332,15 @@ export default function PlayerHub({
               </View>
           </BlurPanel>
 
+          <AppButton
+            label="Game Rules"
+            icon="list"
+            variant="secondary"
+            onPress={() => run(actions.onOpenReadMe)}
+            accessibilityLabel="Game Rules"
+            style={styles.rulesEntryButton}
+          />
+
           {/* Play — primary visit intent sits on felt (no competing glass shell) */}
           <View style={styles.playHero}>
             <AppButton
@@ -602,17 +611,6 @@ export default function PlayerHub({
             />
           </BlurPanel>
 
-          <View style={styles.footerNav}>
-            <AppButton
-              label="Read Me"
-              icon="list"
-              variant="secondary"
-              onPress={() => run(actions.onOpenReadMe)}
-              accessibilityLabel="Read Me"
-              style={styles.footerNavButton}
-            />
-          </View>
-
           <Text style={styles.versionLabel}>{versionLabel}</Text>
         </View>
       </ScrollView>
@@ -686,6 +684,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       gap: 10,
       marginTop: 4,
       marginBottom: 4,
+    },
+    rulesEntryButton: {
+      width: "100%",
     },
     card: {
       borderRadius: 16,
@@ -1008,19 +1009,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     supportCta: {
       marginTop: 10,
       width: "100%",
-    },
-    footerNav: {
-      flexDirection: "row",
-      justifyContent: "center",
-      alignItems: "stretch",
-      flexWrap: "wrap",
-      gap: 10,
-      marginTop: 4,
-    },
-    footerNavButton: {
-      minWidth: 180,
-      flexGrow: 1,
-      flexBasis: 0,
     },
     versionLabel: {
       fontSize: 11,
