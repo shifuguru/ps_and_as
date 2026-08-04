@@ -1,0 +1,48 @@
+name: Dependency audit
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "server/package.json"
+      - "server/package-lock.json"
+      - ".github/workflows/dependency-audit.yml"
+  pull_request:
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "server/package.json"
+      - "server/package-lock.json"
+      - ".github/workflows/dependency-audit.yml"
+  schedule:
+    # Weekly Monday 09:00 UTC
+    - cron: "0 9 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Audit root production dependencies
+        # Fail on high/critical only — keeps noise manageable for a small app.
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Audit server production dependencies
+        working-directory: server
+        run: npm audit --omit=dev --audit-level=high

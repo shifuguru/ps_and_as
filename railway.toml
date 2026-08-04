@@ -1,5 +1,9 @@
 # Railway deploy config — game server only (not the Expo app).
 # https://docs.railway.app/reference/config-as-code
+#
+# Persistence: attach a Railway volume mounted at /app/server/data so
+# player-stats.json survives redeploys. See docs/ops-persistence.md.
+# Volume mounts are configured in the Railway dashboard (service → Volumes).
 
 [build]
 # Install deps; no Expo web export needed for the socket server.

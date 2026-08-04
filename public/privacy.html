@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Privacy Policy — Presidents &amp; Assholes</title>
+    <meta
+      name="description"
+      content="Privacy policy for Presidents & Assholes (Ps & As), the multiplayer card game."
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f1a14;
+        --fg: #e8f0ea;
+        --muted: #a8b8ae;
+        --accent: #7ec8a3;
+        --rule: rgba(232, 240, 234, 0.14);
+        --card: rgba(255, 255, 255, 0.04);
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f4f7f5;
+          --fg: #142018;
+          --muted: #4a5c52;
+          --accent: #1f6b4a;
+          --rule: rgba(20, 32, 24, 0.12);
+          --card: rgba(20, 32, 24, 0.04);
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        background:
+          radial-gradient(1200px 600px at 10% -10%, rgba(126, 200, 163, 0.18), transparent 55%),
+          radial-gradient(900px 500px at 100% 0%, rgba(60, 90, 70, 0.25), transparent 50%),
+          var(--bg);
+        color: var(--fg);
+        line-height: 1.55;
+        min-height: 100vh;
+      }
+      main {
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 2.5rem 1.25rem 4rem;
+      }
+      .brand {
+        font-size: clamp(1.75rem, 4vw, 2.35rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin: 0 0 0.35rem;
+      }
+      .lede {
+        color: var(--muted);
+        margin: 0 0 1.75rem;
+        font-size: 1.05rem;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin: 1.75rem 0 0.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--rule);
+      }
+      p,
+      li {
+        margin: 0.45rem 0;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      a {
+        color: var(--accent);
+      }
+      .meta {
+        display: inline-block;
+        background: var(--card);
+        border: 1px solid var(--rule);
+        border-radius: 0.35rem;
+        padding: 0.35rem 0.65rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-bottom: 1.25rem;
+      }
+      .back {
+        display: inline-block;
+        margin-bottom: 1.5rem;
+        font-family: system-ui, sans-serif;
+        font-size: 0.9rem;
+        text-decoration: none;
+      }
+      .back:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a class="back" href="./">← Back to the game</a>
+      <h1 class="brand">Presidents &amp; Assholes</h1>
+      <p class="lede">Privacy policy for the Ps &amp; As web and mobile game.</p>
+      <p class="meta">Last updated: 4 August 2026</p>
+
+      <h2>What this game is</h2>
+      <p>
+        Presidents &amp; Assholes (“Ps &amp; As”) is a multiplayer card game. You can play offline against
+        AI or online in shared rooms. The live web game is hosted on GitHub Pages; the multiplayer
+        server runs on Railway.
+      </p>
+
+      <h2>Information we use</h2>
+      <ul>
+        <li>
+          <strong>Display name</strong> — chosen by you (up to 20 characters). Other players in your
+          room can see it.
+        </li>
+        <li>
+          <strong>Player identifiers</strong> — a device/install ID, and when you sign in, an Apple
+          Game Center player ID and/or a Google account id (`google:…`).
+        </li>
+        <li>
+          <strong>Game Center</strong> — on iOS we may use Game Center to identify you in multiplayer.
+          Your Game Center display name and player ID can be shared with other players in your game.
+        </li>
+        <li>
+          <strong>Google Sign-In (optional, web)</strong> — if you link Google, we verify a Google ID
+          token and may store a short-lived server session so your XP and profile can sync across
+          devices. Google may provide a subject id and, depending on consent, an email or name used
+          only for account linking — not shown to other players as your table name unless you choose
+          that display name.
+        </li>
+        <li>
+          <strong>Progress &amp; preferences</strong> — XP, career stats, appearance, and table colour
+          prefs. Stored on your device and, when synced, on our game server.
+        </li>
+        <li>
+          <strong>Live game state</strong> — room membership and play actions while you are in a match.
+          Hands are not broadcast to opponents.
+        </li>
+      </ul>
+      <p>We do <strong>not</strong> process payment cards in the app. Optional donations use GitHub Sponsors.</p>
+
+      <h2>Where data lives</h2>
+      <ul>
+        <li>On your device or browser (local storage).</li>
+        <li>On our Railway game server for online rooms and optional cloud stats.</li>
+        <li>With Apple or Google when you use their sign-in products (their policies also apply).</li>
+      </ul>
+
+      <h2>How we use it</h2>
+      <ul>
+        <li>Run multiplayer games and reconnect you to your seat when possible.</li>
+        <li>Keep XP / profile in sync when you link an account.</li>
+        <li>Show your display name and public progress to people at your table.</li>
+        <li>Keep the service secure (for example, verifying Google tokens before writing cloud stats).</li>
+      </ul>
+      <p>We do not sell personal information. We do not run third-party advertising SDKs in this game.</p>
+
+      <h2>Retention</h2>
+      <ul>
+        <li>Local data stays until you clear site/app storage or uninstall.</li>
+        <li>Cloud stats stay until deleted or the server store is reset.</li>
+        <li>Google sync sessions expire after about 30 days unless renewed.</li>
+        <li>Live room data ends when the room ends.</li>
+      </ul>
+
+      <h2>Your choices</h2>
+      <ul>
+        <li>Play without Google Sign-In (local / device identity).</li>
+        <li>Change your display name in Settings.</li>
+        <li>Clear browser or app storage to remove local data.</li>
+        <li>
+          Request deletion of a cloud stats record by contacting us (see below) with your player ID
+          from Settings / sync status when available.
+        </li>
+      </ul>
+
+      <h2>Children</h2>
+      <p>
+        The game is a general-audience card game. We do not knowingly collect personal information from
+        children for marketing. If you believe a child’s data should be removed, contact us.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Privacy and data deletion:
+        <a href="https://github.com/shifuguru/ps_and_as/security/policy">security policy</a>
+        on GitHub, or open a private
+        <a href="https://github.com/shifuguru/ps_and_as/security/advisories/new">security advisory</a>.
+        For non-sensitive questions you can also use the repository’s GitHub contact options for
+        <a href="https://github.com/shifuguru">@shifuguru</a>.
+      </p>
+      <p>
+        Maintainer technical inventory (for operators): see
+        <code>docs/data-inventory.md</code> in the
+        <a href="https://github.com/shifuguru/ps_and_as">source repository</a>.
+      </p>
+    </main>
+  </body>
+</html>

@@ -168,20 +168,24 @@ useEffect(() => {
 
 ## Privacy & Security
 
+Authoritative player-facing policy: [privacy.html](https://shifuguru.github.io/ps_and_as/privacy.html). Maintainer inventory: [docs/data-inventory.md](./docs/data-inventory.md).
+
 ### What's Stored Locally
-- Player ID (not sensitive)
+- Player ID (device / Game Center / linked account)
 - Display name (user-provided)
-- NOT stored: Game history, match data, passwords
+- Local XP/stats and preferences
+- Optional Google sync session token (web)
 
 ### What's Sent to Server
 - Display name (visible to other players in room)
-- Player ID (for session management)
-- Room participation (temporary, not persisted server-side)
+- Player ID (session management + optional cloud stats key)
+- Room participation and game actions (live; not a long-term match history store)
+- Cloud stats/profile when sync is linked
 
 ### GameCenter Privacy
-- GameCenter ID stored only if user authenticates
-- No GameCenter data sent to custom server
-- GameCenter used only for local identity
+- GameCenter ID used when the player authenticates on iOS
+- Display name and player ID may be shown to other players in the same game
+- See the privacy policy for full wording
 
 ## Debugging
 
