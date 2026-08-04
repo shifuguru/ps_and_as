@@ -153,6 +153,7 @@ import { playCardsSfxId, type PlaySoundFn } from "../audio/gameSfx";
 import { useTurnStartCue } from "../hooks/useTurnStartCue";
 import { triggerHaptic } from "../utils/haptics";
 import RoundCompleteModal from "../components/RoundCompleteModal";
+import HandOutWaitingPanel from "../components/HandOutWaitingPanel";
 import LastHandRevealOverlay from "../components/LastHandRevealOverlay";
 import LeaveGameConfirmModal from "../components/LeaveGameConfirmModal";
 import TenRuleModal from "../components/TenRuleModal";
@@ -5186,9 +5187,27 @@ function GameScreenBoard() {
     !!humanPlayer && state.finishedOrder.includes(humanPlayer.id);
   const handInBottomBar =
     handVisible && !gameplayLocked && !betweenRoundsPresentation;
+  /**
+   * Local player finished mid-round — show waiting panel (+ banner on web)
+   * in the empty hand zone until last-hand / rankings.
+   */
+  const showHandOutWaitingPanel =
+    localPlayerOut &&
+    !handInBottomBar &&
+    !betweenRoundsPresentation &&
+    !roundOver &&
+    !rankingsModalVisible &&
+    !gameplayLocked &&
+    !readOnlyOnline &&
+    !ceremonyPrep &&
+    !tradePhase &&
+    !showLocalDealerHandZone;
   /** Keep bottom chrome height stable when the local player is out (hand hidden). */
   const handReserveActive =
-    handInBottomBar || localPlayerOut || showLocalDealerHandZone;
+    handInBottomBar ||
+    localPlayerOut ||
+    showLocalDealerHandZone ||
+    showHandOutWaitingPanel;
   const localHandDealTarget = useMemo(() => {
     if (!localCeremonyDeal || !isCeremonyDealer) return null;
     return localHandShuffleScreenCenter(
@@ -5857,6 +5876,16 @@ function GameScreenBoard() {
                 />
               ) : null}
             </View>
+          </BottomBarHand>
+        ) : showHandOutWaitingPanel ? (
+          <BottomBarHand
+            height={handMetrics.fanHeight + handMetrics.handZoneTopClearance}
+            controlsGap={handMetrics.handControlsGap}
+            bottomPad={handMetrics.handZoneBottomPad}
+          >
+            <HandOutWaitingPanel
+              height={handMetrics.fanHeight + handMetrics.handZoneTopClearance}
+            />
           </BottomBarHand>
         ) : null}
 
