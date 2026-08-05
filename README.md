@@ -8,6 +8,10 @@ Play against AI opponents, challenge friends online, or learn the game with Quic
 
 **🎮 Play Online:** https://shifuguru.github.io/ps_and_as/
 
+**Privacy:** https://shifuguru.github.io/ps_and_as/privacy.html
+
+Android Play release runbook: [docs/play-store/RELEASE_CHECKLIST.md](./docs/play-store/RELEASE_CHECKLIST.md)
+
 ---
 
 # 📖 Contents
