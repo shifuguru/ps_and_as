@@ -158,11 +158,9 @@ To beat a run, play a higher run of the same length and count, or **extend** it 
 
 # Starting a Round
 
-**Round 1** always opens with **3♣** (or **3♠** if the Dead Hand holds 3♣ — see below).
+Every round opens with **3♣**. Whoever holds it leads.
 
-**Later rounds:** after role trades, whoever holds **3♣** leads. Any legal lead is allowed once that opening play is down.
-
-In two-player games, a hidden **Dead Hand** is dealt to balance the deck. If it contains 3♣, play opens with 3♠ instead.
+In two-player games, a hidden **Dead Hand** is dealt to balance the deck. If it contains 3♣, play opens with **3♠** instead.
 
 ---
 
