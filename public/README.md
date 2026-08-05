@@ -16,9 +16,9 @@ Your finishing order sets your rank for the next round:
 | Everyone else | Citizen |
 | Last | Asshole |
 
-With five or more players, second and second-to-last become **Vice President** and **Vice Asshole**.
+With five or more players, second place is **Vice President** and second-to-last is **Vice Asshole**.
 
-Ranks carry into the next round. The President gets an advantage. The Asshole has to give away their best cards.
+Those ranks carry into the next round. The President gets an advantage. The Asshole has to give away their best cards.
 
 ---
 
@@ -47,15 +47,15 @@ You can play:
 - Four of a kind
 - A valid run
 
-Your play must beat whatever is currently on the table.
+Your play has to beat whatever is on the table.
 
-If you cannot — or do not want to — beat it, press **Pass**. After you pass, you are locked out of that trick until the pile clears.
+If you can't beat it, or just don't want to, press **Pass**. Once you pass, you're locked out of that trick until the pile clears.
 
-When every other active player has passed, the trick ends. The player who made the last successful play starts the next one.
+When everyone else has passed, the trick ends. The player who played last starts the next one.
 
 > **Important**
 >
-> A powerful card does **not** automatically end the trick.
+> Strong cards do **not** clear the table on their own.
 >
 > Not a 2.
 >
@@ -63,7 +63,7 @@ When every other active player has passed, the trick ends. The player who made t
 >
 > Not four of a kind.
 >
-> The trick only ends when every other active player passes.
+> The trick only ends when everyone else passes.
 
 ---
 
@@ -74,7 +74,7 @@ Cards get stronger in this order:
 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | J | Q | K | A | 2 | Joker |
 |---|---|---|---|---|---|---|----|---|---|---|---|---|-------|
 
-The Joker is always the strongest card.
+Joker is always strongest.
 
 ---
 
@@ -97,33 +97,31 @@ Playing a 2 does **not** end the trick.
 
 The strongest card in the game.
 
-It beats every normal play and stays on the table until every other player passes.
+It beats every normal play and stays on the table until everyone else passes.
 
-Jokers cannot be played while a **run** is active.
+You can't play a Joker while a run is active.
 
 ---
 
 ## Four of a Kind
 
-Four matching cards played together are one of the strongest plays.
-
-They can only be beaten by:
+Four of a kind is a bomb. Played all at once, it can only be beaten by:
 
 - A higher four of a kind
 - A Joker
 
-If four of a kind are **built up across turns** in the same trick (for example one 3, then three more 3s), that play becomes unbeatable — everyone else must pass.
+If four of a kind get built up during the same trick (say one 3, then three more 3s), that play is unbeatable. Everyone else has to pass.
 
 ---
 
 ## The 10 Rule
 
-Playing a 10 lets you choose the direction of the next play:
+Playing a 10 lets you pick the direction for the next play:
 
 - Higher than 10
 - Lower than 10
 
-The effect lasts for one turn.
+It only lasts for one turn.
 
 Runs ignore the 10 Rule.
 
@@ -131,28 +129,28 @@ Runs ignore the 10 Rule.
 
 # Runs
 
-A run is one play made of consecutive ranks, all with the same count.
+A run is one play of consecutive ranks, all with the same count.
 
 Examples:
 
 - 4-5-6
 - 8-9-10-J
 - 10-J-Q-K-A
-- K-A-2 (2 follows Ace on the ladder)
+- K-A-2 (2 follows Ace)
 
-Pair runs work the same way:
+Pair runs work too:
 
 - 7-7 / 8-8 / 9-9
 
-A valid run must:
+A valid run needs:
 
-- Include at least three ranks
-- Be consecutive (no wrapping past 2 back to 3 — A-2-3 is illegal)
-- Use the same number of cards at each rank
+- At least three ranks
+- Consecutive ranks (no wrapping from 2 back to 3, so A-2-3 is out)
+- The same number of cards at each rank
 
-To beat a run, play a higher run of the same length and count, or **extend** it with the next adjacent rank while the run is still active.
+To beat a run, play a higher one of the same length and count, or **extend** it with the next adjacent rank while the run is still going.
 
-**On top:** when a run ends because everyone else passed without extending, the last player on the run gets one extra turn to play the next consecutive rank. The same idea applies after a 10 Rule pile — the player who set the rule may play on top in that direction, or pass to take the trick.
+**On top:** when a run ends because everyone else passed, the last player on it gets one extra turn to play the next consecutive rank. Same deal after a 10 Rule pile: the player who set the rule can play on top in that direction, or pass and take the trick.
 
 ---
 
@@ -160,29 +158,29 @@ To beat a run, play a higher run of the same length and count, or **extend** it 
 
 Every round opens with **3♣**. Whoever holds it leads.
 
-In two-player games, a hidden **Dead Hand** is dealt to balance the deck. If it contains 3♣, play opens with **3♠** instead.
+In two-player games, a hidden **Dead Hand** is dealt so the deck balances out. If that hand has 3♣, play opens with **3♠** instead.
 
 ---
 
 # President & Asshole
 
-From Round Two onward, ranks matter.
+From round two on, ranks matter.
 
 ### President
 
-Receives the Asshole's best card(s).
+Gets the Asshole's best card(s).
 
-Then chooses the **same number** of cards from their own hand to give back — any cards they like.
+Then picks the **same number** of cards from their own hand to send back. Any cards they want.
 
 ### Asshole
 
-Must give away their strongest card(s).
+Gives away their strongest card(s).
 
-Receives whatever the President sends back.
+Gets whatever the President sends back.
 
-With five or more players, the Vice President and Vice Asshole also exchange one card each. Middle ranks stay neutral.
+With five or more players, Vice President and Vice Asshole also swap one card each. Everyone in the middle stays out of it.
 
-**Fresh round:** if the same player is Asshole three rounds in a row, the next round skips the President↔Asshole trade only. Dealing and opening continue as usual; trades resume the round after.
+**Fresh round:** if the same player is Asshole three rounds in a row, the next round skips the President/Asshole trade. Deal and open as usual. Trades come back the round after that.
 
 ---
 
@@ -190,15 +188,13 @@ With five or more players, the Vice President and Vice Asshole also exchange one
 
 ## Quick Game
 
-Jump into a match against AI opponents.
-
-Good for learning the rules or a short session.
+Play against AI. Handy for learning, or when you just want a quick game.
 
 ## Online Multiplayer
 
-Create a room, invite friends, and play for the Presidency.
+Create a room, invite friends, fight for the Presidency.
 
-If your connection drops briefly, you can reconnect.
+If you drop offline for a moment, you can reconnect.
 
 ---
 
@@ -221,11 +217,11 @@ If your connection drops briefly, you can reconnect.
 
 # Beginner Tips
 
-- Don't waste your 2s too early
+- Don't burn your 2s too early
 - Jokers are often worth saving
-- Passing can be the strongest move
-- Runs clear a lot of cards quickly
-- Think about your next trick — not just this one
+- Passing is sometimes the right call
+- Runs dump a lot of cards fast
+- Think about the next trick, not just this one
 
 ---
 
@@ -233,7 +229,7 @@ If your connection drops briefly, you can reconnect.
 
 ### Can I play offline?
 
-Yes. Quick Game works without an internet connection.
+Yes. Quick Game works without internet.
 
 ### Can I play with friends?
 
@@ -241,17 +237,17 @@ Yes. Create an online room and share the room code.
 
 ### Does suit matter?
 
-Normally, no. Suits only decide the opening card.
+Usually no. Suits only matter for the opening card.
 
 ### Why can't I beat a Joker?
 
-Nothing normally beats a Joker. (And you cannot play a Joker into an active run.)
+Nothing normally beats a Joker. And you can't play one into an active run.
 
 ### Why did I become the Asshole?
 
 You finished last.
 
-Every new round is another chance to become President.
+Next round's another shot at President.
 
 ---
 
