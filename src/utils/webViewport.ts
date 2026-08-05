@@ -494,14 +494,26 @@ export function installWebShellCss(feltTint: string): () => void {
   doc.documentElement.style.setProperty("--ps-felt-tint", feltTint);
 
   // Default dark appearance chrome until ThemeContext resolves.
+  // Safari tab keeps black theme-color; standalone strips it (felt under status).
   const root = doc.documentElement;
   root.style.colorScheme = "dark";
   root.setAttribute("data-ps-theme", "dark");
   const metas = doc.head?.querySelectorAll?.('meta[name="theme-color"]');
-  if (metas) {
-    for (let i = metas.length - 1; i >= 0; i--) {
-      metas[i]?.parentNode?.removeChild?.(metas[i]);
+  if (isStandaloneWebApp()) {
+    if (metas) {
+      for (let i = metas.length - 1; i >= 0; i--) {
+        metas[i]?.parentNode?.removeChild?.(metas[i]);
+      }
     }
+  } else if (metas && metas.length) {
+    for (let i = 0; i < metas.length; i++) {
+      metas[i]?.setAttribute?.("content", "#000000");
+    }
+  } else if (doc.head?.appendChild && doc.createElement) {
+    const meta = doc.createElement("meta");
+    meta.setAttribute("name", "theme-color");
+    meta.setAttribute("content", "#000000");
+    doc.head.appendChild(meta);
   }
 
   style.textContent = getWebShellCssText(feltTint);

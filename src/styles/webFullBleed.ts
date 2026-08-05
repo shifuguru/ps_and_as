@@ -13,6 +13,7 @@ import {
   WEB_FELT_LAYER_ID,
   applyMobileWebShellHeight,
 } from "../utils/webViewport";
+import { isStandaloneWebApp } from "../utils/safariChrome";
 
 export { WEB_FELT_FIXED_CLASS } from "../utils/webViewport";
 
@@ -100,10 +101,30 @@ export function clearWebThemeColorMeta(doc: WebDocument): void {
   }
 }
 
+/** Appearance-only theme-color (never felt tint) for Safari tab URL/tool bars. */
+export function setWebThemeColorMeta(
+  doc: WebDocument,
+  color: string,
+): void {
+  const head = (doc as { head?: any }).head;
+  if (!head) return;
+
+  let meta = head.querySelector?.('meta[name="theme-color"]');
+  if (!meta) {
+    meta = doc.createElement("meta");
+    meta.setAttribute("name", "theme-color");
+    head.appendChild(meta);
+  }
+  meta.setAttribute("content", color);
+}
+
 /**
- * Keep only the system color-scheme in sync with appearance.
- * We intentionally do NOT paint custom top/bottom chrome bands or set a
- * runtime theme-color tint here — the wallpaper should run edge to edge.
+ * Sync appearance chrome with dark/light mode.
+ *
+ * - Home Screen (standalone): clear theme-color so the status region shows felt
+ *   (black-translucent) without a frosted sample stuck on green.
+ * - Safari tab: keep theme-color black/white so the URL bar + bottom toolbar do
+ *   not pick up the casino felt tint from html background-color.
  */
 export function syncWebAppearanceChrome(
   mode: ThemeMode,
@@ -116,7 +137,12 @@ export function syncWebAppearanceChrome(
 
   root.style.colorScheme = isDark ? "dark" : "light";
   root.setAttribute("data-ps-theme", isDark ? "dark" : "light");
-  clearWebThemeColorMeta(doc);
+
+  if (isStandaloneWebApp()) {
+    clearWebThemeColorMeta(doc);
+  } else {
+    setWebThemeColorMeta(doc, isDark ? "#000000" : "#ffffff");
+  }
 }
 
 function clearShellInlineGeometry(el: any): void {
