@@ -1812,6 +1812,11 @@ io.on('connection', (socket) => {
   socket.on('joinRoom', ({ roomId, name, profileId, clientBuildId, feltTint, reconnectSecret }) => {
     const code = normalizeRoomCode(roomId);
     if (code === botHosted.BOT_ROOM_CODE) {
+      if (!botHosted.isOpenBotTableEnabled()) {
+        botHosted.shutdownOpenBotTableIfPresent(getBotContext());
+        socket.emit('error', { message: 'Open Bot Table is unavailable.' });
+        return;
+      }
       botHosted.repairBotHostedRoomIfNeeded(getBotContext());
     }
     if (!rooms[code]) {

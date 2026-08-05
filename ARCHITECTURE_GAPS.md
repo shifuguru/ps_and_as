@@ -310,10 +310,10 @@ Two disconnect stories; architecture readers may apply standard-room rules to bo
 
 **Priority:** P2
 
-**Status:** Open
+**Status:** Open — product surface disabled
 
 **Notes:**  
-May remain intentionally different; if so, promote bot-table rules into a short dedicated subsection and mark this gap **Resolved (by design)** after doc cross-link only. Gameplay Auditor Finding 4 reaffirmed (2026-06-08): immediate demotion removes human from `gameState` mid-round with no pause or grace.
+Public Open Bot Table is **off by default** (`ENABLE_OPEN_BOT_TABLE` unset): no BOTOPN create/deal loop, Find Game hide (D-010) kept. Code retained for opt-in tests / QA League (`QALEG` via `PS_QA_LEAGUE`). Gap remains relevant if the table is re-enabled. Gameplay Auditor Finding 4 reaffirmed (2026-06-08): immediate demotion removes human from `gameState` mid-round with no pause or grace.
 
 ---
 

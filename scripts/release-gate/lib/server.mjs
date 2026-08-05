@@ -45,7 +45,12 @@ export async function ensureServer(url = DEFAULT_URL) {
   const child = spawn("node", ["server/index.js"], {
     cwd: process.cwd(),
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, PORT: process.env.PORT ?? "4000" },
+    env: {
+      ...process.env,
+      PORT: process.env.PORT ?? "4000",
+      // BOTOPN is off in production; opt in for release-gate live bot-table tests.
+      ENABLE_OPEN_BOT_TABLE: process.env.ENABLE_OPEN_BOT_TABLE ?? "1",
+    },
   });
 
   const deadline = Date.now() + 25_000;
