@@ -42,7 +42,6 @@ function resolveEffectSource(effect: string): number | null {
 }
 
 export function useMenuAudio() {
-  const bgSound = useRef<any>(null);
   const audioModuleRef = useRef<ExpoAudioModule | null>(null);
   const unlockedRef = useRef(false);
   const mutedRef = useRef(false);
@@ -71,17 +70,23 @@ export function useMenuAudio() {
       setMuted(initMuted);
       mutedRef.current = initMuted;
 
-      let AudioModule: ExpoAudioModule | null = null;
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        AudioModule = require("expo-av");
-      } catch (e) {
-        console.warn("expo-av not available, menu audio disabled", e);
-        return;
-      }
-      if (cancelled || !AudioModule) return;
-      audioModuleRef.current = AudioModule;
+      // Defer expo-av until first play — avoid pulling the module + decoder work
+      // onto the splash/boot critical path.
+    };
 
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const ensureAudioModule = useCallback(async (): Promise<ExpoAudioModule | null> => {
+    if (audioModuleRef.current) return audioModuleRef.current;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const AudioModule = require("expo-av") as ExpoAudioModule;
+      audioModuleRef.current = AudioModule;
       try {
         await AudioModule.Audio.setAudioModeAsync({
           playsInSilentModeIOS: true,
@@ -93,47 +98,16 @@ export function useMenuAudio() {
       } catch {
         // Some platforms reject mode flags — SFX can still work.
       }
-
-      try {
-        const { sound } = await AudioModule.Audio.Sound.createAsync(
-          require("../../assets/sounds/bg_casino_ambience.mp3"),
-          { shouldPlay: false, isLooping: true, volume: 0.3 },
-        );
-        if (cancelled) {
-          await sound.unloadAsync();
-          return;
-        }
-        bgSound.current = sound;
-        if (initMuted) {
-          try {
-            await sound.setIsMutedAsync(true);
-          } catch {
-            try {
-              await sound.setStatusAsync({ isMuted: true });
-            } catch {
-              // ignore
-            }
-          }
-        }
-      } catch (e) {
-        console.warn("menu ambience failed to load", e);
-      }
-    };
-
-    void load();
-
-    return () => {
-      cancelled = true;
-      if (bgSound.current) {
-        void bgSound.current.unloadAsync();
-        bgSound.current = null;
-      }
-    };
+      return AudioModule;
+    } catch (e) {
+      console.warn("expo-av not available, menu audio disabled", e);
+      return null;
+    }
   }, []);
 
   const unlockAudio = useCallback(async () => {
     if (unlockedRef.current) return;
-    const AudioModule = audioModuleRef.current;
+    const AudioModule = await ensureAudioModule();
     if (!AudioModule) return;
     unlockedRef.current = true;
     try {
@@ -141,11 +115,11 @@ export function useMenuAudio() {
     } catch {
       // optional API
     }
-  }, []);
+  }, [ensureAudioModule]);
 
   const playEffect = useCallback(async (effect: GameSfxId | string) => {
     if (mutedRef.current) return;
-    const AudioModule = audioModuleRef.current;
+    const AudioModule = await ensureAudioModule();
     if (!AudioModule) return;
 
     await unlockAudio();
@@ -179,7 +153,7 @@ export function useMenuAudio() {
         console.warn("playEffect failed", effect, e);
       }
     }
-  }, [unlockAudio]);
+  }, [ensureAudioModule, unlockAudio]);
 
   const toggleMute = useCallback(async () => {
     const next = !mutedRef.current;
@@ -191,17 +165,6 @@ export function useMenuAudio() {
       await AsyncStorage.setItem(MUTE_KEY, next ? "1" : "0");
     } catch {
       // ignore
-    }
-    if (bgSound.current) {
-      try {
-        await bgSound.current.setIsMutedAsync(next);
-      } catch {
-        try {
-          await bgSound.current.setStatusAsync({ isMuted: next });
-        } catch {
-          // ignore
-        }
-      }
     }
   }, []);
 
