@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import BlurPanel from "./BlurPanel";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
 
@@ -16,6 +15,10 @@ type Props = {
   countLabel?: string;
 };
 
+/**
+ * Lobby header chrome — overlay only.
+ * No glass plate / painted band through the status region; stats float on felt.
+ */
 export default function LobbyStatusBar({
   playerCount,
   roomName,
@@ -24,13 +27,13 @@ export default function LobbyStatusBar({
   topInset = 0,
   countLabel = "Party",
 }: Props) {
-  const { colors, blur } = useAppTheme();
+  const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <BlurPanel
-      style={[styles.panel, { paddingTop: topInset + 6 }]}
-      preset={blur.chrome}
+    <View
+      style={[styles.host, { paddingTop: topInset + 6 }]}
+      pointerEvents="box-none"
     >
       <View style={styles.container}>
         <View style={styles.centerSection}>
@@ -56,22 +59,21 @@ export default function LobbyStatusBar({
           </Text>
         </View>
       </View>
-    </BlurPanel>
+    </View>
   );
 }
 
 function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   const isDark = colors.mode === "dark";
   return StyleSheet.create({
-    panel: {
+    host: {
       position: "absolute",
       top: 0,
       left: 0,
       right: 0,
       zIndex: 40,
       elevation: 40,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: hexToRgba(colors.accent, isDark ? 0.22 : 0.16),
+      backgroundColor: "transparent",
     },
     container: {
       width: "100%",
@@ -79,6 +81,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       alignItems: "center",
       paddingVertical: 8,
       paddingHorizontal: 14,
+      backgroundColor: "transparent",
     },
     centerSection: {
       flex: 1,
@@ -120,12 +123,18 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       letterSpacing: 0.4,
       marginBottom: 2,
       textAlign: "center",
+      textShadowColor: "rgba(0,0,0,0.55)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 3,
     },
     value: {
       color: colors.textPrimary,
       fontSize: 15,
       fontWeight: "700",
       textAlign: "center",
+      textShadowColor: "rgba(0,0,0,0.55)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 3,
     },
   });
 }

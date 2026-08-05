@@ -5,9 +5,10 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  * Runtime shell CSS (dev + production fallback). Keep in sync with web-shell.css.
  *
  * Chin-gap: height calc(100vh + 2px) on html/body/#root (not height:100%).
- * Status frost: appearance-matched theme-color + --ps-status-veil (dark/light).
- * Never felt tint — veil only darkens/lightens wallpaper underneath.
+ * Document element alone owns wallpaper — do not duplicate onto html::before
+ * (separate geometry creates a safe-area seam / tint band).
  * html background-color stays var(--ps-felt-tint); body stays transparent.
+ * theme-color is stripped — no separate toolbar/status paint plate.
  */
 export function getWebShellCssText(feltTint: string): string {
   return `
@@ -47,33 +48,7 @@ export function getWebShellCssText(feltTint: string): string {
       background-attachment: scroll, scroll !important;
     }
     html::before {
-      content: "" !important;
-      position: fixed !important;
-      left: 0 !important;
-      right: 0 !important;
-      top: calc(0px - constant(safe-area-inset-top)) !important;
-      top: calc(0px - env(safe-area-inset-top, 0px)) !important;
-      width: 100% !important;
-      height: calc(
-        100vh + constant(safe-area-inset-top) + constant(safe-area-inset-bottom) + 4px
-      ) !important;
-      height: calc(
-        100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 4px
-      ) !important;
-      min-height: var(--ps-shell-paint-h) !important;
-      z-index: -1 !important;
-      pointer-events: none !important;
-      background-color: var(--ps-felt-tint) !important;
-      background-image:
-        linear-gradient(
-          var(--ps-felt-tint-overlay),
-          var(--ps-felt-tint-overlay)
-        ),
-        var(--ps-felt-texture) !important;
-      background-size: 100% 100%, cover !important;
-      background-position: center center, center center !important;
-      background-repeat: no-repeat, no-repeat !important;
-      background-attachment: scroll, scroll !important;
+      content: none !important;
     }
     body {
       position: fixed !important;

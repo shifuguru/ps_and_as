@@ -305,6 +305,7 @@ function injectEarlyShellHeight(html) {
     html.classList.add("ps-splash-active");
     html.style.colorScheme="dark";
     html.setAttribute("data-ps-theme","dark");
+    // No theme-color plate — document felt runs edge to edge under chrome.
     var metas=document.querySelectorAll('meta[name="theme-color"]');
     for(var i=metas.length-1;i>=0;i--) metas[i].parentNode.removeChild(metas[i]);
   }catch(e){}

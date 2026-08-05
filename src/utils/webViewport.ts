@@ -494,6 +494,7 @@ export function installWebShellCss(feltTint: string): () => void {
   doc.documentElement.style.setProperty("--ps-felt-tint", feltTint);
 
   // Default dark appearance chrome until ThemeContext resolves.
+  // No theme-color plate — felt under status / browser chrome edge-to-edge.
   const root = doc.documentElement;
   root.style.colorScheme = "dark";
   root.setAttribute("data-ps-theme", "dark");
