@@ -10,16 +10,14 @@ import {
   Text,
   ScrollView,
   StyleSheet,
+  ActivityIndicator,
   Platform,
   useWindowDimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
-  Pressable,
-  Linking,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import ScreenTopBar from "../components/ScreenTopBar";
-import RulesSectionNav from "../components/RulesSectionNav";
 import BottomBar, {
   BottomBarControls,
   BottomBarLeave,
@@ -28,6 +26,7 @@ import BottomBar, {
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { contentMaxWidth } from "../styles/uiStandards";
 import { useAppTheme } from "../context/ThemeContext";
+import { fetchReadmeMarkdown } from "../utils/readmeFallback";
 import {
   parseReadmeHtml,
   removeReadmeMarkdownStyles,
@@ -36,23 +35,18 @@ import {
 import {
   installReadmeLinkHandlers,
   bindReadmeMarkdownLinks,
-  scrollToReadmeHeading,
   escapeSelectorId,
 } from "../utils/readmeAnchorScroll";
 import {
   activeSectionForOffset,
   extractRulesSections,
 } from "../utils/rulesHeadings";
-import {
-  RULES_MARKDOWN,
-  RULES_PRIVACY_URL,
-} from "./rulesContent";
 
 type Props = {
   onBack: () => void;
 };
 
-const NAV_PROBE_OFFSET = 12;
+const NAV_PROBE_OFFSET = 8;
 
 export default function ReadMeScreen({ onBack }: Props) {
   const { colors, ui } = useAppTheme();
@@ -62,9 +56,6 @@ export default function ReadMeScreen({ onBack }: Props) {
   const contentMax = contentMaxWidth(width);
   const bottomBarHeight = menuBottomReserve(insets.bottom || 0);
 
-  const markdown = RULES_MARKDOWN;
-  const sections = useMemo(() => extractRulesSections(markdown), [markdown]);
-
   const readmeTheme = useMemo(
     () => ({
       linkColor: colors.accent,
@@ -72,6 +63,7 @@ export default function ReadMeScreen({ onBack }: Props) {
       linkBorder: colors.btnAccentBorder,
       textPrimary: colors.textPrimary,
       borderMuted: colors.panelBorder,
+      surface: colors.surface,
     }),
     [
       colors.accent,
@@ -79,22 +71,44 @@ export default function ReadMeScreen({ onBack }: Props) {
       colors.btnAccentBorder,
       colors.textPrimary,
       colors.panelBorder,
+      colors.surface,
     ],
   );
 
-  const html = useMemo(
-    () => (Platform.OS === "web" ? parseReadmeHtml(markdown) : null),
-    [markdown],
-  );
-
+  const [markdown, setMarkdown] = useState<string | null>(null);
+  const [html, setHtml] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const webScrollRef = useRef<HTMLDivElement | null>(null);
   const [markdownRoot, setMarkdownRoot] = useState<HTMLElement | null>(null);
-  const [activeSectionId, setActiveSectionId] = useState<string | null>(
-    sections[0]?.id ?? null,
-  );
+  const [activeSectionTitle, setActiveSectionTitle] = useState("Rules");
   const headingOffsets = useRef<Map<string, number>>(new Map());
   const scrollRaf = useRef<number | null>(null);
+
+  const sections = useMemo(
+    () => (markdown ? extractRulesSections(markdown) : []),
+    [markdown],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchReadmeMarkdown()
+      .then((text) => {
+        if (cancelled) return;
+        setMarkdown(text);
+        if (Platform.OS === "web") {
+          setHtml(parseReadmeHtml(text));
+        }
+      })
+      .catch((err: Error) => {
+        if (!cancelled) {
+          setLoadError(err.message || "Could not load rules");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -134,8 +148,6 @@ export default function ReadMeScreen({ onBack }: Props) {
           container.getBoundingClientRect().top +
           container.scrollTop;
         next.set(section.id, top);
-      } else if (scrollRef.current) {
-        next.set(section.id, el.offsetTop);
       }
     }
     headingOffsets.current = next;
@@ -154,23 +166,24 @@ export default function ReadMeScreen({ onBack }: Props) {
 
   const updateActiveSection = useCallback(
     (scrollY: number) => {
-      const active = activeSectionForOffset(
+      const activeId = activeSectionForOffset(
         sections,
         headingOffsets.current,
         scrollY,
         NAV_PROBE_OFFSET,
       );
-      if (active) setActiveSectionId(active);
+      const title =
+        sections.find((s) => s.id === activeId)?.title ??
+        sections[0]?.title ??
+        "Rules";
+      setActiveSectionTitle(title);
     },
     [sections],
   );
 
-  const onNativeScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      updateActiveSection(event.nativeEvent.contentOffset.y);
-    },
-    [updateActiveSection],
-  );
+  useEffect(() => {
+    if (sections[0]?.title) setActiveSectionTitle(sections[0].title);
+  }, [sections]);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -192,85 +205,66 @@ export default function ReadMeScreen({ onBack }: Props) {
     };
   }, [html, updateActiveSection]);
 
-  const scrollToSection = useCallback(
-    (id: string) => {
-      setActiveSectionId(id);
-      if (Platform.OS === "web" && webScrollRef.current) {
-        const heading =
-          markdownRoot?.querySelector<HTMLElement>(
-            `#${escapeSelectorId(id)}`,
-          ) ?? document.getElementById(id);
-        if (heading) {
-          const container = webScrollRef.current;
-          const top =
-            heading.getBoundingClientRect().top -
-            container.getBoundingClientRect().top +
-            container.scrollTop;
-          container.scrollTo({
-            top: Math.max(0, top - NAV_PROBE_OFFSET),
-            behavior: "smooth",
-          });
-        }
-        return;
-      }
-      scrollToReadmeHeading(scrollRef, id, markdownRoot);
+  const onNativeScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      updateActiveSection(event.nativeEvent.contentOffset.y);
     },
-    [markdownRoot],
+    [updateActiveSection],
   );
 
-  const showHtml = Platform.OS === "web" && !!html;
+  const loading = !markdown && !loadError;
+  const showHtml = Platform.OS === "web" && !!html && !loadError;
 
-  const markdownBody = showHtml ? (
-    <View style={styles.markdownWrap}>
-      <article
-        // @ts-expect-error web article element
-        ref={setMarkdownRoot}
-        className="markdown-body"
-        dangerouslySetInnerHTML={{ __html: html }}
-        style={styles.markdownWeb}
-      />
-    </View>
-  ) : (
-    <Text style={styles.plainMarkdown} selectable>
-      {markdown}
-    </Text>
-  );
+  const rulesBody = (
+    <View style={[styles.content, { maxWidth: contentMax }]}>
+      {loading ? (
+        <ActivityIndicator
+          color={colors.accent}
+          size="large"
+          style={styles.loader}
+        />
+      ) : null}
 
-  const scrollContent = (
-    <View style={[styles.scrollInner, { maxWidth: contentMax }]}>
-      {markdownBody}
-      <Pressable
-        onPress={() => void Linking.openURL(RULES_PRIVACY_URL)}
-        style={styles.privacyRow}
-        accessibilityRole="link"
-        accessibilityLabel="Privacy policy"
-      >
-        <Text style={styles.privacyText}>Privacy policy</Text>
-      </Pressable>
-    </View>
-  );
+      {loadError ? (
+        <Text style={styles.errorText}>
+          {loadError}. Tap Back below to return to the game.
+        </Text>
+      ) : null}
 
-  const headerBlock = (
-    <View style={[styles.headerBlock, { maxWidth: contentMax }]}>
-      <ScreenTopBar title="Rules" />
-      <RulesSectionNav
-        sections={sections}
-        activeId={activeSectionId}
-        onSelect={scrollToSection}
-      />
+      {showHtml ? (
+        <View style={styles.markdownWrap}>
+          <article
+            // @ts-expect-error web article element
+            ref={setMarkdownRoot}
+            className="markdown-body"
+            dangerouslySetInnerHTML={{ __html: html }}
+            style={styles.markdownWeb}
+          />
+        </View>
+      ) : null}
+
+      {markdown && !showHtml && !loadError ? (
+        <Text style={styles.plainMarkdown} selectable>
+          {markdown}
+        </Text>
+      ) : null}
     </View>
   );
 
-  const topPadding = insets.top + 12;
   const scrollPadding = {
     paddingTop: 8,
-    paddingBottom: bottomBarHeight + 12,
+    paddingBottom: bottomBarHeight + 16,
   };
 
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
-      <View style={[styles.page, { paddingTop: topPadding }]}>
-        <View style={[ui.scrollContent, styles.headerWrap]}>{headerBlock}</View>
+      <View style={[styles.page, { paddingTop: insets.top + 12 }]}>
+        <View style={[styles.header, { maxWidth: contentMax }]}>
+          <ScreenTopBar title="Rules" />
+          <Text style={styles.sectionTitle} numberOfLines={1}>
+            {activeSectionTitle}
+          </Text>
+        </View>
 
         {Platform.OS === "web" ? (
           <View
@@ -278,7 +272,7 @@ export default function ReadMeScreen({ onBack }: Props) {
             ref={webScrollRef}
             style={styles.webScroll}
           >
-            <View style={[ui.scrollContent, scrollPadding]}>{scrollContent}</View>
+            <View style={[ui.scrollContent, scrollPadding]}>{rulesBody}</View>
           </View>
         ) : (
           <ScrollView
@@ -289,7 +283,7 @@ export default function ReadMeScreen({ onBack }: Props) {
             onScroll={onNativeScroll}
             scrollEventThrottle={16}
           >
-            {scrollContent}
+            {rulesBody}
           </ScrollView>
         )}
       </View>
@@ -309,13 +303,19 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       flex: 1,
       minHeight: 0,
     },
-    headerWrap: {
-      zIndex: 20,
-    },
-    headerBlock: {
+    header: {
       width: "100%",
       alignSelf: "center",
-      backgroundColor: colors.surface,
+      paddingHorizontal: 24,
+      paddingBottom: 6,
+    },
+    sectionTitle: {
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: "700",
+      paddingHorizontal: 4,
+      paddingTop: 2,
+      paddingBottom: 4,
     },
     scroll: {
       flex: 1,
@@ -325,12 +325,21 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       minHeight: 0,
       overflow: "scroll",
     } as object,
-    scrollInner: {
+    content: {
       width: "100%",
       alignSelf: "center",
     },
     bottomControls: {
       paddingTop: 18,
+    },
+    loader: {
+      marginTop: 32,
+    },
+    errorText: {
+      color: colors.textSecondary,
+      fontSize: 15,
+      lineHeight: 22,
+      paddingHorizontal: 4,
     },
     markdownWrap: {
       width: "100%",
@@ -348,18 +357,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       lineHeight: 21,
       fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
       paddingHorizontal: 4,
-    },
-    privacyRow: {
-      alignSelf: "flex-start",
-      marginTop: 8,
-      marginBottom: 4,
-      paddingHorizontal: 4,
-      paddingVertical: 8,
-    },
-    privacyText: {
-      color: colors.textTertiary,
-      fontSize: 12,
-      textDecorationLine: "underline",
     },
   });
 }

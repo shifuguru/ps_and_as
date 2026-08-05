@@ -86,17 +86,8 @@ export function redirectToReadmeFallback(): void {
   loc.replace(readmeFallbackUrl(loc.origin));
 }
 
-/** Fetch README markdown — live GitHub raw first, bundled copy as fallback (web build). */
+/** Fetch README markdown — bundled copy first (what shipped with the build), then GitHub raw. */
 export async function fetchReadmeMarkdown(): Promise<string> {
-  try {
-    const remote = await fetch(`${README_RAW_URL}?_=${Date.now()}`, {
-      cache: "no-store",
-    });
-    if (remote.ok) return remote.text();
-  } catch {
-    /* fall through */
-  }
-
   if (Platform.OS === "web") {
     try {
       const local = await fetch(`./README.md?_=${Date.now()}`, { cache: "no-store" });
@@ -104,6 +95,15 @@ export async function fetchReadmeMarkdown(): Promise<string> {
     } catch {
       /* fall through */
     }
+  }
+
+  try {
+    const remote = await fetch(`${README_RAW_URL}?_=${Date.now()}`, {
+      cache: "no-store",
+    });
+    if (remote.ok) return remote.text();
+  } catch {
+    /* fall through */
   }
 
   throw new Error("README fetch failed");
