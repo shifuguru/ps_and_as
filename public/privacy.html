@@ -94,126 +94,242 @@
       .back:hover {
         text-decoration: underline;
       }
+      .placeholder {
+        display: inline-block;
+        border: 1px dashed var(--accent);
+        border-radius: 0.3rem;
+        padding: 0.1rem 0.4rem;
+        font-family: system-ui, sans-serif;
+        font-size: 0.92em;
+        color: var(--accent);
+      }
     </style>
   </head>
   <body>
     <main>
       <a class="back" href="./">← Back to the game</a>
       <h1 class="brand">Presidents &amp; Assholes</h1>
-      <p class="lede">Privacy policy for the Ps &amp; As web and Android game.</p>
+      <p class="lede">Privacy policy for Ps &amp; As — the multiplayer card game.</p>
       <p class="meta">Last updated: 5 August 2026</p>
 
-      <h2>What this game is</h2>
+      <h2>About this policy</h2>
       <p>
-        Presidents &amp; Assholes (“Ps &amp; As”) is a multiplayer card game. You can play offline against
-        AI or online in shared rooms. The live web game is hosted on GitHub Pages; the Android app
-        connects to the same multiplayer server on Railway.
+        This policy describes how Ps &amp; As (“we”, “us”) handles information when you play the game
+        on our website and in apps we publish. Ps &amp; As is available to players worldwide.
+      </p>
+      <p>
+        It explains what we collect, why we collect it, how long we keep it where that is clear from
+        how the game works, and which third-party services may process information when you use their
+        features. It does not claim compliance with any particular privacy law.
       </p>
 
-      <h2>Information we use</h2>
+      <h2>Local play and online play</h2>
+      <p>
+        You can play offline against AI on your own device. In that case, progress and preferences
+        stay on your device unless you later choose to link an account and sync.
+      </p>
+      <p>
+        If you join an online room, your display name and gameplay actions are sent to our game
+        service so the match can run and other players at your table can see what they need to play.
+      </p>
+
+      <h2>Information we collect</h2>
       <ul>
         <li>
-          <strong>Display name</strong> — chosen by you (up to 20 characters). Other players in your
-          room can see it.
+          <strong>Display name</strong> — a name you choose (short text). Other players in your room
+          can see it. You can change it in Settings.
         </li>
         <li>
-          <strong>Player identifiers</strong> — a device/install ID on each client; on Android we may
-          use the Android ID as a fallback identity. When you sign in, we may also store an Apple
-          Game Center player ID and/or a Google account id (`google:…`).
+          <strong>Device / install identifier</strong> — created on your device so the game can
+          recognise this install for local progress and, when you play online without a linked
+          account, for reconnecting to a seat when possible.
         </li>
         <li>
-          <strong>Game Center</strong> — on iOS we may use Game Center to identify you in multiplayer.
-          Your Game Center display name and player ID can be shared with other players in your game.
+          <strong>Game progress and preferences</strong> — career stats such as XP and round results,
+          plus settings like appearance and table colour. Stored on your device. If you link an
+          account, a copy may also be stored on our game service so you can restore them elsewhere.
         </li>
         <li>
-          <strong>Google Sign-In (optional, web today)</strong> — if you link Google, we verify a Google
-          ID token and may store a short-lived server session so your XP and profile can sync across
-          devices. Google may provide a subject id and, depending on consent, an email or name used
-          only for account linking — not shown to other players as your table name unless you choose
-          that display name. Native Android Google sync / Play Games is not shipping in the first
-          Play Store build.
+          <strong>Online match information</strong> — room membership, turns, cards you play, pass
+          actions, finish order, and similar live game state while a match is running. Some of this
+          may be kept briefly on your device so you can rejoin a table after a disconnect.
         </li>
         <li>
-          <strong>Progress &amp; preferences</strong> — XP, career stats, appearance, and table colour
-          prefs. Stored on your device and, when synced, on our game server.
+          <strong>Optional Google sign-in (website)</strong> — if you link Google, we receive a Google
+          account identifier so we can sync progress. Depending on Google and your choices, Google may
+          also provide a name or email address used for account linking. We do not show your email to
+          other players.
         </li>
         <li>
-          <strong>Live game state</strong> — room membership and play actions while you are in a match.
-          Hands are not broadcast to opponents.
+          <strong>Apple Game Center (Apple devices)</strong> — if you use Game Center with our app, we
+          may use your Game Center player ID and the name Apple provides to identify you and, where
+          Apple allows, to report achievements or scores to Game Center.
         </li>
         <li>
-          <strong>Ads (web)</strong> — if you accept ads on the web version, Google AdSense (H5 Games
-          Ads) may show interstitial and rewarded ads. Ad networks may use cookies or device
-          identifiers as described in Google’s policies. You can decline ads; the game still works.
-          The Android Play build does <strong>not</strong> load AdSense or AdMob in this release.
+          <strong>Ads consent (website)</strong> — whether you accepted or declined ads, stored on
+          your device.
         </li>
         <li>
-          <strong>Remove Ads purchases (web)</strong> — optional one-time purchases are processed by
-          Stripe. We store a server-side entitlement on your Google-linked account so forced ads stay
-          off after purchase. We do not process payment card numbers in our app code. Android Play
-          Billing / in-app purchases are not included in this release.
+          <strong>Remove Ads status</strong> — if you buy Remove Ads on the website, we store an
+          entitlement on your linked account so forced ads stay off. A copy may also be cached on
+          your device.
+        </li>
+        <li>
+          <strong>Usage counts</strong> — we record limited, aggregated game and menu events (for
+          example starting a game or finishing a round) to understand how the game is used. These
+          counts are not tied to your display name, email, or payment details in the analytics we keep.
         </li>
       </ul>
 
-      <h2>Where data lives</h2>
+      <h2>What other players can see</h2>
+      <p>In a shared online room, other players can typically see:</p>
       <ul>
-        <li>On your device or browser (local storage / app storage).</li>
-        <li>On our Railway game server for online rooms and optional cloud stats.</li>
-        <li>With Apple, Google, or Stripe when you use their products (their policies also apply).</li>
+        <li>Your display name</li>
+        <li>Public table cues the game shows (for example table colour preferences shared for seating)</li>
+        <li>Your plays, passes, finish order, and similar match outcomes</li>
+        <li>At the end of a round, the last player’s remaining cards (as part of the game rules)</li>
+      </ul>
+      <p>Other players do <strong>not</strong> receive:</p>
+      <ul>
+        <li>Your full hand during play (only that you still have cards)</li>
+        <li>Your email address or Google / Apple account details</li>
+        <li>Your payment or Remove Ads purchase details</li>
+        <li>Secrets used only to reclaim your seat after a disconnect</li>
       </ul>
 
-      <h2>How we use it</h2>
+      <h2>How we use information</h2>
       <ul>
-        <li>Run multiplayer games and reconnect you to your seat when possible.</li>
-        <li>Keep XP / profile in sync when you link an account.</li>
-        <li>Show your display name and public progress to people at your table.</li>
-        <li>Keep the service secure (for example, verifying Google tokens before writing cloud stats).</li>
-        <li>On web, show ads and honour Remove Ads entitlements when you have purchased them.</li>
+        <li>Run local and online games, including reconnecting you when we can</li>
+        <li>Remember your name, progress, and preferences</li>
+        <li>Sync progress when you choose to link an account</li>
+        <li>Show ads on the website only if you accept them, and honour Remove Ads if you purchased it</li>
+        <li>Understand product usage through limited event counts</li>
+        <li>Respond to privacy or support requests you send us</li>
       </ul>
-      <p>We do not sell personal information.</p>
+      <p>We do not sell your personal information.</p>
 
-      <h2>Retention</h2>
+      <h2>Third-party services</h2>
+      <p>
+        Some features rely on other companies. Their own terms and privacy policies apply to what
+        they process.
+      </p>
       <ul>
-        <li>Local data stays until you clear site/app storage or uninstall.</li>
-        <li>Cloud stats stay until deleted or the server store is reset.</li>
-        <li>Google sync sessions expire after about 30 days unless renewed.</li>
-        <li>Live room data ends when the room ends.</li>
-        <li>Remove Ads entitlements stay on your linked cloud profile until deleted or revoked.</li>
-      </ul>
-
-      <h2>Your choices</h2>
-      <ul>
-        <li>Play without Google Sign-In (local / device identity).</li>
-        <li>Change your display name in Settings.</li>
-        <li>On web, decline ads or purchase Remove Ads (Google link required).</li>
-        <li>Clear browser or app storage to remove local data.</li>
         <li>
-          Request deletion of a cloud stats record by contacting us (see below) with your player ID
-          from Settings / sync status when available.
+          <strong>Google</strong> — optional sign-in on the website, and advertising on the website
+          if you accept ads (Google AdSense / H5 Games ads). Google may use cookies or device
+          identifiers as described in Google’s policies.
+        </li>
+        <li>
+          <strong>Apple</strong> — Game Center on supported Apple devices (identity and optional
+          achievements / scores).
+        </li>
+        <li>
+          <strong>Stripe</strong> — processes optional Remove Ads payments on the website. We do not
+          collect or store your card number in the game. Stripe may collect payment and contact
+          details needed to complete checkout.
+        </li>
+        <li>
+          <strong>Website and game hosting providers</strong> — companies that host our public
+          website and the online multiplayer service process the technical traffic and stored game
+          data needed to deliver those services.
+        </li>
+        <li>
+          <strong>GitHub Sponsors</strong> — if you choose an optional donation link, that payment is
+          handled entirely by GitHub, not inside the game.
         </li>
       </ul>
+      <p>
+        Advertising and Remove Ads purchases are offered on the <strong>website</strong> today. They
+        are not part of the Android app build described in our current store materials.
+      </p>
+
+      <h2>Ads (website)</h2>
+      <p>
+        Before ads load, we ask whether you accept them. If you decline, the game still works; we
+        simply do not load those ads. If you accept, Google’s ad systems may show interstitial or
+        rewarded ads between rounds. Rewarded “watch for XP” ads may still be offered even if you
+        have purchased Remove Ads (Remove Ads skips forced ads only).
+      </p>
+
+      <h2>Purchases (website)</h2>
+      <p>
+        Optional one-time Remove Ads is available on the website and currently requires a linked
+        Google account so the purchase can restore with your synced progress. Payment is handled by
+        Stripe. We store the resulting “ads removed” entitlement on your linked account.
+      </p>
+
+      <h2>How long we keep information</h2>
+      <ul>
+        <li>
+          <strong>On your device</strong> — until you clear site or app storage, or uninstall the app.
+        </li>
+        <li>
+          <strong>Linked progress on our game service</strong> — until you ask us to delete it, or it
+          is otherwise removed as part of operating the service.
+        </li>
+        <li>
+          <strong>Live match data</strong> — for the life of the room / match; it is not kept as a
+          permanent play-by-play history after the room ends.
+        </li>
+        <li>
+          <strong>Google sign-in on this device</strong> — you stay signed in for a limited time
+          (about 30 days) unless you clear storage or sign in again earlier.
+        </li>
+        <li>
+          <strong>Remove Ads entitlement</strong> — remains on your linked account until deleted or
+          otherwise removed with that account’s stored progress.
+        </li>
+        <li>
+          <strong>Usage counts</strong> — kept as operational records for as long as we need them to
+          understand how the game is used; they are not a profile of you by name.
+        </li>
+      </ul>
+
+      <h2>Your choices and requests</h2>
+      <ul>
+        <li>Play without linking Google (local / device identity).</li>
+        <li>Change your display name and many preferences in Settings.</li>
+        <li>On the website, accept or decline ads, or purchase Remove Ads.</li>
+        <li>Clear browser or app storage to remove local data on that device.</li>
+        <li>
+          Ask us for <strong>access</strong>, <strong>correction</strong>, or
+          <strong>deletion</strong> of personal information we hold about you (see Contact).
+        </li>
+      </ul>
+      <p>
+        For deletion or access requests, tell us which platform you use and any details that help us
+        find your record (for example the email on a Google account you linked, and your display
+        name). We may need to verify the request before acting on it.
+      </p>
 
       <h2>Children</h2>
       <p>
-        The game is a general-audience card game with adult-themed naming. We do not knowingly collect
-        personal information from children for marketing. If you believe a child’s data should be
-        removed, contact us. The Android listing is not directed at children under 13 and is not
-        designed for Google Play’s Designed for Families program.
+        Ps &amp; As is a general-audience card game that uses adult-themed language in its title and
+        roles. It is not directed at children. We do not knowingly collect personal information from
+        children for marketing. If you are a parent or guardian and believe a minor’s information
+        should be removed, contact us.
+      </p>
+
+      <h2>Changes</h2>
+      <p>
+        We may update this policy when the game’s practices change. The “Last updated” date at the
+        top will change when we do. Continued use of the game after an update means the revised
+        policy applies to that use.
       </p>
 
       <h2>Contact</h2>
       <p>
-        Privacy and data deletion:
-        <a href="https://github.com/shifuguru/ps_and_as/security/policy">security policy</a>
-        on GitHub, or open a private
-        <a href="https://github.com/shifuguru/ps_and_as/security/advisories/new">security advisory</a>.
-        For non-sensitive questions you can also use the repository’s GitHub contact options for
-        <a href="https://github.com/shifuguru">@shifuguru</a>.
+        Privacy requests (access, correction, or deletion) and questions:
+        <span class="placeholder">[PRIVACY_CONTACT_EMAIL]</span>
+        <!-- Replace [PRIVACY_CONTACT_EMAIL] with a monitored inbox before calling this policy final. -->
       </p>
       <p>
-        Maintainer technical inventory (for operators): see
-        <code>docs/data-inventory.md</code> in the
-        <a href="https://github.com/shifuguru/ps_and_as">source repository</a>.
+        Until that address is published, you can also reach the maintainer through the project’s
+        GitHub profile for
+        <a href="https://github.com/shifuguru">@shifuguru</a>,
+        or use the repository’s
+        <a href="https://github.com/shifuguru/ps_and_as/security/advisories/new">private security advisory</a>
+        channel for sensitive reports.
       </p>
     </main>
   </body>
