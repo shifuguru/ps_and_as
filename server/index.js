@@ -2533,6 +2533,22 @@ app.get('/api/online-players', (_req, res) => {
 
 server.listen(PORT, () => {
   console.log('Server listening on', PORT);
+  try {
+    const { ensureServerDataDir } = require('./dataDir');
+    const dataDir = ensureServerDataDir();
+    const onVolume = Boolean(
+      process.env.SERVER_DATA_DIR?.trim() ||
+        process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim(),
+    );
+    console.log(
+      `[Server] data dir: ${dataDir}` +
+        (onVolume
+          ? ' (persistent volume / SERVER_DATA_DIR)'
+          : ' (ephemeral — attach a Railway volume or set SERVER_DATA_DIR)'),
+    );
+  } catch (err) {
+    console.warn('[Server] data dir setup failed:', err?.message || err);
+  }
   const botCtx = getBotContext();
   botHosted.ensureBotHostedRooms(botCtx);
   try {

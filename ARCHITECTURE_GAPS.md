@@ -279,7 +279,7 @@ Install coach runs before name gate when `shouldOfferAddToHomeScreen()` and name
 `linkGoogleAccountAndSync` stores `google:{sub}`, exchanges the Google ID token for a **30-day server session** (`POST /api/auth/google`), then pulls/pushes cloud **stats + profile**. Settings shows **Google linked** (not “Local profile”) plus Level/XP, and **Sync now** reports cloud vs local XP. Standalone PWAs use an in-page Google button (skip FedCM/One Tap).
 
 **Still open:**  
-**Persist Railway `server/data` volume** so `player-stats.json` survives redeploys — without it, Level/XP uploads are wiped on each deploy (likely why Level 20 did not appear on a second device). Optional `GOOGLE_SESSION_SECRET` on Railway. Android Play Games remains a separate track.
+**Attach Railway Volume** (mount `/data`) so `player-stats.json` / `analytics.json` survive redeploys — without it, Level/XP uploads are wiped on each deploy (likely why Level 20 did not appear on a second device; console shows `GET /api/player-stats/google:…` 404). Code now honors `RAILWAY_VOLUME_MOUNT_PATH` / `SERVER_DATA_DIR` via `server/dataDir.js` (see `railway.toml` comments). Optional `GOOGLE_SESSION_SECRET` on Railway. Android Play Games remains a separate track.
 
 **Files likely involved:**  
 `src/services/webOnboarding.ts`, `src/services/googleAccountSync.ts`, `src/components/WebInstallCoachModal.tsx`, `src/components/DisplayNameSetupModal.tsx`, `App.tsx`, `src/utils/webAppInstall.ts`

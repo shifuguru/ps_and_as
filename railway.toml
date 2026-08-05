@@ -1,5 +1,13 @@
 # Railway deploy config — game server only (not the Expo app).
 # https://docs.railway.app/reference/config-as-code
+#
+# Persistent cloud stats / analytics (required for Google Level/XP sync):
+# 1. In the Railway dashboard, attach a Volume to this service.
+# 2. Mount path: /data
+# 3. Railway sets RAILWAY_VOLUME_MOUNT_PATH=/data — server/dataDir.js writes
+#    player-stats.json and analytics.json there so redeploys do not wipe them.
+# Without a volume, server/data is ephemeral and GET /api/player-stats/:id
+# will 404 after every redeploy until the client re-uploads.
 
 [build]
 # Install deps; no Expo web export needed for the socket server.
