@@ -18,6 +18,7 @@
     "test-player-level": "npx tsx ./scripts/test-player-level.ts",
     "test-web-onboarding": "npx tsx ./scripts/test-web-onboarding.ts",
     "test-google-account-sync": "npx tsx ./scripts/test-google-account-sync.ts",
+    "test-privacy-url": "npx tsx ./scripts/test-privacy-url.ts",
     "test-daily-challenge": "npx tsx ./scripts/test-daily-challenge.ts",
     "test-ads-entitlement": "npx tsx ./scripts/test-ads-entitlement.ts && node ./scripts/test-ads-entitlement-store.mjs",
     "test-analytics": "node ./scripts/test-analytics-store.js",
