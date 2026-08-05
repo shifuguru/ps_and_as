@@ -126,6 +126,29 @@ function overrideCss(theme: ReadmeMarkdownTheme): string {
   scroll-margin-top: 12px;
   border-bottom: none !important;
   padding-bottom: 0.15em;
+  color: ${theme.textPrimary} !important;
+}
+.markdown-body h2 {
+  font-size: 1.45em !important;
+  font-weight: 800 !important;
+  margin-top: 1.1em !important;
+  margin-bottom: 0.45em !important;
+  line-height: 1.25 !important;
+}
+.markdown-body h3 {
+  font-size: 1.2em !important;
+  font-weight: 700 !important;
+  margin-top: 1em !important;
+  margin-bottom: 0.35em !important;
+  line-height: 1.3 !important;
+}
+.markdown-body p,
+.markdown-body li {
+  font-size: 15px;
+  line-height: 1.55;
+}
+.markdown-body table {
+  font-size: 14px;
 }
 .markdown-body hr {
   height: 0.2em;
