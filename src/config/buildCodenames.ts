@@ -107,6 +107,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.41": "Felt Table Fever",
   "1.1.42": "Empty Hand Heroics",
   "1.1.43": "Rank And File",
+  "1.1.44": "Your Turn, Apparently",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
