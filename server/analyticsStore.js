@@ -1,12 +1,17 @@
 /**
  * First-party product analytics — daily counters + recent event ring buffer.
- * Persists under server/data/analytics.json (gitignored).
+ * Persists under the shared server data dir as analytics.json (gitignored).
+ * See server/dataDir.js (SERVER_DATA_DIR / RAILWAY_VOLUME_MOUNT_PATH).
  */
 const fs = require("fs");
-const path = require("path");
+const {
+  ensureServerDataDir,
+  resolveServerDataDir,
+  serverDataFile,
+} = require("./dataDir");
 
-const DATA_DIR = path.join(__dirname, "data");
-const DATA_FILE = path.join(DATA_DIR, "analytics.json");
+const DATA_DIR = resolveServerDataDir();
+const DATA_FILE = serverDataFile("analytics.json");
 const MAX_RECENT = 100;
 const MAX_PROP_KEYS = 8;
 const MAX_PROP_STRING = 64;
@@ -60,7 +65,7 @@ function loadStore() {
 }
 
 function saveStore(state) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  ensureServerDataDir(DATA_DIR);
   const tmp = `${DATA_FILE}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(state));
   fs.renameSync(tmp, DATA_FILE);

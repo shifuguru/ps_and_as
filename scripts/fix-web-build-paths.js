@@ -113,6 +113,12 @@ function patchViewport(html) {
     html = html.replace("<head>", `<head>\n    ${appleBar}`);
   }
 
+  const mobileCapable =
+    '<meta name="mobile-web-app-capable" content="yes" />';
+  if (!/name="mobile-web-app-capable"/i.test(html)) {
+    html = html.replace("<head>", `<head>\n    ${mobileCapable}`);
+  }
+
   const appleCapable =
     '<meta name="apple-mobile-web-app-capable" content="yes" />';
   if (!/apple-mobile-web-app-capable/i.test(html)) {
