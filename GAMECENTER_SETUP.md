@@ -1,14 +1,17 @@
 # GameCenter Integration Setup
 
 ## Overview
-The app now uses `react-native-cross-platform-game-services` to integrate with Apple GameCenter (iOS) and Google Play Games (Android) for player authentication and identity management.
+
+**Shipping today:** iOS uses `expo-game-center`. Android falls back to a device / Android ID (`hw-…`) until Play Games is wired. Web optional identity uses Google Sign-In (`googleAccountSync.ts`).
+
+> Historical notes below still mention `react-native-cross-platform-game-services` / Play Games console steps. Treat those as **future Android work**, not current dependencies — that package is **not** in `package.json`. See [docs/play-store/RELEASE_CHECKLIST.md](./docs/play-store/RELEASE_CHECKLIST.md) for the Play Store MVP (device identity first).
 
 ## Current Implementation
 
 ### Library Used
-- **Package**: `react-native-cross-platform-game-services` (already installed)
-- **Platforms**: iOS (GameCenter), Android (Play Games Services)
-- **Documentation**: https://github.com/alvinomeara/react-native-cross-platform-game-services
+- **Package (iOS):** `expo-game-center`
+- **Android:** device / Android ID fallback in `src/services/gameCenter.ts` (Play Games pending)
+- **Web:** Google Identity Services via `src/services/googleAccountSync.ts`
 
 ### How It Works
 1. **Initial Load**: When CreateGame or FindGame screens mount, they call `getOrCreatePlayerId()`

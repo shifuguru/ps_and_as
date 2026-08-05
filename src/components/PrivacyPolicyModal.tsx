@@ -1,10 +1,19 @@
 import React, { useMemo } from "react";
-import { Modal, View, Text, StyleSheet, ScrollView } from "react-native";
+import {
+  Modal,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Linking,
+  Platform,
+} from "react-native";
 import BlurPanel from "./BlurPanel";
 import ModalBackdrop from "./ModalBackdrop";
 import AppButton from "./ui/AppButton";
 import { useAppTheme } from "../context/ThemeContext";
 import { MODAL_OVERLAY_Z } from "../styles/overlayZIndex";
+import { resolvePrivacyUrl } from "../config/privacyUrl";
 
 type Props = {
   visible: boolean;
@@ -13,13 +22,17 @@ type Props = {
 
 /**
  * Short privacy notice for ads + Google sync + purchases.
- * Not a substitute for a full legal review — keep factual and plain.
+ * Full policy: public/privacy.html (Play Console URL).
  */
 export default function PrivacyPolicyModal({ visible, onClose }: Props) {
   const { colors, ui, blur } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   if (!visible) return null;
+
+  const openFullPolicy = () => {
+    void Linking.openURL(resolvePrivacyUrl());
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
@@ -34,23 +47,38 @@ export default function PrivacyPolicyModal({ visible, onClose }: Props) {
               fields sync to our game server so you can restore them on another
               device.
             </Text>
-            <Text style={styles.p}>
-              If you accept ads, Google AdSense (H5 Games Ads) may show
-              interstitial and rewarded ads. Ad networks may use cookies or
-              device identifiers as described in Google&apos;s policies. You can
-              decline ads; the game still works.
-            </Text>
-            <Text style={styles.p}>
-              Optional one-time Remove Ads purchases are processed by Stripe.
-              We store a server-side entitlement on your Google-linked account so
-              forced ads stay off after purchase. Rewarded watch-for-XP ads may
-              still be offered.
-            </Text>
+            {Platform.OS === "web" ? (
+              <>
+                <Text style={styles.p}>
+                  If you accept ads, Google AdSense (H5 Games Ads) may show
+                  interstitial and rewarded ads. Ad networks may use cookies or
+                  device identifiers as described in Google&apos;s policies. You
+                  can decline ads; the game still works.
+                </Text>
+                <Text style={styles.p}>
+                  Optional one-time Remove Ads purchases are processed by Stripe.
+                  We store a server-side entitlement on your Google-linked
+                  account so forced ads stay off after purchase. Rewarded
+                  watch-for-XP ads may still be offered.
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.p}>
+                This Android build does not show ads or process in-app purchases.
+                Online multiplayer uses our game server; your display name is
+                visible to players at your table.
+              </Text>
+            )}
             <Text style={styles.p}>
               We do not sell your personal information. Contact the developer via
               the project GitHub repository for privacy requests.
             </Text>
           </ScrollView>
+          <AppButton
+            label="Full privacy policy"
+            variant="secondary"
+            onPress={openFullPolicy}
+          />
           <AppButton label="Close" variant="primary" onPress={onClose} />
         </BlurPanel>
       </View>

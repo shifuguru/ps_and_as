@@ -70,7 +70,8 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 | **P1** | **Mobile browser onboarding (PWA → Google)** | Install-first coach on mobile browser; decline path couples display name with Google Sign-in sync (Play Store / stats). |
 | **P2** | **Turn Ownership Invariant** | **Documentation only** unless a live bug traces here. Do not redesign `currentPlayerIndex` or new ownership APIs. Tests/validation only when supporting an active bug investigation. See [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.md). |
 | **P2** | Pause state presentation; Bot-open disconnect model | As capacity allows. |
-| **P2** | **Ad monetization (H5 + Remove Ads)** | Ship web H5 ads + Stripe Remove Ads; native AdMob later. |
+| **P2** | **Ad monetization (H5 + Remove Ads)** | Web H5 + Stripe shipped; native AdMob / Play Billing later. |
+| **P2** | **Android Play Store release** | Package + EAS + privacy URL + listing draft; first AAB / Console upload pending. |
 | **P2** | **Product analytics (DIY)** | First-party counters + live dashboard; no third-party SaaS required. |
 
 ### Priority order (gap register)
@@ -79,7 +80,7 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 |----------|------|
 | **P0** | Rankings before last hand (online); CPU takeover after disconnect; Returning player after timeout |
 | **P1** | Disconnect timeout; XP and progression persistence; Mobile browser onboarding (PWA → Google) (Ready-for-next-round seated gate resolved on critical-issues branch) |
-| **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Pause state presentation; Bot-open disconnect model vs standard rooms; Ad monetization (H5 + Remove Ads); Product analytics (DIY) |
+| **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Pause state presentation; Bot-open disconnect model vs standard rooms; Ad monetization (H5 + Remove Ads); Android Play Store release; Product analytics (DIY) |
 
 **How to maintain:** When a gap is fixed, set `Status: Resolved` and add a one-line note with version or PR. When intent changes, update the architecture doc first, then close or rewrite the gap here.
 
@@ -413,7 +414,7 @@ Investigation: [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.
 
 **Documented intent:** Cover AI + server costs (~$40–50 NZD/mo) without breaking fair play. Web-first Google H5 Games Ads; native AdMob later behind the same client API.
 
-**Current behaviour:** No ads, no IAP, no billing.
+**Current behaviour:** Web H5 interstitial (every 3 rounds), rewarded XP, consent banner, and Stripe Remove Ads are implemented. Android native stubs ads/billing (`Platform.OS !== "web"`).
 
 **Target behaviour:**
 
@@ -422,11 +423,36 @@ Investigation: [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.
 - One-time **Remove Ads** (~$19 NZD) via Stripe Checkout; requires Google link; server webhook sets `adsRemoved` (client cannot grant).
 - Consent banner before loading AdSense; privacy policy reachable from Settings.
 
-**Status:** In progress
+**Status:** Partial — web path shipping; native Phase 2
 
 **Priority:** P2
 
-**Notes:** Entitlement lives on cloud profile (`adsRemoved`), not career XP counters. XP grants still go through `commitRoundXpEarned`. Phase 2: native AdMob, XP booster packs.
+**Notes:** Entitlement lives on cloud profile (`adsRemoved`), not career XP counters. XP grants still go through `commitRoundXpEarned`. Phase 2: native AdMob, Play Billing for Remove Ads, XP booster packs.
+
+---
+
+## Android Play Store release
+
+**Category:** Product / distribution
+
+**Intended behaviour:**  
+Ship a signed Android App Bundle to Google Play (internal testing → production) as a free multiplayer client: production package id, hosted privacy policy URL, Data safety form, store listing, and EAS production builds that bake the Railway server URL.
+
+**Current behaviour:**  
+Repo readiness for MVP is in progress: `com.shifuguru.psandas`, `android.versionCode`, `eas.json`, `public/privacy.html`, data inventory, and listing/checklist drafts. No AAB has been uploaded to Play Console yet. Native Google sync / Play Games / AdMob / Play Billing remain deferred.
+
+**Impact:**  
+Players cannot install from Play Store until Console setup + first AAB upload complete.
+
+**Files likely involved:**  
+`app.json`, `eas.json`, `public/privacy.html`, `docs/data-inventory.md`, `docs/play-store/*`, `src/config/privacyUrl.ts`, Settings / Privacy UI
+
+**Priority:** P2
+
+**Status:** Open — repo config + privacy/listing drafts; operator Console + EAS credentials pending
+
+**Notes:**  
+Runbook: [docs/play-store/RELEASE_CHECKLIST.md](./docs/play-store/RELEASE_CHECKLIST.md). Do not claim ads/IAP on the Android listing until native monetization ships. Privacy policy must stay accurate for web ads + Android no-ads MVP.
 
 ---
 
@@ -492,4 +518,6 @@ Work order: see **Priority order** in Workflow (top of this file).
 - [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.md) — turn pointer audit, invariant table, investigation guide
 - [CPU_STALL_INVESTIGATION.md](./CPU_STALL_INVESTIGATION.md) — display vs authoritative desync symptom
 - [RELEASE_GATE.md](./RELEASE_GATE.md) — automated P0/P1 verification mapping (`npm run test-release-gate`)
+- [docs/play-store/RELEASE_CHECKLIST.md](./docs/play-store/RELEASE_CHECKLIST.md) — Google Play Android release runbook
+- [docs/data-inventory.md](./docs/data-inventory.md) — data map for privacy / Play Data safety
 - [docs/rules.md](./docs/rules.md) — player-facing rules (validation should follow `core.ts`)

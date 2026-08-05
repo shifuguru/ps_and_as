@@ -488,6 +488,17 @@ if (fs.existsSync(readmeFallbackSrc)) {
   console.log("Wrote readme-fallback.html into web-build.");
 }
 
+// Player-facing privacy policy (static HTML on Pages — required for Play Console).
+const privacySrc = path.resolve(__dirname, "..", "public", "privacy.html");
+if (fs.existsSync(privacySrc)) {
+  let privacyHtml = fs.readFileSync(privacySrc, "utf8");
+  privacyHtml = rewriteHtmlPaths(privacyHtml);
+  fs.writeFileSync(path.join(buildDir, "privacy.html"), privacyHtml, "utf8");
+  console.log("Wrote privacy.html into web-build.");
+} else {
+  console.warn("public/privacy.html not found — skipping privacy page copy");
+}
+
 // Prevent Jekyll from stripping or ignoring Expo output folders.
 fs.writeFileSync(path.join(buildDir, '.nojekyll'), '', 'utf8');
 
