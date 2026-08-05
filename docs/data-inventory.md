@@ -18,6 +18,7 @@ Use this when filling the Google Play **Data safety** form and when updating `pu
 | Auth tokens | Google ID token (short-lived, client→server only) | High (ephemeral) |
 | Optional email | Google account email inside session payload | Medium (PII) |
 | Ads (web only) | AdSense cookies / advertising IDs via Google | Medium (third-party) |
+| Usage analytics (first-party) | Allowlisted event names + limited numeric/boolean props; daily aggregates | Low (designed not to store names/emails) |
 
 No payment card data is processed in our code. Web Remove Ads uses Stripe Checkout; Android Play Billing is not shipping yet.
 
@@ -34,7 +35,7 @@ No payment card data is processed in our code. Web Remove Ads uses Stripe Checko
 | Local `adsRemoved` cache | AsyncStorage | Instant ads UI after purchase | Until clear; re-synced from cloud |
 | Ads consent (web) | AsyncStorage / local flags | Whether AdSense may load | Until changed / clear |
 | Google session token | AsyncStorage (web) | Cloud stats sync without re-prompt | ~30 days or sign-out / clear |
-| Lobby / room session | In-memory (+ limited prefs) | Multiplayer session | Session / reconnect window |
+| Lobby / reconnect session | AsyncStorage (room id, name, optional reconnect secret; short TTL) | Resume a table after refresh / brief disconnect | Until TTL expiry / clear |
 
 ## Game server (Railway)
 
@@ -103,7 +104,7 @@ Update this table when shipping Play Games, AdMob, or Play Billing.
 | Data | Default retention | Player deletion |
 |------|-------------------|-----------------|
 | Local AsyncStorage | Until device clear | Player clears site/app data |
-| Cloud `player-stats` entry | Until deleted or store wiped | Request via [SECURITY.md](../SECURITY.md) with player ID |
+| Cloud `player-stats` entry | Until deleted or store wiped | Request via privacy contact / [SECURITY.md](../SECURITY.md). Include Google-linked email (if any) and display name — **Settings does not currently show a raw player ID** |
 | Live room state | Room lifetime | Automatic |
 | Google session token | ≤ ~30 days | Expires; clearing local storage drops it |
 | Stripe customer / payment records | Stripe retention | Via Stripe + deletion request to us for cloud entitlement |
