@@ -40,6 +40,7 @@ export const WEB_FULL_BLEED_FIXED =
  */
 export const WEB_SPLASH_Z_INDEX = 10050;
 
+/** Transparent shell — SplashScreen owns the black veil so felt can reveal through. */
 export const WEB_SPLASH_OVERLAY =
   Platform.OS === "web"
     ? ({
@@ -50,7 +51,7 @@ export const WEB_SPLASH_OVERLAY =
         right: 0,
         bottom: 0,
         width: "100%",
-        backgroundColor: "#000000",
+        backgroundColor: "transparent",
       } as object)
     : null;
 

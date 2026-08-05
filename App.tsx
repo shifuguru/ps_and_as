@@ -259,39 +259,36 @@ function AppContent() {
     setPendingRejoin(null);
   };
 
-  const splashOpacity = useRef(new Animated.Value(1)).current;
   const menuOpacity = useRef(new Animated.Value(0)).current;
 
-  const hideSplashAndShowMenu = () => {
-    Animated.timing(splashOpacity, {
-      toValue: 0.0,
-      duration: 800,
+  /** Menu fades in over felt while the splash veil is still lifting. */
+  const beginSplashReveal = useCallback(() => {
+    setSplashRevealing(true);
+    setMenuVisible(true);
+    tryCollapseSafariChrome();
+    Animated.timing(menuOpacity, {
+      toValue: 1,
+      duration: 480,
       useNativeDriver: false,
-    }).start(() => {
-      // after animation completes remove splash and show menu
-      setSplashVisible(false);
-      setMenuVisible(true);
-      tryCollapseSafariChrome();
-      // Fade in the menu
-      Animated.timing(menuOpacity, {
-        toValue: 1.0,
-        duration: 600,
-        useNativeDriver: false,
-      }).start();
-    });
-  };
+    }).start();
+  }, [menuOpacity]);
+
+  const finishSplash = useCallback(() => {
+    setSplashVisible(false);
+    setSplashRevealing(false);
+    setMenuVisible(true);
+    menuOpacity.setValue(1);
+  }, [menuOpacity]);
 
   // Failsafe: never leave users stuck on splash if animations fail (seen on some iOS builds).
   useEffect(() => {
     if (!splashVisible) return;
     const timeout = setTimeout(() => {
-      setSplashVisible(false);
-      setMenuVisible(true);
-      menuOpacity.setValue(1);
-      splashOpacity.setValue(0);
-    }, 6000);
+      beginSplashReveal();
+      finishSplash();
+    }, 2500);
     return () => clearTimeout(timeout);
-  }, [splashVisible, menuOpacity, splashOpacity]);
+  }, [splashVisible, beginSplashReveal, finishSplash]);
 
   // Hide the status veil while splash is up (veil is body::before above #root).
   useEffect(() => {
@@ -340,8 +337,7 @@ function AppContent() {
   };
 
   const [hubRefreshKey, setHubRefreshKey] = useState(0);
-  const [wallpaperSource, setWallpaperSource] = useState<any>(require("./assets/ps_and_as_bg.png"));
-  const [wallpaperRawUri, setWallpaperRawUri] = useState<string | null>(null);
+  const [splashRevealing, setSplashRevealing] = useState(false);
   const [pendingRejoin, setPendingRejoin] = useState<LobbySession | null>(null);
 
   useEffect(() => {
@@ -454,30 +450,20 @@ function AppContent() {
   useEffect(() => {
     (async () => {
       try {
-        const svc = require("./src/services/wallpaper");
-        const src = await svc.getWallpaperSource();
-        const tint = await svc.getWallpaperTint();
-        const raw = await svc.getWallpaperUri();
-        setWallpaperSource(src);
+        const tint = await getWallpaperTint();
         setFeltTint(tint ?? DEFAULT_FELT_COLOR);
-        setWallpaperRawUri(raw);
-      } catch (e) {
+      } catch {
         // ignore
       }
     })();
-  }, []);
+  }, [setFeltTint]);
 
   const reloadWallpaper = async () => {
     try {
-      const svc = require("./src/services/wallpaper");
-      const src = await svc.getWallpaperSource();
-      const tint = await svc.getWallpaperTint();
-      const raw = await svc.getWallpaperUri();
-      setWallpaperSource(src);
-      setFeltTint(tint ?? DEFAULT_FELT_COLOR);
+      const tint = (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
+      setFeltTint(tint);
       await refreshFeltTint();
-      setWallpaperRawUri(raw);
-    } catch (e) {
+    } catch {
       // ignore
     }
   };
@@ -788,20 +774,22 @@ function AppContent() {
         {/* Splash — portaled to body on web so it sits above the status veil */}
         {splashVisible && (
           <WebSplashPortal>
-            <Animated.View
+            <View
               style={[
                 StyleSheet.absoluteFillObject,
                 WEB_SPLASH_OVERLAY,
                 {
                   justifyContent: "center",
                   alignItems: "center",
-                  opacity: splashOpacity,
                 },
               ]}
-              pointerEvents="auto"
+              pointerEvents={splashRevealing ? "none" : "auto"}
             >
-              <SplashScreen onFinish={hideSplashAndShowMenu} />
-            </Animated.View>
+              <SplashScreen
+                onRevealBegin={beginSplashReveal}
+                onFinish={finishSplash}
+              />
+            </View>
           </WebSplashPortal>
         )}
 

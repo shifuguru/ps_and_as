@@ -1,15 +1,12 @@
 // services/wallpaper.ts
-// Helper to persist and retrieve user-chosen wallpaper images and a tint color
-// for felt-style wallpapers. Returns either a local require(...) object for
-// the default wallpaper or an { uri } object for a device image. If the stored
-// value is an asset marker (e.g. 'asset:felt_grey') it will return the
-// corresponding bundled require.
+// Persist wallpaper tint (and optional custom image URI). Default canvas is the
+// bundled grey felt texture, tinted at runtime.
 
 const STORAGE_KEY = "@ps_and_as_wallpaper";
 const STORAGE_TINT_KEY = "@ps_and_as_wallpaper_tint";
 
-export const DEFAULT_WALLPAPER = require("../../assets/ps_and_as_bg.png");
-export const FELT_WALLPAPER = require("../../assets/felt_grey.png");
+/** Bundled grey felt texture — tinted at runtime via wallpaper tint. */
+export const FELT_WALLPAPER = require("../../assets/felt_grey.webp");
 const FELT_GREY_ASSET_MARKER = "asset:felt_grey";
 export type FeltPreset = {
   hex: string;
