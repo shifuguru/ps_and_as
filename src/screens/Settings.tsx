@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   Switch,
   Platform,
+  Linking,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import BlurPanel from "../components/BlurPanel";
@@ -18,6 +19,7 @@ import FeltColorPicker from "../components/FeltColorPicker";
 import MenuIcon from "../components/MenuIcon";
 import AddToHomeScreenModal from "../components/AddToHomeScreenModal";
 import PrivacyPolicyModal from "../components/PrivacyPolicyModal";
+import { resolvePrivacyUrl } from "../config/privacyUrl";
 import BottomBar, {
   BottomBarControls,
   BottomBarLeave,
@@ -552,9 +554,18 @@ export default function Settings({
             <TouchableOpacity
               style={{ marginTop: 12 }}
               onPress={() => setPrivacyOpen(true)}
-              accessibilityRole="link"
+              accessibilityRole="button"
             >
               <Text style={styles.linkLike}>Privacy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ marginTop: 8 }}
+              onPress={() => {
+                void Linking.openURL(resolvePrivacyUrl());
+              }}
+              accessibilityRole="link"
+            >
+              <Text style={styles.linkLike}>Full privacy policy</Text>
             </TouchableOpacity>
           </BlurPanel>
 
