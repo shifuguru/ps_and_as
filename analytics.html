@@ -178,8 +178,8 @@
     <h2>Recent events</h2>
     <div class="recent" id="recent"></div>
     <p class="hint">
-      <code>round_completed</code> / bot <code>match_started</code> only count when a human is seated
-      (idle Open Bot Table autopilot is ignored).
+      <code>round_completed</code> / bot <code>match_started</code> only count when a human is seated.
+      Open Bot Table is off in production (no idle autopilot).
       Confirmed Leave on a standard online match increments <code>player_left_in_game</code> then
       <code>match_aborted</code> immediately; disconnect drops still wait for reconnect grace before abort.
       API: <code>/api/analytics/summary</code>. Optional env <code>ANALYTICS_TOKEN</code>.
