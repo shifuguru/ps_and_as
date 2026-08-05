@@ -305,19 +305,9 @@ function injectEarlyShellHeight(html) {
     html.classList.add("ps-splash-active");
     html.style.colorScheme="dark";
     html.setAttribute("data-ps-theme","dark");
-    // Standalone: strip theme-color (felt under status). Safari tab: keep black
-    // so the URL/tool bars do not sample casino green from html background.
+    // No theme-color plate — document felt runs edge to edge under chrome.
     var metas=document.querySelectorAll('meta[name="theme-color"]');
-    if(isStandalone()){
-      for(var i=metas.length-1;i>=0;i--) metas[i].parentNode.removeChild(metas[i]);
-    }else if(metas.length){
-      for(var j=0;j<metas.length;j++) metas[j].setAttribute("content","#000000");
-    }else{
-      var m=document.createElement("meta");
-      m.setAttribute("name","theme-color");
-      m.setAttribute("content","#000000");
-      document.head.appendChild(m);
-    }
+    for(var i=metas.length-1;i>=0;i--) metas[i].parentNode.removeChild(metas[i]);
   }catch(e){}
   function sync(){
     var r=document.documentElement.style;

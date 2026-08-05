@@ -8,7 +8,7 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  * Document element alone owns wallpaper — do not duplicate onto html::before
  * (separate geometry creates a safe-area seam / tint band).
  * html background-color stays var(--ps-felt-tint); body stays transparent.
- * Safari tab theme-color is handled in syncWebAppearanceChrome (black/white).
+ * theme-color is stripped — no separate toolbar/status paint plate.
  */
 export function getWebShellCssText(feltTint: string): string {
   return `

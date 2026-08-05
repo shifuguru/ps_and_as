@@ -21,8 +21,7 @@
  * - html background-color MUST stay var(--ps-felt-tint) forever. Transparent
  *   here → iOS falls back to a dark frosted band (v1.1.17 regression).
  * - body MUST stay transparent so that felt is visible under the icons.
- * - Safari tab: theme-color black/white (never felt) so toolbars stay neutral.
- * - Standalone: strip theme-color so status shows felt without a frosted sample.
+ * - Strip theme-color always — no separate toolbar/status paint plate.
  *
  * Chin: paint shell at calc(100vh + 2px) and seal the bottom edge so a 1px UA
  * white line cannot show. Safe-area pads interactive chrome only.
