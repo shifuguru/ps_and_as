@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ps & As",
     "slug": "ps_and_as",
-    "version": "1.1.42",
+    "version": "1.1.43",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -39,7 +39,10 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.shifuguru.psandas",
       "versionCode": 10142,
-      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"],
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
