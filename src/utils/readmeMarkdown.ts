@@ -111,7 +111,7 @@ function overrideCss(theme: ReadmeMarkdownTheme): string {
 .markdown-body h4,
 .markdown-body h5,
 .markdown-body h6 {
-  scroll-margin-top: 20px;
+  scroll-margin-top: 88px;
   border-bottom: none !important;
   padding-bottom: 0.15em;
 }
