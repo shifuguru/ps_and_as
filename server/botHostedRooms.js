@@ -56,7 +56,7 @@ function hasHumanPublicLobbies(rooms, isRoomListedPublic) {
 
 function shouldListBotRoom(rooms, room, isRoomListedPublic) {
   if (!room?.isBotHosted) return false;
-  // Always list when public — cold-start “online” table even if human lobbies exist.
+  if (hasHumanPublicLobbies(rooms, isRoomListedPublic)) return false;
   return isRoomListedPublic(room);
 }
 
