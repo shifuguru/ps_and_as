@@ -34,8 +34,8 @@ We will acknowledge reports when we can and aim to remediate high-impact issues 
 | Topic | Channel |
 |-------|---------|
 | Vulnerability disclosure | This file / GitHub Security Advisories |
-| Player data deletion request | Same channels; include player ID (`google:…`, Game Center id, or device id) |
-| Privacy questions | [Privacy policy](https://shifuguru.github.io/ps_and_as/privacy.html) |
+| Player data deletion request | Email [shifuguru@outlook.com](mailto:shifuguru@outlook.com). Ask for Google-linked email (if any) + display name (Settings does not show raw player IDs) |
+| Privacy questions | [Privacy policy](https://shifuguru.github.io/ps_and_as/privacy.html) · [shifuguru@outlook.com](mailto:shifuguru@outlook.com) |
 
 ## Related docs
 
