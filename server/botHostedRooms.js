@@ -1,6 +1,11 @@
 /**
- * Persistent bot-hosted public tables — shown on Find Game when no human lobbies exist.
- * Humans join in-progress games as spectators and can claim the open seat next round.
+ * Bot-hosted tables (Open Bot Table BOTOPN + optional QA rooms).
+ *
+ * Public Open Bot Table is **off by default** — it used to auto-deal forever with
+ * zero humans and burn server CPU. Set ENABLE_OPEN_BOT_TABLE=1 to opt in (tests /
+ * explicit ops). Find Game still hides BOTOPN (D-010) even when enabled.
+ *
+ * QA League uses ensureBotHostedRoomAt(QALEG) under PS_QA_LEAGUE — independent.
  */
 
 const {
@@ -23,6 +28,12 @@ const BOT_ROOM_CODE = 'BOTOPN';
 const BOT_TURN_DELAY_MS = 900;
 const BOT_NAMES = ['Amy', 'Ben'];
 const MAX_SEATED = 8;
+
+/** Production default: off. Opt in with ENABLE_OPEN_BOT_TABLE=1|true|yes. */
+function isOpenBotTableEnabled() {
+  const v = process.env.ENABLE_OPEN_BOT_TABLE;
+  return v === '1' || v === 'true' || String(v || '').toLowerCase() === 'yes';
+}
 /** No bot progress while a round is active — table is probably stuck. */
 const BOT_NO_TIMER_STALL_MS = 18_000;
 /** No progress at all (including between rounds with nobody watching). */
@@ -56,8 +67,38 @@ function hasHumanPublicLobbies(rooms, isRoomListedPublic) {
 
 function shouldListBotRoom(rooms, room, isRoomListedPublic) {
   if (!room?.isBotHosted) return false;
-  // Always list when public — cold-start “online” table even if human lobbies exist.
+  if (!isOpenBotTableEnabled()) return false;
+  if (hasHumanPublicLobbies(rooms, isRoomListedPublic)) return false;
   return isRoomListedPublic(room);
+}
+
+/** Stop timers and delete BOTOPN so it cannot keep dealing in the background. */
+function shutdownOpenBotTableIfPresent(ctx) {
+  const room = ctx?.rooms?.[BOT_ROOM_CODE];
+  if (!room) return false;
+
+  if (room._botTurnTimer) {
+    clearTimeout(room._botTurnTimer);
+    room._botTurnTimer = null;
+  }
+  clearBotNextRoundSchedule(room, BOT_ROOM_CODE, ctx.io);
+
+  if (ctx.io) {
+    ctx.io.to(BOT_ROOM_CODE).emit('gameAborted', {
+      roomId: BOT_ROOM_CODE,
+      message: 'Open Bot Table is unavailable.',
+    });
+    ctx.io.to(BOT_ROOM_CODE).emit('roomDismissed', { roomId: BOT_ROOM_CODE });
+  }
+
+  delete ctx.rooms[BOT_ROOM_CODE];
+  console.log(
+    '[Server] Open Bot Table disabled — BOTOPN stopped (set ENABLE_OPEN_BOT_TABLE=1 to enable)',
+  );
+  if (typeof ctx.broadcastAvailableRooms === 'function') {
+    ctx.broadcastAvailableRooms();
+  }
+  return true;
 }
 
 function discoverRoomFilter(rooms, room, isRoomListedPublic, activePlayerCount, isRoundInProgress) {
@@ -587,6 +628,10 @@ function resetBotHostedRoom(roomId, ctx, message) {
 }
 
 function repairBotHostedRoomIfNeeded(ctx) {
+  if (!isOpenBotTableEnabled()) {
+    return shutdownOpenBotTableIfPresent(ctx);
+  }
+
   const room = ctx.rooms[BOT_ROOM_CODE];
   if (!room?.isBotHosted) return false;
 
@@ -875,6 +920,11 @@ function startBotHostedGame(roomId, ctx) {
 }
 
 function ensureBotHostedRooms(ctx) {
+  if (!isOpenBotTableEnabled()) {
+    shutdownOpenBotTableIfPresent(ctx);
+    return null;
+  }
+
   const { rooms } = ctx;
   if (hasHumanPublicLobbies(rooms, ctx.isRoomListedPublic)) {
     return null;
@@ -1086,6 +1136,7 @@ const __investigation = {
 
 module.exports = {
   BOT_ROOM_CODE,
+  isOpenBotTableEnabled,
   createBotHostedRoomAt,
   ensureBotHostedRoomAt,
   startBotHostedGame,
@@ -1098,6 +1149,7 @@ module.exports = {
   shouldListBotRoom,
   discoverRoomFilter,
   ensureBotHostedRooms,
+  shutdownOpenBotTableIfPresent,
   repairBotHostedRoomIfNeeded,
   resetBotHostedRoom,
   skipBotHostedGame,

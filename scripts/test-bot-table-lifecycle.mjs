@@ -1,6 +1,7 @@
 /**
  * Bot table lifecycle — bots finish rounds without humans, and mid-round joins.
- * Requires: npm run server  →  node scripts/test-bot-table-lifecycle.mjs
+ * Requires: ENABLE_OPEN_BOT_TABLE=1 npm run server
+ *        →  node scripts/test-bot-table-lifecycle.mjs
  */
 import { io } from "socket.io-client";
 import { createRequire } from "module";
