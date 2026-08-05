@@ -6,7 +6,7 @@ const STORAGE_KEY = "@ps_and_as_wallpaper";
 const STORAGE_TINT_KEY = "@ps_and_as_wallpaper_tint";
 
 /** Bundled grey felt texture — tinted at runtime via wallpaper tint. */
-export const FELT_WALLPAPER = require("../../assets/felt_grey.png");
+export const FELT_WALLPAPER = require("../../assets/felt_grey.webp");
 const FELT_GREY_ASSET_MARKER = "asset:felt_grey";
 export type FeltPreset = {
   hex: string;
