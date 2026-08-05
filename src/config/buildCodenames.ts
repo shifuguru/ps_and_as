@@ -104,6 +104,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.38": "Double Down Darling",
   "1.1.39": "Shuffle Or Scramble",
   "1.1.40": "Last Card Standing",
+  "1.1.41": "Felt Table Fever",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
