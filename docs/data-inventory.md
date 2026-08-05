@@ -60,7 +60,8 @@ No payment card data is processed in our code. Web Remove Ads uses Stripe Checko
 | Stripe | Checkout session + player id metadata; payment details handled by Stripe Checkout | One-time Remove Ads purchase | Web only |
 | GitHub Pages | Static app assets + privacy page | Host the web/PWA client | Web |
 | Railway | Hosted game server + env + disk/volume | Authoritative multiplayer + stats API | All online clients |
-| GitHub Sponsors | Handled entirely by GitHub | Voluntary donations (no card data in our code) | External link |
+
+**Note:** An optional in-app donate URL may still point at GitHub Sponsors in code, but monetization is ads + Remove Ads; do not feature Sponsors in the public privacy policy.
 
 ## What other players can see
 
