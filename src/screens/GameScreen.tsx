@@ -5213,6 +5213,12 @@ function GameScreenBoard() {
         : null,
     [localCeremonyDeal, isCeremonyDealer, handMetrics.cardWidth, handMetrics.cardHeight],
   );
+  const handBaseline = resolveHandBaseline(
+    viewportHeight,
+    insets.bottom || 0,
+    handReserveActive,
+    bottomOuterPad(insets.bottom || 0, viewportHeight),
+  );
   const handFeedbackBottom = resolveHandFeedbackBottom(
     viewportHeight,
     insets.bottom || 0,
@@ -5677,9 +5683,9 @@ function GameScreenBoard() {
       />
 
       {/*
-        Full-bleed play host — table uses the whole screen. HUD / hand / actions
-        overlay the felt; do not invent top/bottom painted bands or shrink the
-        shell. Seat clearance for the hand is handled inside GamePlayArea layout.
+        Edge-to-edge visual host. Safe-area / hand clearance is content padding
+        only - it must not shrink the screen shell. Wallpaper continues under
+        the home indicator; BottomBar lifts interactive controls above it.
       */}
       <View
         ref={playAreaHostRef}
@@ -5689,8 +5695,8 @@ function GameScreenBoard() {
           zIndex: 10,
           elevation: 10,
           paddingHorizontal: 12,
-          paddingTop: 0,
-          paddingBottom: 0,
+          paddingTop: contentTopPadding,
+          paddingBottom: handBaseline,
         }}
         pointerEvents="box-none"
         onLayout={(e: LayoutChangeEvent) => {
@@ -6006,7 +6012,7 @@ function GameScreenBoard() {
         deadHandId={tableSeats.deadHandId}
         layout={ceremonyPlayAreaLayout}
         playAreaHeight={ceremonyPlayAreaHeight}
-        playAreaOffsetTop={0}
+        playAreaOffsetTop={contentTopPadding}
         playAreaOffsetLeft={12}
         cardsPerPlayer={
           ceremonyPrep
