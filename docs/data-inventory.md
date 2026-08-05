@@ -57,7 +57,7 @@ No payment card data is processed in our code. Web Remove Ads uses Stripe Checko
 | Apple Game Center | Player ID, display name (via Apple APIs on device) | iOS identity; name may be shown to other players | iOS |
 | Google Sign-In | `sub`, optional email / name via ID token verify | Optional web account link for cloud stats | Web (Android native pending) |
 | Google AdSense H5 | Advertising identifiers / cookies per Google policies | Interstitial + rewarded ads after consent | Web only |
-| Stripe | Checkout session + customer email as configured in Stripe | One-time Remove Ads purchase | Web only |
+| Stripe | Checkout session + player id metadata; payment details handled by Stripe Checkout | One-time Remove Ads purchase | Web only |
 | GitHub Pages | Static app assets + privacy page | Host the web/PWA client | Web |
 | Railway | Hosted game server + env + disk/volume | Authoritative multiplayer + stats API | All online clients |
 | GitHub Sponsors | Handled entirely by GitHub | Voluntary donations (no card data in our code) | External link |
@@ -67,10 +67,13 @@ No payment card data is processed in our code. Web Remove Ads uses Stripe Checko
 In a shared room, seatmates typically see:
 
 - Display name
-- Public profile / progression hints the UI shows (e.g. level)
-- Game actions and finish rank
+- Shared table cues (e.g. felt tint on seats)
+- Game actions, finish rank, and round XP for that round
+- Last-place remaining cards at round end (game rule)
 
-They do **not** receive other players’ full hands (server enforces per-recipient views), reconnect secrets, Google emails, session tokens, or purchase details.
+They do **not** receive other players’ full hands during play, reconnect secrets, Google emails, session tokens, purchase details, or career XP totals as a lobby field.
+
+**Note for operators:** Settings currently shows Google link status and Level/XP, not a copyable raw player ID. Privacy deletion requests should ask for Google-linked email (if any) + display name.
 
 ## Google Play Data safety — quick map (Android build)
 
