@@ -1,43 +1,12 @@
-# 🃏 Presidents & Assholes (Ps & As)
-
-> **A fast-paced multiplayer card game where everyone races to empty their hand before everyone else..**
+Welcome to **Presidents & Assholes**.
 
 Climb to the rank of **President**, and avoid finishing as the **Asshole**.
-
-Play against AI opponents, challenge friends online, or learn the game with Quick Play.
-
-**🎮 Play Online:** https://shifuguru.github.io/ps_and_as/
-
-**Privacy:** https://shifuguru.github.io/ps_and_as/privacy.html
-
-Android Play release runbook: [docs/play-store/RELEASE_CHECKLIST.md](./docs/play-store/RELEASE_CHECKLIST.md)
-
----
-
-# 📖 Contents
-
-- [Welcome](#welcome)
-- [The Goal](#the-goal)
-- [Game Features](#game-features)
-- [Quick Rules](#quick-rules)
-- [How To Play](#how-to-play)
-- [Card Rankings](#card-rankings)
-- [Special Rules](#special-rules)
-- [Runs](#runs)
-- [Starting a Round](#starting-a-round)
-- [President & Asshole](#president--asshole)
-- [Game Modes](#game-modes)
-- [Controls](#controls)
-- [Beginner Tips](#beginner-tips)
-- [Frequently Asked Questions](#frequently-asked-questions)
 
 ---
 
 # Welcome
 
-Welcome to **Presidents & Assholes**.
-
-If this is your first game, don't worry—you only need to learn four things before you start:
+If this is your first game, start with these four ideas:
 
 1. Your objective
 2. How turns work
@@ -58,9 +27,9 @@ Players are ranked by the order they finish.
 
 | Finish | Rank |
 |---------|------|
-| 🥇 First | 👑 President |
-| 🥈 Everyone Else | Citizen |
-| 🥉 Last | 💀 Asshole |
+| First | President |
+| Everyone else | Citizen |
+| Last | Asshole |
 
 Those rankings carry into the next round.
 
@@ -72,31 +41,16 @@ Winning one round gives you an advantage in the next.
 
 ---
 
-# Game Features
-
-- 🎮 Play against AI opponents
-- 🌐 Online multiplayer
-- 👥 Up to 8 players
-- 🃏 Classic Presidents gameplay
-- ⚡ Fast-paced matches
-- 🏆 Persistent XP and achievements
-- 🎨 Animated card dealing
-- 📱 Mobile and desktop support
-- 🔄 Reconnect to online matches
-- 🎭 Multiple table themes *(more coming soon)*
-
----
-
 # Quick Rules
 
 | Rule | |
 |------|------|
 | Objective | Empty your hand first |
-| Lowest Card | 3 |
-| Highest Card | Joker |
-| Opening Card | 3♣ |
-| Smallest Run | Three consecutive ranks |
-| A Trick Ends | When every other active player passes |
+| Lowest card | 3 |
+| Highest card | Joker |
+| Opening card | 3♣ |
+| Smallest run | Three consecutive ranks |
+| A trick ends | When every other active player passes |
 
 ---
 
@@ -202,15 +156,13 @@ Runs are played as **one move** using consecutive ranks.
 
 Examples:
 
-✅ 4-5-6
+- 4-5-6
+- 8-9-10-J
+- 10-J-Q-K-A
 
-✅ 8-9-10-J
+Pair runs are also allowed:
 
-✅ 10-J-Q-K-A
-
-Pair runs are also allowed.
-
-✅ 7-7 / 8-8 / 9-9
+- 7-7 / 8-8 / 9-9
 
 A valid run must:
 
@@ -234,13 +186,13 @@ If the Dead Hand contains 3♣, play instead begins with **3♠**.
 
 Starting from Round Two, rankings matter.
 
-### 👑 President
+### President
 
 Receives the Asshole's best card(s).
 
 Then chooses **any** card(s) from their own hand to return.
 
-### 💀 Asshole
+### Asshole
 
 Must give away their strongest card(s).
 
@@ -262,11 +214,7 @@ Perfect for learning the rules or playing a quick game.
 
 ## Online Multiplayer
 
-Create a room.
-
-Invite your friends.
-
-Battle for the Presidency.
+Create a room, invite your friends, and battle for the Presidency.
 
 Reconnect if your connection briefly drops.
 
@@ -303,25 +251,19 @@ Reconnect if your connection briefly drops.
 
 ### Can I play offline?
 
-Yes.
-
-Quick Game works without an internet connection.
+Yes. Quick Game works without an internet connection.
 
 ---
 
 ### Can I play with friends?
 
-Yes.
-
-Create an online room and share the room code.
+Yes. Create an online room and share the room code.
 
 ---
 
 ### Does suit matter?
 
-Normally, no.
-
-Suits only determine the opening card.
+Normally, no. Suits only determine the opening card.
 
 ---
 
@@ -333,9 +275,7 @@ Because nothing normally beats a Joker.
 
 ### Why did I become the Asshole?
 
-Someone had to.
-
-Fortunately, every new game is another chance to become President.
+Someone had to. Fortunately, every new game is another chance to become President.
 
 ---
 
