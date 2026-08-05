@@ -2490,11 +2490,32 @@ export function isRoundOpeningLead(state: GameState): boolean {
 /** Joker or cross-turn rank close — everyone else must pass to acknowledge (concurrent). */
 export function isTrickAcknowledgmentPassPhase(state: GameState): boolean {
   if (state.tenRulePending || !state.pile?.length) return false;
+  // On Top beat owns the turn — acknowledgment is over even if a clear marker remains.
+  if (state.runOnTop?.active) return false;
   if (state.lastClear?.type === "joker") return true;
   if (state.pile.length === 1 && isJoker(state.pile[0])) return true;
   return !!(
     state.fourOfAKindChallenge?.active &&
     state.fourOfAKindChallenge.completedAcrossTurns
+  );
+}
+
+/**
+ * Cross-turn rank closes are acknowledgment clears (like jokers): after everyone
+ * else passes, the trick ends. Do not grant 10-rule On Top just because the
+ * closed pile is four 10s with a recovered Higher/Lower from earlier in the trick
+ * — that left runOnTop + completedAcrossTurns active and stalled CPU/UI loops.
+ */
+function shouldGrantOnTopAfterPasses(state: GameState): boolean {
+  if (state.runOnTop?.active) return false;
+  if (state.fourOfAKindChallenge?.completedAcrossTurns) return false;
+  return isOnTopEligiblePile(
+    state.pile,
+    state.pileHistory,
+    state.currentTrick,
+    state.players,
+    state.finishedOrder || [],
+    resolveEffectiveTenRule(state),
   );
 }
 
@@ -2519,15 +2540,7 @@ export function resolveCompletedAcknowledgmentTrick(state: GameState): GameState
     others.length === 0 || others.every((id) => passedIds.has(id));
   if (!allOthersPassed) return state;
 
-  const onTopEligible = isOnTopEligiblePile(
-    state.pile,
-    state.pileHistory,
-    state.currentTrick,
-    state.players,
-    state.finishedOrder || [],
-    resolveEffectiveTenRule(state),
-  );
-  if (onTopEligible && !state.runOnTop?.active) {
+  if (shouldGrantOnTopAfterPasses(state)) {
     return grantRunOnTopBeat(state, leaderIndex);
   }
   syncFinishedFromEmptyHands(state);
@@ -2634,6 +2647,9 @@ function grantRunOnTopBeat(state: GameState, leaderIndex: number): GameState {
     );
     syncPassCountFromTrick(state);
   }
+  // Clear rank-close / bomb markers so acknowledgment phase cannot re-fire over On Top.
+  state.fourOfAKindChallenge = undefined;
+  state.lastClear = undefined;
   syncTenRuleForRunOnTop(state);
   state.runOnTop = { active: true, playerIndex: leaderIndex };
   state.currentPlayerIndex = leaderIndex;
@@ -2892,15 +2908,7 @@ export function maybeResolveTrickAfterPasses(state: GameState): GameState | null
         `[core] maybeResolveTrickAfterPasses: leaderIndex=${leaderIndex}, passed=${JSON.stringify(Array.from(passedIds))}`,
       );
     } catch (e) {}
-    const onTopEligible = isOnTopEligiblePile(
-      state.pile,
-      state.pileHistory,
-      state.currentTrick,
-      state.players,
-      state.finishedOrder || [],
-      resolveEffectiveTenRule(state),
-    );
-    if (onTopEligible && !state.runOnTop?.active) {
+    if (shouldGrantOnTopAfterPasses(state)) {
       return grantRunOnTopBeat(state, leaderIndex);
     }
     syncFinishedFromEmptyHands(state);
@@ -2914,15 +2922,7 @@ export function maybeResolveTrickAfterPasses(state: GameState): GameState | null
     syncFinishedFromEmptyHands(state);
     return finalizeTrickWin(state, leaderIndex);
   }
-  const onTopEligible = isOnTopEligiblePile(
-    state.pile,
-    state.pileHistory,
-    state.currentTrick,
-    state.players,
-    state.finishedOrder || [],
-    resolveEffectiveTenRule(state),
-  );
-  if (onTopEligible) {
+  if (shouldGrantOnTopAfterPasses(state)) {
     return grantRunOnTopBeat(state, leaderIndex);
   }
   syncFinishedFromEmptyHands(state);

@@ -811,6 +811,73 @@ function makeEmptyGame(names: string[]): GameState {
   assert.strictEqual(s.mustPlay, true, "Quad completer leads the next trick");
 }
 
+// Cross-turn 10-rank close must clear the trick — not grant stuck On Top over ack phase
+{
+  const g = makeEmptyGame(["Human", "CPU1", "CPU2"]);
+  g.players[0].hand = [{ suit: "hearts", value: 8 }];
+  g.players[1].hand = [
+    { suit: "hearts", value: 10 },
+    { suit: "diamonds", value: 4 },
+  ];
+  g.players[2].hand = [
+    { suit: "diamonds", value: 10 },
+    { suit: "clubs", value: 10 },
+    { suit: "spades", value: 10 },
+    { suit: "hearts", value: 9 },
+  ];
+  g.currentPlayerIndex = 1;
+
+  let s = playCards(g, g.players[1].id, [{ suit: "hearts", value: 10 }], {
+    tenRuleDirection: "higher",
+  });
+  assert.ok(s.tenRule?.active && s.tenRule.direction === "higher");
+
+  // Close the 10 rank across turns (unbeatable acknowledgment clear).
+  s = playCards(s, g.players[2].id, [
+    { suit: "diamonds", value: 10 },
+    { suit: "clubs", value: 10 },
+    { suit: "spades", value: 10 },
+  ]);
+  assert.ok(
+    s.fourOfAKindChallenge?.completedAcrossTurns,
+    "Closing four 10s across turns is a rank close",
+  );
+  assert.ok(isTrickAcknowledgmentPassPhase(s));
+  assert.ok(!s.runOnTop?.active, "Rank close itself is not On Top yet");
+
+  s = passTurn(s, g.players[0].id);
+  s = passTurn(s, g.players[1].id);
+
+  assert.strictEqual(
+    s.pile.length,
+    0,
+    "After acks, 10-rank close must finalize — not leave a stuck On Top pile",
+  );
+  assert.ok(!s.runOnTop?.active, "Cross-turn rank close must not grant On Top");
+  assert.ok(
+    !s.fourOfAKindChallenge?.active,
+    "Rank-close challenge clears when the trick ends",
+  );
+  assert.ok(
+    !isTrickAcknowledgmentPassPhase(s),
+    "Ack phase must end so CPU/UI can continue",
+  );
+  assert.strictEqual(
+    s.players[s.currentPlayerIndex].id,
+    g.players[2].id,
+    "Rank-close completer leads the next trick",
+  );
+  assert.strictEqual(s.mustPlay, true);
+
+  // CPU can act on the fresh lead (regression for “game stopped after CPU closed 10s”).
+  const afterCpu = applyCpuTurn(s, g.players[2].id);
+  assert.notStrictEqual(
+    afterCpu,
+    s,
+    "Closer CPU must be able to lead after a 10-rank close",
+  );
+}
+
 // Concurrent acknowledgment passes after joker — any order, seat order preserved
 {
   const g = makeEmptyGame(["P1", "P2", "P3", "P4"]);

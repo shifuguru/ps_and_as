@@ -372,6 +372,31 @@ Also: `playCards` / `gameAction` play now reject while `tenRulePending` so undir
 
 ---
 
+## CPU stall after closing a 10-rank
+
+**Category:** Gameplay / Core Rules
+
+**Intended behaviour:**  
+Closing four 10s across turns is a **rank close** (acknowledgment clear, like other cross-turn quads / jokers). After everyone else passes, the trick ends and the completer leads the next trick. On Top applies to unfinished **runs** and unbeaten **10-rule** piles — not to completed rank closes.
+
+**Current behaviour (before fix):**  
+After a cross-turn 10-rank close was acknowledged, `isOnTopEligiblePile` still treated four 10s as a 10-rule pile (Higher/Lower recovered from the earlier 10 play). `grantRunOnTopBeat` left `fourOfAKindChallenge.completedAcrossTurns` set, so `isTrickAcknowledgmentPassPhase` stayed true while `runOnTop` was active. Offline CPU / UI ack loops saw no one left to acknowledge and never ran the On Top / lead turn — table looked frozen right after a CPU closed 10s.
+
+**Impact:**  
+Player-visible freeze after CPU closes a 10 rank.
+
+**Files likely involved:**  
+`src/game/core.ts` (`resolveCompletedAcknowledgmentTrick`, `maybeResolveTrickAfterPasses`, `shouldGrantOnTopAfterPasses`, `grantRunOnTopBeat`, `isTrickAcknowledgmentPassPhase`), `src/screens/GameScreen.tsx` (ack-phase CPU effect)
+
+**Priority:** P0
+
+**Status:** Resolved
+
+**Notes:**  
+Fix: never grant On Top when `completedAcrossTurns`; clear challenge markers on On Top grant; ack phase false while `runOnTop` active. Regression in `scripts/test-core.ts` (“Cross-turn 10-rank close must clear the trick”).
+
+---
+
 ## Turn Ownership Invariant
 
 **Category:** Gameplay / Core Rules
