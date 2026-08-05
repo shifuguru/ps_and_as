@@ -311,11 +311,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     sectionTitle: {
       color: colors.textPrimary,
-      fontSize: 18,
-      fontWeight: "700",
+      fontSize: 24,
+      fontWeight: "800",
+      letterSpacing: 0.2,
       paddingHorizontal: 4,
       paddingTop: 2,
-      paddingBottom: 4,
+      paddingBottom: 6,
+      lineHeight: 30,
     },
     scroll: {
       flex: 1,
