@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>P's &amp; A's — Presidents &amp; Assholes Card Game</title>
+    <meta
+      name="description"
+      content="Play P's &amp; A's (Presidents &amp; Assholes) online or against AI. Free multiplayer card game with ranks, tricks, runs, and jokers. Rules, tips, and how to play."
+    />
+    <meta name="google-adsense-account" content="ca-pub-5095796594648653" />
+    <link rel="icon" href="/ps_and_as/favicon.ico" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a1210;
+        --bg-elevated: #121c18;
+        --fg: #e8f0ea;
+        --muted: #9fb0a6;
+        --accent: #7ec8a3;
+        --accent-strong: #5fb88a;
+        --rule: rgba(232, 240, 234, 0.12);
+        --card: rgba(255, 255, 255, 0.04);
+        --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          color-scheme: light;
+          --bg: #f4f7f5;
+          --bg-elevated: #ffffff;
+          --fg: #142018;
+          --muted: #4a5c52;
+          --accent: #1f6b4a;
+          --accent-strong: #155a3d;
+          --rule: rgba(20, 32, 24, 0.12);
+          --card: rgba(20, 32, 24, 0.04);
+          --shadow: 0 18px 50px rgba(20, 32, 24, 0.08);
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        background:
+          radial-gradient(1200px 600px at 10% -10%, rgba(126, 200, 163, 0.16), transparent 55%),
+          radial-gradient(900px 500px at 100% 0%, rgba(60, 90, 70, 0.22), transparent 50%),
+          var(--bg);
+        color: var(--fg);
+        line-height: 1.6;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:hover {
+        color: var(--accent-strong);
+      }
+      .wrap {
+        max-width: 46rem;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+      }
+      header {
+        margin-bottom: 2.5rem;
+      }
+      .eyebrow {
+        font-size: 0.85rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 0.5rem;
+      }
+      h1 {
+        font-size: clamp(2rem, 6vw, 3rem);
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+        margin: 0 0 0.75rem;
+      }
+      .lede {
+        font-size: 1.15rem;
+        color: var(--muted);
+        margin: 0 0 1.5rem;
+        max-width: 36rem;
+      }
+      .cta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.85rem 1.35rem;
+        border-radius: 999px;
+        font-size: 1rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: 1px solid transparent;
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #08120d;
+      }
+      .btn-primary:hover {
+        background: var(--accent-strong);
+        color: #08120d;
+        transform: translateY(-1px);
+      }
+      .btn-secondary {
+        background: transparent;
+        color: var(--fg);
+        border-color: var(--rule);
+      }
+      .btn-secondary:hover {
+        background: var(--card);
+      }
+      section {
+        margin: 2.5rem 0;
+        padding-top: 0.25rem;
+      }
+      h2 {
+        font-size: 1.45rem;
+        margin: 0 0 0.85rem;
+        letter-spacing: -0.02em;
+      }
+      h3 {
+        font-size: 1.05rem;
+        margin: 1.25rem 0 0.5rem;
+      }
+      p {
+        margin: 0 0 1rem;
+      }
+      ul {
+        margin: 0 0 1rem;
+        padding-left: 1.25rem;
+      }
+      li {
+        margin: 0.35rem 0;
+      }
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--rule);
+        border-radius: 1rem;
+        padding: 1.15rem 1.25rem;
+        box-shadow: var(--shadow);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0.75rem 0 1rem;
+        font-size: 0.95rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--rule);
+        padding: 0.55rem 0.65rem;
+        text-align: left;
+      }
+      th {
+        background: var(--bg-elevated);
+      }
+      .rank-table td:first-child {
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .cards {
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
+      }
+      .faq dt {
+        font-weight: 700;
+        margin-top: 1rem;
+      }
+      .faq dd {
+        margin: 0.35rem 0 0;
+        color: var(--muted);
+      }
+      footer {
+        margin-top: 3rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--rule);
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      footer nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1.25rem;
+        margin-bottom: 0.75rem;
+      }
+      .note {
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <p class="eyebrow">Presidents &amp; Assholes</p>
+        <h1>P's &amp; A's</h1>
+        <p class="lede">
+          A fast trick-taking card game where finishing order matters. Empty your hand first to
+          become <strong>President</strong>. Finish last and you're the <strong>Asshole</strong> —
+          and you'll pay for it next round.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="/ps_and_as/">Play free in your browser</a>
+          <a class="btn btn-secondary" href="/ps_and_as/readme-fallback.html">Full rules</a>
+        </div>
+      </header>
+
+      <section id="about">
+        <h2>About the game</h2>
+        <p>
+          P's &amp; A's is a digital version of the classic climbing / shedding card game often
+          called Presidents, Asshole, or Scum. Play a quick match against AI, or create an online
+          room and invite friends with a room code. The web app works on phones, tablets, and
+          desktop — no install required.
+        </p>
+        <div class="panel">
+          <h3>What makes a round interesting</h3>
+          <ul>
+            <li><strong>Ranks carry over.</strong> President and Asshole trade cards before the next deal.</li>
+            <li><strong>Power cards matter.</strong> 2s, Jokers, and four-of-a-kind can dominate a trick — but the trick only ends when everyone else passes.</li>
+            <li><strong>Runs clear hands fast.</strong> Consecutive ranks played together are one of the strongest ways to shed cards.</li>
+            <li><strong>The 10 Rule.</strong> Playing a 10 lets you choose whether the next play must go higher or lower.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="how-to-play">
+        <h2>How to play</h2>
+        <p>
+          Players take turns playing cards onto the table. Each play must beat what is currently
+          showing — a higher single, pair, triple, four-of-a-kind, or run of the same length.
+          If you cannot or do not want to beat it, press <strong>Pass</strong>. When every other
+          active player has passed, the trick ends and the last player leads the next one.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Rule</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Goal</td>
+              <td>Be the first to empty your hand</td>
+            </tr>
+            <tr>
+              <td>Opening card</td>
+              <td>3♣ leads every round (3♠ in two-player if the dead hand holds 3♣)</td>
+            </tr>
+            <tr>
+              <td>Card order</td>
+              <td class="cards">3 4 5 6 7 8 9 10 J Q K A 2 Joker</td>
+            </tr>
+            <tr>
+              <td>Shortest run</td>
+              <td>Three consecutive ranks, same count at each rank</td>
+            </tr>
+            <tr>
+              <td>Trick ends</td>
+              <td>When every other active player passes — not automatically on a 2 or Joker</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="ranks">
+        <h2>Finishing order &amp; ranks</h2>
+        <p>Where you finish sets your title for the next round:</p>
+        <table class="rank-table">
+          <thead>
+            <tr>
+              <th>Finish</th>
+              <th>Rank</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>First</td>
+              <td>President</td>
+            </tr>
+            <tr>
+              <td>Second (5+ players)</td>
+              <td>Vice President</td>
+            </tr>
+            <tr>
+              <td>Middle</td>
+              <td>Citizen</td>
+            </tr>
+            <tr>
+              <td>Second-to-last (5+ players)</td>
+              <td>Vice Asshole</td>
+            </tr>
+            <tr>
+              <td>Last</td>
+              <td>Asshole</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          From round two onward, the Asshole gives their best card(s) to the President, who sends
+          weaker cards back. With five or more players, Vice President and Vice Asshole also
+          exchange one card each.
+        </p>
+      </section>
+
+      <section id="modes">
+        <h2>Game modes</h2>
+        <div class="panel">
+          <h3>Quick Game</h3>
+          <p>
+            Jump into a match against AI opponents. Good for learning the rules or a short session.
+            Works offline once the page has loaded.
+          </p>
+          <h3>Online multiplayer</h3>
+          <p>
+            Create a room, share the code with friends, and play for the Presidency. If your
+            connection drops briefly, you can reconnect and rejoin the table.
+          </p>
+        </div>
+      </section>
+
+      <section id="tips">
+        <h2>Beginner tips</h2>
+        <ul>
+          <li>Don't waste your 2s too early — they are your best normal cards.</li>
+          <li>Jokers are often worth saving for a decisive trick.</li>
+          <li>Passing can be the strongest move when you cannot beat the pile cleanly.</li>
+          <li>Runs clear a lot of cards quickly when the table is open.</li>
+          <li>Think about the next trick, not just the card you are playing now.</li>
+        </ul>
+      </section>
+
+      <section id="faq">
+        <h2>Frequently asked questions</h2>
+        <dl class="faq">
+          <dt>Can I play offline?</dt>
+          <dd>Yes. Quick Game works without an internet connection after the app has loaded once.</dd>
+
+          <dt>Can I play with friends?</dt>
+          <dd>Yes. Create an online room in the game and share the room code.</dd>
+
+          <dt>Does suit matter?</dt>
+          <dd>Normally no. Suits only decide who opens with 3♣ (or 3♠ in two-player).</dd>
+
+          <dt>Why can't I beat a Joker?</dt>
+          <dd>Nothing normally beats a Joker, and you cannot play a Joker into an active run.</dd>
+
+          <dt>Is the game free?</dt>
+          <dd>Yes. The browser version is free to play. Optional in-app purchases may be offered to support hosting costs.</dd>
+        </dl>
+      </section>
+
+      <section id="play">
+        <h2>Ready to play?</h2>
+        <p>Open the game in your browser — no download required.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="/ps_and_as/">Start playing</a>
+        </div>
+        <p class="note">
+          This page is the site home for P's &amp; A's. The playable game, full interactive rules,
+          and account features live at <a href="/ps_and_as/">/ps_and_as/</a>.
+        </p>
+      </section>
+
+      <footer>
+        <nav aria-label="Site links">
+          <a href="/ps_and_as/">Play</a>
+          <a href="/ps_and_as/readme-fallback.html">Rules</a>
+          <a href="/ps_and_as/privacy.html">Privacy policy</a>
+          <a href="https://github.com/shifuguru/ps_and_as">Source on GitHub</a>
+          <a href="mailto:shifuguru@outlook.com">Contact</a>
+        </nav>
+        <p>© shifuguru. P's &amp; A's — Presidents &amp; Assholes card game.</p>
+      </footer>
+    </div>
+  </body>
+</html>
