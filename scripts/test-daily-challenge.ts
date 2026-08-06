@@ -74,10 +74,11 @@ function run() {
   assert.strictEqual(claimed.state.completed, true);
   assert.strictEqual(claimed.state.rewardClaimed, true);
 
-  // Second claim is a no-op (no double XP).
+  // Second claim is a no-op (no double XP). Hub hides the card once claimed.
   const claimedAgain = resolveDailyChallengeClaim(def, claimed.state, doneStats);
   assert.strictEqual(claimedAgain.grantedXp, 0);
   assert.strictEqual(claimedAgain.state, claimed.state);
+  assert.strictEqual(claimedAgain.state.rewardClaimed, true);
 
   // Incomplete challenge cannot be claimed.
   const early = resolveDailyChallengeClaim(
