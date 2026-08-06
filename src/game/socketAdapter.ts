@@ -738,7 +738,14 @@ export class SocketAdapter implements NetworkAdapter {
       this.handlers.forEach((h) =>
         h({
           type: "state",
-          state: { type: "tradesComplete", playerHands: data.playerHands },
+          state: {
+            type: "tradesComplete",
+            playerHands: data.playerHands,
+            openingPlayerId:
+              typeof data?.openingPlayerId === "string"
+                ? data.openingPlayerId
+                : null,
+          },
         }),
       );
     });

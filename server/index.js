@@ -742,6 +742,15 @@ function snapshotPlayerHands(gameState) {
   return playerHands;
 }
 
+function openingPlayerIdAfterTrades(gameState) {
+  const idx = gameState?.currentPlayerIndex ?? -1;
+  const players = gameState?.players ?? [];
+  if (idx >= 0 && idx < players.length) {
+    return players[idx]?.id ?? null;
+  }
+  return null;
+}
+
 /** After role trades finish, opener is whoever holds 3♣ (not dealer's left). */
 function syncOpeningPlayerAfterTrades(gameState, hostId) {
   const pending = gameState.pendingTrades || {};
@@ -779,12 +788,15 @@ function emitTradesCompleteIfReady(io, roomId, gameState, hostId) {
   const playerHands = gameState.playerHands || snapshotPlayerHands(gameState);
   gameState.playerHands = playerHands;
   syncOpeningPlayerAfterTrades(gameState, hostId);
+  const openingPlayerId = openingPlayerIdAfterTrades(gameState);
   const room = rooms[roomId];
   if (room) {
-    emitPlayerHandsPerRecipient(io, room, 'tradesComplete', playerHands);
+    emitPlayerHandsPerRecipient(io, room, 'tradesComplete', playerHands, {
+      openingPlayerId,
+    });
   } else {
     // Fallback: room not found (should not happen in normal flow)
-    io.to(roomId).emit('tradesComplete', { playerHands: {} });
+    io.to(roomId).emit('tradesComplete', { playerHands: {}, openingPlayerId });
   }
 }
 
@@ -2388,7 +2400,9 @@ io.on('connection', (socket) => {
       syncOpeningPlayerAfterTrades(room.gameState, room.host);
       reconcileCurrentPlayerIndex(room);
       broadcastGameState(io, room);
-      emitPlayerHandsPerRecipient(io, room, 'tradesComplete', playerHands);
+      emitPlayerHandsPerRecipient(io, room, 'tradesComplete', playerHands, {
+        openingPlayerId: openingPlayerIdAfterTrades(room.gameState),
+      });
       if (room.isBotHosted) {
         botHosted.kickBotTurnLoop(roomId, getBotContext());
       }
