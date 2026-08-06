@@ -40,6 +40,7 @@ export const WEB_FULL_BLEED_FIXED =
  */
 export const WEB_SPLASH_Z_INDEX = 10050;
 
+/** Transparent shell — SplashScreen owns the black veil so felt can reveal through. */
 export const WEB_SPLASH_OVERLAY =
   Platform.OS === "web"
     ? ({
@@ -50,7 +51,7 @@ export const WEB_SPLASH_OVERLAY =
         right: 0,
         bottom: 0,
         width: "100%",
-        backgroundColor: "#000000",
+        backgroundColor: "transparent",
       } as object)
     : null;
 
@@ -101,9 +102,11 @@ export function clearWebThemeColorMeta(doc: WebDocument): void {
 }
 
 /**
- * Keep only the system color-scheme in sync with appearance.
- * We intentionally do NOT paint custom top/bottom chrome bands or set a
- * runtime theme-color tint here — the wallpaper should run edge to edge.
+ * Sync appearance chrome with dark/light mode.
+ *
+ * Always clear theme-color so iOS does not paint a separate toolbar/status
+ * plate — the document felt runs edge to edge under browser chrome and the
+ * Home Screen status region (black-translucent).
  */
 export function syncWebAppearanceChrome(
   mode: ThemeMode,

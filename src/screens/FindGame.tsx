@@ -258,7 +258,7 @@ export default function FindGame({
     handleJoinRoom(code);
   };
 
-  /** D-010 — hide bot-hosted public table from Find Game listing. */
+  /** D-010 — hide bot-hosted public table from Find Game listing (fragile cold-start surface). */
   const publicRooms = useMemo(
     () =>
       availableRooms.filter(

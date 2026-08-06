@@ -102,6 +102,19 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.36": "Wild Draw Four Energy",
   "1.1.37": "Misdeal Mayhem",
   "1.1.38": "Double Down Darling",
+  "1.1.39": "Shuffle Or Scramble",
+  "1.1.40": "Last Card Standing",
+  "1.1.41": "Felt Table Fever",
+  "1.1.42": "Empty Hand Heroics",
+  "1.1.43": "Rank And File",
+  "1.1.44": "Your Turn, Apparently",
+  "1.1.45": "Trick Question",
+  "1.1.46": "Double Down Darling",
+  "1.1.47": "Bottom Deck Energy",
+  "1.1.48": "Off-Suit Outburst",
+  "1.1.49": "Pile On Patrol",
+  "1.1.50": "Table Stakes Tantrum",
+  "1.1.51": "King Me Maybe",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {

@@ -1,6 +1,6 @@
 {
   "name": "ps_and_as",
-  "version": "1.1.38",
+  "version": "1.1.51",
   "main": "index.ts",
   "scripts": {
     "start": "node ./scripts/expo-dev-env.js",
@@ -18,8 +18,15 @@
     "test-player-level": "npx tsx ./scripts/test-player-level.ts",
     "test-web-onboarding": "npx tsx ./scripts/test-web-onboarding.ts",
     "test-google-account-sync": "npx tsx ./scripts/test-google-account-sync.ts",
+    "test-privacy-url": "npx tsx ./scripts/test-privacy-url.ts",
     "test-daily-challenge": "npx tsx ./scripts/test-daily-challenge.ts",
+<<<<<<< HEAD
     "test-ads-entitlement": "npx tsx ./scripts/test-ads-entitlement.ts && node ./scripts/test-ads-entitlement-store.mjs && npx tsx ./scripts/test-ads-h5-stub.ts",
+=======
+    "test-ads-entitlement": "npx tsx ./scripts/test-ads-entitlement.ts && node ./scripts/test-ads-entitlement-store.mjs",
+    "test-analytics": "node ./scripts/test-analytics-store.js",
+    "test-open-bot-table": "node ./scripts/test-open-bot-table-disabled.js",
+>>>>>>> origin/main
     "test-action-bar-leave": "npx tsx ./scripts/test-action-bar-leave.ts",
     "bump-version": "node ./scripts/bump-version.js",
     "test-multiplayer": "node ./scripts/test-multiplayer.mjs",

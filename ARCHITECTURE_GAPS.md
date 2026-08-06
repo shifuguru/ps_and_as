@@ -70,7 +70,9 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 | **P1** | **Mobile browser onboarding (PWA → Google)** | Install-first coach on mobile browser; decline path couples display name with Google Sign-in sync (Play Store / stats). |
 | **P2** | **Turn Ownership Invariant** | **Documentation only** unless a live bug traces here. Do not redesign `currentPlayerIndex` or new ownership APIs. Tests/validation only when supporting an active bug investigation. See [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.md). |
 | **P2** | Pause state presentation; Bot-open disconnect model | As capacity allows. |
-| **P2** | **Ad monetization (H5 + Remove Ads)** | Ship web H5 ads + Stripe Remove Ads; native AdMob later. |
+| **P2** | **Ad monetization (H5 + Remove Ads)** | Web H5 + Stripe shipped; native AdMob / Play Billing later. |
+| **P2** | **Android Play Store release** | Package + EAS + privacy URL + listing draft; first AAB / Console upload pending. |
+| **P2** | **Product analytics (DIY)** | First-party counters + live dashboard; no third-party SaaS required. |
 
 ### Priority order (gap register)
 
@@ -78,7 +80,7 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 |----------|------|
 | **P0** | Rankings before last hand (online); CPU takeover after disconnect; Returning player after timeout |
 | **P1** | Disconnect timeout; XP and progression persistence; Mobile browser onboarding (PWA → Google) (Ready-for-next-round seated gate resolved on critical-issues branch) |
-| **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Pause state presentation; Bot-open disconnect model vs standard rooms; Ad monetization (H5 + Remove Ads) |
+| **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Pause state presentation; Bot-open disconnect model vs standard rooms; Ad monetization (H5 + Remove Ads); Android Play Store release; Product analytics (DIY) |
 
 **How to maintain:** When a gap is fixed, set `Status: Resolved` and add a one-line note with version or PR. When intent changes, update the architecture doc first, then close or rewrite the gap here.
 
@@ -277,7 +279,7 @@ Install coach runs before name gate when `shouldOfferAddToHomeScreen()` and name
 `linkGoogleAccountAndSync` stores `google:{sub}`, exchanges the Google ID token for a **30-day server session** (`POST /api/auth/google`), then pulls/pushes cloud **stats + profile**. Settings shows **Google linked** (not “Local profile”) plus Level/XP, and **Sync now** reports cloud vs local XP. Standalone PWAs use an in-page Google button (skip FedCM/One Tap).
 
 **Still open:**  
-**Persist Railway `server/data` volume** so `player-stats.json` survives redeploys — without it, Level/XP uploads are wiped on each deploy (likely why Level 20 did not appear on a second device). Optional `GOOGLE_SESSION_SECRET` on Railway. Android Play Games remains a separate track.
+**Attach Railway Volume** (mount `/data`) so `player-stats.json` / `analytics.json` survive redeploys — without it, Level/XP uploads are wiped on each deploy (likely why Level 20 did not appear on a second device; console shows `GET /api/player-stats/google:…` 404). Code now honors `RAILWAY_VOLUME_MOUNT_PATH` / `SERVER_DATA_DIR` via `server/dataDir.js` (see `railway.toml` comments). Optional `GOOGLE_SESSION_SECRET` on Railway. Android Play Games remains a separate track.
 
 **Files likely involved:**  
 `src/services/webOnboarding.ts`, `src/services/googleAccountSync.ts`, `src/components/WebInstallCoachModal.tsx`, `src/components/DisplayNameSetupModal.tsx`, `App.tsx`, `src/utils/webAppInstall.ts`
@@ -309,10 +311,10 @@ Two disconnect stories; architecture readers may apply standard-room rules to bo
 
 **Priority:** P2
 
-**Status:** Open
+**Status:** Open — product surface disabled
 
 **Notes:**  
-May remain intentionally different; if so, promote bot-table rules into a short dedicated subsection and mark this gap **Resolved (by design)** after doc cross-link only. Gameplay Auditor Finding 4 reaffirmed (2026-06-08): immediate demotion removes human from `gameState` mid-round with no pause or grace.
+Public Open Bot Table is **off by default** (`ENABLE_OPEN_BOT_TABLE` unset): no BOTOPN create/deal loop, Find Game hide (D-010) kept. Code retained for opt-in tests / QA League (`QALEG` via `PS_QA_LEAGUE`). Gap remains relevant if the table is re-enabled. Gameplay Auditor Finding 4 reaffirmed (2026-06-08): immediate demotion removes human from `gameState` mid-round with no pause or grace.
 
 ---
 
@@ -370,6 +372,31 @@ Also: `playCards` / `gameAction` play now reject while `tenRulePending` so undir
 
 ---
 
+## CPU stall after closing a 10-rank
+
+**Category:** Gameplay / Core Rules
+
+**Intended behaviour:**  
+Closing four 10s across turns is a **rank close** (acknowledgment clear, like other cross-turn quads / jokers). After everyone else passes, the trick ends and the completer leads the next trick. On Top applies to unfinished **runs** and unbeaten **10-rule** piles — not to completed rank closes.
+
+**Current behaviour (before fix):**  
+After a cross-turn 10-rank close was acknowledged, `isOnTopEligiblePile` still treated four 10s as a 10-rule pile (Higher/Lower recovered from the earlier 10 play). `grantRunOnTopBeat` left `fourOfAKindChallenge.completedAcrossTurns` set, so `isTrickAcknowledgmentPassPhase` stayed true while `runOnTop` was active. Offline CPU / UI ack loops saw no one left to acknowledge and never ran the On Top / lead turn — table looked frozen right after a CPU closed 10s.
+
+**Impact:**  
+Player-visible freeze after CPU closes a 10 rank.
+
+**Files likely involved:**  
+`src/game/core.ts` (`resolveCompletedAcknowledgmentTrick`, `maybeResolveTrickAfterPasses`, `shouldGrantOnTopAfterPasses`, `grantRunOnTopBeat`, `isTrickAcknowledgmentPassPhase`), `src/screens/GameScreen.tsx` (ack-phase CPU effect)
+
+**Priority:** P0
+
+**Status:** Resolved
+
+**Notes:**  
+Fix: never grant On Top when `completedAcrossTurns`; clear challenge markers on On Top grant; ack phase false while `runOnTop` active. Regression in `scripts/test-core.ts` (“Cross-turn 10-rank close must clear the trick”).
+
+---
+
 ## Turn Ownership Invariant
 
 **Category:** Gameplay / Core Rules
@@ -412,7 +439,7 @@ Investigation: [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.
 
 **Documented intent:** Cover AI + server costs (~$40–50 NZD/mo) without breaking fair play. Web-first Google H5 Games Ads; native AdMob later behind the same client API.
 
-**Current behaviour:** No ads, no IAP, no billing.
+**Current behaviour:** Web H5 interstitial (every 3 rounds), rewarded XP, consent banner, and Stripe Remove Ads are implemented. Android native stubs ads/billing (`Platform.OS !== "web"`).
 
 **Target behaviour:**
 
@@ -422,11 +449,61 @@ Investigation: [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.
 - One-time **Remove Ads** (~$19 NZD) via Stripe Checkout; requires Google link; server webhook sets `adsRemoved` (client cannot grant). Removes forced + hand banner; rewarded stays.
 - Consent banner before loading AdSense; privacy policy reachable from Settings.
 
-**Status:** In progress
+**Status:** Partial — web path shipping; native Phase 2
 
 **Priority:** P2
 
-**Notes:** Entitlement lives on cloud profile (`adsRemoved`), not career XP counters. XP grants still go through `commitRoundXpEarned`. Phase 2: native AdMob, XP booster packs.
+**Notes:** Entitlement lives on cloud profile (`adsRemoved`), not career XP counters. XP grants still go through `commitRoundXpEarned`. Phase 2: native AdMob, Play Billing for Remove Ads, XP booster packs.
+
+---
+
+## Android Play Store release
+
+**Category:** Product / distribution
+
+**Intended behaviour:**  
+Ship a signed Android App Bundle to Google Play (internal testing → production) as a free multiplayer client: production package id, hosted privacy policy URL, Data safety form, store listing, and EAS production builds that bake the Railway server URL.
+
+**Current behaviour:**  
+Repo readiness for MVP is in progress: `com.shifuguru.psandas`, `android.versionCode`, `eas.json`, `public/privacy.html`, data inventory, and listing/checklist drafts. No AAB has been uploaded to Play Console yet. Native Google sync / Play Games / AdMob / Play Billing remain deferred.
+
+**Impact:**  
+Players cannot install from Play Store until Console setup + first AAB upload complete.
+
+**Files likely involved:**  
+`app.json`, `eas.json`, `public/privacy.html`, `docs/data-inventory.md`, `docs/play-store/*`, `src/config/privacyUrl.ts`, Settings / Privacy UI
+
+**Priority:** P2
+
+**Status:** Open — repo config + privacy/listing drafts; operator Console + EAS credentials pending
+
+**Notes:**  
+Runbook: [docs/play-store/RELEASE_CHECKLIST.md](./docs/play-store/RELEASE_CHECKLIST.md). Do not claim ads/IAP on the Android listing until native monetization ships. Privacy policy must stay accurate for web ads + Android no-ads MVP.
+
+---
+
+## Product analytics (DIY)
+
+**Category:** Ops / product
+
+**Intended behaviour:**  
+First-party event counters on the game server (no third-party analytics SaaS). Operators can view a live summary (activation CTAs, online match start/abort/reconnect, rounds completed) from a simple dashboard — preferably reachable from GitHub Pages and/or the Railway server — without shipping PII (no display names or room codes).
+
+**Current behaviour:**  
+Career `PlayerStats`, Game Center, and `/api/online-players` presence exist. There is no product event pipeline or live ops dashboard for funnels / multiplayer reliability.
+
+**Impact:**  
+Cannot measure Day-0 activation or disconnect→abort rates from production; P0 multiplayer work is harder to validate after ship.
+
+**Files likely involved:**  
+`server/analyticsStore.js`, `server/index.js`, `public/analytics.html`, `src/services/analytics.ts`
+
+**Priority:** P2
+
+**Status:** Partial — server counters, client beacons, and live dashboard shipped
+
+**Notes:**  
+Server-authoritative online events + allowlisted client beacons. Dashboard at `public/analytics.html` (GitHub Pages) and `/analytics` on the game server. Optional `ANALYTICS_TOKEN` gates summary reads. Idle BOTOPN autopilot rounds are excluded; confirmed Leave on standard rooms aborts immediately for analytics + table fairness. Not a substitute for closing P0 disconnect gaps.
 
 ---
 
@@ -467,4 +544,6 @@ Work order: see **Priority order** in Workflow (top of this file).
 - [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.md) — turn pointer audit, invariant table, investigation guide
 - [CPU_STALL_INVESTIGATION.md](./CPU_STALL_INVESTIGATION.md) — display vs authoritative desync symptom
 - [RELEASE_GATE.md](./RELEASE_GATE.md) — automated P0/P1 verification mapping (`npm run test-release-gate`)
+- [docs/play-store/RELEASE_CHECKLIST.md](./docs/play-store/RELEASE_CHECKLIST.md) — Google Play Android release runbook
+- [docs/data-inventory.md](./docs/data-inventory.md) — data map for privacy / Play Data safety
 - [docs/rules.md](./docs/rules.md) — player-facing rules (validation should follow `core.ts`)

@@ -113,6 +113,12 @@ function patchViewport(html) {
     html = html.replace("<head>", `<head>\n    ${appleBar}`);
   }
 
+  const mobileCapable =
+    '<meta name="mobile-web-app-capable" content="yes" />';
+  if (!/name="mobile-web-app-capable"/i.test(html)) {
+    html = html.replace("<head>", `<head>\n    ${mobileCapable}`);
+  }
+
   const appleCapable =
     '<meta name="apple-mobile-web-app-capable" content="yes" />';
   if (!/apple-mobile-web-app-capable/i.test(html)) {
@@ -310,6 +316,7 @@ function injectEarlyShellHeight(html) {
     html.classList.add("ps-splash-active");
     html.style.colorScheme="dark";
     html.setAttribute("data-ps-theme","dark");
+    // No theme-color plate — document felt runs edge to edge under chrome.
     var metas=document.querySelectorAll('meta[name="theme-color"]');
     for(var i=metas.length-1;i>=0;i--) metas[i].parentNode.removeChild(metas[i]);
   }catch(e){}
@@ -490,6 +497,17 @@ if (fs.existsSync(readmeFallbackSrc)) {
   fallbackHtml = injectReadmeFallbackBase(fallbackHtml);
   fs.writeFileSync(path.join(buildDir, "readme-fallback.html"), fallbackHtml, "utf8");
   console.log("Wrote readme-fallback.html into web-build.");
+}
+
+// Player-facing privacy policy (static HTML on Pages — required for Play Console).
+const privacySrc = path.resolve(__dirname, "..", "public", "privacy.html");
+if (fs.existsSync(privacySrc)) {
+  let privacyHtml = fs.readFileSync(privacySrc, "utf8");
+  privacyHtml = rewriteHtmlPaths(privacyHtml);
+  fs.writeFileSync(path.join(buildDir, "privacy.html"), privacyHtml, "utf8");
+  console.log("Wrote privacy.html into web-build.");
+} else {
+  console.warn("public/privacy.html not found — skipping privacy page copy");
 }
 
 // Prevent Jekyll from stripping or ignoring Expo output folders.

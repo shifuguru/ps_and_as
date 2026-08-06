@@ -96,6 +96,7 @@ jobs:
           test -f web-build/index.html
           test -f web-build/404.html
           test -f web-build/readme-fallback.html
+          test -f web-build/privacy.html
           test -f web-build/README.md
           test -f web-build/version.json
           test -f web-build/web-shell.css
@@ -106,6 +107,7 @@ jobs:
           grep -q 'web-shell.css' web-build/index.html
           grep -qE '(--app-shell-h:|--app-height:|100(l|d)vh)' web-build/web-shell.css
           ! grep -q 'height: 100vh' web-build/web-shell.css
+          grep -qi 'Privacy' web-build/privacy.html
           if [ -n "$EXPO_PUBLIC_ADSENSE_CLIENT" ]; then
             grep -q "$EXPO_PUBLIC_ADSENSE_CLIENT" web-build/index.html
             grep -q 'data-ps-adsense="1"' web-build/index.html
@@ -142,14 +144,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cp web-build/index.html web-build/version.json web-build/404.html \
-            web-build/readme-fallback.html web-build/web-shell.css web-build/favicon.ico \
+            web-build/readme-fallback.html web-build/privacy.html web-build/web-shell.css \
+            web-build/favicon.ico \
             web-build/manifest.webmanifest web-build/metadata.json web-build/.nojekyll \
             web-build/README.md .
           rm -rf _expo
           cp -R web-build/_expo _expo
           cp -R web-build/assets/. assets/
-          git add index.html version.json 404.html readme-fallback.html web-shell.css \
-            favicon.ico manifest.webmanifest metadata.json .nojekyll _expo assets README.md
+          git add index.html version.json 404.html readme-fallback.html privacy.html \
+            web-shell.css favicon.ico manifest.webmanifest metadata.json .nojekyll \
+            _expo assets README.md
           if git diff --staged --quiet; then
             echo "No web files to sync on main."
             exit 0

@@ -1,8 +1,12 @@
 const fs = require("fs");
-const path = require("path");
+const {
+  ensureServerDataDir,
+  resolveServerDataDir,
+  serverDataFile,
+} = require("./dataDir");
 
-const DATA_DIR = path.join(__dirname, "data");
-const DATA_FILE = path.join(DATA_DIR, "player-stats.json");
+const DATA_DIR = resolveServerDataDir();
+const DATA_FILE = serverDataFile("player-stats.json");
 
 const STAT_FIELDS = [
   "roundsPlayed",
@@ -89,7 +93,7 @@ function loadStore() {
 }
 
 function saveStore(store) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  ensureServerDataDir(DATA_DIR);
   const tmp = `${DATA_FILE}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(store, null, 2));
   fs.renameSync(tmp, DATA_FILE);

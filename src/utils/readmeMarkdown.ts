@@ -22,6 +22,8 @@ export type ReadmeMarkdownTheme = {
   linkBorder: string;
   textPrimary: string;
   borderMuted: string;
+  /** Optional — used when sticky section titles replace in-body h1s. */
+  surface?: string;
 };
 
 function tokenPlainText(token: {
@@ -105,15 +107,48 @@ function overrideCss(theme: ReadmeMarkdownTheme): string {
 .markdown-body {
   color: ${theme.textPrimary};
 }
-.markdown-body h1,
+.markdown-body h1 {
+  /* Section label lives in the sticky header under "Rules" — keep anchors only. */
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  opacity: 0;
+  pointer-events: none;
+  scroll-margin-top: 0;
+}
 .markdown-body h2,
 .markdown-body h3,
 .markdown-body h4,
 .markdown-body h5,
 .markdown-body h6 {
-  scroll-margin-top: 20px;
+  scroll-margin-top: 12px;
   border-bottom: none !important;
   padding-bottom: 0.15em;
+  color: ${theme.textPrimary} !important;
+}
+.markdown-body h2 {
+  font-size: 1.45em !important;
+  font-weight: 800 !important;
+  margin-top: 1.1em !important;
+  margin-bottom: 0.45em !important;
+  line-height: 1.25 !important;
+}
+.markdown-body h3 {
+  font-size: 1.2em !important;
+  font-weight: 700 !important;
+  margin-top: 1em !important;
+  margin-bottom: 0.35em !important;
+  line-height: 1.3 !important;
+}
+.markdown-body p,
+.markdown-body li {
+  font-size: 15px;
+  line-height: 1.55;
+}
+.markdown-body table {
+  font-size: 14px;
 }
 .markdown-body hr {
   height: 0.2em;

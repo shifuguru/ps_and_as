@@ -1,5 +1,6 @@
 // Simple Socket.IO server for lobbies and game state
 const crypto = require('crypto');
+const path = require('path');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -44,6 +45,7 @@ const botHosted = require('./botHostedRooms');
 const { computeRoundXpByPlayerId } = require('./roundXp');
 const tableRoster = require('./tableRoster');
 const gameSync = require('./gameSync');
+const analytics = require('./analyticsStore');
 const { advancePastInactiveSeats } = require('./turnAdvance');
 const {
   adjustSeatIndexAfterRemoval,
@@ -146,6 +148,18 @@ function spectatorCount(room) {
 /** Non-spectator seats including temporarily disconnected / away players. */
 function seatedRosterCount(room) {
   return (room?.players || []).filter((p) => !p.isSpectator).length;
+}
+
+/** True if a non-bot human holds a seat (including away) — used to ignore idle BOTOPN autopilot. */
+function roomHasHumanSeatForAnalytics(room) {
+  return (room?.players || []).some(
+    (p) =>
+      p &&
+      !p.isSpectator &&
+      !botHosted.isBotMember(p) &&
+      !isCpuLobbyId(p.id) &&
+      !isCpuLobbyId(p.profileId),
+  );
 }
 
 function shouldJoinAsSpectator(room) {
@@ -347,6 +361,57 @@ app.get('/version', (_req, res) => {
     buildId: SERVER_BUILD_ID,
     builtAt: process.env.CLIENT_BUILT_AT || null,
   });
+});
+
+/** Optional gate for analytics summary reads (set ANALYTICS_TOKEN in prod). */
+function analyticsReadAuthorized(req) {
+  const expected = process.env.ANALYTICS_TOKEN?.trim();
+  if (!expected) return true;
+  const header = req.get('x-analytics-token');
+  const query = typeof req.query.token === 'string' ? req.query.token : '';
+  return header === expected || query === expected;
+}
+
+/** Cheap per-IP cap for anonymous client beacons. */
+const analyticsClientHits = new Map();
+function allowAnalyticsClientBeacon(ip) {
+  const key = ip || 'unknown';
+  const now = Date.now();
+  let row = analyticsClientHits.get(key);
+  if (!row || now - row.windowStart > 60_000) {
+    row = { windowStart: now, count: 0 };
+    analyticsClientHits.set(key, row);
+  }
+  row.count += 1;
+  return row.count <= 60;
+}
+
+app.get('/api/analytics/summary', (req, res) => {
+  if (!analyticsReadAuthorized(req)) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  const days = Number(req.query.days);
+  res.set('Cache-Control', 'no-store');
+  return res.json(analytics.getSummary({ days }));
+});
+
+app.post('/api/analytics/event', (req, res) => {
+  const ip = req.ip || req.socket?.remoteAddress || '';
+  if (!allowAnalyticsClientBeacon(ip)) {
+    return res.status(429).json({ error: 'rate_limited' });
+  }
+  const name = req.body?.name;
+  const props = req.body?.props;
+  const ok = analytics.track(name, props, { source: 'client' });
+  if (!ok) {
+    return res.status(400).json({ error: 'invalid_event' });
+  }
+  return res.status(204).end();
+});
+
+app.get(['/analytics', '/analytics.html'], (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, '..', 'public', 'analytics.html'));
 });
 
 const {
@@ -852,6 +917,9 @@ function demoteBotTablePlayerToSpectator(room, roomId, player) {
     return;
   }
   player.isSpectator = true;
+  analytics.track('bot_player_demoted', {
+    reason: player.awayReason || 'disconnected',
+  });
   removePlayerFromActiveGame(room, player.id);
   advancePastInactiveSeats(room, cloneGameState);
   gameSync.bumpStateVersion(room);
@@ -881,11 +949,11 @@ function finalizeAwayPlayerRemoval(roomId, playerId) {
       return;
     }
     room.players = room.players.filter((p) => p.id !== playerId);
-    const msg =
-      player.awayReason === 'left'
-        ? `${player.name} left and did not return. The game has ended.`
-        : `${player.name} did not reconnect in time. The game has ended.`;
-    abortOnlineGame(roomId, msg);
+    const left = player.awayReason === 'left';
+    const msg = left
+      ? `${player.name} left and did not return. The game has ended.`
+      : `${player.name} did not reconnect in time. The game has ended.`;
+    abortOnlineGame(roomId, msg, left ? 'left' : 'grace_expired');
     return;
   }
 
@@ -919,15 +987,31 @@ function markPlayerAway(roomId, player, reason = 'disconnected') {
   if (!room || !player) return;
   if (player.disconnectedAt) return;
 
-  const graceMs = room.inGame && !player.isSpectator
-    ? inGameAwayGraceMs()
+  const seatedInGame = room.inGame && !player.isSpectator;
+  // Confirmed Leave ends a standard match immediately — reconnect grace is for drops, not quits.
+  const immediateLeaveAbort =
+    seatedInGame && reason === 'left' && !room.isBotHosted;
+
+  const graceMs = seatedInGame
+    ? immediateLeaveAbort
+      ? 0
+      : inGameAwayGraceMs()
     : LOBBY_DISCONNECT_GRACE;
 
   player.disconnectedAt = Date.now();
   player.awayReason = reason;
   player.reconnectUntil = Date.now() + graceMs;
 
-  if (room.inGame && !player.isSpectator && room.gameState) {
+  if (seatedInGame && room.gameState) {
+    const kind = room.isBotHosted ? 'bot' : 'standard';
+    if (reason === 'left') {
+      analytics.track('player_left_in_game', { kind });
+    } else {
+      analytics.track('player_disconnected_in_game', {
+        kind,
+        reason: String(reason || 'disconnected'),
+      });
+    }
     if (room.isBotHosted) {
       demoteBotTablePlayerToSpectator(room, roomId, player);
       io.to(roomId).emit('playerDisconnected', {
@@ -937,7 +1021,7 @@ function markPlayerAway(roomId, player, reason = 'disconnected') {
         reason,
         reconnectUntil: player.reconnectUntil,
       });
-    } else {
+    } else if (!immediateLeaveAbort) {
       broadcastGameState(io, room);
       io.to(roomId).emit('playerDisconnected', {
         playerId: player.id,
@@ -947,6 +1031,11 @@ function markPlayerAway(roomId, player, reason = 'disconnected') {
         reconnectUntil: player.reconnectUntil,
       });
     }
+  }
+
+  if (immediateLeaveAbort) {
+    finalizeAwayPlayerRemoval(roomId, player.id);
+    return;
   }
 
   io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
@@ -1344,11 +1433,16 @@ function migrateHost(roomId) {
 }
 
 /** End an in-progress online game for everyone — unfair to continue short-handed. */
-function abortOnlineGame(roomId, message) {
+function abortOnlineGame(roomId, message, reason = 'other') {
   const room = rooms[roomId];
   if (!room) return;
+  const wasInGame = !!room.inGame;
+  const hadHuman = roomHasHumanSeatForAnalytics(room);
   if (room.isBotHosted) {
     console.log(`[Server] Resetting bot room ${roomId}: ${message}`);
+    if (wasInGame && hadHuman) {
+      analytics.track('match_aborted', { kind: 'bot', reason: String(reason) });
+    }
     io.to(roomId).emit('gameAborted', { roomId, message });
     room.players = room.players.filter((p) => botHosted.isBotMember(p));
     room.inGame = false;
@@ -1362,6 +1456,12 @@ function abortOnlineGame(roomId, message) {
     return;
   }
   console.log(`[Server] Aborting online game in ${roomId}: ${message}`);
+  if (wasInGame) {
+    analytics.track('match_aborted', {
+      kind: 'standard',
+      reason: String(reason),
+    });
+  }
   for (const p of room.players) {
     cancelAwayRemoval(roomId, p.id);
   }
@@ -1448,6 +1548,13 @@ function handleRoundFinished(roomId, finishOrder, hands) {
   const roundXpByPlayerId = computeRoundXpByPlayerId(room.gameState);
   room.gameState.roundXpByPlayerId = roundXpByPlayerId;
   room.gameState.roundXpAwardedAt = Date.now();
+  // Idle Open Bot Table keeps finishing rounds with no humans — don't count those.
+  if (roomHasHumanSeatForAnalytics(room)) {
+    analytics.track('round_completed', {
+      kind: room.isBotHosted ? 'bot' : 'standard',
+      public: !!room.isPublic,
+    });
+  }
 
   if (room.isBotHosted) {
     botHosted.onBotRoomRoundFinished(
@@ -1651,6 +1758,7 @@ io.on('connection', (socket) => {
     };
     rooms[code].players.push(hostPlayer);
     socket.join(code);
+    analytics.track('room_created', { public: !!isPublic });
     io.to(code).emit('lobbyUpdate', buildLobbyUpdate(rooms[code]));
     socket.emit('connected', connectedPayload(hostPlayer, socket));
     if (isPublic) broadcastAvailableRooms();
@@ -1704,6 +1812,11 @@ io.on('connection', (socket) => {
   socket.on('joinRoom', ({ roomId, name, profileId, clientBuildId, feltTint, reconnectSecret }) => {
     const code = normalizeRoomCode(roomId);
     if (code === botHosted.BOT_ROOM_CODE) {
+      if (!botHosted.isOpenBotTableEnabled()) {
+        botHosted.shutdownOpenBotTableIfPresent(getBotContext());
+        socket.emit('error', { message: 'Open Bot Table is unavailable.' });
+        return;
+      }
       botHosted.repairBotHostedRoomIfNeeded(getBotContext());
     }
     if (!rooms[code]) {
@@ -1811,6 +1924,9 @@ io.on('connection', (socket) => {
     const joined = room.players.find((p) => p.socketId === socket.id);
     io.to(code).emit('lobbyUpdate', buildLobbyUpdate(room));
     if (wasAway && room.inGame && joined && !joined.isSpectator) {
+      analytics.track('player_reconnected', {
+        kind: room.isBotHosted ? 'bot' : 'standard',
+      });
       io.to(code).emit('playerReconnected', {
         playerId: joined.id,
         playerName: joined.name,
@@ -1958,6 +2074,11 @@ io.on('connection', (socket) => {
       const dealSeed = Math.floor(Math.random() * 2147483647);
       beginAuthoritativeRound(room, dealSeed);
       room.inGame = true;
+      analytics.track('match_started', {
+        kind: 'standard',
+        public: !!room.isPublic,
+        seats: activePlayerCount(room),
+      });
       broadcastGameState(io, room);
       io.to(roomId).emit('startGame', {
         players: room.players
@@ -2349,6 +2470,7 @@ io.on('connection', (socket) => {
       abortOnlineGame(
         roomId,
         `${playerToKick.name} was removed. The game has ended.`,
+        'kicked',
       );
       return;
     }
@@ -2411,6 +2533,22 @@ app.get('/api/online-players', (_req, res) => {
 
 server.listen(PORT, () => {
   console.log('Server listening on', PORT);
+  try {
+    const { ensureServerDataDir } = require('./dataDir');
+    const dataDir = ensureServerDataDir();
+    const onVolume = Boolean(
+      process.env.SERVER_DATA_DIR?.trim() ||
+        process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim(),
+    );
+    console.log(
+      `[Server] data dir: ${dataDir}` +
+        (onVolume
+          ? ' (persistent volume / SERVER_DATA_DIR)'
+          : ' (ephemeral — attach a Railway volume or set SERVER_DATA_DIR)'),
+    );
+  } catch (err) {
+    console.warn('[Server] data dir setup failed:', err?.message || err);
+  }
   const botCtx = getBotContext();
   botHosted.ensureBotHostedRooms(botCtx);
   try {

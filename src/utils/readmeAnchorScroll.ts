@@ -9,7 +9,7 @@ import {
 
 const SCROLL_PADDING = 20;
 
-function escapeSelectorId(id: string): string {
+export function escapeSelectorId(id: string): string {
   if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
     return CSS.escape(id);
   }

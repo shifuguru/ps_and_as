@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Ps &amp; As — Live analytics</title>
+  <style>
+    :root {
+      --bg: #0c1a12;
+      --panel: #13261b;
+      --ink: #e8f0ea;
+      --muted: #8aa194;
+      --line: #243d2c;
+      --accent: #c4a35a;
+      --good: #6fbf8a;
+      --bad: #d97b6c;
+      --mono: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
+      --sans: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--sans);
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 0%, #1a3a28 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, #1f2e22 0%, transparent 50%),
+        var(--bg);
+    }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 1.5rem 1.25rem 3rem;
+    }
+    h1 {
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.25rem;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin: 0 0 1.25rem;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      align-items: center;
+      margin-bottom: 1.25rem;
+    }
+    input[type="password"], input[type="text"] {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      border-radius: 6px;
+      padding: 0.45rem 0.65rem;
+      font: inherit;
+      min-width: 12rem;
+    }
+    button {
+      background: var(--accent);
+      color: #1a1408;
+      border: 0;
+      border-radius: 6px;
+      padding: 0.45rem 0.85rem;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    .status {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .status.err { color: var(--bad); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.65rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.75rem 0.85rem;
+    }
+    .stat .label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .stat .value {
+      font-family: var(--mono);
+      font-size: 1.45rem;
+      font-weight: 600;
+      margin-top: 0.2rem;
+    }
+    h2 {
+      font-size: 1.05rem;
+      margin: 0 0 0.65rem;
+      color: var(--accent);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin-bottom: 1.5rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.4rem 0.5rem;
+      border-bottom: 1px solid var(--line);
+    }
+    th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    td.num { font-family: var(--mono); text-align: right; }
+    .recent {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.75rem 0.9rem;
+      max-height: 320px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+    .hint { color: var(--muted); font-size: 0.85rem; margin-top: 1rem; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Live analytics</h1>
+    <p class="sub">Presidents &amp; Assholes — first-party counters from the game server.</p>
+
+    <div class="toolbar">
+      <input
+        id="token"
+        type="text"
+        name="ps-analytics-read-token"
+        placeholder="Read token (if set)"
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
+        data-1p-ignore="true"
+        data-lpignore="true"
+        data-form-type="other"
+      />
+      <button type="button" id="save">Save &amp; refresh</button>
+      <button type="button" class="secondary" id="reload">Refresh</button>
+      <span class="status" id="status">Loading…</span>
+    </div>
+
+    <h2>Today (UTC)</h2>
+    <div class="grid" id="today"></div>
+
+    <h2>Last 14 days</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead id="histHead"></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+
+    <h2>Recent events</h2>
+    <div class="recent" id="recent"></div>
+    <p class="hint">
+      <code>round_completed</code> / bot <code>match_started</code> only count when a human is seated.
+      Open Bot Table is off in production (no idle autopilot).
+      Confirmed Leave on a standard online match increments <code>player_left_in_game</code> then
+      <code>match_aborted</code> immediately; disconnect drops still wait for reconnect grace before abort.
+      API: <code>/api/analytics/summary</code>. Optional env <code>ANALYTICS_TOKEN</code>.
+    </p>
+  </main>
+  <script>
+    const PRODUCTION_API = "https://psandas-production.up.railway.app";
+    const KEY_EVENTS = [
+      "hub_viewed",
+      "cta_quick_game",
+      "cta_local_game",
+      "cta_online_game",
+      "quick_game_started",
+      "room_created",
+      "match_started",
+      "round_completed",
+      "match_aborted",
+      "player_left_in_game",
+      "player_disconnected_in_game",
+      "player_reconnected",
+      "bot_player_demoted",
+      "name_setup_completed",
+      "install_coach_continued",
+    ];
+
+    function apiBase() {
+      const params = new URLSearchParams(location.search);
+      const override = params.get("api");
+      if (override) return override.replace(/\/$/, "");
+      if (/github\.io$/i.test(location.hostname) || location.protocol === "file:") {
+        return PRODUCTION_API;
+      }
+      return location.origin;
+    }
+
+    function getToken() {
+      const params = new URLSearchParams(location.search);
+      return params.get("token") || sessionStorage.getItem("ps_analytics_token") || "";
+    }
+
+    document.getElementById("token").value = getToken();
+
+    document.getElementById("save").onclick = () => {
+      const t = document.getElementById("token").value.trim();
+      if (t) sessionStorage.setItem("ps_analytics_token", t);
+      else sessionStorage.removeItem("ps_analytics_token");
+      load();
+    };
+    document.getElementById("reload").onclick = () => load();
+
+    function fmt(n) {
+      return Number.isFinite(n) ? String(n) : "0";
+    }
+
+    function renderToday(counts) {
+      const root = document.getElementById("today");
+      root.innerHTML = KEY_EVENTS.map((name) => {
+        const v = counts[name] || 0;
+        return `<div class="stat"><div class="label">${name}</div><div class="value">${fmt(v)}</div></div>`;
+      }).join("");
+    }
+
+    function renderHistory(history) {
+      const cols = KEY_EVENTS.filter((k) =>
+        history.some((row) => (row.counts[k] || 0) > 0)
+      );
+      const show = cols.length ? cols : KEY_EVENTS.slice(0, 6);
+      document.getElementById("histHead").innerHTML =
+        `<tr><th>Day</th>${show.map((c) => `<th class="num">${c}</th>`).join("")}</tr>`;
+      document.getElementById("histBody").innerHTML = history
+        .map((row) => {
+          const cells = show.map((c) => `<td class="num">${fmt(row.counts[c] || 0)}</td>`).join("");
+          return `<tr><td>${row.day}</td>${cells}</tr>`;
+        })
+        .join("") || `<tr><td colspan="${show.length + 1}">No data yet</td></tr>`;
+    }
+
+    function renderRecent(recent) {
+      const el = document.getElementById("recent");
+      if (!recent?.length) {
+        el.textContent = "No events yet — play a round or open the hub.";
+        return;
+      }
+      el.textContent = recent
+        .map((e) => {
+          const props = e.props && Object.keys(e.props).length
+            ? " " + JSON.stringify(e.props)
+            : "";
+          return `${e.t}  ${e.source}  ${e.name}${props}`;
+        })
+        .join("\n");
+    }
+
+    async function load() {
+      const status = document.getElementById("status");
+      status.className = "status";
+      status.textContent = "Refreshing…";
+      const token = document.getElementById("token").value.trim() || getToken();
+      const url = new URL(`${apiBase()}/api/analytics/summary`);
+      url.searchParams.set("days", "14");
+      if (token) url.searchParams.set("token", token);
+      try {
+        const res = await fetch(url.toString(), { cache: "no-store" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        renderToday(data.todayCounts || {});
+        renderHistory(data.history || []);
+        renderRecent(data.recent || []);
+        status.textContent = `Updated ${data.generatedAt || ""} · ${apiBase()}`;
+      } catch (err) {
+        status.className = "status err";
+        status.textContent = String(err.message || err);
+      }
+    }
+
+    load();
+    setInterval(load, 15000);
+  </script>
+</body>
+</html>

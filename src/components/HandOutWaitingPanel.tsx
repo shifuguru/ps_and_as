@@ -118,11 +118,10 @@ export default function HandOutWaitingPanel({ height }: Props) {
         {WAITING_LINES[lineIndex]}
       </Text>
       {showAd ? (
-        // Native web <div> via RNW — id used to mount AdSense <ins>.
+        // RN-web honors `id` / nativeID so AdSense can mount into this node.
         <View
           nativeID={hostDomId}
-          // @ts-expect-error id is honored on react-native-web
-          id={hostDomId}
+          {...({ id: hostDomId } as Record<string, string>)}
           style={styles.adHost}
         />
       ) : (

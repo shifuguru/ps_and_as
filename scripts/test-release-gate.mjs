@@ -11,6 +11,8 @@
  *   SKIP_BOTOPN=1                skip botopn-lifecycle (RC scope — D-010 waiver)
  *   SKIP_OFFLINE=1               socket tests only
  *   SERVER_URL                   default http://localhost:4000
+ *   ENABLE_OPEN_BOT_TABLE=1      required on the game server for live BOTOPN gates
+ *                                (spawned servers get this by default)
  */
 import { spawn } from "child_process";
 import path from "path";

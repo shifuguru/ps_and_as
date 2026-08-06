@@ -1,286 +1,188 @@
-# Presidents & Assholes (Ps & As)
+Get rid of all your cards before everyone else and finish as **President**.
 
-**[Play the Game](https://shifuguru.github.io/ps_and_as/)** · **[Refresh](https://shifuguru.github.io/ps_and_as/?refresh=1)**
-
----
-
-# Contents
-
-- [New Players Start Here](#new-players-start-here)
-- [What Is Ps & As?](#what-is-ps--as)
-- [How To Play](#how-to-play)
-  - [Objective](#objective)
-  - [Turn Structure](#turn-structure)
-  - [Card Rankings](#card-rankings)
-  - [Special Rules](#special-rules)
-  - [Runs](#runs)
-  - [Round Start Rules](#round-start-rules)
-  - [President & Asshole Trades](#president--asshole-trades)
-- [Game Modes](#game-modes)
-- [Controls](#controls)
-- [Frequently Asked Questions](#frequently-asked-questions)
-- [Troubleshooting](#troubleshooting)
-- [Development Status](#development-status)
+Try not to finish last.
 
 ---
 
-# New Players Start Here
+# The Goal
 
-If you've never played before, read these sections in order:
+Be the first player to empty your hand.
 
-1. Objective
-2. Turn Structure
-3. Card Rankings
-4. Special Rules
+Your finishing order sets your rank for the next round:
 
-Everything else can be learned as you play.
-
-The game is much easier to understand after a single round than after reading a wall of text.
-
----
-
-# What Is Ps & As?
-
-**Presidents & Assholes** is a multiplayer climbing card game.
-
-Your goal is simple:
-
-Get rid of all your cards before everybody else.
-
-The first player out becomes the **President**.
-
-The last player left holding cards becomes the **Asshole**.
-
-Future rounds reward success and punish failure through card trading, meaning strong players can gain momentum while struggling players fight their way back up the ladder.
-
-The game includes:
-
-- Quick Game against AI opponents
-- Online multiplayer rooms
-- Up to 8 players
-- Animated card dealing
-- Runs (Consecutives)
-- Four-of-a-kind challenges
-- Dead-hand support
-- President / Asshole rankings
-- XP and achievements
-- Mobile and web support
-- Reconnect support for multiplayer
-
----
-
-# How To Play
-
-## Objective
-
-Get rid of all your cards before everybody else.
-
-The finishing order determines player ranks:
-
-| Position | Rank |
-|-----------|-----------|
-| 1st | President |
-| Middle | Neutral |
+| Finish | Rank |
+|--------|------|
+| First | President |
+| Everyone else | Citizen |
 | Last | Asshole |
 
-The President receives advantages in future rounds.
+With five or more players, second and second-to-last become **Vice President** and **Vice Asshole**.
 
-The Asshole receives motivation.
+Ranks carry into the next round. The President gets an advantage. The Asshole has to give away their best cards.
 
 ---
 
-## Turn Structure
+# Quick Rules
 
-Players take turns playing:
+| Rule | |
+|------|------|
+| Goal | Empty your hand first |
+| Lowest card | 3 |
+| Highest card | Joker |
+| Opening card | 3♣ |
+| Shortest run | Three consecutive ranks |
+| A trick ends | When every other active player passes |
 
-- Single cards
-- Pairs
-- Triples
+---
+
+# Taking Your Turn
+
+Players take turns playing cards onto the table.
+
+You can play:
+
+- A single card
+- A pair
+- Three of a kind
 - Four of a kind
-- Valid runs
+- A valid run
 
-Every play must beat the previous play on the table.
+Your play must beat whatever is currently on the table.
 
-If you cannot beat the current play, you must pass.
+If you cannot — or do not want to — beat it, press **Pass**. After you pass, you are locked out of that trick until the pile clears.
 
-When every other active player has passed, the pile clears and the last successful player begins a new trick.
+When every other active player has passed, the trick ends. The player who made the last successful play starts the next one.
 
-### Important
-
-Nothing automatically clears the pile.
-
-Not:
-
-- 2s
-- Jokers
-- Four of a kind
-- Finishing plays
-
-Everything remains visible until all other players pass.
-
-This allows everyone to witness exactly what happened.
-
-For better or worse.
+> **Important**
+>
+> A powerful card does **not** automatically end the trick.
+>
+> Not a 2.
+>
+> Not a Joker.
+>
+> Not four of a kind.
+>
+> The trick only ends when every other active player passes.
 
 ---
 
-## Card Rankings
+# Card Rankings
 
-Lowest to highest:
+Cards get stronger in this order:
 
-| Rank |
-|--------|
-| 3 |
-| 4 |
-| 5 |
-| 6 |
-| 7 |
-| 8 |
-| 9 |
-| 10 |
-| J |
-| Q |
-| K |
-| A |
-| 2 |
-| Joker |
+| 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | J | Q | K | A | 2 | Joker |
+|---|---|---|---|---|---|---|----|---|---|---|---|---|-------|
 
-The Joker is always the highest card.
-
-This is not open to negotiation.
+The Joker is always the strongest card.
 
 ---
 
-## Special Rules
+# Special Cards
 
-### 2s
+## 2
 
-2s are the strongest normal cards in the game.
+The strongest normal card.
 
-To beat a pile of 2s you must play:
+It can only be beaten by:
 
-- a Joker, or
-- four 2s (if fewer than four are already on the table)
+- A Joker
+- Four 2s (if fewer than four are already on the table)
 
-Playing 2s does not automatically end the trick.
-
----
-
-### Joker
-
-The Joker is the highest card in the deck.
-
-A Joker beats any non-run play.
-
-The Joker remains on the pile until every other player passes.
-
-Enjoy the moment.
+Playing a 2 does **not** end the trick.
 
 ---
 
-### Four Of A Kind
+## Joker
 
-Four of a kind is one of the strongest plays available.
+The strongest card in the game.
 
-If four of a kind is played in one action, it may be beaten by:
+It beats every normal play and stays on the table until every other player passes.
 
-- a higher four of a kind
-- a Joker
-
-If four of a kind is gradually built during the same trick, it becomes unbeatable and everybody else must pass.
-
-The pile still does not clear automatically.
+Jokers cannot be played while a **run** is active.
 
 ---
 
-### 10 Rule
+## Four of a Kind
 
-When playing a 10, the player chooses whether the next play must be:
+Four matching cards played together are one of the strongest plays.
+
+They can only be beaten by:
+
+- A higher four of a kind
+- A Joker
+
+If four of a kind are **built up across turns** in the same trick (for example one 3, then three more 3s), that play becomes unbeatable — everyone else must pass.
+
+---
+
+## The 10 Rule
+
+Playing a 10 lets you choose the direction of the next play:
 
 - Higher than 10
 - Lower than 10
 
-The choice affects only the next play.
+The effect lasts for one turn.
 
-After that response, normal rules resume.
-
-The 10 Rule does not apply during runs.
-
-It exists primarily because the game was not chaotic enough already.
+Runs ignore the 10 Rule.
 
 ---
 
-## Runs
+# Runs
 
-Runs are sequences of consecutive card ranks.
+A run is one play made of consecutive ranks, all with the same count.
 
 Examples:
 
 - 4-5-6
 - 8-9-10-J
 - 10-J-Q-K-A
+- K-A-2 (2 follows Ace on the ladder)
 
-Pair runs are also valid:
+Pair runs work the same way:
 
 - 7-7 / 8-8 / 9-9
-- Q-Q / K-K / A-A
 
-Runs must:
+A valid run must:
 
-- contain at least 3 ranks
-- remain consecutive
-- maintain equal multiplicity
+- Include at least three ranks
+- Be consecutive (no wrapping past 2 back to 3 — A-2-3 is illegal)
+- Use the same number of cards at each rank
 
-Examples:
+To beat a run, play a higher run of the same length and count, or **extend** it with the next adjacent rank while the run is still active.
 
-Valid:
-
-- 5-6-7
-- 9-9 / 10-10 / J-J
-
-Invalid:
-
-- 5-6-8
-- 7-7 / 8-8 / 10-10
+**On top:** when a run ends because everyone else passed without extending, the last player on the run gets one extra turn to play the next consecutive rank. The same idea applies after a 10 Rule pile — the player who set the rule may play on top in that direction, or pass to take the trick.
 
 ---
 
-## Round Start Rules
+# Starting a Round
 
-The first round always starts with:
+Every round opens with **3♣**. Whoever holds it leads.
 
-**3♣**
-
-However:
-
-If the dead hand contains the 3♣, the opening card becomes:
-
-**3♠**
-
-As established by centuries of completely legitimate legal precedent.
+In two-player games, a hidden **Dead Hand** is dealt to balance the deck. If it contains 3♣, play opens with **3♠** instead.
 
 ---
 
-## President & Asshole Trades
+# President & Asshole
 
-After the first round, player rankings matter.
+From Round Two onward, ranks matter.
 
 ### President
 
-The President receives the Asshole's best card(s), then **chooses** which card(s) from their hand to send back (any cards they hold — not forced to return the 3♣).
+Receives the Asshole's best card(s).
+
+Then chooses the **same number** of cards from their own hand to give back — any cards they like.
 
 ### Asshole
 
-The Asshole must give their best card(s). They receive whatever the President selected as the return.
+Must give away their strongest card(s).
 
-### Five Or More Players
+Receives whatever the President sends back.
 
-Additional trades occur between:
+With five or more players, the Vice President and Vice Asshole also exchange one card each. Middle ranks stay neutral.
 
-- Vice President
-- Vice Asshole
-
-Players in the middle ranks do not trade.
+**Fresh round:** if the same player is Asshole three rounds in a row, the next round skips the President↔Asshole trade only. Dealing and opening continue as usual; trades resume the round after.
 
 ---
 
@@ -288,29 +190,15 @@ Players in the middle ranks do not trade.
 
 ## Quick Game
 
-Jump directly into a match against AI opponents.
+Jump into a match against AI opponents.
 
-No networking required.
-
-Perfect for learning the rules or playing a quick round.
-
----
+Good for learning the rules or a short session.
 
 ## Online Multiplayer
 
-Create or join live rooms with other players.
+Create a room, invite friends, and play for the Presidency.
 
-Features include:
-
-- Live multiplayer
-- Reconnect grace periods
-- Spectator support
-- Mid-game rejoining
-- State synchronisation
-
-Invite friends.
-
-Or future enemies.
+If your connection drops briefly, you can reconnect.
 
 ---
 
@@ -318,151 +206,57 @@ Or future enemies.
 
 ## Mobile
 
-- Tap cards to select
+- Tap a card to select it
 - Tap again to deselect
-- Press Play to submit cards
-- Press Pass to skip your turn
+- Press **Play**
+- Press **Pass**
 
----
-
-## Web
+## Desktop
 
 - Click cards to select
 - Click again to deselect
-- ESC closes overlays
-- Mouse wheel support available in menus
+- Press **Esc** to close menus
+
+---
+
+# Beginner Tips
+
+- Don't waste your 2s too early
+- Jokers are often worth saving
+- Passing can be the strongest move
+- Runs clear a lot of cards quickly
+- Think about your next trick — not just this one
 
 ---
 
 # Frequently Asked Questions
 
-## Can I play with friends?
+### Can I play offline?
 
-Yes.
+Yes. Quick Game works without an internet connection.
 
-Create a multiplayer room and share the room code.
+### Can I play with friends?
 
----
+Yes. Create an online room and share the room code.
 
-## Can I reconnect if I disconnect?
+### Does suit matter?
 
-Usually.
+Normally, no. Suits only decide the opening card.
 
-The server attempts to preserve your seat for a short period.
+### Why can't I beat a Joker?
 
----
+Nothing normally beats a Joker. (And you cannot play a Joker into an active run.)
 
-## Can players join after a game has started?
+### Why did I become the Asshole?
 
-Spectating and rejoining are supported.
+You finished last.
 
----
-
-## Why can't I beat a Joker?
-
-Because it is a Joker.
+Every new round is another chance to become President.
 
 ---
 
-## Why did I become the Asshole?
+# Good Luck
 
-There are many possible explanations.
-
-Most of them involve card management.
-
----
-
-## Are achievements finished?
-
-Not yet.
-
-More progression features are planned.
-
----
-
-# Troubleshooting
-
-## The game won't load
-
-Try:
-
-1. Refreshing the page
-2. Restarting the app
-3. Checking your internet connection
-4. Waiting a minute and trying again
-
-The server may be:
-
-- restarting,
-- deploying,
-- recovering,
-- or being stared at intensely by the developer.
-
----
-
-## Multiplayer disconnected
-
-Reconnect as soon as possible.
-
-The server attempts to preserve your seat briefly after disconnection.
-
----
-
-## The game froze
-
-Refresh the page first.
-
-Most temporary issues resolve immediately.
-
----
-
-## The UI exploded
-
-Internally this is referred to as:
-
-> "a visual event."
-
-Refreshing usually resolves the situation.
-
----
-
-## I found a bug
-
-Excellent.
-
-The bug has now found you as well.
-
-Please report it.
-
----
-
-# Development Status
-
-Ps & As is actively in development.
-
-Current work includes:
-
-- UI improvements
-- mobile optimisation
-- multiplayer polish
-- animation refinement
-- progression systems
-- additional table customisation
-
-You may occasionally encounter:
-
-- bugs,
-- visual glitches,
-- temporary instability,
-- unexpected behaviour,
-- suspicious confidence from AI opponents.
-
-This is normal during active development.
-
----
-
-Thank you for playing.
-
-Good luck.
+Every President started somewhere.
 
 Try not to finish last.
