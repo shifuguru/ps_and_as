@@ -16,7 +16,19 @@ Google AdSense rejected the root URL for **“Google-served ads on screens witho
 
 ## Deploy to GitHub Pages user site
 
-From a clone of `shifuguru.github.io`:
+### Option A — one command (recommended)
+
+From this repo, with [GitHub CLI](https://cli.github.com/) logged in as a user who can push to `shifuguru.github.io`:
+
+```bash
+./scripts/deploy-site-root.sh
+```
+
+### Option B — GitHub Actions (automatic)
+
+Add repository secret **`USER_SITE_DEPLOY_TOKEN`** on `ps_and_as` (fine-grained PAT with **Contents: read/write** on `shifuguru/shifuguru.github.io`). Pushes to `main` that touch `site-root/` trigger [Deploy site root](../../.github/workflows/deploy-site-root.yml).
+
+### Option C — manual copy
 
 ```bash
 cp site-root/index.html /path/to/shifuguru.github.io/index.html
