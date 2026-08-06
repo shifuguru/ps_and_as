@@ -12,6 +12,7 @@ import {
   applyDeadHandAfterDeal,
   isDeadHandPlayer,
   livingFinishedOrder,
+  livingPlayerIds,
   livingPlayers,
   needsRoundOneDealerReshuffle,
 } from "./deadHand";
@@ -574,6 +575,51 @@ export function openingLeadNotYetTaken(
   );
 }
 
+/** True when every living seat has a real hand snapshot (offline or full server map). */
+export function hasCompletePostTradeHandsForOpener(
+  players: Player[],
+  playerHands: Record<string, Card[]> | null | undefined,
+): boolean {
+  if (!playerHands) return false;
+  return livingPlayerIds(players).every((id) => Array.isArray(playerHands[id]));
+}
+
+/**
+ * Post-trade opener: 3♣ holder when discoverable, else dealer-left fallback.
+ * Online clients usually receive only their own hand — pass authoritativeOpenerId
+ * from the server when hands are incomplete.
+ */
+export function resolvePostTradeOpenerPlayerIndex(
+  players: Player[],
+  dealerContext: DealerContext,
+  options?: {
+    playerHands?: Record<string, Card[]> | null;
+    authoritativeOpenerId?: string | null;
+  },
+): number {
+  if (options?.authoritativeOpenerId) {
+    const fromServer = players.findIndex(
+      (p) => p.id === options.authoritativeOpenerId,
+    );
+    if (fromServer >= 0) return fromServer;
+  }
+
+  const merged = options?.playerHands
+    ? applyServerPlayerHands(players, options.playerHands)
+    : players;
+  const threeClubsIdx = resolveLeadPlayerIndexAfterTrades(merged, dealerContext);
+  if (threeClubsIdx >= 0) return threeClubsIdx;
+
+  if (
+    options?.playerHands &&
+    !hasCompletePostTradeHandsForOpener(players, options.playerHands)
+  ) {
+    return -1;
+  }
+
+  return resolveOpenerAfterRoleTrades(merged, dealerContext);
+}
+
 /** Prefer 3♣ holder over a stale server currentPlayerIndex after trades complete. */
 export function reconcilePostTradeOpeningIndex(
   state: GameState,
@@ -581,18 +627,23 @@ export function reconcilePostTradeOpeningIndex(
     hostId?: string | null;
     finishOrder?: string[];
     playerHands?: Record<string, Card[]> | null;
+    authoritativeOpenerId?: string | null;
   },
 ): { index: number; corrected: boolean; expectedIndex: number } {
   const hands = options.playerHands ?? null;
-  const players = hands
-    ? applyServerPlayerHands(state.players, hands)
-    : state.players;
   const dealerContext: DealerContext = {
     hostId: options.hostId ?? null,
     lastRoundOrder: state.lastRoundOrder,
     finishedOrder: options.finishOrder ?? state.lastRoundOrder,
   };
-  const expectedIndex = resolveOpenerAfterRoleTrades(players, dealerContext);
+  const expectedIndex = resolvePostTradeOpenerPlayerIndex(
+    state.players,
+    dealerContext,
+    {
+      playerHands: hands,
+      authoritativeOpenerId: options.authoritativeOpenerId,
+    },
+  );
   if (expectedIndex < 0) {
     return {
       index: state.currentPlayerIndex,

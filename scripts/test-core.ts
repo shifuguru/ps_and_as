@@ -60,6 +60,7 @@ import {
   mergeTradesFromServerPending,
   shouldSyncMidTradeFromServer,
   reconcilePostTradeOpeningIndex,
+  resolvePostTradeOpenerPlayerIndex,
   openingLeadNotYetTaken,
 } from "../src/game/roundPrep";
 import {
@@ -2781,6 +2782,41 @@ console.log("Dead hand role/trade tests passed");
   });
   assert.strictEqual(corrected, true, "stale asshole index should be corrected");
   assert.strictEqual(index, 1, "reconcile picks 3♣ holder");
+}
+
+// Online partial hands: asshole received 3♥ but must not steal opener from 3♣ holder.
+{
+  const base = createGame(["Pres", "Mid", "Ass"]);
+  const lastOrder = ["1", "2", "3"];
+  base.lastRoundOrder = lastOrder;
+  const partialHands: Record<string, Card[]> = {
+    "3": [
+      { suit: "hearts", value: 3 },
+      { suit: "diamonds", value: 13 },
+    ],
+  };
+  const stale: GameState = {
+    ...base,
+    currentPlayerIndex: 1,
+    pile: [],
+    trickHistory: [],
+    currentTrick: { trickNumber: 1, actions: [] },
+    playerHands: partialHands,
+  } as GameState;
+  assert.ok(openingLeadNotYetTaken(stale));
+  const { index, corrected } = reconcilePostTradeOpeningIndex(stale, {
+    playerHands: partialHands,
+    authoritativeOpenerId: "2",
+  });
+  assert.strictEqual(corrected, false, "partial hands must not override server opener");
+  assert.strictEqual(index, 1, "3♣ holder keeps the opening lead");
+  const resolved = resolvePostTradeOpenerPlayerIndex(stale.players, {
+    lastRoundOrder: lastOrder,
+  }, {
+    playerHands: partialHands,
+    authoritativeOpenerId: "2",
+  });
+  assert.strictEqual(resolved, 1, "authoritative opener id wins over partial-hand fallback");
 }
 
 console.log("Post-trade 3♣ opener tests passed");

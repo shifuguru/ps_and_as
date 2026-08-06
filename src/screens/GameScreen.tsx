@@ -60,7 +60,7 @@ import {
   resolveCeremonyTrades,
   buildTradePhaseFromServerState,
   mergeTradesFromServerPending,
-  resolveOpenerAfterRoleTrades,
+  resolvePostTradeOpenerPlayerIndex,
   openingLeadNotYetTaken,
   reconcilePostTradeOpeningIndex,
   shouldSyncMidTradeFromServer,
@@ -714,6 +714,7 @@ function GameScreen({
   const tradePhaseRef = useRef(tradePhase);
   tradePhaseRef.current = tradePhase;
   const pendingTradesCompleteRef = useRef<Record<string, CardType[]> | null>(null);
+  const pendingOpeningPlayerIdRef = useRef<string | null>(null);
   const pendingDealSeedRef = useRef<number | undefined>(undefined);
   const myPlayerIdRef = useRef<string | null>(null);
   const explicitFeltThemesRef = useRef<Set<string>>(new Set());
@@ -1302,12 +1303,24 @@ function GameScreen({
         finishedOrder:
           ceremonyPrepRef.current?.finishOrder ?? baseState.lastRoundOrder,
       };
-      const openerFromHands = resolveOpenerAfterRoleTrades(merged, dealerContext);
+      const priorRound = (baseState.lastRoundOrder?.length ?? 0) >= 2;
+      const authoritativeOpenerId =
+        onlineMultiplayer && priorRound
+          ? pendingOpeningPlayerIdRef.current ??
+            (baseState.currentPlayerIndex >= 0
+              ? merged[baseState.currentPlayerIndex]?.id ?? null
+              : null)
+          : null;
+      const computed = resolvePostTradeOpenerPlayerIndex(merged, dealerContext, {
+        playerHands: handsSource,
+        authoritativeOpenerId,
+      });
+      pendingOpeningPlayerIdRef.current = null;
       const next = buildFreshRoundState(
         baseState,
         merged,
         dealerContext,
-        openerFromHands >= 0 ? openerFromHands : undefined,
+        computed >= 0 ? computed : undefined,
       );
       logFinalizeCeremonyRound({
         roundKey,
@@ -2260,16 +2273,22 @@ function GameScreen({
       if (
         !onlineMultiplayer ||
         !serverPendingTradesComplete(parsed.pendingTrades) ||
-        !parsed.playerHands ||
         !openingLeadNotYetTaken(parsed)
       ) {
         return parsed;
       }
+      const authoritativeOpenerId =
+        pendingOpeningPlayerIdRef.current ??
+        (parsed.currentPlayerIndex >= 0 &&
+        parsed.currentPlayerIndex < parsed.players.length
+          ? parsed.players[parsed.currentPlayerIndex]?.id ?? null
+          : null);
       const { index, corrected, expectedIndex } = reconcilePostTradeOpeningIndex(
         parsed,
         {
           hostId: resolvedHostId,
           playerHands: parsed.playerHands,
+          authoritativeOpenerId,
         },
       );
       if (!corrected) return parsed;
@@ -2402,6 +2421,14 @@ function GameScreen({
 
       // While local deal/trade animation runs, stash server progress — do not apply live play state.
       if (onlineMultiplayer && localCeremonyUi) {
+        if (
+          serverPendingTradesComplete(parsed.pendingTrades) &&
+          parsed.currentPlayerIndex >= 0 &&
+          parsed.currentPlayerIndex < parsed.players.length
+        ) {
+          const openerId = parsed.players[parsed.currentPlayerIndex]?.id;
+          if (openerId) pendingOpeningPlayerIdRef.current = openerId;
+        }
         if (
           serverPendingTradesComplete(parsed.pendingTrades) &&
           parsed.playerHands
@@ -2965,6 +2992,13 @@ function GameScreen({
         const hands = ev.state.playerHands as
           | Record<string, CardType[]>
           | undefined;
+        const openingPlayerId =
+          typeof ev.state.openingPlayerId === "string"
+            ? ev.state.openingPlayerId
+            : null;
+        if (openingPlayerId) {
+          pendingOpeningPlayerIdRef.current = openingPlayerId;
+        }
         if (hands) {
           pendingTradesCompleteRef.current = hands;
         }
