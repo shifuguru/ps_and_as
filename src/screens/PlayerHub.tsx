@@ -356,7 +356,11 @@ export default function PlayerHub({
   );
 
   const dailyCard =
-    hasPlayed && dailyDef && dailyProgress ? (
+    hasPlayed &&
+    dailyDef &&
+    dailyProgress &&
+    dailyState &&
+    !dailyState.rewardClaimed ? (
       <BlurPanel
         intensity={44}
         style={[
@@ -384,11 +388,9 @@ export default function PlayerHub({
         />
         {dailyDone ? (
           <Text style={styles.rewardLine}>
-            {dailyState?.rewardClaimed
-              ? "Complete — reward claimed"
-              : dailyClaiming
-                ? "Claiming…"
-                : `Tap to claim · +${dailyDef.rewardXp} XP`}
+            {dailyClaiming
+              ? "Claiming…"
+              : `Tap to claim · +${dailyDef.rewardXp} XP`}
           </Text>
         ) : null}
       </BlurPanel>
