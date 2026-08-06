@@ -2,7 +2,8 @@
  * Local daily challenge — one objective per UTC calendar day.
  * Uses only existing PlayerStats counters (no run/ten telemetry).
  *
- * Rewards grant XP exclusively via `commitRoundXpEarned` into `PlayerStats.xp`.
+ * Rewards grant XP exclusively via `commitRoundXpEarned` into `PlayerStats.xp`
+ * when the player taps to claim — never on hub load alone.
  * Challenge progress state is additive UI storage — it does not replace career stats.
  */
 import type { PlayerStats } from "./playerStats";
@@ -13,7 +14,7 @@ export type DailyChallengeDef = {
   id: string;
   title: string;
   description: string;
-  /** XP granted once on completion. */
+  /** XP granted once when the player claims. */
   rewardXp: number;
   field: keyof PlayerStats;
   /** Absolute target = baseline[field] + delta on the challenge day. */
@@ -153,24 +154,81 @@ export function dailyChallengeProgress(
   };
 }
 
-/** Mark complete and grant XP once. */
+/**
+ * Pure: mark completed when progress is met. Does not grant XP.
+ * Hub reload uses this so "reward ready" can wait for a tap.
+ */
+export function resolveDailyChallengeCompletion(
+  def: DailyChallengeDef,
+  state: DailyChallengeState,
+  stats: PlayerStats,
+): DailyChallengeState {
+  const progress = dailyChallengeProgress(def, state, stats);
+  if (!progress.done || state.completed) {
+    return state;
+  }
+  return { ...state, completed: true };
+}
+
+/** Persist completed when progress is met — does not grant XP. */
+export async function markDailyChallengeCompleteIfReady(
+  def: DailyChallengeDef,
+  state: DailyChallengeState,
+  stats: PlayerStats,
+): Promise<DailyChallengeState> {
+  const next = resolveDailyChallengeCompletion(def, state, stats);
+  if (next === state) {
+    return state;
+  }
+  await persistDailyChallengeState(next);
+  return next;
+}
+
+/**
+ * Pure: resolve claim. Marks completed + rewardClaimed and reports XP to grant.
+ * Does not touch storage or PlayerStats — caller persists and commits XP.
+ */
+export function resolveDailyChallengeClaim(
+  def: DailyChallengeDef,
+  state: DailyChallengeState,
+  stats: PlayerStats,
+): { state: DailyChallengeState; grantedXp: number } {
+  const progress = dailyChallengeProgress(def, state, stats);
+  if (!progress.done) {
+    return { state, grantedXp: 0 };
+  }
+  if (state.rewardClaimed) {
+    if (state.completed) {
+      return { state, grantedXp: 0 };
+    }
+    return { state: { ...state, completed: true }, grantedXp: 0 };
+  }
+  return {
+    state: { ...state, completed: true, rewardClaimed: true },
+    grantedXp: def.rewardXp,
+  };
+}
+
+/**
+ * User-initiated claim: mark complete and grant XP once.
+ * Do not call from hub load — use markDailyChallengeCompleteIfReady instead.
+ */
 export async function claimDailyChallengeIfReady(
   def: DailyChallengeDef,
   state: DailyChallengeState,
   stats: PlayerStats,
 ): Promise<{ state: DailyChallengeState; grantedXp: number }> {
-  const progress = dailyChallengeProgress(def, state, stats);
-  if (!progress.done) {
+  const resolved = resolveDailyChallengeClaim(def, state, stats);
+  const changed =
+    resolved.state.completed !== state.completed ||
+    resolved.state.rewardClaimed !== state.rewardClaimed;
+  if (!changed) {
     return { state, grantedXp: 0 };
   }
-  let next = { ...state, completed: true };
-  let grantedXp = 0;
-  if (!next.rewardClaimed) {
+  if (resolved.grantedXp > 0) {
     const { commitRoundXpEarned } = await import("./playerStats");
     await commitRoundXpEarned(def.rewardXp, 0);
-    next = { ...next, rewardClaimed: true };
-    grantedXp = def.rewardXp;
   }
-  await persistDailyChallengeState(next);
-  return { state: next, grantedXp };
+  await persistDailyChallengeState(resolved.state);
+  return resolved;
 }
