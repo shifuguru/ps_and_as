@@ -67,6 +67,7 @@ import {
   claimDailyChallengeIfReady,
   dailyChallengeProgress,
   loadDailyChallengeState,
+  markDailyChallengeCompleteIfReady,
   type DailyChallengeDef,
   type DailyChallengeState,
 } from "../services/dailyChallenge";
@@ -147,6 +148,7 @@ export default function PlayerHub({
   const [featured, setFeatured] = useState<FeaturedStat | null>(null);
   const [lightsOnOpen, setLightsOnOpen] = useState(false);
   const [onlinePlayersOpen, setOnlinePlayersOpen] = useState(false);
+  const [dailyClaiming, setDailyClaiming] = useState(false);
   const ringPulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -188,17 +190,14 @@ export default function PlayerHub({
       setRecent(null);
     }
     const daily = await loadDailyChallengeState(s);
-    const claimed = await claimDailyChallengeIfReady(daily.def, daily.state, s);
+    // Mark complete for UI, but never auto-grant XP — player taps to claim.
+    const marked = await markDailyChallengeCompleteIfReady(
+      daily.def,
+      daily.state,
+      s,
+    );
     setDailyDef(daily.def);
-    setDailyState(claimed.state);
-    if (claimed.grantedXp > 0) {
-      const refreshed = await getPlayerStats();
-      setStats(refreshed);
-      setFeatured(selectFeaturedStat(refreshed));
-      const nextRefreshed = selectNextAchievement(refreshed);
-      setNextAch(nextRefreshed);
-      setGoals(selectHubGoals(refreshed, 3, nextRefreshed?.def.id));
-    }
+    setDailyState(marked);
   }, []);
 
   useEffect(() => {
@@ -211,6 +210,42 @@ export default function PlayerHub({
     fn();
   };
 
+  const claimDailyReward = useCallback(async () => {
+    if (
+      !dailyDef ||
+      !dailyState ||
+      !stats ||
+      dailyClaiming ||
+      dailyState.rewardClaimed
+    ) {
+      return;
+    }
+    const progress = dailyChallengeProgress(dailyDef, dailyState, stats);
+    if (!progress.done) return;
+
+    setDailyClaiming(true);
+    triggerHaptic("medium");
+    try {
+      const claimed = await claimDailyChallengeIfReady(
+        dailyDef,
+        dailyState,
+        stats,
+      );
+      setDailyState(claimed.state);
+      if (claimed.grantedXp > 0) {
+        const refreshed = await getPlayerStats();
+        setStats(refreshed);
+        setFeatured(selectFeaturedStat(refreshed));
+        const nextRefreshed = selectNextAchievement(refreshed);
+        setNextAch(nextRefreshed);
+        setGoals(selectHubGoals(refreshed, 3, nextRefreshed?.def.id));
+        setBorder(resolveAvatarBorder(refreshed));
+      }
+    } finally {
+      setDailyClaiming(false);
+    }
+  }, [dailyClaiming, dailyDef, dailyState, stats]);
+
   const level = levelProgressFromXp(stats?.xp ?? 0);
   /** Cold open: no rounds yet — answer what/why/start before empty meta chrome. */
   const statsReady = stats !== null;
@@ -221,6 +256,8 @@ export default function PlayerHub({
       ? dailyChallengeProgress(dailyDef, dailyState, stats)
       : null;
   const dailyDone = !!dailyProgress?.done;
+  const canClaimDaily =
+    dailyDone && !!dailyDef && !!dailyState && !dailyState.rewardClaimed;
   const recentRarity = recent
     ? rarityForAchievementId(recent.def.id)
     : null;
@@ -317,6 +354,68 @@ export default function PlayerHub({
       </View>
     </BlurPanel>
   );
+
+  const dailyCard =
+    hasPlayed &&
+    dailyDef &&
+    dailyProgress &&
+    dailyState &&
+    !dailyState.rewardClaimed ? (
+      <BlurPanel
+        intensity={44}
+        style={[
+          styles.card,
+          styles.utilityCard,
+          dailyDone && styles.dailyDoneCard,
+          canClaimDaily && styles.dailyClaimableCard,
+        ]}
+      >
+        <View style={styles.dailyHeader}>
+          <MenuIcon name="calendar" size={16} color={colors.accent} />
+          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
+            Daily Challenge
+          </Text>
+          <Text style={styles.rewardInline}>+{dailyDef.rewardXp} XP</Text>
+        </View>
+        <Text style={styles.goalTitle}>{dailyDef.title}</Text>
+        <Text style={styles.goalSub}>{dailyDef.description}</Text>
+        <ProgressMeter
+          progress={dailyProgress.fraction}
+          valueLabel={`${dailyProgress.current} / ${dailyProgress.target}`}
+          style={{ marginTop: 10 }}
+          animated
+          fillColor={dailyDone ? colors.accent : undefined}
+        />
+        {dailyDone ? (
+          <Text style={styles.rewardLine}>
+            {dailyClaiming
+              ? "Claiming…"
+              : `Tap to claim · +${dailyDef.rewardXp} XP`}
+          </Text>
+        ) : null}
+      </BlurPanel>
+    ) : null;
+
+  const dailyChallengePanel =
+    dailyCard == null ? null : canClaimDaily && dailyDef ? (
+      <TouchableOpacity
+        activeOpacity={0.85}
+        disabled={dailyClaiming}
+        onPress={() => {
+          void claimDailyReward();
+        }}
+        accessibilityRole="button"
+        accessibilityState={{
+          disabled: dailyClaiming,
+          busy: dailyClaiming,
+        }}
+        accessibilityLabel={`Claim daily challenge reward, ${dailyDef.rewardXp} XP`}
+      >
+        {dailyCard}
+      </TouchableOpacity>
+    ) : (
+      dailyCard
+    );
 
   return (
     <ScreenContainer ignoreHeaderOffset style={[{ flex: 1 }, style]}>
@@ -425,43 +524,8 @@ export default function PlayerHub({
             </Text>
           ) : null}
 
-          {/* Daily Challenge — time-sensitive (after first play) */}
-          {hasPlayed && dailyDef && dailyProgress ? (
-            <BlurPanel
-              intensity={44}
-              style={[
-                styles.card,
-                styles.utilityCard,
-                dailyDone && styles.dailyDoneCard,
-              ]}
-            >
-              <View style={styles.dailyHeader}>
-                <MenuIcon name="calendar" size={16} color={colors.accent} />
-                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
-                  Daily Challenge
-                </Text>
-                <Text style={styles.rewardInline}>
-                  +{dailyDef.rewardXp} XP
-                </Text>
-              </View>
-              <Text style={styles.goalTitle}>{dailyDef.title}</Text>
-              <Text style={styles.goalSub}>{dailyDef.description}</Text>
-              <ProgressMeter
-                progress={dailyProgress.fraction}
-                valueLabel={`${dailyProgress.current} / ${dailyProgress.target}`}
-                style={{ marginTop: 10 }}
-                animated
-                fillColor={dailyDone ? colors.accent : undefined}
-              />
-              {dailyDone ? (
-                <Text style={styles.rewardLine}>
-                  {dailyState?.rewardClaimed
-                    ? "Complete — reward claimed"
-                    : "Complete — reward ready"}
-                </Text>
-              ) : null}
-            </BlurPanel>
-          ) : null}
+          {/* Daily Challenge — time-sensitive (after first play); XP on tap */}
+          {dailyChallengePanel}
 
           {/* Next Achievement — short-term chase */}
           {hasPlayed && nextAch ? (
@@ -800,6 +864,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     dailyDoneCard: {
       borderColor: hexToRgba(colors.accent, 0.42),
+    },
+    dailyClaimableCard: {
+      borderColor: hexToRgba(colors.accent, 0.62),
     },
     friendsCard: {
       opacity: 0.92,
