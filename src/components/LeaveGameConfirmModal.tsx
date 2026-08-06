@@ -29,7 +29,7 @@ export default function LeaveGameConfirmModal({
   visible,
   onCancel,
   onConfirm,
-  message = "You'll forfeit this game and return to the menu. Other players may continue without you.",
+  message = "You'll lose all XP from this round and return to the menu. Other players may continue without you.",
   embedded = false,
 }: Props) {
   const { ui, blur } = useAppTheme();
