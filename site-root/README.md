@@ -4,6 +4,20 @@ Files here are the **domain root** landing page for [https://shifuguru.github.io
 
 They live in this game repo so they stay in sync with rules and privacy links. Deploy them to the separate [**shifuguru.github.io**](https://github.com/shifuguru/shifuguru.github.io) user-site repository.
 
+## AdSense: root domain only
+
+Google AdSense approves **`shifuguru.github.io`** (the root domain), not a path like `/ps_and_as/`.
+You cannot register the game subdirectory as its own site.
+
+| URL | Role |
+|-----|------|
+| `https://shifuguru.github.io/` | AdSense site URL — must have **substantive content**, **no ad scripts** |
+| `https://shifuguru.github.io/ps_and_as/` | Playable game — interstitials, rewarded, banner **after** domain is approved |
+| `https://shifuguru.github.io/ads.txt` | Required at domain root for all ad serving |
+
+Once the **root domain** passes review, in-game ads on `/ps_and_as/` are covered by the same
+AdSense account. Do not load `adsbygoogle.js` on the homepage — that was the original rejection.
+
 ## Why this exists
 
 Google AdSense rejected the root URL for **“Google-served ads on screens without publisher content”**. The old homepage was a one-line blurb **with** `adsbygoogle.js` loaded — a navigation-only page with ads.
@@ -18,11 +32,13 @@ Google AdSense rejected the root URL for **“Google-served ads on screens witho
 
 ### Option A — one command (recommended)
 
-From this repo, with [GitHub CLI](https://cli.github.com/) logged in as a user who can push to `shifuguru.github.io`:
+From this repo, with [GitHub CLI](https://cli.github.com/) logged in as **your** GitHub account (not the bot):
 
 ```bash
 ./scripts/deploy-site-root.sh
 ```
+
+Or paste in the browser: [edit index.html on shifuguru.github.io](https://github.com/shifuguru/shifuguru.github.io/edit/main/index.html) — replace all content with `site-root/index.html` from this repo, and **remove** the `adsbygoogle.js` script if present.
 
 ### Option B — GitHub Actions (automatic)
 
