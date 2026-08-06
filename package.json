@@ -20,6 +20,7 @@
     "test-google-account-sync": "npx tsx ./scripts/test-google-account-sync.ts",
     "test-privacy-url": "npx tsx ./scripts/test-privacy-url.ts",
     "test-daily-challenge": "npx tsx ./scripts/test-daily-challenge.ts",
+    "test-card-face-metrics": "npx tsx ./scripts/test-card-face-metrics.ts",
     "test-ads-entitlement": "npx tsx ./scripts/test-ads-entitlement.ts && node ./scripts/test-ads-entitlement-store.mjs",
     "test-analytics": "node ./scripts/test-analytics-store.js",
     "test-open-bot-table": "node ./scripts/test-open-bot-table-disabled.js",
