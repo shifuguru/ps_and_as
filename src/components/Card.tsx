@@ -2,8 +2,11 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, TouchableWithoutFeedback, View, StyleSheet, Easing, Platform, Text } from "react-native";
 import { Card as CardType, formatCardRank } from "../game/ruleset";
 import {
+  HAND_CARD_HEIGHT,
+  HAND_CARD_WIDTH,
   HAND_SELECT_LIFT,
   HAND_SELECT_SCALE,
+  resolveCardFaceMetrics,
 } from "./cardDimensions";
 import { useDarkModeCards } from "../context/CardAppearanceContext";
 import { getCardFaceColors, suitColorForCard } from "../utils/cardFaceTheme";
@@ -14,8 +17,8 @@ function backFaceRadii(
   style: { width?: number; height?: number } | undefined,
   cornerRadius?: number,
 ) {
-  const w = typeof style?.width === "number" ? style.width : 86;
-  const h = typeof style?.height === "number" ? style.height : 124;
+  const w = typeof style?.width === "number" ? style.width : HAND_CARD_WIDTH;
+  const h = typeof style?.height === "number" ? style.height : HAND_CARD_HEIGHT;
   const base = Math.min(w, h);
   const outer =
     cornerRadius ?? (base >= 52 ? 14 : Math.max(3, Math.round(base * 0.1)));
@@ -27,6 +30,19 @@ function backFaceRadii(
     padding: Math.max(2, Math.round(outer * 0.5)),
     ornament: Math.max(10, Math.round(base * 0.35)),
   };
+}
+
+function readCardBox(
+  style: unknown,
+): { width: number; height: number } {
+  const flat = StyleSheet.flatten(style) as
+    | { width?: number | string; height?: number | string }
+    | undefined;
+  const width =
+    typeof flat?.width === "number" ? flat.width : HAND_CARD_WIDTH;
+  const height =
+    typeof flat?.height === "number" ? flat.height : HAND_CARD_HEIGHT;
+  return { width, height };
 }
 
 export default function Card({
@@ -61,6 +77,11 @@ export default function Card({
   const darkModeCards = useDarkModeCards();
   const { colors } = useAppTheme();
   const faceColors = getCardFaceColors(darkModeCards, disabled);
+  const cardBox = useMemo(() => readCardBox(style), [style]);
+  const face = useMemo(
+    () => resolveCardFaceMetrics(cardBox.width, cardBox.height),
+    [cardBox.width, cardBox.height],
+  );
   /** Felt-theme accent — selection / highlight rim follows the table, not fixed colour. */
   const accentBorder = useMemo(
     () => hexToRgba(colors.accent, 0.88),
@@ -200,6 +221,7 @@ export default function Card({
             borderColor: darkModeCards
               ? "rgba(255,255,255,0.14)"
               : "rgba(0,0,0,0.14)",
+            borderRadius: face.outerRadius,
           },
           style,
         ]}
@@ -209,19 +231,102 @@ export default function Card({
             style={[
               local.cardFace,
               local.cardFaceOpaque,
-              { backgroundColor: faceColors.faceBg },
+              {
+                backgroundColor: faceColors.faceBg,
+                borderRadius: face.faceRadius,
+              },
             ]}
             pointerEvents="none"
           />
-          <View style={local.cornerTopLeft} pointerEvents="none">
-            <Text style={[local.cornerText, { color: labelColor }]}>{label}</Text>
-            <Text style={[local.cornerTextSmall, { color: suitColor }]}>{suitSymbol}</Text>
+          <View
+            style={[
+              local.cornerTopLeft,
+              {
+                top: face.cornerInsetTop,
+                left: face.cornerInsetSide,
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <Text
+              style={[
+                local.cornerRank,
+                {
+                  color: labelColor,
+                  fontSize: face.cornerRank,
+                  lineHeight: face.cornerRankLine,
+                },
+              ]}
+            >
+              {label}
+            </Text>
+            <Text
+              style={[
+                local.cornerSuit,
+                {
+                  color: suitColor,
+                  fontSize: face.cornerSuit,
+                  lineHeight: face.cornerSuitLine,
+                },
+              ]}
+            >
+              {suitSymbol}
+            </Text>
           </View>
-          <Text style={[local.value, { color: labelColor }]}>{label}</Text>
-          <Text style={[local.suit, { color: suitColor }]}>{suitSymbol}</Text>
-          <View style={local.cornerBottomRight} pointerEvents="none">
-            <Text style={[local.cornerText, { color: labelColor }]}>{label}</Text>
-            <Text style={[local.cornerTextSmall, { color: suitColor }]}>{suitSymbol}</Text>
+          <Text
+            style={[
+              local.value,
+              { color: labelColor, fontSize: face.value },
+            ]}
+          >
+            {label}
+          </Text>
+          <Text
+            style={[
+              local.suit,
+              {
+                color: suitColor,
+                fontSize: face.suit,
+                marginTop: face.suitMarginTop,
+              },
+            ]}
+          >
+            {suitSymbol}
+          </Text>
+          <View
+            style={[
+              local.cornerBottomRight,
+              {
+                bottom: face.cornerInsetTop,
+                right: face.cornerInsetSide,
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <Text
+              style={[
+                local.cornerRank,
+                {
+                  color: labelColor,
+                  fontSize: face.cornerRank,
+                  lineHeight: face.cornerRankLine,
+                },
+              ]}
+            >
+              {label}
+            </Text>
+            <Text
+              style={[
+                local.cornerSuit,
+                {
+                  color: suitColor,
+                  fontSize: face.cornerSuit,
+                  lineHeight: face.cornerSuitLine,
+                },
+              ]}
+            >
+              {suitSymbol}
+            </Text>
           </View>
         </View>
       </View>
@@ -298,6 +403,11 @@ export default function Card({
       style={[
         local.card,
         local.cardHand,
+        {
+          width: face.width,
+          height: face.height,
+          borderRadius: face.outerRadius,
+        },
         style,
         { transform: [{ translateY }, { scale: selectScale }] },
         flash && local.cardFlash,
@@ -311,6 +421,7 @@ export default function Card({
               local.cardHandShell,
               disabled && local.cardHandDisabled,
               {
+                borderRadius: face.outerRadius,
                 shadowRadius: elevation,
                 borderColor: cardBorder,
                 backgroundColor: cardBackground,
@@ -320,17 +431,42 @@ export default function Card({
             {!faceDown &&
               (flash ? (
                 <Animated.View
-                  style={[local.cardFace, { backgroundColor: cardBackground }]}
+                  style={[
+                    local.cardFace,
+                    {
+                      backgroundColor: cardBackground,
+                      borderRadius: face.faceRadius,
+                    },
+                  ]}
                   pointerEvents="none"
                 />
               ) : (
-                <View style={[local.cardFace, local.cardFaceOpaque]} pointerEvents="none" />
+                <View
+                  style={[
+                    local.cardFace,
+                    local.cardFaceOpaque,
+                    { borderRadius: face.faceRadius },
+                  ]}
+                  pointerEvents="none"
+                />
               ))}
             {faceDown ? (
-              <View style={local.backFace}>
+              <View
+                style={[
+                  local.backFace,
+                  { borderRadius: face.faceRadius },
+                ]}
+              >
                 <View style={local.backFaceFrame}>
                   <View style={local.backFaceInner}>
-                    <Text style={local.backFaceOrnament}>♠</Text>
+                    <Text
+                      style={[
+                        local.backFaceOrnament,
+                        { fontSize: Math.max(12, Math.round(22 * face.scale)) },
+                      ]}
+                    >
+                      ♠
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -339,7 +475,10 @@ export default function Card({
               <View
                 style={[
                   local.disabledWash,
-                  { backgroundColor: faceColors.disabledWash },
+                  {
+                    backgroundColor: faceColors.disabledWash,
+                    borderRadius: face.faceRadius,
+                  },
                 ]}
                 pointerEvents="none"
               />
@@ -354,26 +493,98 @@ export default function Card({
             pointerEvents="none"
           >
             <>
-              <View style={local.cornerTopLeft} pointerEvents="none">
-                <AnimatedText style={[local.cornerTextCompact, { color: labelColor }]}>
+              <View
+                style={[
+                  local.cornerTopLeft,
+                  {
+                    top: face.cornerInsetTop,
+                    left: face.cornerInsetSide,
+                  },
+                ]}
+                pointerEvents="none"
+              >
+                <AnimatedText
+                  style={[
+                    local.cornerRank,
+                    {
+                      color: labelColor,
+                      fontSize: face.cornerRank,
+                      lineHeight: face.cornerRankLine,
+                    },
+                  ]}
+                >
                   {label}
                 </AnimatedText>
-                <AnimatedText style={[local.cornerSuitInline, { color: suitColor }]}>
+                <AnimatedText
+                  style={[
+                    local.cornerSuit,
+                    {
+                      color: suitColor,
+                      fontSize: face.cornerSuit,
+                      lineHeight: face.cornerSuitLine,
+                    },
+                  ]}
+                >
                   {suitSymbol}
                 </AnimatedText>
               </View>
-              <View style={local.cornerBottomRight} pointerEvents="none">
-                <AnimatedText style={[local.cornerTextCompact, { color: labelColor }]}>
+              <View
+                style={[
+                  local.cornerBottomRight,
+                  {
+                    bottom: face.cornerInsetTop,
+                    right: face.cornerInsetSide,
+                  },
+                ]}
+                pointerEvents="none"
+              >
+                <AnimatedText
+                  style={[
+                    local.cornerRank,
+                    {
+                      color: labelColor,
+                      fontSize: face.cornerRank,
+                      lineHeight: face.cornerRankLine,
+                    },
+                  ]}
+                >
                   {label}
                 </AnimatedText>
-                <AnimatedText style={[local.cornerSuitInline, { color: suitColor }]}>
+                <AnimatedText
+                  style={[
+                    local.cornerSuit,
+                    {
+                      color: suitColor,
+                      fontSize: face.cornerSuit,
+                      lineHeight: face.cornerSuitLine,
+                    },
+                  ]}
+                >
                   {suitSymbol}
                 </AnimatedText>
               </View>
               {!compact ? (
                 <>
-                  <AnimatedText style={[local.value, { color: labelColor }]}>{label}</AnimatedText>
-                  <AnimatedText style={[local.suit, { color: suitColor }]}>{suitSymbol}</AnimatedText>
+                  <AnimatedText
+                    style={[
+                      local.value,
+                      { color: labelColor, fontSize: face.value },
+                    ]}
+                  >
+                    {label}
+                  </AnimatedText>
+                  <AnimatedText
+                    style={[
+                      local.suit,
+                      {
+                        color: suitColor,
+                        fontSize: face.suit,
+                        marginTop: face.suitMarginTop,
+                      },
+                    ]}
+                  >
+                    {suitSymbol}
+                  </AnimatedText>
                 </>
               ) : null}
             </>
@@ -507,24 +718,17 @@ const local = StyleSheet.create({
   value: {
     color: "#1a1a1a",
     fontWeight: "800",
-    fontSize: 18,
   },
   suit: {
     color: "#1a1a1a",
-    fontSize: 20,
     fontWeight: "800",
-    marginTop: 6,
   },
   cornerTopLeft: {
     position: "absolute",
-    top: 6,
-    left: 8,
     alignItems: "flex-start",
   },
   cornerBottomRight: {
     position: "absolute",
-    bottom: 6,
-    right: 8,
     alignItems: "flex-end",
     transform: [{ rotate: "180deg" }],
   },
@@ -559,31 +763,14 @@ const local = StyleSheet.create({
   },
   backFaceOrnament: {
     color: "rgba(255,255,255,0.82)",
-    fontSize: 22,
     fontWeight: "800",
   },
-  cornerText: {
+  cornerRank: {
     color: "#1a1a1a",
     fontWeight: "800",
-    fontSize: 10,
-    lineHeight: 12,
   },
-  cornerTextCompact: {
+  cornerSuit: {
     color: "#1a1a1a",
-    fontSize: 13,
-    lineHeight: 15,
-    fontWeight: "800",
-  },
-  cornerSuitInline: {
-    color: "#1a1a1a",
-    fontSize: 11,
     fontWeight: "700",
-    lineHeight: 13,
-  },
-  cornerTextSmall: {
-    color: "#1a1a1a",
-    fontSize: 10,
-    lineHeight: 12,
-    fontWeight: "800",
   },
 });
