@@ -1,0 +1,59 @@
+name: Deploy site root (shifuguru.github.io)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "site-root/index.html"
+      - "site-root/ads.txt"
+      - ".github/workflows/deploy-site-root.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-site-root
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify site root files
+        run: |
+          test -f site-root/index.html
+          test -f site-root/ads.txt
+          ! grep -q "pagead2.googlesyndication.com" site-root/index.html
+          grep -q 'google-adsense-account' site-root/index.html
+          echo "site-root bundle looks valid."
+
+      - name: Prepare publish directory
+        run: |
+          mkdir -p publish
+          cp site-root/index.html site-root/ads.txt publish/
+
+      - name: Deploy to shifuguru.github.io
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.USER_SITE_DEPLOY_TOKEN }}
+          external_repository: shifuguru/shifuguru.github.io
+          publish_dir: ./publish
+          publish_branch: main
+          allow_empty_commit: true
+          commit_message: "Deploy site root from ps_and_as@${{ github.sha }}"
+
+      - name: Verify live homepage (no ad script)
+        run: |
+          sleep 15
+          BODY=$(curl -fsSL "https://shifuguru.github.io/" || true)
+          echo "$BODY" | grep -q "Presidents &amp; Assholes"
+          echo "$BODY" | grep -q "Play free in your browser"
+          if echo "$BODY" | grep -q "pagead2.googlesyndication.com"; then
+            echo "::error::Root homepage still loads AdSense script."
+            exit 1
+          fi
+          echo "Live root homepage looks correct."
