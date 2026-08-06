@@ -313,6 +313,7 @@ function startNextRound(roomId) {
     promotedPlayerId: promoted[0]?.id ?? null,
     promotedPlayerIds: promoted.map((p) => p.id),
     rosterChanged,
+    skipDealAnimations: !!room.skipDealAnimations,
   });
   emitTradesCompleteIfReady(io, roomId, room.gameState, room.host);
   if (room.isBotHosted) {
@@ -1706,7 +1707,7 @@ io.on('connection', (socket) => {
     if (after !== before || displayName !== undefined) broadcastOnlinePlayerCount();
   });
 
-  socket.on('createRoom', ({ roomId, name, profileId, isPublic = true, roomName, feltTint }) => {
+  socket.on('createRoom', ({ roomId, name, profileId, isPublic = true, roomName, feltTint, skipDealAnimations }) => {
     const pid = resolveProfileId(profileId, socket);
     if (isCpuLobbyId(pid)) {
       socket.emit('error', { message: 'Invalid player id.' });
@@ -1754,7 +1755,8 @@ io.on('connection', (socket) => {
       createdAt: Date.now(),
       isPublic: isPublic,
       deadHand: false,
-      skipDealAnimations: false,
+      skipDealAnimations:
+        typeof skipDealAnimations === 'boolean' ? skipDealAnimations : true,
       gameState: null,
       inGame: false
     };
