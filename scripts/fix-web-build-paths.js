@@ -212,7 +212,12 @@ function injectAdSenseClient(html) {
   const testMode =
     process.env.EXPO_PUBLIC_ADS_TEST === "1" ||
     process.env.EXPO_PUBLIC_ADS_TEST === "true";
-  const configScript = `<script>window.__PS_AND_AS_ADSENSE_CLIENT__=${JSON.stringify(clientId)};</script>`;
+  const bannerSlot = process.env.EXPO_PUBLIC_ADSENSE_BANNER_SLOT?.trim() || "";
+  const configScript = `<script>window.__PS_AND_AS_ADSENSE_CLIENT__=${JSON.stringify(clientId)};${
+    bannerSlot
+      ? `window.__PS_AND_AS_ADSENSE_BANNER_SLOT__=${JSON.stringify(bannerSlot)};`
+      : ""
+  }</script>`;
   const loaderAttrs = [
     `src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${clientId}"`,
     'crossorigin="anonymous"',

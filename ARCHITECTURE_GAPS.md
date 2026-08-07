@@ -445,7 +445,8 @@ Investigation: [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.
 
 - Forced interstitial every **3** completed rounds at rankings (after last-hand), never mid-turn / trades / ceremonies / disconnect.
 - Opt-in rewarded ad on rankings: **+75 XP**, max **3/day**; Remove Ads does **not** block rewarded.
-- One-time **Remove Ads** (~$19 NZD) via Stripe Checkout; requires Google link; server webhook sets `adsRemoved` (client cannot grant).
+- Hand-zone waiting panel while local player is out mid-round (tips + optional AdSense display banner).
+- One-time **Remove Ads** (~$19 NZD) via Stripe Checkout; requires Google link; server webhook sets `adsRemoved` (client cannot grant). Removes forced + hand banner; rewarded stays.
 - Consent banner before loading AdSense; privacy policy reachable from Settings.
 
 **Status:** Partial — web path shipping; native Phase 2

@@ -75,6 +75,14 @@ export async function setAdsConsent(state: "accepted" | "declined"): Promise<voi
   } catch {
     // ignore
   }
+  if (state === "accepted") {
+    try {
+      const { configureH5AdsSound } = await import("./webH5Ads");
+      configureH5AdsSound(true);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 /** Ads may load only after explicit accept. */

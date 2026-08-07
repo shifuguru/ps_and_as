@@ -142,7 +142,21 @@ function AppContent() {
   useEffect(() => {
     void preloadGamePreferences();
     void ensurePlayerStatsRestored();
-    void preloadAdsConsent();
+    void preloadAdsConsent().then(async () => {
+      try {
+        const { getAdsConsentSync, canLoadPersonalizedAds } = await import(
+          "./src/services/ads/adsConsent"
+        );
+        if (canLoadPersonalizedAds() || getAdsConsentSync() === "accepted") {
+          const { configureH5AdsSound } = await import(
+            "./src/services/ads/webH5Ads"
+          );
+          configureH5AdsSound(true);
+        }
+      } catch {
+        // ignore
+      }
+    });
     void preloadAdsEntitlement();
     // Stripe return: refresh Remove Ads entitlement from cloud.
     if (Platform.OS === "web") {
