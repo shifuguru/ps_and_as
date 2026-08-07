@@ -14,8 +14,8 @@ type Props = {
 };
 
 /**
- * Soft orange heat bloom behind the cream pill — ambient only.
- * The neon rim itself lives on the pill border + shadow (not a second capsule).
+ * Atmospheric orange bloom behind the pill — heat radiating onto the felt.
+ * Soft transform/opacity only (no animated blur).
  */
 export default function GlowLayer({
   glowOpacity,
@@ -23,29 +23,41 @@ export default function GlowLayer({
   effectOpacity,
   palette = RUNS_COLORS,
 }: Props) {
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value * 0.7 * effectOpacity.value,
+  const outerStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value * 0.72 * effectOpacity.value,
     transform: [{ scale: glowScale.value }],
   }));
 
-  const coreStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value * 0.5 * effectOpacity.value,
-    transform: [{ scale: 0.92 + glowScale.value * 0.06 }],
+  const midStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value * 0.55 * effectOpacity.value,
+    transform: [{ scale: 0.9 + glowScale.value * 0.1 }],
+  }));
+
+  const edgeStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value * 0.65 * effectOpacity.value,
+    transform: [{ scale: 0.96 + glowScale.value * 0.05 }],
   }));
 
   return (
     <View style={styles.wrap} pointerEvents="none">
       <Animated.View
-        style={[styles.halo, { backgroundColor: palette.glow }, glowStyle]}
+        style={[styles.outer, { backgroundColor: palette.glow }, outerStyle]}
       />
       <Animated.View
         style={[
-          styles.core,
+          styles.mid,
+          { backgroundColor: palette.glowSoft },
+          midStyle,
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.edge,
           {
-            backgroundColor: palette.glowSoft,
+            backgroundColor: palette.glowCore,
             shadowColor: palette.core,
           },
-          coreStyle,
+          edgeStyle,
         ]}
       />
     </View>
@@ -59,19 +71,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "visible",
   },
-  halo: {
+  outer: {
     position: "absolute",
-    width: "130%",
-    height: "160%",
+    width: "145%",
+    height: "190%",
     borderRadius: 999,
   },
-  core: {
+  mid: {
     position: "absolute",
-    width: "106%",
-    height: "114%",
+    width: "118%",
+    height: "140%",
+    borderRadius: 999,
+  },
+  edge: {
+    position: "absolute",
+    width: "104%",
+    height: "112%",
     borderRadius: 999,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.65,
+    shadowOpacity: 0.7,
     shadowRadius: RUNS_LAYOUT.glowPad,
   },
 });

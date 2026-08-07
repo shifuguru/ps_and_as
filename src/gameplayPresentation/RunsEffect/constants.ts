@@ -1,25 +1,23 @@
-/** Visual + timing tokens for the Runs! energy effect. */
+/** Visual + timing tokens for the Runs! reward ignition effect. */
 
 import { hexToRgba } from "../../utils/colorTheory";
 
 /**
- * Cream capsule + neon fire ring (reference look).
- * White-gold cores → orange mid → red-orange tips.
+ * Warm fire palette — white-hot base → yellow → orange → deep tips.
+ * Pill chrome stays white/black; these colors are for aura layers only.
  */
 export const RUNS_COLORS = {
-  core: "#FF9100",
-  hot: "#FFD700",
-  edge: "#FF4500",
-  glow: "rgba(255,145,0,0.42)",
-  glowSoft: "rgba(255,180,40,0.28)",
-  glowCore: "rgba(255,220,100,0.55)",
-  ember: "rgba(255,230,140,0.95)",
-  flameA: "rgba(255,215,0,0.92)",
-  flameB: "rgba(255,140,0,0.88)",
-  flameC: "rgba(255,69,0,0.78)",
-  pillFill: "#FFFCEB",
-  pillBorder: "#FF9100",
-  pillText: "#222222",
+  core: "#FF9A1F",
+  hot: "#FFE566",
+  edge: "#FF4D00",
+  whiteHot: "#FFF7D6",
+  glow: "rgba(255,140,30,0.38)",
+  glowSoft: "rgba(255,170,50,0.22)",
+  glowCore: "rgba(255,210,90,0.5)",
+  ember: "rgba(255,220,120,0.95)",
+  flameA: "rgba(255,200,60,0.88)",
+  flameB: "rgba(255,120,20,0.82)",
+  flameC: "rgba(255,60,0,0.7)",
 } as const;
 
 /** Cool platinum / silver energy for President streak prestige. */
@@ -27,6 +25,7 @@ export const PLATINUM_STREAK_COLORS = {
   core: "#F2F5FA",
   hot: "#D4DCE8",
   edge: "#8E9BB0",
+  whiteHot: "#FFFFFF",
   glow: "rgba(220,230,245,0.32)",
   glowSoft: "rgba(190,205,225,0.18)",
   glowCore: "rgba(245,248,255,0.55)",
@@ -40,6 +39,7 @@ export type RunsPalette = {
   core: string;
   hot: string;
   edge: string;
+  whiteHot: string;
   glow: string;
   glowSoft: string;
   glowCore: string;
@@ -47,173 +47,154 @@ export type RunsPalette = {
   flameA: string;
   flameB: string;
   flameC: string;
-  pillFill?: string;
-  pillBorder?: string;
-  pillText?: string;
 };
 
 export const RUNS_TIMING = {
-  /** Ignition bloom + burst (ms). */
-  ignitionMs: 850,
-  glowBloomMs: 320,
-  flameRiseMs: 480,
-  settleMs: 280,
-  idleGlowPeriodMs: 1800,
-  idleFlickerPeriodMs: 1100,
-  emberLifetimeMs: [1200, 2000] as const,
-  emberSpawnIdleMs: 900,
+  /** Ignition reward beat (ms). */
+  ignitionMs: 720,
+  glowBloomMs: 280,
+  flameRiseMs: 420,
+  settleMs: 320,
+  pillPopMs: 380,
+  idleGlowPeriodMs: 2400,
+  idleFlickerPeriodMs: 1300,
+  emberLifetimeMs: [1100, 2100] as const,
+  emberSpawnIdleMs: 420,
+  shimmerPeriodMs: 1600,
 } as const;
 
 export const RUNS_LAYOUT = {
-  /** Tall tips so fire reads clearly above the neon rim. */
-  maxFlameHeight: 34,
-  flameCount: 11,
-  maxEmbers: 7,
-  glowPad: 16,
-  pillRadius: 999,
-  neonBorderWidth: 2.5,
+  /**
+   * Open-mode aura height as a fraction of pill height (30–50%+ taller).
+   * Absolute maxFlameHeight still caps contained / dense modes.
+   */
+  auraHeightFactor: 1.45,
+  auraSideSpill: 0.18,
+  maxFlameHeight: 48,
+  flameLobeCount: 7,
+  maxEmbers: 10,
+  glowPad: 18,
+  pillRadius: 12,
 } as const;
 
 export type FlameSeed = {
   id: number;
-  /** Horizontal position as fraction of pill width (0–1). */
+  /** Horizontal anchor as fraction of aura width (0–1). */
   x: number;
-  width: number;
-  height: number;
+  /** Base width as fraction of aura width. */
+  widthFrac: number;
+  /** Base height as fraction of aura height. */
+  heightFrac: number;
   delayMs: number;
   periodMs: number;
+  swayMs: number;
   rotDeg: number;
+  /** Horizontal sway amplitude (px fraction of aura width). */
+  swayFrac: number;
   color: string;
-  /** Optional hotter inner core color. */
-  coreColor?: string;
+  tipColor: string;
+  coreColor: string;
 };
 
 function makeFlameSeeds(palette: RunsPalette): FlameSeed[] {
-  const core = palette.hot;
   return [
-    // Side leaners — hug the neon rim ends
     {
       id: 0,
-      x: 0.04,
-      width: 8,
-      height: 22,
+      x: 0.08,
+      widthFrac: 0.28,
+      heightFrac: 0.72,
       delayMs: 0,
-      periodMs: 880,
-      rotDeg: -18,
-      color: palette.flameC,
-      coreColor: core,
+      periodMs: 980,
+      swayMs: 1400,
+      rotDeg: -14,
+      swayFrac: 0.03,
+      color: palette.flameB,
+      tipColor: palette.edge,
+      coreColor: palette.whiteHot,
     },
     {
       id: 1,
-      x: 0.14,
-      width: 10,
-      height: 28,
-      delayMs: 40,
-      periodMs: 1020,
-      rotDeg: -10,
-      color: palette.flameB,
-      coreColor: core,
+      x: 0.22,
+      widthFrac: 0.34,
+      heightFrac: 0.95,
+      delayMs: 60,
+      periodMs: 1120,
+      swayMs: 1680,
+      rotDeg: -7,
+      swayFrac: 0.025,
+      color: palette.flameA,
+      tipColor: palette.flameB,
+      coreColor: palette.hot,
     },
     {
       id: 2,
-      x: 0.26,
-      width: 11,
-      height: 32,
-      delayMs: 80,
-      periodMs: 960,
-      rotDeg: -4,
+      x: 0.38,
+      widthFrac: 0.32,
+      heightFrac: 0.88,
+      delayMs: 120,
+      periodMs: 1040,
+      swayMs: 1520,
+      rotDeg: 3,
+      swayFrac: 0.02,
       color: palette.flameA,
-      coreColor: "#FFF8D6",
+      tipColor: palette.edge,
+      coreColor: palette.whiteHot,
     },
     {
       id: 3,
-      x: 0.38,
-      width: 12,
-      height: 34,
-      delayMs: 20,
-      periodMs: 1080,
-      rotDeg: 2,
-      color: palette.flameB,
-      coreColor: core,
+      x: 0.5,
+      widthFrac: 0.4,
+      heightFrac: 1.05,
+      delayMs: 40,
+      periodMs: 920,
+      swayMs: 1260,
+      rotDeg: 0,
+      swayFrac: 0.018,
+      color: palette.hot,
+      tipColor: palette.flameB,
+      coreColor: palette.whiteHot,
     },
-    // Peak center tongues
     {
       id: 4,
-      x: 0.5,
-      width: 13,
-      height: 36,
-      delayMs: 60,
-      periodMs: 940,
-      rotDeg: 0,
-      color: palette.hot,
-      coreColor: "#FFFFFF",
+      x: 0.62,
+      widthFrac: 0.33,
+      heightFrac: 0.9,
+      delayMs: 90,
+      periodMs: 1180,
+      swayMs: 1740,
+      rotDeg: -2,
+      swayFrac: 0.022,
+      color: palette.flameA,
+      tipColor: palette.edge,
+      coreColor: palette.hot,
     },
     {
       id: 5,
-      x: 0.62,
-      width: 12,
-      height: 33,
-      delayMs: 100,
-      periodMs: 1120,
-      rotDeg: -2,
-      color: palette.flameA,
-      coreColor: core,
+      x: 0.78,
+      widthFrac: 0.34,
+      heightFrac: 0.98,
+      delayMs: 30,
+      periodMs: 1080,
+      swayMs: 1580,
+      rotDeg: 8,
+      swayFrac: 0.028,
+      color: palette.flameB,
+      tipColor: palette.edge,
+      coreColor: palette.whiteHot,
     },
     {
       id: 6,
-      x: 0.74,
-      width: 11,
-      height: 30,
-      delayMs: 30,
+      x: 0.92,
+      widthFrac: 0.26,
+      heightFrac: 0.7,
+      delayMs: 150,
       periodMs: 1000,
-      rotDeg: 6,
-      color: palette.flameB,
-      coreColor: core,
-    },
-    {
-      id: 7,
-      x: 0.86,
-      width: 10,
-      height: 26,
-      delayMs: 70,
-      periodMs: 1160,
-      rotDeg: 12,
+      swayMs: 1460,
+      rotDeg: 14,
+      swayFrac: 0.032,
       color: palette.flameC,
-      coreColor: core,
-    },
-    {
-      id: 8,
-      x: 0.96,
-      width: 8,
-      height: 20,
-      delayMs: 110,
-      periodMs: 900,
-      rotDeg: 18,
-      color: palette.edge,
-      coreColor: palette.flameA,
-    },
-    // Secondary mid fillers for denser rim fire
-    {
-      id: 9,
-      x: 0.2,
-      width: 7,
-      height: 18,
-      delayMs: 140,
-      periodMs: 780,
-      rotDeg: -8,
-      color: palette.flameA,
-      coreColor: "#FFF4C2",
-    },
-    {
-      id: 10,
-      x: 0.8,
-      width: 7,
-      height: 19,
-      delayMs: 160,
-      periodMs: 820,
-      rotDeg: 9,
-      color: palette.flameA,
-      coreColor: "#FFF4C2",
+      tipColor: palette.edge,
+      coreColor: palette.hot,
     },
   ];
 }
@@ -224,9 +205,10 @@ export function paletteFromAccent(accent: string): RunsPalette {
     core: accent,
     hot: accent,
     edge: accent,
-    glow: hexToRgba(accent, 0.22),
-    glowSoft: hexToRgba(accent, 0.14),
-    glowCore: hexToRgba(accent, 0.4),
+    whiteHot: "#FFFFFF",
+    glow: hexToRgba(accent, 0.28),
+    glowSoft: hexToRgba(accent, 0.16),
+    glowCore: hexToRgba(accent, 0.42),
     ember: hexToRgba(accent, 0.92),
     flameA: hexToRgba(accent, 0.78),
     flameB: hexToRgba(accent, 0.58),
@@ -238,7 +220,6 @@ export function flameSeedsFromPalette(palette: RunsPalette): FlameSeed[] {
   return makeFlameSeeds(palette);
 }
 
-/** Deterministic soft seeds — avoids re-randomising every render. */
 export const FLAME_SEEDS: FlameSeed[] = makeFlameSeeds(RUNS_COLORS);
 export const PLATINUM_FLAME_SEEDS: FlameSeed[] = makeFlameSeeds(
   PLATINUM_STREAK_COLORS,

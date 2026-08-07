@@ -13,6 +13,7 @@ import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import GlowLayer from "./GlowLayer";
 import FlameLayer from "./FlameLayer";
 import EmberLayer, { type EmberSpread } from "./EmberLayer";
+import HeatShimmer from "./HeatShimmer";
 import { useRunsAnimation } from "./useRunsAnimation";
 import {
   FLAME_SEEDS,
@@ -27,7 +28,7 @@ type Props = {
   label?: string;
   /** Custom pill body — use for multi-line role-style content. */
   children?: React.ReactNode;
-  /** Existing glass pill styles (body + highlighted). */
+  /** Existing glass pill styles — keep the white casino pill as the hero. */
   pillStyle?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
   /** Root wrapper style (e.g. full-width stretch). */
@@ -36,28 +37,28 @@ type Props = {
   /** Warm Runs! by default; pass platinum (etc.) for variants. */
   palette?: RunsPalette;
   flameSeeds?: FlameSeed[];
-  /** Soft bloom behind the glass. */
+  /** Soft bloom behind the pill. */
   showGlow?: boolean;
-  /** Large flame wisps. Off = sparkles only. */
+  /** Large flame aura. Off = sparkles only. */
   showFlames?: boolean;
-  /** Cap on rising flame wisps (px). */
+  /** Cap on flame aura height (px). */
   maxFlameHeight?: number;
   /**
    * Ember / sparkle pattern.
-   * `top` — rise from the top (default Runs!).
+   * `top` — rise from the aura (default Runs!).
    * `around` — small sparkles inside + outside all sides.
    */
   emberSpread?: EmberSpread;
   /**
-   * When true, larger flame wisps stay mostly inside the pill;
-   * only tiny sparkles extend outside.
+   * When true, compact energy stays mostly inside the pill
+   * (streak / prestige widgets). Open mode = behind-pill reward aura.
    */
   containFlames?: boolean;
 };
 
 /**
- * Cream capsule with a neon fire rim and animated flame tongues.
- * Flames erupt from the top edge; glow / embers sell the heat on the felt.
+ * White Runs! pill with a premium behind-the-pill fire reward aura.
+ * The pill (shape, type, readability) stays the hero — fire never covers text.
  */
 export default function RunsPill({
   label,
@@ -88,49 +89,33 @@ export default function RunsPill({
     }
   };
 
-  const burstStyle = useAnimatedStyle(() => {
-    return {
-      opacity: anim.ignition.value * 0.9 * anim.effectOpacity.value,
-      transform: [
-        { scaleX: 0.7 + anim.ignition.value * 0.5 },
-        { scaleY: 0.55 + anim.ignition.value * 0.95 },
-        { translateY: containFlames ? 2 + anim.ignition.value * 4 : -2 - anim.ignition.value * 6 },
-      ],
-    } as ViewStyle;
-  });
-
   const flamesOn = showFlames && active;
   const glowOn = showGlow && active;
   const flameMax = containFlames
     ? Math.min(maxFlameHeight, Math.max(12, size.height * 0.7 || 14))
     : maxFlameHeight;
 
-  const defaultFireChrome =
-    !containFlames && palette.pillFill
+  const pillPopStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: anim.pillScale.value }],
+  }));
+
+  const warmEdgeStyle =
+    !containFlames && active
       ? ({
-          backgroundColor: palette.pillFill,
-          borderWidth: RUNS_LAYOUT.neonBorderWidth,
-          borderColor: palette.pillBorder ?? palette.core,
-          borderRadius: RUNS_LAYOUT.pillRadius,
           ...Platform.select({
             ios: {
               shadowColor: palette.core,
               shadowOffset: { width: 0, height: 0 },
-              shadowOpacity: 0.95,
-              shadowRadius: 12,
+              shadowOpacity: 0.55,
+              shadowRadius: 10,
             },
-            android: { elevation: 8 },
+            android: { elevation: 6 },
             web: {
-              boxShadow: `0 0 14px 2px ${palette.glowCore}, 0 0 4px 1px ${palette.core}`,
+              boxShadow: `0 0 10px 1px ${palette.glowCore}`,
             } as object,
             default: {},
           }),
         } satisfies ViewStyle)
-      : null;
-
-  const defaultLabelColor =
-    !containFlames && palette.pillText
-      ? ({ color: palette.pillText } satisfies TextStyle)
       : null;
 
   return (
@@ -139,6 +124,7 @@ export default function RunsPill({
       onLayout={onLayout}
       pointerEvents="box-none"
     >
+      {/* Layer 3 — atmospheric bloom (farthest back). */}
       {glowOn ? (
         <View style={styles.behind} pointerEvents="none">
           <GlowLayer
@@ -150,77 +136,51 @@ export default function RunsPill({
         </View>
       ) : null}
 
-      {/* Contained wisps stay under the face (streak / prestige pills). */}
-      {flamesOn && containFlames ? (
+      {/* Layer 2 — large fire aura BEHIND the pill. */}
+      {flamesOn ? (
         <View
-          style={[styles.flameAccent, styles.flameAccentContained]}
+          style={[
+            styles.flameAura,
+            containFlames && styles.flameAuraContained,
+          ]}
           pointerEvents="none"
         >
-          {glowOn ? (
-            <Animated.View
-              style={[
-                styles.ignitionBurstBottom,
-                {
-                  backgroundColor: palette.glowCore,
-                  shadowColor: palette.core,
-                },
-                burstStyle,
-              ]}
-            />
-          ) : null}
           <FlameLayer
             width={size.width}
+            height={size.height}
             flameIntensity={anim.flameIntensity}
             ignition={anim.ignition}
             effectOpacity={anim.effectOpacity}
             seeds={flameSeeds}
             maxFlameHeight={flameMax}
-            contained
+            contained={containFlames}
           />
         </View>
       ) : null}
 
-      <View style={[styles.glassPill, defaultFireChrome, pillStyle]}>
+      {/* Layer 1 — white pill hero (always readable). */}
+      <Animated.View
+        style={[styles.glassPill, warmEdgeStyle, pillStyle, pillPopStyle]}
+      >
         {children ?? (
-          <Text
-            numberOfLines={1}
-            style={[styles.label, defaultLabelColor, textStyle]}
-          >
+          <Text numberOfLines={1} style={[styles.label, textStyle]}>
             {label}
           </Text>
         )}
-      </View>
+      </Animated.View>
 
-      {/* Open fire sits on the neon rim above the cream face (Runs! reference). */}
+      {/* Heat shimmer above the aura — never over text. */}
       {flamesOn && !containFlames ? (
-        <View
-          style={[styles.flameAccent, styles.flameAccentOpen]}
-          pointerEvents="none"
-        >
-          {glowOn ? (
-            <Animated.View
-              style={[
-                styles.ignitionBurstTop,
-                {
-                  backgroundColor: palette.glowCore,
-                  shadowColor: palette.core,
-                },
-                burstStyle,
-              ]}
-            />
-          ) : null}
-          <FlameLayer
-            width={size.width}
-            flameIntensity={anim.flameIntensity}
-            ignition={anim.ignition}
-            effectOpacity={anim.effectOpacity}
-            seeds={flameSeeds}
-            maxFlameHeight={flameMax}
-            contained={false}
-          />
-        </View>
+        <HeatShimmer
+          width={size.width}
+          height={size.height}
+          shimmer={anim.shimmer}
+          effectOpacity={anim.effectOpacity}
+          active={active}
+        />
       ) : null}
 
+      {/* Layer 4 — floating embers (above fire, clear of text). */}
       <View style={styles.sparkleAccent} pointerEvents="none">
         <EmberLayer
           width={size.width}
@@ -248,6 +208,15 @@ const styles = StyleSheet.create({
     overflow: "visible",
     zIndex: 0,
   },
+  flameAura: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+    overflow: "visible",
+  },
+  flameAuraContained: {
+    overflow: "hidden",
+    borderRadius: 14,
+  },
   glassPill: {
     position: "relative",
     zIndex: 2,
@@ -264,45 +233,9 @@ const styles = StyleSheet.create({
       ? ({ whiteSpace: "nowrap" } as object)
       : null),
   },
-  /** Under the cream face — tips rise above the top rim. */
-  flameAccent: {
-    ...StyleSheet.absoluteFillObject,
-    overflow: "visible",
-  },
-  flameAccentContained: {
-    zIndex: 1,
-    overflow: "hidden",
-    borderRadius: 14,
-  },
-  /** Above cream so tongues sit on the neon rim (reference look). */
-  flameAccentOpen: {
-    zIndex: 3,
-  },
   sparkleAccent: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 4,
     overflow: "visible",
-  },
-  ignitionBurstBottom: {
-    position: "absolute",
-    left: "18%",
-    right: "18%",
-    bottom: -4,
-    height: 10,
-    borderRadius: 999,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.85,
-    shadowRadius: 8,
-  },
-  ignitionBurstTop: {
-    position: "absolute",
-    left: "12%",
-    right: "12%",
-    top: -6,
-    height: 14,
-    borderRadius: 999,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.95,
-    shadowRadius: 10,
   },
 });

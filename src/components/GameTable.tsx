@@ -693,11 +693,11 @@ export default function GameTable({
                         label={playModifierLabel}
                         pillStyle={[
                           styles.playTypeBadgeBody,
-                          styles.playTypeBadgeBodyRuns,
+                          styles.playTypeBadgeBodyHighlighted,
                         ]}
                         textStyle={[
                           styles.playTypeBadgeText,
-                          styles.playTypeBadgeTextRuns,
+                          styles.playTypeBadgeTextHighlighted,
                         ]}
                         active
                       />
@@ -898,30 +898,6 @@ const styles = StyleSheet.create({
       android: { elevation: 5 },
       default: {},
     }),
-  },
-  /** Cream capsule + neon orange rim — Matches Runs! fire reference. */
-  playTypeBadgeBodyRuns: {
-    backgroundColor: "#FFFCEB",
-    borderWidth: 2.5,
-    borderColor: "#FF9100",
-    borderRadius: 999,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#FF9100",
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.95,
-        shadowRadius: 12,
-      },
-      android: { elevation: 8 },
-      web: {
-        boxShadow:
-          "0 0 14px 2px rgba(255,200,80,0.55), 0 0 4px 1px rgba(255,145,0,0.9)",
-      } as object,
-      default: {},
-    }),
-  },
-  playTypeBadgeTextRuns: {
-    color: "#222222",
   },
   playTypeBadgeFlash: Platform.select({
     ios: {

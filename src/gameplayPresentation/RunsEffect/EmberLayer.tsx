@@ -20,11 +20,9 @@ export type EmberSpread = "top" | "around";
 
 type Ember = {
   id: number;
-  /** Spawn origin inside the layer (absolute). */
   x: number;
   y: number;
   size: number;
-  /** Outward / drift deltas over lifetime. */
   dx: number;
   dy: number;
   duration: number;
@@ -33,15 +31,14 @@ type Ember = {
 type Props = {
   width: number;
   height?: number;
-  /** Higher during ignition → more spawn; idle uses sparse cadence. */
   ignition: SharedValue<number>;
   flameIntensity: SharedValue<number>;
   effectOpacity: SharedValue<number>;
   active: boolean;
   palette?: RunsPalette;
   /**
-   * `top` — classic rise from the top edge (Runs!).
-   * `around` — tiny sparkles inside and outside on all sides.
+   * `top` — rise from the flame aura (Runs!).
+   * `around` — tiny sparkles inside + outside all sides.
    */
   spread?: EmberSpread;
 };
@@ -76,15 +73,17 @@ function EmberParticle({
 
   const style = useAnimatedStyle(() => {
     const t = progress.value;
+    // Fade in quickly, hold, then fade out — avoids a stiff linear loop feel.
     const opacity =
-      effectOpacity.value * (t < 0.12 ? t / 0.12 : 1 - (t - 0.12) / 0.88);
+      effectOpacity.value *
+      (t < 0.1 ? t / 0.1 : t > 0.65 ? (1 - t) / 0.35 : 1);
 
     return {
       opacity: Math.max(0, opacity),
       transform: [
         { translateX: ember.dx * t },
         { translateY: ember.dy * t },
-        { scale: 1 - t * 0.4 },
+        { scale: 1.05 - t * 0.55 },
       ],
     } as ViewStyle;
   });
@@ -111,11 +110,10 @@ function EmberParticle({
 function spawnAroundEmber(width: number, height: number, id: number): Ember {
   const [minLife, maxLife] = RUNS_TIMING.emberLifetimeMs;
   const duration = minLife * 0.7 + Math.random() * (maxLife - minLife * 0.5);
-  const size = 1.6 + Math.random() * 2.4;
+  const size = 1.4 + Math.random() * 2.6;
   const pad = 10;
   const roll = Math.random();
 
-  // ~35% spawn inside the pill and drift outward; rest spawn on an edge.
   if (roll < 0.35) {
     const x = width * (0.12 + Math.random() * 0.76);
     const y = height * (0.2 + Math.random() * 0.6);
@@ -141,25 +139,21 @@ function spawnAroundEmber(width: number, height: number, id: number): Ember {
   const tangential = (Math.random() - 0.5) * 14;
 
   if (edge === 0) {
-    // top
     x = width * Math.random();
     y = -pad * Math.random();
     dx = tangential;
     dy = -outward * (0.55 + Math.random() * 0.45);
   } else if (edge === 1) {
-    // right
     x = width + pad * Math.random();
     y = height * Math.random();
     dx = outward * (0.55 + Math.random() * 0.45);
     dy = tangential;
   } else if (edge === 2) {
-    // bottom
     x = width * Math.random();
     y = height + pad * Math.random();
     dx = tangential;
     dy = outward * (0.55 + Math.random() * 0.45);
   } else {
-    // left
     x = -pad * Math.random();
     y = height * Math.random();
     dx = -outward * (0.55 + Math.random() * 0.45);
@@ -169,23 +163,28 @@ function spawnAroundEmber(width: number, height: number, id: number): Ember {
   return { id, x, y, size, dx, dy, duration };
 }
 
-function spawnTopEmber(width: number, id: number): Ember {
+function spawnTopEmber(width: number, height: number, id: number): Ember {
   const [minLife, maxLife] = RUNS_TIMING.emberLifetimeMs;
   const duration = minLife + Math.random() * (maxLife - minLife);
+  const size = 1.5 + Math.random() * 3.2;
+  // Spawn across the top / upper sides of the flame aura.
+  const sideBias = Math.random();
+  let x = width * (0.06 + Math.random() * 0.88);
+  if (sideBias < 0.12) x = -4 - Math.random() * 6;
+  else if (sideBias > 0.88) x = width + 2 + Math.random() * 6;
   return {
     id,
-    x: width * (0.08 + Math.random() * 0.84),
-    y: -2 - Math.random() * 6,
-    size: 1.8 + Math.random() * 2.6,
-    dx: (Math.random() - 0.5) * 18,
-    dy: -(22 + Math.random() * 22),
+    x,
+    y: -Math.max(8, height * 0.35) - Math.random() * 10,
+    size,
+    dx: (Math.random() - 0.5) * 22,
+    dy: -(26 + Math.random() * 28),
     duration,
   };
 }
 
 /**
- * Tiny glowing sparkles.
- * Default rises from the top; `around` scatters inside + outside all sides.
+ * Floating embers rising from the fire aura.
  */
 export default function EmberLayer({
   width,
@@ -202,7 +201,7 @@ export default function EmberLayer({
   const ignitionRef = useRef(0);
   const intensityRef = useRef(0);
   const maxEmbers =
-    spread === "around" ? RUNS_LAYOUT.maxEmbers + 4 : RUNS_LAYOUT.maxEmbers + 2;
+    spread === "around" ? RUNS_LAYOUT.maxEmbers + 2 : RUNS_LAYOUT.maxEmbers;
 
   useEffect(() => {
     if (!active) return;
@@ -225,7 +224,7 @@ export default function EmberLayer({
       const ember =
         spread === "around"
           ? spawnAroundEmber(width, Math.max(18, height), id)
-          : spawnTopEmber(width, id);
+          : spawnTopEmber(width, Math.max(18, height), id);
       return [...prev, ember];
     });
   }, [width, height, spread, maxEmbers]);
@@ -239,12 +238,12 @@ export default function EmberLayer({
     const burstMs =
       spread === "around"
         ? [30, 90, 160, 240, 340, 480]
-        : [20, 70, 130, 200, 300, 420, 560];
+        : [20, 55, 100, 160, 240, 340, 460, 600];
     const burstTimers = burstMs.map((ms) => setTimeout(() => spawn(), ms));
 
     const idleMs =
       spread === "around"
-        ? RUNS_TIMING.emberSpawnIdleMs * 0.65
+        ? RUNS_TIMING.emberSpawnIdleMs * 0.85
         : RUNS_TIMING.emberSpawnIdleMs;
     const idle = setInterval(() => {
       const chance =
@@ -253,9 +252,11 @@ export default function EmberLayer({
             ? 0.9
             : 0.7
           : ignitionRef.current > 0.2
-            ? 0.95
-            : 0.8;
+            ? 0.98
+            : 0.85;
       if (Math.random() < chance && intensityRef.current > 0.12) spawn();
+      // Occasional double-spawn so cadence never feels metronomic.
+      if (Math.random() < 0.28 && intensityRef.current > 0.4) spawn();
     }, idleMs);
 
     return () => {
@@ -301,10 +302,10 @@ export default function EmberLayer({
 const styles = StyleSheet.create({
   topLayer: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    top: -8,
-    height: 48,
+    left: -10,
+    right: -10,
+    top: -36,
+    height: 72,
     overflow: "visible",
   },
   aroundLayer: {
@@ -314,7 +315,7 @@ const styles = StyleSheet.create({
   ember: {
     position: "absolute",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.85,
+    shadowOpacity: 0.9,
     shadowRadius: 3,
   },
 });
