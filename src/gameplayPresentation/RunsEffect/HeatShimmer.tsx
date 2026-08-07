@@ -73,9 +73,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: "8%",
     right: "8%",
-    height: 10,
+    height: 8,
     borderRadius: 999,
-    backgroundColor: "rgba(255,230,160,0.35)",
+    backgroundColor: "rgba(255,230,160,0.18)",
   },
   bandA: {
     top: 2,
@@ -84,6 +84,6 @@ const styles = StyleSheet.create({
     top: 12,
     left: "18%",
     right: "12%",
-    backgroundColor: "rgba(255,180,80,0.28)",
+    backgroundColor: "rgba(255,180,80,0.12)",
   },
 });
