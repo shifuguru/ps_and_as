@@ -166,19 +166,15 @@ function spawnAroundEmber(width: number, height: number, id: number): Ember {
 function spawnTopEmber(width: number, height: number, id: number): Ember {
   const [minLife, maxLife] = RUNS_TIMING.emberLifetimeMs;
   const duration = minLife + Math.random() * (maxLife - minLife);
-  const size = 1.5 + Math.random() * 3.2;
-  // Spawn across the top / upper sides of the flame aura.
-  const sideBias = Math.random();
-  let x = width * (0.06 + Math.random() * 0.88);
-  if (sideBias < 0.12) x = -4 - Math.random() * 6;
-  else if (sideBias > 0.88) x = width + 2 + Math.random() * 6;
+  const size = 1.4 + Math.random() * 2.6;
+  // Spawn along the short flame band above the pill (not far afield).
   return {
     id,
-    x,
-    y: -Math.max(8, height * 0.35) - Math.random() * 10,
+    x: width * (0.08 + Math.random() * 0.84),
+    y: -Math.max(4, height * 0.25) - Math.random() * Math.max(6, height * 0.2),
     size,
-    dx: (Math.random() - 0.5) * 22,
-    dy: -(26 + Math.random() * 28),
+    dx: (Math.random() - 0.5) * 12,
+    dy: -(14 + Math.random() * 16),
     duration,
   };
 }
@@ -302,10 +298,10 @@ export default function EmberLayer({
 const styles = StyleSheet.create({
   topLayer: {
     position: "absolute",
-    left: -10,
-    right: -10,
-    top: -36,
-    height: 72,
+    left: -4,
+    right: -4,
+    top: -22,
+    height: 40,
     overflow: "visible",
   },
   aroundLayer: {

@@ -693,11 +693,11 @@ export default function GameTable({
                         label={playModifierLabel}
                         pillStyle={[
                           styles.playTypeBadgeBody,
-                          styles.playTypeBadgeBodyHighlighted,
+                          styles.playTypeBadgeBodyRuns,
                         ]}
                         textStyle={[
                           styles.playTypeBadgeText,
-                          styles.playTypeBadgeTextHighlighted,
+                          styles.playTypeBadgeTextRuns,
                         ]}
                         active
                       />
@@ -898,6 +898,29 @@ const styles = StyleSheet.create({
       android: { elevation: 5 },
       default: {},
     }),
+  },
+  /** Warm cream Runs! face — light yellow-orange with thin orange rim. */
+  playTypeBadgeBodyRuns: {
+    backgroundColor: "#FFF3D6",
+    borderWidth: 1.5,
+    borderColor: "#FFB038",
+    borderRadius: 999,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#FF9100",
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.7,
+        shadowRadius: 8,
+      },
+      android: { elevation: 6 },
+      web: {
+        boxShadow: "0 0 10px 1px rgba(255,200,80,0.48)",
+      } as object,
+      default: {},
+    }),
+  },
+  playTypeBadgeTextRuns: {
+    color: "#111111",
   },
   playTypeBadgeFlash: Platform.select({
     ios: {

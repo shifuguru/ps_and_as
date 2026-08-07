@@ -4,20 +4,24 @@ import { hexToRgba } from "../../utils/colorTheory";
 
 /**
  * Warm fire palette — white-hot base → yellow → orange → deep tips.
- * Pill chrome stays white/black; these colors are for aura layers only.
+ * Pill chrome: light yellow-orange cream with thin orange rim.
  */
 export const RUNS_COLORS = {
-  core: "#FF9A1F",
-  hot: "#FFE566",
-  edge: "#FF3B00",
-  whiteHot: "#FFF8E0",
-  glow: "rgba(255,140,30,0.4)",
-  glowSoft: "rgba(255,170,50,0.24)",
-  glowCore: "rgba(255,210,90,0.55)",
+  core: "#FF9100",
+  hot: "#FFD84A",
+  edge: "#FF4500",
+  whiteHot: "#FFF4C8",
+  /** Pill face — warm cream, not pure white. */
+  pillFill: "#FFF3D6",
+  pillBorder: "#FFB038",
+  pillText: "#111111",
+  glow: "rgba(255,145,0,0.36)",
+  glowSoft: "rgba(255,180,50,0.2)",
+  glowCore: "rgba(255,210,90,0.48)",
   ember: "rgba(255,220,120,0.95)",
-  flameA: "rgba(255,190,50,0.95)",
-  flameB: "rgba(255,110,15,0.92)",
-  flameC: "rgba(230,40,0,0.88)",
+  flameA: "rgba(255,210,80,0.9)",
+  flameB: "rgba(255,130,20,0.85)",
+  flameC: "rgba(255,70,0,0.72)",
 } as const;
 
 /** Cool platinum / silver energy for President streak prestige. */
@@ -47,6 +51,9 @@ export type RunsPalette = {
   flameA: string;
   flameB: string;
   flameC: string;
+  pillFill?: string;
+  pillBorder?: string;
+  pillText?: string;
 };
 
 export const RUNS_TIMING = {
@@ -57,24 +64,30 @@ export const RUNS_TIMING = {
   pillPopMs: 380,
   idleGlowPeriodMs: 2400,
   idleFlickerPeriodMs: 1200,
-  emberLifetimeMs: [1000, 2000] as const,
-  emberSpawnIdleMs: 380,
+  emberLifetimeMs: [1100, 2000] as const,
+  emberSpawnIdleMs: 480,
   shimmerPeriodMs: 1500,
 } as const;
 
 export const RUNS_LAYOUT = {
-  /** Open-mode aura height vs pill height. */
-  auraHeightFactor: 1.55,
-  auraSideSpill: 0.22,
-  maxFlameHeight: 56,
-  flameLobeCount: 9,
-  maxEmbers: 12,
-  glowPad: 20,
-  pillRadius: 12,
+  /**
+   * Open-mode flame rise above the pill top edge.
+   * Step brief: ~half the pill height.
+   */
+  auraHeightFactor: 0.5,
+  /** Keep fire locked to the pill width (tiny side spill only). */
+  auraSideSpill: 0.04,
+  maxFlameHeight: 28,
+  flameLobeCount: 7,
+  maxEmbers: 8,
+  glowPad: 14,
+  pillRadius: 999,
+  neonBorderWidth: 1.5,
 } as const;
 
 export type FlameSeed = {
   id: number;
+  /** Horizontal center as fraction of pill/aura width (0–1). */
   x: number;
   widthFrac: number;
   heightFrac: number;
@@ -86,147 +99,108 @@ export type FlameSeed = {
   color: string;
   tipColor: string;
   coreColor: string;
-  /** Path variant index for irregular silhouettes. */
-  pathVariant: number;
 };
 
 function makeFlameSeeds(palette: RunsPalette): FlameSeed[] {
-  // Dense overlapping tongues so the aura reads as one erupting mass.
+  // Soft overlapping wisps across the pill top — not discrete sticker icons.
   return [
     {
       id: 0,
-      x: 0.02,
-      widthFrac: 0.3,
-      heightFrac: 0.78,
+      x: 0.1,
+      widthFrac: 0.28,
+      heightFrac: 0.85,
       delayMs: 0,
-      periodMs: 920,
-      swayMs: 1380,
-      rotDeg: -18,
-      swayFrac: 0.028,
+      periodMs: 980,
+      swayMs: 1400,
+      rotDeg: -8,
+      swayFrac: 0.012,
       color: palette.flameB,
       tipColor: palette.edge,
       coreColor: palette.whiteHot,
-      pathVariant: 0,
     },
     {
       id: 1,
-      x: 0.14,
-      widthFrac: 0.34,
-      heightFrac: 1.02,
-      delayMs: 50,
-      periodMs: 1080,
-      swayMs: 1620,
-      rotDeg: -10,
-      swayFrac: 0.022,
+      x: 0.26,
+      widthFrac: 0.3,
+      heightFrac: 1,
+      delayMs: 60,
+      periodMs: 1100,
+      swayMs: 1600,
+      rotDeg: -3,
+      swayFrac: 0.01,
       color: palette.flameA,
       tipColor: palette.flameB,
       coreColor: palette.hot,
-      pathVariant: 1,
     },
     {
       id: 2,
-      x: 0.28,
+      x: 0.42,
       widthFrac: 0.32,
       heightFrac: 0.92,
       delayMs: 110,
-      periodMs: 980,
+      periodMs: 1020,
       swayMs: 1480,
-      rotDeg: -4,
-      swayFrac: 0.018,
+      rotDeg: 2,
+      swayFrac: 0.008,
       color: palette.flameA,
       tipColor: palette.edge,
       coreColor: palette.whiteHot,
-      pathVariant: 2,
     },
     {
       id: 3,
-      x: 0.4,
-      widthFrac: 0.36,
-      heightFrac: 1.12,
+      x: 0.55,
+      widthFrac: 0.34,
+      heightFrac: 1.05,
       delayMs: 30,
-      periodMs: 860,
-      swayMs: 1240,
-      rotDeg: 2,
-      swayFrac: 0.015,
+      periodMs: 920,
+      swayMs: 1320,
+      rotDeg: 0,
+      swayFrac: 0.008,
       color: palette.hot,
       tipColor: palette.flameB,
       coreColor: palette.whiteHot,
-      pathVariant: 0,
     },
     {
       id: 4,
-      x: 0.52,
-      widthFrac: 0.38,
-      heightFrac: 1.18,
-      delayMs: 70,
-      periodMs: 940,
-      swayMs: 1320,
-      rotDeg: 0,
-      swayFrac: 0.016,
-      color: palette.hot,
-      tipColor: palette.edge,
-      coreColor: palette.whiteHot,
-      pathVariant: 1,
-    },
-    {
-      id: 5,
-      x: 0.64,
-      widthFrac: 0.34,
-      heightFrac: 0.98,
-      delayMs: 90,
-      periodMs: 1120,
+      x: 0.68,
+      widthFrac: 0.3,
+      heightFrac: 0.95,
+      delayMs: 80,
+      periodMs: 1140,
       swayMs: 1700,
-      rotDeg: -3,
-      swayFrac: 0.02,
+      rotDeg: -2,
+      swayFrac: 0.01,
       color: palette.flameA,
       tipColor: palette.edge,
       coreColor: palette.hot,
-      pathVariant: 2,
     },
     {
-      id: 6,
-      x: 0.76,
-      widthFrac: 0.34,
-      heightFrac: 1.06,
-      delayMs: 20,
-      periodMs: 1020,
-      swayMs: 1540,
-      rotDeg: 8,
-      swayFrac: 0.024,
+      id: 5,
+      x: 0.82,
+      widthFrac: 0.28,
+      heightFrac: 0.88,
+      delayMs: 40,
+      periodMs: 1040,
+      swayMs: 1520,
+      rotDeg: 6,
+      swayFrac: 0.012,
       color: palette.flameB,
       tipColor: palette.edge,
       coreColor: palette.whiteHot,
-      pathVariant: 0,
     },
     {
-      id: 7,
-      x: 0.88,
-      widthFrac: 0.3,
-      heightFrac: 0.88,
+      id: 6,
+      x: 0.94,
+      widthFrac: 0.24,
+      heightFrac: 0.75,
       delayMs: 130,
-      periodMs: 1160,
-      swayMs: 1660,
-      rotDeg: 14,
-      swayFrac: 0.03,
+      periodMs: 960,
+      swayMs: 1380,
+      rotDeg: 10,
+      swayFrac: 0.014,
       color: palette.flameC,
       tipColor: palette.edge,
       coreColor: palette.hot,
-      pathVariant: 1,
-    },
-    {
-      id: 8,
-      x: 0.98,
-      widthFrac: 0.26,
-      heightFrac: 0.72,
-      delayMs: 160,
-      periodMs: 960,
-      swayMs: 1420,
-      rotDeg: 18,
-      swayFrac: 0.032,
-      color: palette.flameC,
-      tipColor: palette.edge,
-      coreColor: palette.flameA,
-      pathVariant: 2,
     },
   ];
 }

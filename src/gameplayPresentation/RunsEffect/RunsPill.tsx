@@ -28,7 +28,7 @@ type Props = {
   label?: string;
   /** Custom pill body — use for multi-line role-style content. */
   children?: React.ReactNode;
-  /** Existing glass pill styles — keep the white casino pill as the hero. */
+  /** Existing glass pill styles. */
   pillStyle?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
   /** Root wrapper style (e.g. full-width stretch). */
@@ -39,26 +39,26 @@ type Props = {
   flameSeeds?: FlameSeed[];
   /** Soft bloom behind the pill. */
   showGlow?: boolean;
-  /** Large flame aura. Off = sparkles only. */
+  /** Soft flame band above the pill. Off = sparkles only. */
   showFlames?: boolean;
-  /** Cap on flame aura height (px). */
+  /** Cap on flame rise height (px). */
   maxFlameHeight?: number;
   /**
    * Ember / sparkle pattern.
-   * `top` — rise from the aura (default Runs!).
+   * `top` — rise from the flame band (default Runs!).
    * `around` — small sparkles inside + outside all sides.
    */
   emberSpread?: EmberSpread;
   /**
-   * When true, compact energy stays mostly inside the pill
-   * (streak / prestige widgets). Open mode = behind-pill reward aura.
+   * When true, compact energy for streak / prestige widgets.
+   * Open mode = centered, pill-constrained Runs! fire.
    */
   containFlames?: boolean;
 };
 
 /**
- * White Runs! pill with a premium behind-the-pill fire reward aura.
- * The pill (shape, type, readability) stays the hero — fire never covers text.
+ * Warm cream Runs! pill centered in a soft, pill-constrained fire band.
+ * Flames rise from the top rim ~half the pill height; text stays readable.
  */
 export default function RunsPill({
   label,
@@ -91,23 +91,31 @@ export default function RunsPill({
 
   const flamesOn = showFlames && active;
   const glowOn = showGlow && active;
+  // Open mode: hard-cap rise to ~half pill height (step brief).
   const flameMax = containFlames
-    ? Math.min(maxFlameHeight, Math.max(12, size.height * 0.7 || 14))
-    : maxFlameHeight;
+    ? Math.min(maxFlameHeight, Math.max(12, size.height * 0.55 || 14))
+    : Math.min(
+        maxFlameHeight,
+        Math.max(10, (size.height || 22) * RUNS_LAYOUT.auraHeightFactor),
+      );
 
   const pillPopStyle = useAnimatedStyle(() => ({
     transform: [{ scale: anim.pillScale.value }],
   }));
 
-  const warmEdgeStyle =
-    !containFlames && active
+  const warmPillChrome =
+    !containFlames && palette.pillFill
       ? ({
+          backgroundColor: palette.pillFill,
+          borderWidth: RUNS_LAYOUT.neonBorderWidth,
+          borderColor: palette.pillBorder ?? palette.core,
+          borderRadius: RUNS_LAYOUT.pillRadius,
           ...Platform.select({
             ios: {
               shadowColor: palette.core,
               shadowOffset: { width: 0, height: 0 },
-              shadowOpacity: 0.55,
-              shadowRadius: 10,
+              shadowOpacity: 0.7,
+              shadowRadius: 8,
             },
             android: { elevation: 6 },
             web: {
@@ -118,13 +126,18 @@ export default function RunsPill({
         } satisfies ViewStyle)
       : null;
 
+  const warmLabel =
+    !containFlames && palette.pillText
+      ? ({ color: palette.pillText } satisfies TextStyle)
+      : null;
+
   return (
     <View
       style={[styles.root, style]}
       onLayout={onLayout}
       pointerEvents="box-none"
     >
-      {/* Layer 3 — atmospheric bloom (farthest back). */}
+      {/* Soft heat bloom — centered on the pill. */}
       {glowOn ? (
         <View style={styles.behind} pointerEvents="none">
           <GlowLayer
@@ -136,7 +149,7 @@ export default function RunsPill({
         </View>
       ) : null}
 
-      {/* Layer 2 — large fire aura BEHIND the pill. */}
+      {/* Soft fire band BEHIND the pill, locked to pill width. */}
       {flamesOn ? (
         <View
           style={[
@@ -158,18 +171,20 @@ export default function RunsPill({
         </View>
       ) : null}
 
-      {/* Layer 1 — white pill hero (always readable). */}
+      {/* Warm cream pill — dead center of the effect. */}
       <Animated.View
-        style={[styles.glassPill, warmEdgeStyle, pillStyle, pillPopStyle]}
+        style={[styles.glassPill, warmPillChrome, pillStyle, pillPopStyle]}
       >
         {children ?? (
-          <Text numberOfLines={1} style={[styles.label, textStyle]}>
+          <Text
+            numberOfLines={1}
+            style={[styles.label, warmLabel, textStyle]}
+          >
             {label}
           </Text>
         )}
       </Animated.View>
 
-      {/* Heat shimmer above the aura — never over text. */}
       {flamesOn && !containFlames ? (
         <HeatShimmer
           width={size.width}
@@ -180,7 +195,6 @@ export default function RunsPill({
         />
       ) : null}
 
-      {/* Layer 4 — floating embers (above fire, clear of text). */}
       <View style={styles.sparkleAccent} pointerEvents="none">
         <EmberLayer
           width={size.width}

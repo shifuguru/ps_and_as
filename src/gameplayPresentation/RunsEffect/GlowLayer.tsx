@@ -14,8 +14,7 @@ type Props = {
 };
 
 /**
- * Atmospheric orange bloom behind the pill — heat radiating onto the felt.
- * Soft transform/opacity only (no animated blur).
+ * Tight warm bloom centered on the pill — heat around the badge, not a huge halo.
  */
 export default function GlowLayer({
   glowOpacity,
@@ -24,18 +23,13 @@ export default function GlowLayer({
   palette = RUNS_COLORS,
 }: Props) {
   const outerStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value * 0.72 * effectOpacity.value,
+    opacity: glowOpacity.value * 0.65 * effectOpacity.value,
     transform: [{ scale: glowScale.value }],
   }));
 
   const midStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value * 0.55 * effectOpacity.value,
-    transform: [{ scale: 0.9 + glowScale.value * 0.1 }],
-  }));
-
-  const edgeStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value * 0.65 * effectOpacity.value,
-    transform: [{ scale: 0.96 + glowScale.value * 0.05 }],
+    opacity: glowOpacity.value * 0.5 * effectOpacity.value,
+    transform: [{ scale: 0.92 + glowScale.value * 0.08 }],
   }));
 
   return (
@@ -46,18 +40,11 @@ export default function GlowLayer({
       <Animated.View
         style={[
           styles.mid,
-          { backgroundColor: palette.glowSoft },
-          midStyle,
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.edge,
           {
-            backgroundColor: palette.glowCore,
+            backgroundColor: palette.glowSoft,
             shadowColor: palette.core,
           },
-          edgeStyle,
+          midStyle,
         ]}
       />
     </View>
@@ -73,23 +60,17 @@ const styles = StyleSheet.create({
   },
   outer: {
     position: "absolute",
-    width: "145%",
-    height: "190%",
+    width: "118%",
+    height: "150%",
     borderRadius: 999,
   },
   mid: {
     position: "absolute",
-    width: "118%",
-    height: "140%",
-    borderRadius: 999,
-  },
-  edge: {
-    position: "absolute",
     width: "104%",
-    height: "112%",
+    height: "118%",
     borderRadius: 999,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
+    shadowOpacity: 0.55,
     shadowRadius: RUNS_LAYOUT.glowPad,
   },
 });
