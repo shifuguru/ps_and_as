@@ -73,10 +73,10 @@ export default function RealisticFireCanvas({
     };
 
     // Dense continuous wall — overlapping blobs, not candle columns.
-    const scale = Math.max(0.4, Math.min(0.72, width / 150));
+    const scale = Math.max(0.45, Math.min(0.8, width / 130));
     const cfg = {
-      maxParticles: Math.max(60, Math.round(width * 1.4)),
-      maxEmbers: Math.max(10, Math.round(width * 0.22)),
+      maxParticles: Math.max(90, Math.round(width * 2.2)),
+      maxEmbers: Math.max(12, Math.round(width * 0.28)),
       scale,
     };
     const { particles, embers } = initFireField(pill, cfg);

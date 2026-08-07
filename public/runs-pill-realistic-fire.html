@@ -37,7 +37,7 @@
   </style>
 </head>
 <body>
-  <div class="label">Realistic fire · dense continuous wall</div>
+  <div class="label">Realistic fire · continuous sheet (no candles)</div>
   <div class="stage">
     <canvas id="fire"></canvas>
     <div class="pill" id="pill">Runs!</div>
@@ -54,8 +54,8 @@
     const DPR = Math.min(devicePixelRatio || 1, 2);
 
     const BURN = {
-      riseTop: -92, riseSide: -50, riseBottom: -28, riseEmber: -70,
-      lifeTop: 0.58, lifeSide: 0.45, lifeBottom: 0.38, lifeEmber: 0.9,
+      riseTop: -68, riseSide: -38, riseBottom: -22, riseEmber: -58,
+      lifeTop: 0.5, lifeSide: 0.4, lifeBottom: 0.34, lifeEmber: 0.85,
       swayFreq: 2.4, emberSwayFreq: 1.8,
     };
 
@@ -92,8 +92,8 @@
       embers.length = 0;
       const span = topSpan();
       const width = Math.max(8, span.right - span.left);
-      const topCount = Math.max(36, Math.round(width / 4.5));
-      const layers = 3;
+      const topCount = Math.max(48, Math.round(width / 2.8));
+      const layers = 5;
 
       for (let i = 0; i < topCount; i++) {
         const t = i / (topCount - 1);
@@ -107,12 +107,12 @@
             anchorX, originY,
             x: anchorX, y: originY + rise * age,
             rise, life, age,
-            size: 18 + Math.random() * 14,
+            size: 22 + Math.random() * 16,
             heat: 0.78 + Math.random() * 0.22,
             seed: Math.random() * Math.PI * 2,
-            stretch: 1.35 + Math.random() * 0.55,
-            front: layer === 2 && i % 4 === 0,
-            drift: 4.5 + Math.random() * 4,
+            stretch: 0.85 + Math.random() * 0.45,
+            front: layer >= 3 && i % 5 === 0,
+            drift: 3 + Math.random() * 3,
             zone: "top",
           });
         }
@@ -192,8 +192,8 @@
       const fade = t > 0.75 ? 1 - (t - 0.75) / 0.25 : 1;
       const a = grow * fade * (0.24 + p.heat * 0.34);
       if (a < 0.015) return;
-      const rx = p.size * (0.7 + (1 - t) * 0.15);
-      const ry = p.size * p.stretch * (0.85 + t * 0.25);
+      const rx = p.size * (0.85 + (1 - t) * 0.2);
+      const ry = p.size * p.stretch * (0.7 + t * 0.2);
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = a;
@@ -216,25 +216,36 @@
 
     function drawBloom() {
       const span = topSpan();
+      const bandW = (span.right - span.left) * 0.52;
+      const bandH = pill.h * 1.05;
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      const g = ctx.createLinearGradient(span.left, span.y, span.right, span.y);
-      g.addColorStop(0, "rgba(255,140,30,0)");
-      g.addColorStop(0.06, "rgba(255,160,40,0.2)");
-      g.addColorStop(0.5, "rgba(255,175,55,0.24)");
-      g.addColorStop(0.94, "rgba(255,160,40,0.2)");
-      g.addColorStop(1, "rgba(255,140,30,0)");
-      ctx.fillStyle = g;
+      const sheet = ctx.createLinearGradient(pill.x, span.y + bandH * 0.35, pill.x, span.y - bandH * 0.85);
+      sheet.addColorStop(0, "rgba(255,245,200,0.55)");
+      sheet.addColorStop(0.25, "rgba(255,200,70,0.45)");
+      sheet.addColorStop(0.55, "rgba(255,120,25,0.28)");
+      sheet.addColorStop(1, "rgba(255,60,0,0)");
+      ctx.fillStyle = sheet;
       ctx.beginPath();
-      ctx.ellipse(pill.x, span.y, (span.right - span.left) * 0.55, pill.h * 0.7, 0, 0, Math.PI * 2);
+      ctx.ellipse(pill.x, span.y - bandH * 0.15, bandW, bandH, 0, 0, Math.PI * 2);
       ctx.fill();
-      const rim = ctx.createRadialGradient(pill.x, pill.y, pill.h * 0.3, pill.x, pill.y, pill.w * 0.58);
-      rim.addColorStop(0, "rgba(255,190,70,0.14)");
-      rim.addColorStop(0.55, "rgba(255,110,25,0.07)");
+      const across = ctx.createLinearGradient(span.left, span.y, span.right, span.y);
+      across.addColorStop(0, "rgba(255,140,30,0)");
+      across.addColorStop(0.05, "rgba(255,170,50,0.35)");
+      across.addColorStop(0.5, "rgba(255,190,70,0.4)");
+      across.addColorStop(0.95, "rgba(255,170,50,0.35)");
+      across.addColorStop(1, "rgba(255,140,30,0)");
+      ctx.fillStyle = across;
+      ctx.beginPath();
+      ctx.ellipse(pill.x, span.y, bandW * 1.02, pill.h * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const rim = ctx.createRadialGradient(pill.x, pill.y, pill.h * 0.25, pill.x, pill.y, pill.w * 0.6);
+      rim.addColorStop(0, "rgba(255,190,70,0.16)");
+      rim.addColorStop(0.55, "rgba(255,110,25,0.08)");
       rim.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = rim;
       ctx.beginPath();
-      ctx.ellipse(pill.x, pill.y, pill.w * 0.6, pill.h * 0.85, 0, 0, Math.PI * 2);
+      ctx.ellipse(pill.x, pill.y, pill.w * 0.62, pill.h * 0.9, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }

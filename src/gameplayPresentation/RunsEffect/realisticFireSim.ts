@@ -56,14 +56,15 @@ export type FireSimConfig = {
 
 /** Shared burn tempo — identical for every particle. */
 export const FIRE_BURN = {
-  riseTop: -72,
-  riseSide: -40,
-  riseBottom: -22,
-  riseEmber: -56,
-  lifeTop: 0.58,
-  lifeSide: 0.45,
-  lifeBottom: 0.38,
-  lifeEmber: 0.9,
+  // Shorter travel + denser samples = continuous band, not tall candles.
+  riseTop: -55,
+  riseSide: -32,
+  riseBottom: -18,
+  riseEmber: -48,
+  lifeTop: 0.5,
+  lifeSide: 0.4,
+  lifeBottom: 0.34,
+  lifeEmber: 0.85,
   swayFreq: 2.4,
   emberSwayFreq: 1.8,
 } as const;
@@ -92,24 +93,22 @@ export function initFireField(
   const width = Math.max(8, span.right - span.left);
   const particles: FireParticle[] = [];
 
-  // Dense top wall — spacing much smaller than particle width so they merge.
-  const topCount = Math.max(28, Math.round(width / (3.2 * scale)));
-  const layers = 3; // stacked ages at each x → continuous volume
+  // Dense top wall — spacing << blob width so peaks fuse into one sheet.
+  const topCount = Math.max(40, Math.round(width / (2.1 * scale)));
+  const layers = 5; // more age layers → filled volume, fewer visible gaps
 
   for (let i = 0; i < topCount; i++) {
     const t = topCount <= 1 ? 0.5 : i / (topCount - 1);
     const anchorX = span.left + width * t;
-    // Slight vertical jitter so the fuel line isn't a hard seam.
-    const originY = span.y + (Math.random() - 0.35) * 2.5 * scale;
+    const originY = span.y + (Math.random() - 0.35) * 2 * scale;
 
     for (let layer = 0; layer < layers; layer++) {
       const rise = FIRE_BURN.riseTop * scale;
       const life = FIRE_BURN.lifeTop;
-      // Even phase across the whole field (i + layer) → constant density.
-      const age = (((i * layers + layer) / (topCount * layers)) * life);
-      // Wide soft blobs — key to continuous wall vs candle spikes.
-      const size = (14 + Math.random() * 10) * scale;
-      const stretch = 1.35 + Math.random() * 0.55;
+      const age = ((i * layers + layer) / (topCount * layers)) * life;
+      // Wide + short: carpet of fire that blends sideways (not tall candles).
+      const size = (16 + Math.random() * 12) * scale;
+      const stretch = 0.85 + Math.random() * 0.45;
 
       particles.push({
         x: anchorX,
@@ -122,10 +121,10 @@ export function initFireField(
         size,
         heat: 0.78 + Math.random() * 0.22,
         seed: Math.random() * Math.PI * 2,
-        front: layer === layers - 1 && i % 4 === 0,
+        front: layer >= 3 && i % 5 === 0,
         stretch,
         zone: "top",
-        drift: (3.5 + Math.random() * 3) * scale,
+        drift: (2.5 + Math.random() * 2.5) * scale,
       });
     }
   }
@@ -343,18 +342,18 @@ export function drawFireParticle(
   const a = grow * fade * (0.22 + p.heat * 0.32) * intensity;
   if (a < 0.015) return;
 
-  // Wider than tall-spike candles — blends with neighbors.
-  const rx = p.size * (0.7 + (1 - t) * 0.15);
-  const ry = p.size * p.stretch * (0.85 + t * 0.25);
+  // Favor width over height so neighbors fuse into a sheet.
+  const rx = p.size * (0.85 + (1 - t) * 0.2);
+  const ry = p.size * p.stretch * (0.7 + t * 0.2);
 
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = a;
 
   drawSoftBlob(ctx, p.x, p.y, rx, ry, [
-    [0, `rgba(255,${Math.floor(220 * p.heat)},70,1)`],
-    [0.28, `rgba(255,${Math.floor(140 + 40 * p.heat)},25,0.85)`],
-    [0.58, "rgba(255,90,10,0.4)"],
+    [0, `rgba(255,${Math.floor(225 * p.heat)},80,1)`],
+    [0.25, `rgba(255,${Math.floor(150 + 35 * p.heat)},30,0.88)`],
+    [0.55, "rgba(255,95,12,0.45)"],
     [1, "rgba(50,5,0,0)"],
   ]);
 
@@ -399,45 +398,56 @@ export function drawFireBloom(
   _time: number,
   intensity = 1,
 ): void {
-  // Even rim warmth all around — continuous, not a center beam.
+  // Continuous fuel ribbon under the particles — kills candle gaps.
   const span = topSpan(pill);
+  const bandW = (span.right - span.left) * 0.52;
+  const bandH = pill.h * 0.95;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = intensity * 0.8;
+  ctx.globalAlpha = intensity;
 
-  const topGlow = ctx.createLinearGradient(span.left, span.y, span.right, span.y);
-  topGlow.addColorStop(0, "rgba(255,140,30,0)");
-  topGlow.addColorStop(0.06, "rgba(255,160,40,0.2)");
-  topGlow.addColorStop(0.5, "rgba(255,175,55,0.24)");
-  topGlow.addColorStop(0.94, "rgba(255,160,40,0.2)");
-  topGlow.addColorStop(1, "rgba(255,140,30,0)");
-  ctx.fillStyle = topGlow;
-  ctx.beginPath();
-  ctx.ellipse(
+  // Hot white-yellow sheet along the entire top edge.
+  const sheet = ctx.createLinearGradient(
     pill.x,
-    span.y,
-    (span.right - span.left) * 0.55,
-    pill.h * 0.7,
-    0,
-    0,
-    Math.PI * 2,
+    span.y + bandH * 0.35,
+    pill.x,
+    span.y - bandH * 0.85,
   );
+  sheet.addColorStop(0, "rgba(255,245,200,0.55)");
+  sheet.addColorStop(0.25, "rgba(255,200,70,0.45)");
+  sheet.addColorStop(0.55, "rgba(255,120,25,0.28)");
+  sheet.addColorStop(1, "rgba(255,60,0,0)");
+  ctx.fillStyle = sheet;
+  ctx.beginPath();
+  ctx.ellipse(pill.x, span.y - bandH * 0.15, bandW, bandH, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Even horizontal fill so the ribbon never dips to dark gaps.
+  const across = ctx.createLinearGradient(span.left, span.y, span.right, span.y);
+  across.addColorStop(0, "rgba(255,140,30,0)");
+  across.addColorStop(0.05, "rgba(255,170,50,0.35)");
+  across.addColorStop(0.5, "rgba(255,190,70,0.4)");
+  across.addColorStop(0.95, "rgba(255,170,50,0.35)");
+  across.addColorStop(1, "rgba(255,140,30,0)");
+  ctx.fillStyle = across;
+  ctx.beginPath();
+  ctx.ellipse(pill.x, span.y, bandW * 1.02, pill.h * 0.55, 0, 0, Math.PI * 2);
   ctx.fill();
 
   const rim = ctx.createRadialGradient(
     pill.x,
     pill.y,
-    pill.h * 0.3,
+    pill.h * 0.25,
     pill.x,
     pill.y,
-    pill.w * 0.58,
+    pill.w * 0.6,
   );
-  rim.addColorStop(0, "rgba(255,190,70,0.14)");
-  rim.addColorStop(0.55, "rgba(255,110,25,0.07)");
+  rim.addColorStop(0, "rgba(255,190,70,0.16)");
+  rim.addColorStop(0.55, "rgba(255,110,25,0.08)");
   rim.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = rim;
   ctx.beginPath();
-  ctx.ellipse(pill.x, pill.y, pill.w * 0.6, pill.h * 0.85, 0, 0, Math.PI * 2);
+  ctx.ellipse(pill.x, pill.y, pill.w * 0.62, pill.h * 0.9, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
