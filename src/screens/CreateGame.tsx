@@ -762,7 +762,12 @@ export default function CreateGame({
               roomCreatedRef.current = false;
               return;
             }
-            (adapter as any).createRoom(code, nameCheck.value, title);
+            (adapter as any).createRoom(
+              code,
+              nameCheck.value,
+              title,
+              skipDealAnimations,
+            );
             setActualRoomId(code);
             if (!roomName.trim()) {
               setRoomName(title);
