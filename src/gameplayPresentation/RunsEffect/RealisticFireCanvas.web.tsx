@@ -39,9 +39,10 @@ export default function RealisticFireCanvas({
     const host = hostRef.current;
     if (!host) return;
 
-    const padX = Math.max(28, width * 0.55);
-    const padTop = Math.max(48, height * 2.4);
-    const padBottom = Math.max(18, height * 0.7);
+    // Room for tongues above a compact table badge (~half-pill height+).
+    const padX = Math.max(22, width * 0.45);
+    const padTop = Math.max(36, height * 2.1);
+    const padBottom = Math.max(14, height * 0.55);
     const cw = Math.ceil(width + padX * 2);
     const ch = Math.ceil(height + padTop + padBottom);
 
@@ -71,13 +72,13 @@ export default function RealisticFireCanvas({
       h: height,
     };
 
-    // Conveyor field: fixed slots per column, evenly phased ages.
-    const scale = Math.max(0.3, Math.min(0.58, width / 210));
-    const columns = Math.max(10, Math.round(width / 7));
-    const perColumn = 8;
+    // Badge-tuned conveyor: readable tongues at ~60–90px pill widths.
+    const scale = Math.max(0.42, Math.min(0.75, width / 140));
+    const columns = Math.max(8, Math.min(14, Math.round(width / 7)));
+    const perColumn = 7;
     const cfg = {
       maxParticles: columns * perColumn,
-      maxEmbers: Math.max(8, columns),
+      maxEmbers: Math.max(6, Math.round(columns * 0.75)),
       scale,
       columns,
       perColumn,

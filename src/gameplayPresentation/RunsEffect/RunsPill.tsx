@@ -59,8 +59,8 @@ type Props = {
 };
 
 /**
- * Runs! glass capsule with premium energy accent layers.
- * Glass pill remains the hero — glow / flames / embers are accents only.
+ * Runs! pill — web uses conveyor canvas fire; native keeps soft wisps.
+ * Contained variants (streak widgets) stay on the accent wisp path.
  */
 export default function RunsPill({
   label,
@@ -80,6 +80,8 @@ export default function RunsPill({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [fireIntensity, setFireIntensity] = useState(0);
   const anim = useRunsAnimation(active);
+  const realisticOn =
+    showFlames && active && USE_REALISTIC_FIRE && !containFlames;
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -92,22 +94,21 @@ export default function RunsPill({
     }
   };
 
-  // Bridge Reanimated shared values → canvas intensity (web fire).
+  // Steady burn opacity for canvas fire — follow master fade only.
+  // Do NOT couple to flameIntensity/ignition idle pulses (reads as speed-ups).
   useEffect(() => {
-    if (!USE_REALISTIC_FIRE || !active) {
+    if (!realisticOn) {
       setFireIntensity(0);
       return;
     }
     const id = setInterval(() => {
-      const next =
-        anim.effectOpacity.value *
-        (0.35 + anim.flameIntensity.value * 0.55 + anim.ignition.value * 0.35);
+      const next = anim.effectOpacity.value;
       setFireIntensity((prev) =>
         Math.abs(prev - next) > 0.02 ? next : prev,
       );
     }, 48);
     return () => clearInterval(id);
-  }, [active, anim.effectOpacity, anim.flameIntensity, anim.ignition]);
+  }, [realisticOn, anim.effectOpacity]);
 
   const burstStyle = useAnimatedStyle(() => {
     return {
@@ -121,11 +122,11 @@ export default function RunsPill({
   });
 
   const flamesOn = showFlames && active;
-  const glowOn = showGlow && active;
+  // Canvas fire brings its own bloom — skip the soft GlowLayer there.
+  const glowOn = showGlow && active && !realisticOn;
   const flameMax = containFlames
     ? Math.min(maxFlameHeight, Math.max(12, size.height * 0.7 || 14))
     : maxFlameHeight;
-  const realisticOn = flamesOn && USE_REALISTIC_FIRE && !containFlames;
 
   return (
     <View
@@ -144,7 +145,6 @@ export default function RunsPill({
         </View>
       ) : null}
 
-      {/* Web: particle canvas fire. Native: soft Reanimated wisps. */}
       {realisticOn ? (
         <RealisticFireCanvas
           width={size.width}
@@ -162,7 +162,7 @@ export default function RunsPill({
           ]}
           pointerEvents="none"
         >
-          {glowOn ? (
+          {showGlow && active ? (
             <Animated.View
               style={[
                 styles.ignitionBurst,
@@ -186,7 +186,13 @@ export default function RunsPill({
         </View>
       ) : null}
 
-      <View style={[styles.glassPill, pillStyle]}>
+      <View
+        style={[
+          styles.glassPill,
+          realisticOn ? styles.glassPillRunsFire : null,
+          pillStyle,
+        ]}
+      >
         {children ?? (
           <Text numberOfLines={1} style={[styles.label, textStyle]}>
             {label}
@@ -194,7 +200,6 @@ export default function RunsPill({
         )}
       </View>
 
-      {/* Canvas fire already includes embers on web. */}
       {!realisticOn ? (
         <View style={styles.sparkleAccent} pointerEvents="none">
           <EmberLayer
@@ -229,6 +234,26 @@ const styles = StyleSheet.create({
     zIndex: 2,
     borderRadius: RUNS_LAYOUT.pillRadius,
     overflow: "hidden",
+  },
+  /** Warm fuel-edge chrome when the canvas fire is lit (reference look). */
+  glassPillRunsFire: {
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 180, 55, 0.92)",
+    backgroundColor: "rgba(255, 250, 240, 0.96)",
+    ...Platform.select({
+      web: {
+        boxShadow:
+          "0 0 0 1px rgba(255, 130, 25, 0.35), 0 0 14px rgba(255, 140, 30, 0.45)",
+      } as object,
+      ios: {
+        shadowColor: "#FF8C1A",
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.55,
+        shadowRadius: 10,
+      },
+      android: { elevation: 6 },
+      default: {},
+    }),
   },
   label: {
     fontWeight: "800",
