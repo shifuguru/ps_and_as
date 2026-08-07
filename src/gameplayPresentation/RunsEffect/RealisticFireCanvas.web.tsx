@@ -4,12 +4,8 @@ import {
   drawFireBloom,
   drawFireEmber,
   drawFireParticle,
-  makeEmber,
-  makeParticle,
-  prewarmFireSim,
+  initFireField,
   stepFireSim,
-  type FireEmber,
-  type FireParticle,
   type PillGeom,
 } from "./realisticFireSim";
 
@@ -75,26 +71,18 @@ export default function RealisticFireCanvas({
       h: height,
     };
 
-    // Even columns across the badge; denser streams, smaller blobs.
+    // Conveyor field: fixed slots per column, evenly phased ages.
     const scale = Math.max(0.3, Math.min(0.58, width / 210));
     const columns = Math.max(10, Math.round(width / 7));
+    const perColumn = 8;
     const cfg = {
-      maxParticles: Math.round(columns * 8),
-      maxEmbers: Math.round(10 + width * 0.06),
+      maxParticles: columns * perColumn,
+      maxEmbers: Math.max(8, columns),
       scale,
       columns,
+      perColumn,
     };
-
-    const particles: FireParticle[] = [];
-    const embers: FireEmber[] = [];
-    for (let i = 0; i < cfg.maxParticles; i++) {
-      particles.push(makeParticle(pill, Math.random() < 0.28, scale, columns));
-    }
-    for (let i = 0; i < Math.min(10, cfg.maxEmbers); i++) {
-      embers.push(makeEmber(pill, scale, columns));
-    }
-    // Settle streams before the first painted frame (no ignition aurora flash).
-    prewarmFireSim(particles, embers, pill, cfg, 1.0);
+    const { particles, embers } = initFireField(pill, cfg);
 
     let raf = 0;
     let last = performance.now();

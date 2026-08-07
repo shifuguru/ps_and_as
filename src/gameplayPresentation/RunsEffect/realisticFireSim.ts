@@ -1,8 +1,9 @@
 /**
  * Shared particle fire simulation for the Runs! pill.
  *
- * Goal for this pass: even coverage across the pill width with identifiable
- * rising flame streams — not a center-weighted aurora beam.
+ * Conveyor model: fixed particles per column with evenly spaced ages that
+ * wrap. Rise speed never changes, and density stays constant — no random
+ * respawn waves that read as "speeding up".
  */
 
 export type FireZone = "top" | "left" | "right" | "bottom";
@@ -10,10 +11,10 @@ export type FireZone = "top" | "left" | "right" | "bottom";
 export type FireParticle = {
   x: number;
   y: number;
-  /** Column anchor — particles stay near this x so flames don't merge into one beam. */
+  originY: number;
+  /** Column anchor — particles stay near this x. */
   anchorX: number;
-  vx: number;
-  /** Near-constant upward speed (px/s, negative = up). */
+  /** Constant upward speed (px/s, negative = up). */
   rise: number;
   life: number;
   age: number;
@@ -23,11 +24,13 @@ export type FireParticle = {
   front: boolean;
   stretch: number;
   zone: FireZone;
+  column: number;
 };
 
 export type FireEmber = {
   x: number;
   y: number;
+  originY: number;
   anchorX: number;
   rise: number;
   life: number;
@@ -50,21 +53,20 @@ export type FireSimConfig = {
   scale: number;
   /** Even flame columns across the top edge. */
   columns?: number;
+  /** Particles stacked in each top column (evenly phase-spaced). */
+  perColumn?: number;
 };
 
-/** Shared burn tempo — same for every tongue (not randomized per particle). */
+/** Shared burn tempo — identical for every tongue. */
 export const FIRE_BURN = {
-  /** Top-edge rise speed (px/s, negative = up). */
   riseTop: -78,
   riseSide: -44,
   riseBottom: -24,
   riseEmber: -60,
-  /** Lifetime (s) — fixed so streams don't cycle at mixed tempos. */
   lifeTop: 0.62,
   lifeSide: 0.48,
   lifeBottom: 0.4,
-  lifeEmber: 0.7,
-  /** Shared lateral sway frequency (Hz-ish). Phase differs; tempo does not. */
+  lifeEmber: 0.85,
   swayFreq: 2.8,
   emberSwayFreq: 2.0,
 } as const;
@@ -72,8 +74,6 @@ export const FIRE_BURN = {
 function topSpan(pill: PillGeom): { left: number; right: number; y: number } {
   const hw = pill.w / 2;
   const hh = pill.h / 2;
-  const flat = Math.max(0, hw - hh);
-  // Include the round caps so fire runs full width, not only the flat top.
   return {
     left: pill.x - hw + hh * 0.15,
     right: pill.x + hw - hh * 0.15,
@@ -81,195 +81,239 @@ function topSpan(pill: PillGeom): { left: number; right: number; y: number } {
   };
 }
 
-/** Even column x across the full pill width (plus light side/bottom samples). */
-export function sampleEmitter(
-  pill: PillGeom,
-  columns: number,
-): { x: number; y: number; zone: FireZone; column: number } {
-  const roll = Math.random();
+function columnX(pill: PillGeom, column: number, columns: number): number {
   const span = topSpan(pill);
-  const hw = pill.w / 2;
-  const hh = pill.h / 2;
-  const flat = Math.max(0, hw - hh);
+  if (columns <= 1) return pill.x;
+  const t = column / (columns - 1);
+  return span.left + (span.right - span.left) * t;
+}
 
-  // ~78% top — pick a column uniformly so coverage stays even.
-  if (roll < 0.78) {
-    const column = Math.floor(Math.random() * columns);
-    const t = columns <= 1 ? 0.5 : column / (columns - 1);
-    const x = span.left + (span.right - span.left) * t;
-    // Tiny jitter inside the column lane only.
-    const lane = (span.right - span.left) / Math.max(1, columns);
-    return {
-      x: x + (Math.random() - 0.5) * lane * 0.35,
-      y: span.y + (Math.random() - 0.2) * 2,
-      zone: "top",
-      column,
-    };
-  }
+function makeTopParticle(
+  pill: PillGeom,
+  column: number,
+  columns: number,
+  slot: number,
+  slots: number,
+  scale: number,
+  front: boolean,
+): FireParticle {
+  const span = topSpan(pill);
+  const lane = (span.right - span.left) / Math.max(1, columns);
+  const anchorX =
+    columnX(pill, column, columns) + (Math.random() - 0.5) * lane * 0.22;
+  const rise = FIRE_BURN.riseTop * scale;
+  const life = FIRE_BURN.lifeTop;
+  // Even phase spacing across the column = constant density forever.
+  const age = (slot / slots) * life;
+  const size = (8.5 + Math.random() * 3.5) * scale;
+  const stretch = 1.85 + Math.random() * 0.3;
 
-  if (roll < 0.87) {
-    const a = Math.PI * 0.7 + Math.random() * Math.PI * 0.55;
-    return {
-      x: pill.x - flat + Math.cos(a) * hh,
-      y: pill.y + Math.sin(a) * hh * 0.85,
-      zone: "left",
-      column: -1,
-    };
-  }
-
-  if (roll < 0.96) {
-    const a = -Math.PI * 0.25 + Math.random() * Math.PI * 0.55;
-    return {
-      x: pill.x + flat + Math.cos(a) * hh,
-      y: pill.y + Math.sin(a) * hh * 0.85,
-      zone: "right",
-      column: -1,
-    };
-  }
-
-  const t = Math.random();
   return {
-    x: span.left + (span.right - span.left) * t,
-    y: pill.y + hh,
-    zone: "bottom",
-    column: -2,
+    x: anchorX,
+    y: span.y + rise * age,
+    originY: span.y,
+    anchorX,
+    rise,
+    life,
+    age,
+    size,
+    heat: 0.84 + Math.random() * 0.14,
+    seed: Math.random() * Math.PI * 2,
+    front,
+    stretch,
+    zone: "top",
+    column,
   };
 }
 
+function makeSideParticle(
+  pill: PillGeom,
+  side: "left" | "right" | "bottom",
+  slot: number,
+  slots: number,
+  scale: number,
+): FireParticle {
+  const hw = pill.w / 2;
+  const hh = pill.h / 2;
+  const flat = Math.max(0, hw - hh);
+  const span = topSpan(pill);
+  let anchorX = pill.x;
+  let originY = pill.y;
+  let rise = FIRE_BURN.riseSide * scale;
+  let life = FIRE_BURN.lifeSide;
+
+  if (side === "left") {
+    const a = Math.PI * 0.75 + (slot / Math.max(1, slots - 1)) * Math.PI * 0.45;
+    anchorX = pill.x - flat + Math.cos(a) * hh;
+    originY = pill.y + Math.sin(a) * hh * 0.75;
+  } else if (side === "right") {
+    const a = -Math.PI * 0.2 + (slot / Math.max(1, slots - 1)) * Math.PI * 0.45;
+    anchorX = pill.x + flat + Math.cos(a) * hh;
+    originY = pill.y + Math.sin(a) * hh * 0.75;
+  } else {
+    rise = FIRE_BURN.riseBottom * scale;
+    life = FIRE_BURN.lifeBottom;
+    const t = slot / Math.max(1, slots - 1);
+    anchorX = span.left + (span.right - span.left) * t;
+    originY = pill.y + hh;
+  }
+
+  const age = (slot / slots) * life;
+  return {
+    x: anchorX,
+    y: originY + rise * age,
+    originY,
+    anchorX,
+    rise,
+    life,
+    age,
+    size: (5.5 + Math.random() * 2.5) * scale,
+    heat: 0.55 + Math.random() * 0.25,
+    seed: Math.random() * Math.PI * 2,
+    front: false,
+    stretch: 1.2 + Math.random() * 0.2,
+    zone: side,
+    column: -1,
+  };
+}
+
+/**
+ * Build a stable fire field once. Particles keep their slot forever and only
+ * wrap age — no random respawn waves.
+ */
+export function initFireField(
+  pill: PillGeom,
+  cfg: FireSimConfig,
+): { particles: FireParticle[]; embers: FireEmber[] } {
+  const columns = cfg.columns ?? 14;
+  const perColumn = cfg.perColumn ?? 8;
+  const scale = cfg.scale;
+  const particles: FireParticle[] = [];
+
+  for (let c = 0; c < columns; c++) {
+    for (let s = 0; s < perColumn; s++) {
+      particles.push(
+        makeTopParticle(
+          pill,
+          c,
+          columns,
+          s,
+          perColumn,
+          scale,
+          s % 3 === 0, // sparse front tongues
+        ),
+      );
+    }
+  }
+
+  // Light side/bottom wrap — few slots, also phase-spaced.
+  const sideSlots = 4;
+  for (let s = 0; s < sideSlots; s++) {
+    particles.push(makeSideParticle(pill, "left", s, sideSlots, scale));
+    particles.push(makeSideParticle(pill, "right", s, sideSlots, scale));
+  }
+  const bottomSlots = 6;
+  for (let s = 0; s < bottomSlots; s++) {
+    particles.push(makeSideParticle(pill, "bottom", s, bottomSlots, scale));
+  }
+
+  const embers: FireEmber[] = [];
+  const emberCount = Math.min(cfg.maxEmbers, columns);
+  for (let i = 0; i < emberCount; i++) {
+    const col = i % columns;
+    const anchorX = columnX(pill, col, columns);
+    const originY = topSpan(pill).y;
+    const rise = FIRE_BURN.riseEmber * scale;
+    const life = FIRE_BURN.lifeEmber;
+    const age = (i / emberCount) * life;
+    embers.push({
+      x: anchorX,
+      y: originY + rise * age,
+      originY,
+      anchorX,
+      rise,
+      life,
+      age,
+      size: (1.2 + (i % 3) * 0.35) * scale,
+      phase: (i / emberCount) * Math.PI * 2,
+    });
+  }
+
+  return { particles, embers };
+}
+
+/** @deprecated — prefer initFireField. Kept for call-site compatibility. */
 export function makeParticle(
   pill: PillGeom,
   front: boolean,
   scale: number,
   columns = 14,
 ): FireParticle {
-  const s = sampleEmitter(pill, columns);
-  const top = s.zone === "top";
-  const bottom = s.zone === "bottom";
-
-  // Constant burn rate — speed/life are shared; only phase/size jitter differ.
-  const rise =
-    (top
-      ? FIRE_BURN.riseTop
-      : bottom
-        ? FIRE_BURN.riseBottom
-        : FIRE_BURN.riseSide) * scale;
-  const life = top
-    ? FIRE_BURN.lifeTop
-    : bottom
-      ? FIRE_BURN.lifeBottom
-      : FIRE_BURN.lifeSide;
-
-  // Smaller / narrower blobs so tongues don't fuse into one aurora sheet.
-  const size = top
-    ? (8 + Math.random() * 5) * scale
-    : (5.5 + Math.random() * 3.5) * scale;
-  const stretch = top ? 1.85 + Math.random() * 0.35 : 1.2 + Math.random() * 0.2;
-
-  // Age + matching height so first paint already has established tongues.
-  const age = Math.random() * life * 0.92;
-
-  return {
-    x: s.x,
-    y: s.y + rise * age,
-    anchorX: s.x,
-    vx: 0,
-    rise,
-    life,
-    age,
-    size,
-    heat: top ? 0.82 + Math.random() * 0.18 : 0.55 + Math.random() * 0.3,
-    seed: Math.random() * Math.PI * 2,
-    front,
-    stretch,
-    zone: s.zone,
-  };
+  return makeTopParticle(pill, 0, columns, 0, 1, scale, front);
 }
 
+/** @deprecated — prefer initFireField. */
 export function makeEmber(
   pill: PillGeom,
   scale: number,
   columns = 14,
 ): FireEmber {
-  const s = sampleEmitter(pill, columns);
+  const span = topSpan(pill);
   const rise = FIRE_BURN.riseEmber * scale;
-  const life = FIRE_BURN.lifeEmber;
-  const age = Math.random() * life * 0.85;
   return {
-    x: s.x,
-    y: s.y + rise * age,
-    anchorX: s.x,
+    x: pill.x,
+    y: span.y,
+    originY: span.y,
+    anchorX: pill.x,
     rise,
-    life,
-    age,
-    size: (1.1 + Math.random() * 1.2) * scale,
-    phase: Math.random() * Math.PI * 2,
+    life: FIRE_BURN.lifeEmber,
+    age: 0,
+    size: 1.2 * scale,
+    phase: 0,
   };
 }
 
-/** Advance the sim before first paint so streams look established. */
+/** No-op prewarm — conveyor field is already evenly phased at init. */
 export function prewarmFireSim(
-  particles: FireParticle[],
-  embers: FireEmber[],
-  pill: PillGeom,
-  cfg: FireSimConfig,
-  seconds = 0.9,
+  _particles: FireParticle[],
+  _embers: FireEmber[],
+  _pill: PillGeom,
+  _cfg: FireSimConfig,
+  _seconds = 0.9,
 ): void {
-  const dt = 1 / 30;
-  let time = 0;
-  for (let t = 0; t < seconds; t += dt) {
-    time += dt;
-    stepFireSim(particles, embers, pill, dt, time, cfg);
-  }
+  // Intentionally empty: initFireField already distributes ages evenly.
 }
 
 export function stepFireSim(
   particles: FireParticle[],
   embers: FireEmber[],
-  pill: PillGeom,
+  _pill: PillGeom,
   dt: number,
   time: number,
   cfg: FireSimConfig,
 ): void {
-  const { maxParticles, maxEmbers, scale } = cfg;
-  const columns = cfg.columns ?? 14;
-
-  while (particles.length < maxParticles) {
-    particles.push(makeParticle(pill, Math.random() < 0.3, scale, columns));
-  }
-  if (embers.length < maxEmbers && Math.random() < 0.28) {
-    embers.push(makeEmber(pill, scale, columns));
-  }
+  const scale = cfg.scale;
 
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
+    // Wrap age — never respawn a new random particle.
     p.age += dt;
-    if (p.age >= p.life) {
-      particles[i] = makeParticle(pill, p.front, scale, columns);
-      continue;
-    }
-    // Constant vertical burn — fixed rise, no acceleration.
-    p.y += p.rise * dt;
+    if (p.age >= p.life) p.age -= p.life;
 
-    // Shared sway tempo; only phase differs (seed). Amplitude stays small.
-    const wobble =
-      Math.sin(time * FIRE_BURN.swayFreq + p.seed) * 5 * scale;
-    p.x += (p.anchorX + wobble - p.x) * Math.min(1, 10 * dt);
-    const laneSlack = 9 * scale;
-    if (p.x < p.anchorX - laneSlack) p.x = p.anchorX - laneSlack;
-    if (p.x > p.anchorX + laneSlack) p.x = p.anchorX + laneSlack;
+    // Absolute position from age → no drift, perfectly constant rise.
+    p.y = p.originY + p.rise * p.age;
+    const wobble = Math.sin(time * FIRE_BURN.swayFreq + p.seed) * 4.5 * scale;
+    p.x = p.anchorX + wobble;
   }
 
-  for (let i = embers.length - 1; i >= 0; i--) {
+  for (let i = 0; i < embers.length; i++) {
     const e = embers[i];
     e.age += dt;
-    if (e.age >= e.life) {
-      embers.splice(i, 1);
-      continue;
-    }
-    e.y += e.rise * dt;
+    if (e.age >= e.life) e.age -= e.life;
+    e.y = e.originY + e.rise * e.age;
     e.x =
       e.anchorX +
-      Math.sin(time * FIRE_BURN.emberSwayFreq + e.phase) * 7 * scale;
+      Math.sin(time * FIRE_BURN.emberSwayFreq + e.phase) * 6 * scale;
   }
 }
 
@@ -295,18 +339,14 @@ export function drawFireParticle(
   intensity = 1,
 ): void {
   const t = Math.min(1, p.age / p.life);
-  if (t >= 1) return;
-
-  // Opacity envelope only — size stays stable so fade doesn't read as slowdown.
-  const grow = t < 0.1 ? t / 0.1 : 1;
-  const fade = t > 0.72 ? 1 - (t - 0.72) / 0.28 : 1;
-  const a = grow * fade * (0.3 + p.heat * 0.4) * intensity;
+  // Soft opacity edges only — middle of life is flat so density looks steady.
+  const grow = t < 0.08 ? t / 0.08 : 1;
+  const fade = t > 0.82 ? 1 - (t - 0.82) / 0.18 : 1;
+  const a = grow * fade * (0.32 + p.heat * 0.38) * intensity;
   if (a < 0.02) return;
 
-  // Tall narrow ellipse = readable flame tongue, not a wide aurora blot.
-  const base = p.size;
-  const rx = base * 0.42;
-  const ry = base * p.stretch;
+  const rx = p.size * 0.42;
+  const ry = p.size * p.stretch;
 
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
@@ -319,10 +359,9 @@ export function drawFireParticle(
     [1, "rgba(40,0,0,0)"],
   ]);
 
-  // Hot core near birth (close to the fuel line).
-  if (t < 0.4) {
-    const k = 1 - t / 0.4;
-    ctx.globalAlpha = a * 0.85 * k;
+  if (t < 0.35) {
+    const k = 1 - t / 0.35;
+    ctx.globalAlpha = a * 0.8 * k;
     drawSoftBlob(ctx, p.x, p.y + ry * 0.15, rx * 0.45, ry * 0.4, [
       [0, "rgba(255,255,240,1)"],
       [0.45, `rgba(255,230,${Math.floor(130 * p.heat)},0.85)`],
@@ -338,12 +377,12 @@ export function drawFireEmber(
   intensity = 1,
 ): void {
   const t = e.age / e.life;
-  if (t >= 1) return;
-  const tw = 0.6 + 0.4 * Math.sin(e.phase + e.age * 12);
-  const a = (1 - t) * tw * intensity;
+  // Gentle twinkle — opacity only, fixed tempo from phase.
+  const tw = 0.75 + 0.25 * Math.sin(e.phase + timeLike(e));
+  const a = Math.sin(t * Math.PI) * tw * intensity;
   if (a < 0.02) return;
 
-  const s = e.size * (1.05 - t * 0.3);
+  const s = e.size;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = a;
@@ -355,20 +394,23 @@ export function drawFireEmber(
   ctx.restore();
 }
 
+function timeLike(e: FireEmber): number {
+  // Derive a smooth phase from age so twinkle rate matches burn tempo.
+  return (e.age / e.life) * Math.PI * 2;
+}
+
 export function drawFireBloom(
   ctx: CanvasRenderingContext2D,
   pill: PillGeom,
   _time: number,
   intensity = 1,
 ): void {
-  // Thin rim warmth along the top — NOT a tall center-weighted curtain.
   const span = topSpan(pill);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = intensity * 0.75;
 
   const g = ctx.createLinearGradient(span.left, span.y, span.right, span.y);
-  // Even brightness across width (slight edge falloff only).
   g.addColorStop(0, "rgba(255,140,30,0)");
   g.addColorStop(0.08, "rgba(255,160,40,0.16)");
   g.addColorStop(0.5, "rgba(255,170,50,0.18)");
@@ -388,7 +430,6 @@ export function drawFireBloom(
   );
   ctx.fill();
 
-  // Soft contact glow hugging the pill edge.
   const rim = ctx.createRadialGradient(
     pill.x,
     pill.y,
