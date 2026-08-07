@@ -94,15 +94,16 @@ export function rewardedAdFailureMessage(reason?: string): string {
     case "h5NotReady":
     case "timeout":
     case "notReady":
-      return "Ads are not available yet. AdSense may still be under review, or H5 game ads are not enabled on this account.";
+      return "Ads did not load in time. Check your connection, disable ad blockers for this site, then try again.";
     case "noConsent":
       return "Accept ads in the consent banner to unlock watch-for-XP.";
     case "dailyCap":
       return "Daily watch-for-XP limit reached. Come back tomorrow.";
     case "frequencyCapped":
     case "noAdPreloaded":
+    case "ignored":
     case "other":
-      return "No ad ready right now. Try again in a bit.";
+      return "No ad ready right now. Try again after another round or two.";
     default:
       return "Could not show an ad. Try again later.";
   }
