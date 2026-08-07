@@ -4,8 +4,12 @@ import {
   drawFireBloom,
   drawFireEmber,
   drawFireParticle,
-  initFireField,
+  makeEmber,
+  makeParticle,
+  prewarmFireSim,
   stepFireSim,
+  type FireEmber,
+  type FireParticle,
   type PillGeom,
 } from "./realisticFireSim";
 
@@ -39,10 +43,9 @@ export default function RealisticFireCanvas({
     const host = hostRef.current;
     if (!host) return;
 
-    // Room for tongues above a compact table badge (~half-pill height+).
-    const padX = Math.max(22, width * 0.45);
-    const padTop = Math.max(36, height * 2.1);
-    const padBottom = Math.max(14, height * 0.55);
+    const padX = Math.max(28, width * 0.55);
+    const padTop = Math.max(48, height * 2.4);
+    const padBottom = Math.max(18, height * 0.7);
     const cw = Math.ceil(width + padX * 2);
     const ch = Math.ceil(height + padTop + padBottom);
 
@@ -72,18 +75,29 @@ export default function RealisticFireCanvas({
       h: height,
     };
 
-    // Dense continuous wall — overlapping blobs, not candle columns.
-    const scale = Math.max(0.45, Math.min(0.8, width / 130));
+    // Even columns across the badge; denser streams, smaller blobs.
+    const scale = Math.max(0.3, Math.min(0.58, width / 210));
+    const columns = Math.max(10, Math.round(width / 7));
     const cfg = {
-      maxParticles: Math.max(90, Math.round(width * 2.2)),
-      maxEmbers: Math.max(12, Math.round(width * 0.28)),
+      maxParticles: Math.round(columns * 8),
+      maxEmbers: Math.round(10 + width * 0.06),
       scale,
+      columns,
     };
-    const { particles, embers } = initFireField(pill, cfg);
+
+    const particles: FireParticle[] = [];
+    const embers: FireEmber[] = [];
+    for (let i = 0; i < cfg.maxParticles; i++) {
+      particles.push(makeParticle(pill, Math.random() < 0.28, scale, columns));
+    }
+    for (let i = 0; i < Math.min(10, cfg.maxEmbers); i++) {
+      embers.push(makeEmber(pill, scale, columns));
+    }
+    // Settle streams before the first painted frame (no ignition aurora flash).
+    prewarmFireSim(particles, embers, pill, cfg, 1.0);
 
     let raf = 0;
     let last = performance.now();
-    let simTime = 0;
     let alive = true;
 
     const roundRectPath = (
@@ -104,21 +118,16 @@ export default function RealisticFireCanvas({
 
     const frame = (now: number) => {
       if (!alive) return;
-      // Fixed step → constant burn rate even when frames hitch.
-      let frameDt = Math.min(0.05, (now - last) / 1000);
+      const dt = Math.min(0.033, (now - last) / 1000);
       last = now;
-      const step = 1 / 60;
-      while (frameDt > 0) {
-        const dt = Math.min(step, frameDt);
-        simTime += dt;
-        stepFireSim(particles, embers, pill, dt, simTime, cfg);
-        frameDt -= dt;
-      }
+      const time = now / 1000;
       const intensityNow = Math.max(0, Math.min(1, intensityRef.current));
+
+      stepFireSim(particles, embers, pill, dt, time, cfg);
 
       ctx.clearRect(0, 0, cw, ch);
       if (intensityNow > 0.02) {
-        drawFireBloom(ctx, pill, simTime, intensityNow * 0.85);
+        drawFireBloom(ctx, pill, time, intensityNow * 0.85);
         for (const p of particles) {
           if (!p.front) drawFireParticle(ctx, p, intensityNow);
         }
