@@ -118,6 +118,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.52": "Joker's Wild Ride",
   "1.1.53": "Trick Question",
   "1.1.54": "Cut the Deck",
+  "1.1.55": "Grand Slam Gamble",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
