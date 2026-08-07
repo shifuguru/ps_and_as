@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   LayoutChangeEvent,
   Platform,
@@ -13,6 +13,7 @@ import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import GlowLayer from "./GlowLayer";
 import FlameLayer from "./FlameLayer";
 import EmberLayer, { type EmberSpread } from "./EmberLayer";
+import RealisticFireCanvas from "./RealisticFireCanvas";
 import { useRunsAnimation } from "./useRunsAnimation";
 import {
   FLAME_SEEDS,
@@ -21,6 +22,8 @@ import {
   type FlameSeed,
   type RunsPalette,
 } from "./constants";
+
+const USE_REALISTIC_FIRE = Platform.OS === "web";
 
 type Props = {
   /** Simple text label (Runs! gameplay). Ignored when `children` is set. */
@@ -75,6 +78,7 @@ export default function RunsPill({
   containFlames = false,
 }: Props) {
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [fireIntensity, setFireIntensity] = useState(0);
   const anim = useRunsAnimation(active);
 
   const onLayout = (e: LayoutChangeEvent) => {
@@ -87,6 +91,23 @@ export default function RunsPill({
       setSize({ width, height });
     }
   };
+
+  // Bridge Reanimated shared values → canvas intensity (web fire).
+  useEffect(() => {
+    if (!USE_REALISTIC_FIRE || !active) {
+      setFireIntensity(0);
+      return;
+    }
+    const id = setInterval(() => {
+      const next =
+        anim.effectOpacity.value *
+        (0.35 + anim.flameIntensity.value * 0.55 + anim.ignition.value * 0.35);
+      setFireIntensity((prev) =>
+        Math.abs(prev - next) > 0.02 ? next : prev,
+      );
+    }, 48);
+    return () => clearInterval(id);
+  }, [active, anim.effectOpacity, anim.flameIntensity, anim.ignition]);
 
   const burstStyle = useAnimatedStyle(() => {
     return {
@@ -104,6 +125,7 @@ export default function RunsPill({
   const flameMax = containFlames
     ? Math.min(maxFlameHeight, Math.max(12, size.height * 0.7 || 14))
     : maxFlameHeight;
+  const realisticOn = flamesOn && USE_REALISTIC_FIRE && !containFlames;
 
   return (
     <View
@@ -122,8 +144,17 @@ export default function RunsPill({
         </View>
       ) : null}
 
-      {/* Flames behind the glass so the pill reads as the fuel source. */}
-      {flamesOn ? (
+      {/* Web: particle canvas fire. Native: soft Reanimated wisps. */}
+      {realisticOn ? (
+        <RealisticFireCanvas
+          width={size.width}
+          height={size.height}
+          active={active}
+          intensity={fireIntensity}
+        />
+      ) : null}
+
+      {flamesOn && !realisticOn ? (
         <View
           style={[
             styles.flameAccent,
@@ -163,18 +194,21 @@ export default function RunsPill({
         )}
       </View>
 
-      <View style={styles.sparkleAccent} pointerEvents="none">
-        <EmberLayer
-          width={size.width}
-          height={size.height}
-          ignition={anim.ignition}
-          flameIntensity={anim.flameIntensity}
-          effectOpacity={anim.effectOpacity}
-          active={active}
-          palette={palette}
-          spread={emberSpread}
-        />
-      </View>
+      {/* Canvas fire already includes embers on web. */}
+      {!realisticOn ? (
+        <View style={styles.sparkleAccent} pointerEvents="none">
+          <EmberLayer
+            width={size.width}
+            height={size.height}
+            ignition={anim.ignition}
+            flameIntensity={anim.flameIntensity}
+            effectOpacity={anim.effectOpacity}
+            active={active}
+            palette={palette}
+            spread={emberSpread}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
