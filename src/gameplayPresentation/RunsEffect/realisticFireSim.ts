@@ -218,10 +218,12 @@ export function stepFireSim(
   const { maxParticles, maxEmbers, scale } = cfg;
   const columns = cfg.columns ?? 14;
 
+  // Field size is fixed after init/prewarm — do not randomly spawn
+  // (spawn bursts read as speed/density surges).
   while (particles.length < maxParticles) {
     particles.push(makeParticle(pill, Math.random() < 0.3, scale, columns));
   }
-  if (embers.length < maxEmbers && Math.random() < 0.28) {
+  while (embers.length < maxEmbers) {
     embers.push(makeEmber(pill, scale, columns));
   }
 
