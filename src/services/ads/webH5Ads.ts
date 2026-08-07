@@ -35,13 +35,13 @@ type H5Window = Window & {
   adBreak?: (placement: AdBreakPlacement) => void;
   adConfig?: (config: Record<string, unknown>) => void;
   __PS_AND_AS_ADSENSE_CLIENT__?: string;
-  adsbygoogle?: unknown[];
+  adsbygoogle?: { push: (...args: unknown[]) => unknown } & unknown[];
 };
 
-/** Max wait for adBreakDone — stub never fires it. */
+/** Max wait for adBreakDone when inventory / network is slow. */
 const AD_BREAK_TIMEOUT_MS = 12_000;
-/** Poll for real H5 API to replace the adsbygoogle.push stub. */
-const H5_READY_WAIT_MS = 4_000;
+/** Wait for adsbygoogle.js to replace Array.push on the queue. */
+const ADS_LIBRARY_WAIT_MS = 6_000;
 
 function getAdsClientId(): string | null {
   if (Platform.OS !== "web") return null;
@@ -63,31 +63,33 @@ function isAdsTestMode(): boolean {
 }
 
 /**
- * Official head stub is `function(o){adsbygoogle.push(o)}`.
- * Until AdSense/H5 replaces it, adBreakDone never runs → UI hangs.
+ * Official init is always `adBreak = function(o){ adsbygoogle.push(o) }`.
+ * Google does **not** replace that wrapper — it replaces `adsbygoogle.push`
+ * once adsbygoogle.js loads. Treat native Array.push as "library not loaded".
  */
-function isAdBreakStub(): boolean {
+export function isAdsByGoogleLibraryLoaded(
+  adsbygoogle: H5Window["adsbygoogle"] | undefined = (globalThis as H5Window)
+    .adsbygoogle,
+): boolean {
   try {
-    const fn = (globalThis as H5Window).adBreak;
-    if (typeof fn !== "function") return true;
-    const src = Function.prototype.toString.call(fn);
-    return /adsbygoogle\.push/i.test(src);
-  } catch {
-    return true;
-  }
-}
-
-function h5ApiReady(): boolean {
-  try {
-    return (
-      typeof (globalThis as H5Window).adBreak === "function" && !isAdBreakStub()
-    );
+    if (!adsbygoogle || typeof adsbygoogle.push !== "function") return false;
+    const src = Function.prototype.toString.call(adsbygoogle.push);
+    return !/\[native code\]/i.test(src);
   } catch {
     return false;
   }
 }
 
-function waitForH5Api(maxMs = H5_READY_WAIT_MS): Promise<boolean> {
+function h5ApiReady(): boolean {
+  try {
+    const w = globalThis as H5Window;
+    return typeof w.adBreak === "function" && isAdsByGoogleLibraryLoaded(w.adsbygoogle);
+  } catch {
+    return false;
+  }
+}
+
+function waitForAdsLibrary(maxMs = ADS_LIBRARY_WAIT_MS): Promise<boolean> {
   if (h5ApiReady()) return Promise.resolve(true);
   return new Promise((resolve) => {
     const start = Date.now();
@@ -106,12 +108,13 @@ function waitForH5Api(maxMs = H5_READY_WAIT_MS): Promise<boolean> {
   });
 }
 
-/** Call once after consent — primes interstitial/reward inventory when H5 is live. */
+/** Call once after consent — primes interstitial/reward inventory. */
 export function configureH5AdsSound(soundOn: boolean): void {
   if (Platform.OS !== "web") return;
   try {
     const w = globalThis as H5Window;
-    if (typeof w.adConfig !== "function" || isAdBreakStub()) return;
+    if (typeof w.adConfig !== "function") return;
+    // Official adConfig is also adsbygoogle.push — always safe to call.
     w.adConfig({
       sound: soundOn ? "on" : "off",
       preloadAdBreaks: "on",
@@ -150,18 +153,23 @@ export async function showH5AdBreak(
     return simulateBreak(type, name);
   }
 
-  const ready = await waitForH5Api();
-  if (!ready) {
-    // Site/H5 not serving yet — fail fast so the UI does not stick on "Loading…".
-    if (typeof console !== "undefined" && console.info) {
-      console.info(
-        "[ads] H5 Ad Placement API still a stub — AdSense review / H5 allowlist pending?",
-      );
-    }
-    return { shown: false, breakStatus: "h5NotReady" };
+  const w = globalThis as H5Window;
+  if (typeof w.adBreak !== "function") {
+    return { shown: false, breakStatus: "notReady" };
   }
 
-  const w = globalThis as H5Window;
+  const libraryReady = await waitForAdsLibrary();
+  if (!libraryReady) {
+    if (typeof console !== "undefined" && console.info) {
+      console.info(
+        "[ads] adsbygoogle.js has not taken over the queue yet — check network / ad blockers",
+      );
+    }
+    // Still attempt the break — push queues until the library loads.
+  } else {
+    // Re-assert preload once the library is live.
+    configureH5AdsSound(true);
+  }
 
   return new Promise((resolve) => {
     let settled = false;
@@ -235,12 +243,12 @@ export function isH5AdsConfigured(): boolean {
 
 export function getH5AdsDiagnostics(): {
   client: string | null;
-  stub: boolean;
+  libraryLoaded: boolean;
   ready: boolean;
 } {
   return {
     client: getAdsClientId(),
-    stub: isAdBreakStub(),
+    libraryLoaded: isAdsByGoogleLibraryLoaded(),
     ready: h5ApiReady(),
   };
 }
