@@ -14,8 +14,8 @@ type Props = {
 };
 
 /**
- * Soft bloom behind the glass pill — illuminates felt, never overpowers UI.
- * Scale/opacity only (no animated blur).
+ * Soft orange heat bloom behind the cream pill — ambient only.
+ * The neon rim itself lives on the pill border + shadow (not a second capsule).
  */
 export default function GlowLayer({
   glowOpacity,
@@ -24,13 +24,13 @@ export default function GlowLayer({
   palette = RUNS_COLORS,
 }: Props) {
   const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value * 0.55 * effectOpacity.value,
+    opacity: glowOpacity.value * 0.7 * effectOpacity.value,
     transform: [{ scale: glowScale.value }],
   }));
 
   const coreStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value * 0.4 * effectOpacity.value,
-    transform: [{ scale: 0.88 + glowScale.value * 0.08 }],
+    opacity: glowOpacity.value * 0.5 * effectOpacity.value,
+    transform: [{ scale: 0.92 + glowScale.value * 0.06 }],
   }));
 
   return (
@@ -61,17 +61,17 @@ const styles = StyleSheet.create({
   },
   halo: {
     position: "absolute",
-    width: "112%",
-    height: "130%",
+    width: "130%",
+    height: "160%",
     borderRadius: 999,
   },
   core: {
     position: "absolute",
-    width: "100%",
-    height: "108%",
+    width: "106%",
+    height: "114%",
     borderRadius: 999,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.65,
     shadowRadius: RUNS_LAYOUT.glowPad,
   },
 });

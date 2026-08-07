@@ -58,23 +58,23 @@ export function useRunsAnimation(active: boolean): RunsAnimation {
     phase.value = 1;
     effectOpacity.value = withTiming(1, { duration: 160 });
 
-    // Ignition bloom — brief kiss of light, then a tight idle breathe
+    // Ignition bloom — hot flash, then a lively idle breathe (stay visibly on fire)
     glowOpacity.value = withSequence(
       withTiming(1, {
         duration: RUNS_TIMING.glowBloomMs,
         easing: Easing.out(Easing.cubic),
       }),
-      withTiming(0.38, {
+      withTiming(0.62, {
         duration: RUNS_TIMING.settleMs,
         easing: Easing.inOut(Easing.quad),
       }),
       withRepeat(
         withSequence(
-          withTiming(0.48, {
+          withTiming(0.78, {
             duration: RUNS_TIMING.idleGlowPeriodMs / 2,
             easing: Easing.inOut(Easing.sin),
           }),
-          withTiming(0.3, {
+          withTiming(0.55, {
             duration: RUNS_TIMING.idleGlowPeriodMs / 2,
             easing: Easing.inOut(Easing.sin),
           }),
@@ -85,21 +85,21 @@ export function useRunsAnimation(active: boolean): RunsAnimation {
     );
 
     glowScale.value = withSequence(
-      withTiming(1.08, {
+      withTiming(1.12, {
         duration: RUNS_TIMING.glowBloomMs,
         easing: Easing.out(Easing.cubic),
       }),
-      withTiming(1.02, {
+      withTiming(1.04, {
         duration: RUNS_TIMING.settleMs,
         easing: Easing.inOut(Easing.quad),
       }),
       withRepeat(
         withSequence(
-          withTiming(1.04, {
+          withTiming(1.07, {
             duration: RUNS_TIMING.idleGlowPeriodMs / 2,
             easing: Easing.inOut(Easing.sin),
           }),
-          withTiming(1.0, {
+          withTiming(1.02, {
             duration: RUNS_TIMING.idleGlowPeriodMs / 2,
             easing: Easing.inOut(Easing.sin),
           }),
@@ -109,23 +109,23 @@ export function useRunsAnimation(active: boolean): RunsAnimation {
       ),
     );
 
-    // Flame rise then settle to idle flicker
+    // Flame rise then settle to a strong idle flicker (reference = always burning)
     flameIntensity.value = withSequence(
       withTiming(1, {
         duration: RUNS_TIMING.flameRiseMs,
         easing: Easing.out(Easing.cubic),
       }),
-      withTiming(0.28, {
+      withTiming(0.68, {
         duration: RUNS_TIMING.settleMs + 80,
         easing: Easing.inOut(Easing.quad),
       }),
       withRepeat(
         withSequence(
-          withTiming(0.38, {
+          withTiming(0.88, {
             duration: RUNS_TIMING.idleFlickerPeriodMs / 2,
             easing: Easing.inOut(Easing.sin),
           }),
-          withTiming(0.22, {
+          withTiming(0.58, {
             duration: RUNS_TIMING.idleFlickerPeriodMs / 2,
             easing: Easing.inOut(Easing.sin),
           }),

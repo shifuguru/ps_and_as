@@ -56,8 +56,8 @@ type Props = {
 };
 
 /**
- * Runs! glass capsule with premium energy accent layers.
- * Glass pill remains the hero — glow / flames / embers are accents only.
+ * Cream capsule with a neon fire rim and animated flame tongues.
+ * Flames erupt from the top edge; glow / embers sell the heat on the felt.
  */
 export default function RunsPill({
   label,
@@ -90,11 +90,11 @@ export default function RunsPill({
 
   const burstStyle = useAnimatedStyle(() => {
     return {
-      opacity: anim.ignition.value * 0.85 * anim.effectOpacity.value,
+      opacity: anim.ignition.value * 0.9 * anim.effectOpacity.value,
       transform: [
-        { scaleX: 0.6 + anim.ignition.value * 0.55 },
-        { scaleY: 0.5 + anim.ignition.value * 0.9 },
-        { translateY: 2 + anim.ignition.value * 4 },
+        { scaleX: 0.7 + anim.ignition.value * 0.5 },
+        { scaleY: 0.55 + anim.ignition.value * 0.95 },
+        { translateY: containFlames ? 2 + anim.ignition.value * 4 : -2 - anim.ignition.value * 6 },
       ],
     } as ViewStyle;
   });
@@ -104,6 +104,34 @@ export default function RunsPill({
   const flameMax = containFlames
     ? Math.min(maxFlameHeight, Math.max(12, size.height * 0.7 || 14))
     : maxFlameHeight;
+
+  const defaultFireChrome =
+    !containFlames && palette.pillFill
+      ? ({
+          backgroundColor: palette.pillFill,
+          borderWidth: RUNS_LAYOUT.neonBorderWidth,
+          borderColor: palette.pillBorder ?? palette.core,
+          borderRadius: RUNS_LAYOUT.pillRadius,
+          ...Platform.select({
+            ios: {
+              shadowColor: palette.core,
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 0.95,
+              shadowRadius: 12,
+            },
+            android: { elevation: 8 },
+            web: {
+              boxShadow: `0 0 14px 2px ${palette.glowCore}, 0 0 4px 1px ${palette.core}`,
+            } as object,
+            default: {},
+          }),
+        } satisfies ViewStyle)
+      : null;
+
+  const defaultLabelColor =
+    !containFlames && palette.pillText
+      ? ({ color: palette.pillText } satisfies TextStyle)
+      : null;
 
   return (
     <View
@@ -122,19 +150,16 @@ export default function RunsPill({
         </View>
       ) : null}
 
-      {/* Flames behind the glass so the pill reads as the fuel source. */}
-      {flamesOn ? (
+      {/* Contained wisps stay under the face (streak / prestige pills). */}
+      {flamesOn && containFlames ? (
         <View
-          style={[
-            styles.flameAccent,
-            containFlames && styles.flameAccentContained,
-          ]}
+          style={[styles.flameAccent, styles.flameAccentContained]}
           pointerEvents="none"
         >
           {glowOn ? (
             <Animated.View
               style={[
-                styles.ignitionBurst,
+                styles.ignitionBurstBottom,
                 {
                   backgroundColor: palette.glowCore,
                   shadowColor: palette.core,
@@ -150,18 +175,51 @@ export default function RunsPill({
             effectOpacity={anim.effectOpacity}
             seeds={flameSeeds}
             maxFlameHeight={flameMax}
-            contained={containFlames}
+            contained
           />
         </View>
       ) : null}
 
-      <View style={[styles.glassPill, pillStyle]}>
+      <View style={[styles.glassPill, defaultFireChrome, pillStyle]}>
         {children ?? (
-          <Text numberOfLines={1} style={[styles.label, textStyle]}>
+          <Text
+            numberOfLines={1}
+            style={[styles.label, defaultLabelColor, textStyle]}
+          >
             {label}
           </Text>
         )}
       </View>
+
+      {/* Open fire sits on the neon rim above the cream face (Runs! reference). */}
+      {flamesOn && !containFlames ? (
+        <View
+          style={[styles.flameAccent, styles.flameAccentOpen]}
+          pointerEvents="none"
+        >
+          {glowOn ? (
+            <Animated.View
+              style={[
+                styles.ignitionBurstTop,
+                {
+                  backgroundColor: palette.glowCore,
+                  shadowColor: palette.core,
+                },
+                burstStyle,
+              ]}
+            />
+          ) : null}
+          <FlameLayer
+            width={size.width}
+            flameIntensity={anim.flameIntensity}
+            ignition={anim.ignition}
+            effectOpacity={anim.effectOpacity}
+            seeds={flameSeeds}
+            maxFlameHeight={flameMax}
+            contained={false}
+          />
+        </View>
+      ) : null}
 
       <View style={styles.sparkleAccent} pointerEvents="none">
         <EmberLayer
@@ -206,22 +264,26 @@ const styles = StyleSheet.create({
       ? ({ whiteSpace: "nowrap" } as object)
       : null),
   },
-  /** Behind glass — base of the flame sits in the pill (fuel), tips rise up. */
+  /** Under the cream face — tips rise above the top rim. */
   flameAccent: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 1,
     overflow: "visible",
   },
   flameAccentContained: {
+    zIndex: 1,
     overflow: "hidden",
     borderRadius: 14,
+  },
+  /** Above cream so tongues sit on the neon rim (reference look). */
+  flameAccentOpen: {
+    zIndex: 3,
   },
   sparkleAccent: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 4,
     overflow: "visible",
   },
-  ignitionBurst: {
+  ignitionBurstBottom: {
     position: "absolute",
     left: "18%",
     right: "18%",
@@ -231,5 +293,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.85,
     shadowRadius: 8,
+  },
+  ignitionBurstTop: {
+    position: "absolute",
+    left: "12%",
+    right: "12%",
+    top: -6,
+    height: 14,
+    borderRadius: 999,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.95,
+    shadowRadius: 10,
   },
 });

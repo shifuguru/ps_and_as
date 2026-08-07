@@ -174,11 +174,11 @@ function spawnTopEmber(width: number, id: number): Ember {
   const duration = minLife + Math.random() * (maxLife - minLife);
   return {
     id,
-    x: width * (0.15 + Math.random() * 0.7),
-    y: 0,
-    size: 2 + Math.random() * 2.2,
-    dx: (Math.random() - 0.5) * 14,
-    dy: -(18 + Math.random() * 16),
+    x: width * (0.08 + Math.random() * 0.84),
+    y: -2 - Math.random() * 6,
+    size: 1.8 + Math.random() * 2.6,
+    dx: (Math.random() - 0.5) * 18,
+    dy: -(22 + Math.random() * 22),
     duration,
   };
 }
@@ -202,7 +202,7 @@ export default function EmberLayer({
   const ignitionRef = useRef(0);
   const intensityRef = useRef(0);
   const maxEmbers =
-    spread === "around" ? RUNS_LAYOUT.maxEmbers + 4 : RUNS_LAYOUT.maxEmbers;
+    spread === "around" ? RUNS_LAYOUT.maxEmbers + 4 : RUNS_LAYOUT.maxEmbers + 2;
 
   useEffect(() => {
     if (!active) return;
@@ -237,7 +237,9 @@ export default function EmberLayer({
     }
 
     const burstMs =
-      spread === "around" ? [30, 90, 160, 240, 340, 480] : [40, 120, 220, 360];
+      spread === "around"
+        ? [30, 90, 160, 240, 340, 480]
+        : [20, 70, 130, 200, 300, 420, 560];
     const burstTimers = burstMs.map((ms) => setTimeout(() => spawn(), ms));
 
     const idleMs =
@@ -251,8 +253,8 @@ export default function EmberLayer({
             ? 0.9
             : 0.7
           : ignitionRef.current > 0.2
-            ? 0.85
-            : 0.55;
+            ? 0.95
+            : 0.8;
       if (Math.random() < chance && intensityRef.current > 0.12) spawn();
     }, idleMs);
 
