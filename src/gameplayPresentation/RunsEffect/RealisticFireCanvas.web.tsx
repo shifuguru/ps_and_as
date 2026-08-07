@@ -74,11 +74,11 @@ export default function RealisticFireCanvas({
       h: height,
     };
 
-    // Badge-scale: discrete tongues, not a soft particle fog.
-    const scale = Math.max(0.32, Math.min(0.62, width / 200));
+    // Badge-scale sim — fewer particles than the showcase preview.
+    const scale = Math.max(0.28, Math.min(0.55, width / 220));
     const cfg = {
-      maxParticles: Math.round(16 + width * 0.12),
-      maxEmbers: Math.round(8 + width * 0.05),
+      maxParticles: Math.round(90 + width * 0.35),
+      maxEmbers: Math.round(14 + width * 0.08),
       scale,
     };
 
@@ -124,7 +124,7 @@ export default function RealisticFireCanvas({
       if (intensityNow > 0.02) {
         drawFireBloom(ctx, pill, time, intensityNow * 0.85);
         for (const p of particles) {
-          if (!p.front) drawFireParticle(ctx, p, intensityNow, time);
+          if (!p.front) drawFireParticle(ctx, p, intensityNow);
         }
         for (const e of embers) drawFireEmber(ctx, e, intensityNow);
 
@@ -143,7 +143,7 @@ export default function RealisticFireCanvas({
         );
         ctx.clip("evenodd");
         for (const p of particles) {
-          if (p.front) drawFireParticle(ctx, p, intensityNow * 0.9, time);
+          if (p.front) drawFireParticle(ctx, p, intensityNow * 0.9);
         }
         ctx.restore();
       }
