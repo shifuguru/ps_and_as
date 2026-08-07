@@ -1,5 +1,10 @@
-import React, { useEffect, useId, useMemo } from "react";
-import { Platform, StyleSheet, View, type ViewStyle } from "react-native";
+import React, { useEffect, useMemo } from "react";
+import {
+  Image,
+  Platform,
+  StyleSheet,
+  View,
+} from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -11,8 +16,11 @@ import Animated, {
   cancelAnimation,
   type SharedValue,
 } from "react-native-reanimated";
-import Svg, { Defs, Ellipse, LinearGradient, Stop } from "react-native-svg";
-import { FLAME_SEEDS, RUNS_LAYOUT, type FlameSeed } from "./constants";
+import { RUNS_LAYOUT, type FlameSeed } from "./constants";
+
+const FIRE_BAND = require("../../../assets/effects/runs-fire-band.png");
+
+const AnimatedImage = Animated.createAnimatedComponent(Image);
 
 type Props = {
   width: number;
@@ -20,46 +28,47 @@ type Props = {
   flameIntensity: SharedValue<number>;
   ignition: SharedValue<number>;
   effectOpacity: SharedValue<number>;
+  /** Kept for API compatibility with palette variants; unused for sprite fire. */
   seeds?: FlameSeed[];
   maxFlameHeight?: number;
   contained?: boolean;
 };
 
-/**
- * Soft realistic wisp — stacked ellipses + gradient, no hard cartoon outline.
- * Bases sit on the pill rim; tips rise a short distance above.
- */
-function FlameWisp({
-  seed,
-  auraW,
-  auraH,
-  flameIntensity,
+function FireSpriteLayer({
+  style,
+  intensity,
   ignition,
   effectOpacity,
+  delayMs,
+  periodMs,
+  swayMs,
+  baseOpacity,
+  baseScale,
 }: {
-  seed: FlameSeed;
-  auraW: number;
-  auraH: number;
-  flameIntensity: SharedValue<number>;
+  style: object;
+  intensity: SharedValue<number>;
   ignition: SharedValue<number>;
   effectOpacity: SharedValue<number>;
+  delayMs: number;
+  periodMs: number;
+  swayMs: number;
+  baseOpacity: number;
+  baseScale: number;
 }) {
   const flicker = useSharedValue(0);
   const sway = useSharedValue(0);
-  const uid = useId().replace(/:/g, "");
-  const gradId = `runsWisp-${uid}-${seed.id}`;
 
   useEffect(() => {
     flicker.value = withDelay(
-      seed.delayMs,
+      delayMs,
       withRepeat(
         withSequence(
           withTiming(1, {
-            duration: seed.periodMs * 0.38,
+            duration: periodMs * 0.4,
             easing: Easing.inOut(Easing.sin),
           }),
           withTiming(0.2, {
-            duration: seed.periodMs * 0.62,
+            duration: periodMs * 0.6,
             easing: Easing.inOut(Easing.sin),
           }),
         ),
@@ -68,15 +77,15 @@ function FlameWisp({
       ),
     );
     sway.value = withDelay(
-      seed.delayMs * 0.6,
+      delayMs * 0.5,
       withRepeat(
         withSequence(
           withTiming(1, {
-            duration: seed.swayMs * 0.5,
+            duration: swayMs * 0.5,
             easing: Easing.inOut(Easing.sin),
           }),
           withTiming(-1, {
-            duration: seed.swayMs * 0.5,
+            duration: swayMs * 0.5,
             easing: Easing.inOut(Easing.sin),
           }),
         ),
@@ -88,93 +97,43 @@ function FlameWisp({
       cancelAnimation(flicker);
       cancelAnimation(sway);
     };
-  }, [flicker, sway, seed.delayMs, seed.periodMs, seed.swayMs]);
+  }, [flicker, sway, delayMs, periodMs, swayMs]);
 
-  const wispW = Math.max(14, auraW * seed.widthFrac);
-  const wispH = Math.max(12, auraH * seed.heightFrac);
-  const left = seed.x * auraW - wispW / 2;
-
-  const style = useAnimatedStyle(() => {
-    const intensity = flameIntensity.value;
+  const animStyle = useAnimatedStyle(() => {
     const burst = ignition.value;
-    const scaleY = 0.72 + flicker.value * 0.4 + burst * 0.28 + intensity * 0.08;
-    const scaleX = 0.82 + (1 - flicker.value) * 0.22;
-    const dx = sway.value * seed.swayFrac * auraW;
-    const lift = -1 - burst * 3 - flicker.value * 2;
+    const i = intensity.value;
+    const scaleY =
+      baseScale * (0.9 + flicker.value * 0.14 + burst * 0.18 + i * 0.04);
+    const scaleX = 0.98 + (1 - flicker.value) * 0.04;
     const opacity =
       effectOpacity.value *
-      intensity *
-      (0.4 + flicker.value * 0.45 + burst * 0.2);
-
+      i *
+      baseOpacity *
+      (0.72 + flicker.value * 0.28 + burst * 0.15);
     return {
       opacity,
       transform: [
-        { translateX: dx },
-        { translateY: lift },
+        { translateX: sway.value * 1.5 },
         { scaleY },
         { scaleX },
-        { rotate: `${seed.rotDeg * (0.5 + flicker.value * 0.5)}deg` },
       ],
-    } as ViewStyle;
+    };
   });
 
-  const cx = wispW / 2;
-
   return (
-    <Animated.View
-      style={[
-        styles.wisp,
-        {
-          left,
-          width: wispW,
-          height: wispH,
-          shadowColor: seed.color,
-        },
-        style,
-      ]}
-    >
-      <Svg width={wispW} height={wispH} style={styles.svg}>
-        <Defs>
-          <LinearGradient id={gradId} x1="50%" y1="100%" x2="50%" y2="0%">
-            <Stop offset="0%" stopColor={seed.coreColor} stopOpacity="0.95" />
-            <Stop offset="30%" stopColor={seed.color} stopOpacity="0.9" />
-            <Stop offset="65%" stopColor={seed.tipColor} stopOpacity="0.75" />
-            <Stop offset="100%" stopColor={seed.tipColor} stopOpacity="0.1" />
-          </LinearGradient>
-        </Defs>
-        {/* Soft volume — no stroke, fades at tip */}
-        <Ellipse
-          cx={cx}
-          cy={wispH * 0.58}
-          rx={wispW * 0.42}
-          ry={wispH * 0.42}
-          fill={`url(#${gradId})`}
-        />
-        <Ellipse
-          cx={cx}
-          cy={wispH * 0.32}
-          rx={wispW * 0.24}
-          ry={wispH * 0.3}
-          fill={`url(#${gradId})`}
-          opacity={0.75}
-        />
-        {/* Hot base near the pill rim */}
-        <Ellipse
-          cx={cx}
-          cy={wispH * 0.78}
-          rx={wispW * 0.3}
-          ry={wispH * 0.18}
-          fill={seed.coreColor}
-          opacity={0.85}
-        />
-      </Svg>
-    </Animated.View>
+    <AnimatedImage
+      source={FIRE_BAND}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      style={[style, animStyle] as any}
+      resizeMode="stretch"
+      pointerEvents="none"
+    />
   );
 }
 
 /**
- * Soft fire band centered on the pill.
- * Rises from the top rim ~half the pill height; width locked to the pill.
+ * Realistic fire sprite centered on the pill.
+ * Hot base tucks behind the top rim; tips rise ~half the pill height.
  */
 export default function FlameLayer({
   width,
@@ -182,41 +141,37 @@ export default function FlameLayer({
   flameIntensity,
   ignition,
   effectOpacity,
-  seeds = FLAME_SEEDS,
   maxFlameHeight = RUNS_LAYOUT.maxFlameHeight,
   contained = false,
 }: Props) {
   const dims = useMemo(() => {
     if (width <= 0) return null;
     const pillH = Math.max(height, 22);
-    if (contained) {
-      const auraH = Math.min(maxFlameHeight, Math.max(12, pillH * 0.55));
-      return {
-        auraW: width,
-        auraH,
-        left: 0,
-        // Contained: still rise from top of the widget face.
-        top: -(auraH * 0.35),
-        bottom: undefined as number | undefined,
-      };
-    }
-    // Open Runs!: half pill height above the top edge, centered on the pill.
-    const auraH = Math.min(
-      maxFlameHeight,
-      Math.max(10, pillH * RUNS_LAYOUT.auraHeightFactor),
-    );
-    const side = width * RUNS_LAYOUT.auraSideSpill;
+    const rise = contained
+      ? Math.min(maxFlameHeight, pillH * 0.45)
+      : Math.min(maxFlameHeight, pillH * RUNS_LAYOUT.auraHeightFactor);
+    // Tuck a bit of the hot base behind the pill so fire reads as erupting from it.
+    const tuck = pillH * 0.42;
+    const side = contained ? 0 : width * RUNS_LAYOUT.auraSideSpill;
     return {
       auraW: width + side * 2,
-      auraH,
+      auraH: rise + tuck,
       left: -side,
-      // Sit on the top rim — pill stays dead-center of the effect.
-      top: -auraH + 2,
-      bottom: undefined as number | undefined,
+      top: -rise,
     };
   }, [width, height, maxFlameHeight, contained]);
 
   if (!dims) return null;
+
+  const imgStyle = {
+    position: "absolute" as const,
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: dims.auraW,
+    height: dims.auraH,
+  };
 
   return (
     <View
@@ -227,26 +182,52 @@ export default function FlameLayer({
           height: dims.auraH,
           left: dims.left,
           top: dims.top,
-          bottom: dims.bottom,
         },
-        // Soften hard edges once (static) — not animated every frame.
         Platform.OS === "web"
-          ? ({ filter: "blur(1.2px)" } as object)
+          ? ({
+              // Soften sprite edges slightly without turning it into a glow bar.
+              filter: "drop-shadow(0 0 4px rgba(255,120,20,0.35))",
+            } as object)
           : null,
       ]}
       pointerEvents="none"
     >
-      {seeds.map((seed) => (
-        <FlameWisp
-          key={seed.id}
-          seed={seed}
-          auraW={dims.auraW}
-          auraH={dims.auraH}
-          flameIntensity={flameIntensity}
-          ignition={ignition}
-          effectOpacity={effectOpacity}
-        />
-      ))}
+      {/* Soft under-glow copy */}
+      <FireSpriteLayer
+        style={[imgStyle, styles.glowCopy]}
+        intensity={flameIntensity}
+        ignition={ignition}
+        effectOpacity={effectOpacity}
+        delayMs={40}
+        periodMs={1200}
+        swayMs={1800}
+        baseOpacity={0.45}
+        baseScale={1.06}
+      />
+      {/* Main fire */}
+      <FireSpriteLayer
+        style={imgStyle}
+        intensity={flameIntensity}
+        ignition={ignition}
+        effectOpacity={effectOpacity}
+        delayMs={0}
+        periodMs={980}
+        swayMs={1500}
+        baseOpacity={1}
+        baseScale={1}
+      />
+      {/* Secondary flicker layer for living depth */}
+      <FireSpriteLayer
+        style={imgStyle}
+        intensity={flameIntensity}
+        ignition={ignition}
+        effectOpacity={effectOpacity}
+        delayMs={160}
+        periodMs={860}
+        swayMs={1300}
+        baseOpacity={0.55}
+        baseScale={0.96}
+      />
     </View>
   );
 }
@@ -256,15 +237,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     overflow: "visible",
   },
-  wisp: {
-    position: "absolute",
-    bottom: 0,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.45,
-    shadowRadius: 5,
-  },
-  svg: {
-    width: "100%",
-    height: "100%",
+  glowCopy: {
+    opacity: 0.5,
   },
 });
