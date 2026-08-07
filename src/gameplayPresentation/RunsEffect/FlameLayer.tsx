@@ -95,6 +95,7 @@ function FireSpriteLayer({
   }, [flicker, sway, delayMs, periodMs, swayMs]);
 
   const animStyle = useAnimatedStyle(() => {
+    "worklet";
     const burst = ignition.value;
     const i = intensity.value;
     const scaleY =
@@ -113,7 +114,9 @@ function FireSpriteLayer({
         { scaleX },
       ],
     };
-  });
+  // Reanimated style typing is stricter than RN ViewStyle here.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
 
   return (
     <Animated.View
@@ -148,8 +151,8 @@ export default function FlameLayer({
     const rise = contained
       ? Math.min(maxFlameHeight, pillH * 0.45)
       : Math.min(maxFlameHeight, pillH * RUNS_LAYOUT.auraHeightFactor);
-    // Tuck a bit of the hot base behind the pill so fire reads as erupting from it.
-    const tuck = pillH * 0.42;
+    // Tuck only the hot base behind the rim — keep "Runs!" fully clear.
+    const tuck = pillH * 0.28;
     const side = contained ? 0 : width * RUNS_LAYOUT.auraSideSpill;
     return {
       auraW: width + side * 2,
