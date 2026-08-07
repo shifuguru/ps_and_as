@@ -11,7 +11,7 @@ import Animated, {
   cancelAnimation,
   type SharedValue,
 } from "react-native-reanimated";
-import Svg, { Defs, Ellipse, LinearGradient, Stop } from "react-native-svg";
+import Svg, { Defs, G, LinearGradient, Path, Stop } from "react-native-svg";
 import { FLAME_SEEDS, RUNS_LAYOUT, type FlameSeed } from "./constants";
 
 type Props = {
@@ -22,12 +22,25 @@ type Props = {
   effectOpacity: SharedValue<number>;
   seeds?: FlameSeed[];
   maxFlameHeight?: number;
-  /**
-   * Contained = compact inner energy (streak widgets).
-   * Default = large behind-pill aura wrapping top + sides.
-   */
   contained?: boolean;
 };
+
+/**
+ * Aggressive stylised fire tongue (0–100 viewBox).
+ * Tall tip, narrow mid, flared hot base — reads as game fire, not a blob.
+ */
+function flamePath(skew: number): string {
+  const tipX = 50 + skew * 8;
+  return [
+    `M ${34 + skew} 98`,
+    `C ${18 + skew * 2} 86, ${14 + skew} 70, ${20 + skew} 52`,
+    `C ${26 + skew * 0.5} 36, ${34 + skew} 22, ${tipX} 2`,
+    `C ${66 - skew} 22, ${74 - skew * 0.5} 36, ${80 - skew} 52`,
+    `C ${86 - skew} 70, ${82 - skew * 2} 86, ${66 - skew} 98`,
+    `C ${58} 100, ${42} 100, ${34 + skew} 98`,
+    "Z",
+  ].join(" ");
+}
 
 function FlameLobe({
   seed,
@@ -49,7 +62,9 @@ function FlameLobe({
   const flicker = useSharedValue(0);
   const sway = useSharedValue(0);
   const uid = useId().replace(/:/g, "");
-  const gradId = `runsAura-${uid}-${seed.id}`;
+  const outerGrad = `runsFlameOuter-${uid}-${seed.id}`;
+  const midGrad = `runsFlameMid-${uid}-${seed.id}`;
+  const coreGrad = `runsFlameCore-${uid}-${seed.id}`;
 
   useEffect(() => {
     flicker.value = withDelay(
@@ -57,11 +72,11 @@ function FlameLobe({
       withRepeat(
         withSequence(
           withTiming(1, {
-            duration: seed.periodMs * 0.38,
+            duration: seed.periodMs * 0.34,
             easing: Easing.inOut(Easing.sin),
           }),
-          withTiming(0.2, {
-            duration: seed.periodMs * 0.62,
+          withTiming(0.15, {
+            duration: seed.periodMs * 0.66,
             easing: Easing.inOut(Easing.sin),
           }),
         ),
@@ -70,7 +85,7 @@ function FlameLobe({
       ),
     );
     sway.value = withDelay(
-      seed.delayMs * 0.7,
+      seed.delayMs * 0.6,
       withRepeat(
         withSequence(
           withTiming(1, {
@@ -92,27 +107,31 @@ function FlameLobe({
     };
   }, [flicker, sway, seed.delayMs, seed.periodMs, seed.swayMs]);
 
-  const lobeW = Math.max(18, auraW * seed.widthFrac);
-  const lobeH = Math.max(22, auraH * seed.heightFrac);
+  const lobeW = Math.max(18, auraW * seed.widthFrac * 0.92);
+  const lobeH = Math.max(28, auraH * seed.heightFrac * 1.08);
   const left = seed.x * auraW - lobeW / 2;
+  const skew = (seed.id % 3) - 1;
+  const outerD = useMemo(() => flamePath(skew), [skew]);
+  const midD = useMemo(() => flamePath(skew * 0.6), [skew]);
+  const coreD = useMemo(() => flamePath(skew * 0.35), [skew]);
 
   const style = useAnimatedStyle(() => {
     const intensity = flameIntensity.value;
     const burst = ignition.value;
     const scaleY =
-      (contained ? 0.55 : 0.72) +
-      flicker.value * 0.38 +
-      burst * 0.35 +
-      intensity * 0.12;
-    const scaleX = 0.82 + (1 - flicker.value) * 0.28 + burst * 0.08;
-    const dx = sway.value * seed.swayFrac * auraW * (0.6 + intensity * 0.4);
+      (contained ? 0.6 : 0.82) +
+      flicker.value * 0.45 +
+      burst * 0.4 +
+      intensity * 0.08;
+    const scaleX = 0.74 + (1 - flicker.value) * 0.3 + burst * 0.08;
+    const dx = sway.value * seed.swayFrac * auraW * (0.7 + intensity * 0.35);
     const lift = contained
       ? -2 - burst * 4 - flicker.value * 3
-      : -4 - burst * 10 - flicker.value * 6;
+      : -8 - burst * 14 - flicker.value * 8;
     const opacity =
       effectOpacity.value *
       intensity *
-      (0.4 + flicker.value * 0.45 + burst * 0.25);
+      (0.5 + flicker.value * 0.4 + burst * 0.25);
 
     return {
       opacity,
@@ -121,14 +140,10 @@ function FlameLobe({
         { translateY: lift },
         { scaleY },
         { scaleX },
-        { rotate: `${seed.rotDeg * (0.55 + flicker.value * 0.5)}deg` },
+        { rotate: `${seed.rotDeg * (0.45 + flicker.value * 0.6)}deg` },
       ],
     } as ViewStyle;
   });
-
-  // Soft stacked ellipses — reads as a flame volume, not a candle sticker.
-  const cx = lobeW / 2;
-  const cy = lobeH * 0.58;
 
   return (
     <Animated.View
@@ -138,55 +153,54 @@ function FlameLobe({
           left,
           width: lobeW,
           height: lobeH,
-          shadowColor: seed.color,
+          shadowColor: seed.tipColor,
         },
         style,
       ]}
     >
-      <Svg width={lobeW} height={lobeH} style={styles.svg}>
+      <Svg width={lobeW} height={lobeH} viewBox="0 0 100 100" style={styles.svg}>
         <Defs>
-          <LinearGradient id={gradId} x1="50%" y1="100%" x2="50%" y2="0%">
-            <Stop offset="0%" stopColor={seed.coreColor} stopOpacity="0.95" />
-            <Stop offset="22%" stopColor={seed.coreColor} stopOpacity="0.85" />
-            <Stop offset="48%" stopColor={seed.color} stopOpacity="0.9" />
-            <Stop offset="78%" stopColor={seed.tipColor} stopOpacity="0.75" />
-            <Stop offset="100%" stopColor={seed.tipColor} stopOpacity="0.15" />
+          <LinearGradient id={outerGrad} x1="50%" y1="100%" x2="50%" y2="0%">
+            <Stop offset="0%" stopColor={seed.coreColor} stopOpacity="0.85" />
+            <Stop offset="22%" stopColor={seed.color} stopOpacity="1" />
+            <Stop offset="55%" stopColor={seed.tipColor} stopOpacity="1" />
+            <Stop offset="82%" stopColor="#E02000" stopOpacity="0.95" />
+            <Stop offset="100%" stopColor="#C01000" stopOpacity="0.55" />
+          </LinearGradient>
+          <LinearGradient id={midGrad} x1="50%" y1="100%" x2="50%" y2="0%">
+            <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
+            <Stop offset="30%" stopColor={seed.coreColor} stopOpacity="1" />
+            <Stop offset="70%" stopColor={seed.color} stopOpacity="0.95" />
+            <Stop offset="100%" stopColor={seed.tipColor} stopOpacity="0.55" />
+          </LinearGradient>
+          <LinearGradient id={coreGrad} x1="50%" y1="100%" x2="50%" y2="0%">
+            <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
+            <Stop offset="55%" stopColor="#FFF4B0" stopOpacity="1" />
+            <Stop offset="100%" stopColor={seed.coreColor} stopOpacity="0.35" />
           </LinearGradient>
         </Defs>
-        {/* Outer volume */}
-        <Ellipse
-          cx={cx}
-          cy={cy}
-          rx={lobeW * 0.46}
-          ry={lobeH * 0.48}
-          fill={`url(#${gradId})`}
+        {/* Crisp outer tongue with subtle edge stroke */}
+        <Path
+          d={outerD}
+          fill={`url(#${outerGrad})`}
+          stroke={seed.tipColor}
+          strokeWidth={1.2}
+          strokeOpacity={0.45}
         />
-        {/* Rising tip */}
-        <Ellipse
-          cx={cx}
-          cy={lobeH * 0.28}
-          rx={lobeW * 0.26}
-          ry={lobeH * 0.34}
-          fill={`url(#${gradId})`}
-          opacity={0.85}
-        />
-        {/* White-hot base near the pill rim */}
-        <Ellipse
-          cx={cx}
-          cy={lobeH * 0.78}
-          rx={lobeW * 0.28}
-          ry={lobeH * 0.2}
-          fill={seed.coreColor}
-          opacity={0.9}
-        />
+        <G transform="translate(14, 12) scale(0.72)">
+          <Path d={midD} fill={`url(#${midGrad})`} />
+        </G>
+        <G transform="translate(28, 34) scale(0.44)">
+          <Path d={coreD} fill={`url(#${coreGrad})`} />
+        </G>
       </Svg>
     </Animated.View>
   );
 }
 
 /**
- * Large stylised fire aura that sits BEHIND the white Runs! pill.
- * Lobes wrap the top + sides and feel like erupting energy, not stickers.
+ * Large stylised fire aura BEHIND the white Runs! pill.
+ * Pointed tongues wrap top + sides — crisp game-fire volumes.
  */
 export default function FlameLayer({
   width,
@@ -207,21 +221,19 @@ export default function FlameLayer({
         auraW: width,
         auraH,
         left: 0,
-        // Sit inside / along the bottom for contained widgets.
         bottom: 0,
         top: undefined as number | undefined,
       };
     }
     const auraH = Math.min(
-      maxFlameHeight * 1.35,
-      Math.max(pillH * RUNS_LAYOUT.auraHeightFactor, pillH * 1.3),
+      maxFlameHeight * 1.55,
+      Math.max(pillH * RUNS_LAYOUT.auraHeightFactor, pillH * 1.4),
     );
     const side = width * RUNS_LAYOUT.auraSideSpill;
     return {
       auraW: width + side * 2,
       auraH,
       left: -side,
-      // Anchor so bases tuck behind the top half of the pill.
       top: -(auraH - pillH * 0.55),
       bottom: undefined as number | undefined,
     };
@@ -267,9 +279,10 @@ const styles = StyleSheet.create({
   lobe: {
     position: "absolute",
     bottom: 0,
+    // Soft bloom only — keep silhouette crisp (no heavy blur).
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.55,
-    shadowRadius: 10,
+    shadowOpacity: 0.4,
+    shadowRadius: 5,
   },
   svg: {
     width: "100%",
