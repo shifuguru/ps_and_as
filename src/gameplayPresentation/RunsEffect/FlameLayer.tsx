@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from "react";
-import { Image, Platform, StyleSheet, View } from "react-native";
+import { Image, Platform, StyleSheet, View, type ViewStyle } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -95,7 +95,6 @@ function FireSpriteLayer({
   }, [flicker, sway, delayMs, periodMs, swayMs]);
 
   const animStyle = useAnimatedStyle(() => {
-    "worklet";
     const burst = ignition.value;
     const i = intensity.value;
     const scaleY =
@@ -113,10 +112,8 @@ function FireSpriteLayer({
         { scaleY },
         { scaleX },
       ],
-    };
-  // Reanimated style typing is stricter than RN ViewStyle here.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
+    } as ViewStyle;
+  });
 
   return (
     <Animated.View
