@@ -14,7 +14,7 @@
     html, body {
       height: 100%;
       background:
-        radial-gradient(ellipse 50% 40% at 50% 54%, rgba(255, 110, 20, 0.14), transparent 60%),
+        radial-gradient(ellipse 50% 40% at 50% 54%, rgba(255, 110, 20, 0.1), transparent 60%),
         radial-gradient(ellipse 90% 80% at 50% 50%, #0c1411 0%, var(--bg0) 72%);
       color: #cfc8bc;
       font-family: "Segoe UI", "Helvetica Neue", sans-serif;
@@ -48,8 +48,8 @@
       border: 1.5px solid rgba(255, 190, 70, 0.9);
       box-shadow:
         0 0 0 1px rgba(255, 130, 25, 0.4),
-        0 0 20px rgba(255, 150, 40, 0.65),
-        0 0 48px rgba(255, 90, 10, 0.32),
+        0 0 20px rgba(255, 150, 40, 0.55),
+        0 0 40px rgba(255, 90, 10, 0.22),
         inset 0 1px 0 rgba(255, 255, 255, 0.7);
       user-select: none;
       pointer-events: none;
@@ -67,12 +67,19 @@
   </style>
 </head>
 <body>
-  <div class="label">Realistic fire · canvas particles + additive bloom</div>
+  <div class="label">Realistic fire · even columns across width</div>
   <div class="stage">
     <canvas id="fire"></canvas>
     <div class="pill" id="pill">Runs!</div>
   </div>
   <script>
+    /**
+     * Step 1 refinement: even flame coverage across the pill width.
+     * - Uniform emitter columns (no center beam)
+     * - Narrow rising particle streams = identifiable tongues
+     * - Tight rim bloom instead of tall aurora curtain
+     * - Near-constant rise speed
+     */
     const canvas = document.getElementById("fire");
     const pillEl = document.getElementById("pill");
     const ctx = canvas.getContext("2d", { alpha: true });
@@ -80,18 +87,7 @@
 
     let W = 0, H = 0;
     let pill = { x: 0, y: 0, w: 0, h: 0 };
-
-    const HASH = new Float32Array(256);
-    for (let i = 0; i < 256; i++) HASH[i] = Math.random() * 2 - 1;
-    function noise1(x) {
-      const i = Math.floor(x) & 255;
-      const f = x - Math.floor(x);
-      const u = f * f * (3 - 2 * f);
-      return HASH[i] * (1 - u) + HASH[(i + 1) & 255] * u;
-    }
-    function noise2(x, y) {
-      return noise1(x + noise1(y * 1.71) * 19.3);
-    }
+    const COLUMNS = 16;
 
     function resize() {
       W = window.innerWidth;
@@ -112,88 +108,101 @@
       };
     }
 
-    function rimSample() {
+    function topSpan() {
+      const hw = pill.w / 2;
+      const hh = pill.h / 2;
+      return {
+        left: pill.x - hw + hh * 0.15,
+        right: pill.x + hw - hh * 0.15,
+        y: pill.y - hh,
+      };
+    }
+
+    function sampleEmitter() {
+      const roll = Math.random();
+      const span = topSpan();
       const hw = pill.w / 2;
       const hh = pill.h / 2;
       const flat = Math.max(0, hw - hh);
-      const roll = Math.random();
-      if (roll < 0.62) {
+
+      if (roll < 0.78) {
+        const column = Math.floor(Math.random() * COLUMNS);
+        const t = column / (COLUMNS - 1);
+        const x = span.left + (span.right - span.left) * t;
+        const lane = (span.right - span.left) / COLUMNS;
         return {
-          x: pill.x - flat + Math.random() * flat * 2,
-          y: pill.y - hh + (Math.random() - 0.35) * 5,
+          x: x + (Math.random() - 0.5) * lane * 0.35,
+          y: span.y + (Math.random() - 0.2) * 2,
           zone: "top",
         };
       }
-      if (roll < 0.75) {
-        const a = Math.PI * 0.55 + Math.random() * Math.PI * 0.9;
+      if (roll < 0.87) {
+        const a = Math.PI * 0.7 + Math.random() * Math.PI * 0.55;
         return {
           x: pill.x - flat + Math.cos(a) * hh,
-          y: pill.y + Math.sin(a) * hh,
+          y: pill.y + Math.sin(a) * hh * 0.85,
           zone: "left",
         };
       }
-      if (roll < 0.88) {
-        const a = -Math.PI * 0.45 + Math.random() * Math.PI * 0.9;
+      if (roll < 0.96) {
+        const a = -Math.PI * 0.25 + Math.random() * Math.PI * 0.55;
         return {
           x: pill.x + flat + Math.cos(a) * hh,
-          y: pill.y + Math.sin(a) * hh,
+          y: pill.y + Math.sin(a) * hh * 0.85,
           zone: "right",
         };
       }
       return {
-        x: pill.x - flat + Math.random() * flat * 2,
-        y: pill.y + hh + (Math.random() - 0.55) * 4,
+        x: span.left + (span.right - span.left) * Math.random(),
+        y: pill.y + hh,
         zone: "bottom",
       };
     }
 
-    const MAX_P = 420;
-    const MAX_E = 70;
+    const MAX_P = COLUMNS * 12;
+    const MAX_E = 24;
     const particles = [];
     const embers = [];
 
     function makeParticle(front) {
-      const s = rimSample();
+      const s = sampleEmitter();
       const top = s.zone === "top";
       const bottom = s.zone === "bottom";
-      const tongue = top && Math.random() < 0.48;
+      const rise = top
+        ? -(85 + Math.random() * 18)
+        : bottom
+          ? -(26 + Math.random() * 8)
+          : -(48 + Math.random() * 12);
+      const size = top ? 10 + Math.random() * 9 : 7 + Math.random() * 6;
+      const stretch = top ? 1.85 + Math.random() * 0.75 : 1.2 + Math.random() * 0.35;
+      const travel = (top ? 70 : 30) * (0.9 + Math.random() * 0.2);
+      const life = Math.max(0.3, travel / Math.abs(rise));
       return {
-        x: s.x + (Math.random() - 0.5) * 5,
-        y: s.y + (Math.random() - 0.5) * 3,
-        vx: (Math.random() - 0.5) * (top ? 28 : 12),
-        vy: top
-          ? -(70 + Math.random() * (tongue ? 140 : 100))
-          : bottom
-            ? -(10 + Math.random() * 22)
-            : -(28 + Math.random() * 55),
-        life: top
-          ? 0.45 + Math.random() * (tongue ? 1.05 : 0.75)
-          : 0.3 + Math.random() * 0.45,
-        age: Math.random() * 0.15,
-        size: top
-          ? tongue
-            ? 12 + Math.random() * 20
-            : 24 + Math.random() * 44
-          : bottom
-            ? 12 + Math.random() * 18
-            : 14 + Math.random() * 26,
-        heat: top ? 0.82 + Math.random() * 0.18 : 0.5 + Math.random() * 0.4,
+        x: s.x,
+        y: s.y,
+        anchorX: s.x,
+        vx: 0,
+        rise,
+        life,
+        age: Math.random() * life * 0.55,
+        size,
+        heat: top ? 0.82 + Math.random() * 0.18 : 0.55 + Math.random() * 0.3,
         seed: Math.random() * 1000,
         front: !!front,
-        stretch: tongue ? 2.0 + Math.random() * 1.6 : 1.15 + Math.random() * 0.75,
+        stretch,
       };
     }
 
     function makeEmber() {
-      const s = rimSample();
+      const s = sampleEmitter();
       return {
         x: s.x,
         y: s.y,
-        vx: (Math.random() - 0.5) * 40,
-        vy: -(70 + Math.random() * 130),
-        life: 0.7 + Math.random() * 1.3,
+        anchorX: s.x,
+        rise: -(62 + Math.random() * 14),
+        life: 0.6 + Math.random() * 0.35,
         age: 0,
-        size: 1.1 + Math.random() * 2.8,
+        size: 1.2 + Math.random() * 1.8,
         phase: Math.random() * Math.PI * 2,
       };
     }
@@ -210,32 +219,30 @@
     function drawParticle(p) {
       const t = Math.min(1, p.age / p.life);
       if (t >= 1) return;
-      const fade = 1 - t;
-      const heat = p.heat;
-      const a = fade * fade * (0.24 + heat * 0.4);
-      if (a < 0.01) return;
+      const grow = t < 0.12 ? t / 0.12 : 1;
+      const fade = t > 0.55 ? 1 - (t - 0.55) / 0.45 : 1;
+      const a = grow * fade * (0.3 + p.heat * 0.42);
+      if (a < 0.02) return;
 
-      const base = p.size * (0.7 + fade * 0.55);
-      const rx = base * (0.5 + (1 - heat) * 0.15);
-      const ry = base * p.stretch * (0.95 + t * 0.75);
+      const base = p.size * (0.85 + (1 - t) * 0.25);
+      const rx = base * 0.42;
+      const ry = base * p.stretch * (1.05 + t * 0.35);
 
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = a;
-
       drawSoftBlob(p.x, p.y, rx, ry, [
-        [0, `rgba(255,${Math.floor(205 * heat)},45,1)`],
-        [0.32, `rgba(255,${Math.floor(105 + 45 * heat)},10,0.78)`],
-        [0.65, `rgba(255,48,0,0.3)`],
+        [0, `rgba(255,${Math.floor(210 * p.heat)},55,1)`],
+        [0.3, `rgba(255,${Math.floor(120 + 35 * p.heat)},16,0.8)`],
+        [0.65, "rgba(255,60,5,0.32)"],
         [1, "rgba(40,0,0,0)"],
       ]);
-
-      if (t < 0.42) {
-        const k = 1 - t / 0.42;
-        ctx.globalAlpha = a * 0.95 * k;
-        drawSoftBlob(p.x, p.y + ry * 0.14, rx * 0.4, ry * 0.36, [
+      if (t < 0.4) {
+        const k = 1 - t / 0.4;
+        ctx.globalAlpha = a * 0.85 * k;
+        drawSoftBlob(p.x, p.y + ry * 0.15, rx * 0.45, ry * 0.4, [
           [0, "rgba(255,255,240,1)"],
-          [0.4, `rgba(255,235,${Math.floor(130 * heat)},0.9)`],
+          [0.45, `rgba(255,230,${Math.floor(130 * p.heat)},0.85)`],
           [1, "rgba(255,140,20,0)"],
         ]);
       }
@@ -245,49 +252,63 @@
     function drawEmber(e) {
       const t = e.age / e.life;
       if (t >= 1) return;
-      const tw = 0.5 + 0.5 * Math.sin(e.phase + e.age * 16);
+      const tw = 0.6 + 0.4 * Math.sin(e.phase + e.age * 12);
       const a = (1 - t) * tw;
+      if (a < 0.02) return;
+      const s = e.size * (1.05 - t * 0.3);
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = a;
-      const s = e.size * (1.1 - t * 0.35);
-      drawSoftBlob(e.x, e.y, s * 2.8, s * 2.8, [
+      drawSoftBlob(e.x, e.y, s * 2.2, s * 2.2, [
         [0, "rgba(255,245,180,1)"],
-        [0.35, "rgba(255,170,50,0.8)"],
+        [0.4, "rgba(255,165,45,0.75)"],
         [1, "rgba(255,60,0,0)"],
       ]);
       ctx.restore();
     }
 
-    function drawBloom(time) {
-      const pulse = 0.92 + 0.08 * Math.sin(time * 3.4);
+    function drawBloom() {
+      const span = topSpan();
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      drawSoftBlob(
+
+      // Even horizontal rim warmth — no tall center curtain.
+      const g = ctx.createLinearGradient(span.left, span.y, span.right, span.y);
+      g.addColorStop(0, "rgba(255,140,30,0)");
+      g.addColorStop(0.08, "rgba(255,160,40,0.16)");
+      g.addColorStop(0.5, "rgba(255,170,50,0.18)");
+      g.addColorStop(0.92, "rgba(255,160,40,0.16)");
+      g.addColorStop(1, "rgba(255,140,30,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(
         pill.x,
-        pill.y - pill.h * 0.55,
-        pill.w * 0.98 * pulse,
-        pill.h * 2.6 * pulse,
-        [
-          [0, "rgba(255,195,75,0.3)"],
-          [0.35, "rgba(255,110,20,0.17)"],
-          [0.7, "rgba(255,50,0,0.07)"],
-          [1, "rgba(0,0,0,0)"],
-        ]
+        span.y + 2,
+        (span.right - span.left) * 0.52,
+        pill.h * 0.55,
+        0, 0, Math.PI * 2
       );
-      drawSoftBlob(pill.x, pill.y, pill.w * 0.64, pill.h * 1.0, [
-        [0, "rgba(255,205,95,0.22)"],
-        [0.55, "rgba(255,120,30,0.09)"],
-        [1, "rgba(0,0,0,0)"],
-      ]);
+      ctx.fill();
+
+      const rim = ctx.createRadialGradient(
+        pill.x, pill.y, pill.h * 0.35,
+        pill.x, pill.y, pill.w * 0.55
+      );
+      rim.addColorStop(0, "rgba(255,190,70,0.1)");
+      rim.addColorStop(0.65, "rgba(255,120,30,0.05)");
+      rim.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = rim;
+      ctx.beginPath();
+      ctx.ellipse(pill.x, pill.y, pill.w * 0.56, pill.h * 0.7, 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     }
 
     function update(dt, time) {
       while (particles.length < MAX_P) {
-        particles.push(makeParticle(Math.random() < 0.32));
+        particles.push(makeParticle(Math.random() < 0.3));
       }
-      if (embers.length < MAX_E && Math.random() < 0.65) {
+      if (embers.length < MAX_E && Math.random() < 0.28) {
         embers.push(makeEmber());
       }
 
@@ -299,16 +320,17 @@
           continue;
         }
         const t = p.age / p.life;
-        const turb = noise2(p.seed + time * 2.4, p.y * 0.022) * (42 + t * 75);
-        const flutter = noise2(p.y * 0.04 + p.seed, time * 3.1) * 24;
-        p.vx += (turb + flutter) * dt;
-        p.vx += Math.sin(time * 5.2 + p.seed * 1.7) * 16 * dt;
-        p.vy += (-18 - (1 - t) * 28) * dt;
-        p.vx += t * t * noise2(time * 1.3, p.seed) * 40 * dt;
-        p.vx *= 1 - 0.5 * dt;
+        p.y += p.rise * dt;
+        const wobble =
+          Math.sin(time * 3.2 + p.seed) * 7 +
+          Math.sin(time * 5.1 + p.seed * 1.3) * 3.5;
+        const pull = (p.anchorX + wobble * (0.35 + t * 0.65) - p.x) * 8;
+        p.vx += pull * dt;
+        p.vx *= 1 - 4 * dt;
         p.x += p.vx * dt;
-        p.y += p.vy * dt;
-        p.x += (p.x - pill.x) * 0.1 * dt;
+        const laneSlack = 12;
+        if (p.x < p.anchorX - laneSlack) p.x = p.anchorX - laneSlack;
+        if (p.x > p.anchorX + laneSlack) p.x = p.anchorX + laneSlack;
       }
 
       for (let i = embers.length - 1; i >= 0; i--) {
@@ -318,11 +340,9 @@
           embers.splice(i, 1);
           continue;
         }
-        e.vx += noise2(e.x * 0.04, time * 2.2) * 52 * dt;
-        e.vy -= 24 * dt;
-        e.vx *= 1 - 0.32 * dt;
-        e.x += e.vx * dt;
-        e.y += e.vy * dt;
+        const t = e.age / e.life;
+        e.y += e.rise * dt;
+        e.x = e.anchorX + Math.sin(time * 2.2 + e.phase) * 10 * (0.3 + t * 0.7);
       }
     }
 
@@ -345,7 +365,7 @@
       update(dt, time);
 
       ctx.clearRect(0, 0, W, H);
-      drawBloom(time);
+      drawBloom();
 
       for (const p of particles) {
         if (!p.front) drawParticle(p);
@@ -357,14 +377,7 @@
       ctx.rect(0, 0, W, H);
       const insetX = pill.w / 2 - 8;
       const insetY = pill.h / 2 - 5;
-      roundRectPath(
-        ctx,
-        pill.x - insetX,
-        pill.y - insetY,
-        insetX * 2,
-        insetY * 2,
-        insetY
-      );
+      roundRectPath(ctx, pill.x - insetX, pill.y - insetY, insetX * 2, insetY * 2, insetY);
       ctx.clip("evenodd");
       for (const p of particles) {
         if (p.front) drawParticle(p);
@@ -376,8 +389,8 @@
 
     window.addEventListener("resize", resize);
     resize();
-    for (let i = 0; i < MAX_P; i++) particles.push(makeParticle(Math.random() < 0.32));
-    for (let i = 0; i < 28; i++) embers.push(makeEmber());
+    for (let i = 0; i < MAX_P; i++) particles.push(makeParticle(Math.random() < 0.3));
+    for (let i = 0; i < 12; i++) embers.push(makeEmber());
     requestAnimationFrame(frame);
   </script>
 </body>

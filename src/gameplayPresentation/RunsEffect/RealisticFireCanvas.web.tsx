@@ -74,21 +74,23 @@ export default function RealisticFireCanvas({
       h: height,
     };
 
-    // Badge-scale sim — fewer particles than the showcase preview.
-    const scale = Math.max(0.28, Math.min(0.55, width / 220));
+    // Even columns across the badge; denser streams, smaller blobs.
+    const scale = Math.max(0.3, Math.min(0.58, width / 210));
+    const columns = Math.max(10, Math.round(width / 7));
     const cfg = {
-      maxParticles: Math.round(90 + width * 0.35),
-      maxEmbers: Math.round(14 + width * 0.08),
+      maxParticles: Math.round(columns * 8),
+      maxEmbers: Math.round(10 + width * 0.06),
       scale,
+      columns,
     };
 
     const particles: FireParticle[] = [];
     const embers: FireEmber[] = [];
     for (let i = 0; i < cfg.maxParticles; i++) {
-      particles.push(makeParticle(pill, Math.random() < 0.28, scale));
+      particles.push(makeParticle(pill, Math.random() < 0.28, scale, columns));
     }
     for (let i = 0; i < Math.min(10, cfg.maxEmbers); i++) {
-      embers.push(makeEmber(pill, scale));
+      embers.push(makeEmber(pill, scale, columns));
     }
 
     let raf = 0;
