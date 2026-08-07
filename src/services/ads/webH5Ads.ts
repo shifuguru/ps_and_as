@@ -38,10 +38,12 @@ type H5Window = Window & {
   adsbygoogle?: { push: (...args: unknown[]) => unknown } & unknown[];
 };
 
-/** Max wait for adBreakDone when inventory / network is slow. */
-const AD_BREAK_TIMEOUT_MS = 12_000;
-/** Wait for adsbygoogle.js to replace Array.push on the queue. */
-const ADS_LIBRARY_WAIT_MS = 6_000;
+/** Fail fast — empty inventory / stub queue must not stick the UI on Loading. */
+const AD_BREAK_TIMEOUT_MS = 5_000;
+const ADS_LIBRARY_WAIT_MS = 2_500;
+
+/** Only one adBreak at a time (Google rejects overlapping calls). */
+let breakInFlight: Promise<AdBreakResult> | null = null;
 
 function getAdsClientId(): string | null {
   if (Platform.OS !== "web") return null;
@@ -64,8 +66,7 @@ function isAdsTestMode(): boolean {
 
 /**
  * Official init is always `adBreak = function(o){ adsbygoogle.push(o) }`.
- * Google does **not** replace that wrapper — it replaces `adsbygoogle.push`
- * once adsbygoogle.js loads. Treat native Array.push as "library not loaded".
+ * Google replaces `adsbygoogle.push` once adsbygoogle.js loads.
  */
 export function isAdsByGoogleLibraryLoaded(
   adsbygoogle: H5Window["adsbygoogle"] | undefined = (globalThis as H5Window)
@@ -102,7 +103,7 @@ function waitForAdsLibrary(maxMs = ADS_LIBRARY_WAIT_MS): Promise<boolean> {
         resolve(false);
         return;
       }
-      setTimeout(tick, 150);
+      setTimeout(tick, 100);
     };
     tick();
   });
@@ -114,7 +115,6 @@ export function configureH5AdsSound(soundOn: boolean): void {
   try {
     const w = globalThis as H5Window;
     if (typeof w.adConfig !== "function") return;
-    // Official adConfig is also adsbygoogle.push — always safe to call.
     w.adConfig({
       sound: soundOn ? "on" : "off",
       preloadAdBreaks: "on",
@@ -137,22 +137,10 @@ async function simulateBreak(
   return { shown: true, breakStatus: "simulated", simulated: true };
 }
 
-export async function showH5AdBreak(
+async function runAdBreak(
   type: AdBreakType,
   name: string,
 ): Promise<AdBreakResult> {
-  if (Platform.OS !== "web") {
-    return { shown: false, breakStatus: "unsupported" };
-  }
-  if (!canLoadPersonalizedAds()) {
-    return { shown: false, breakStatus: "noConsent" };
-  }
-
-  const client = getAdsClientId();
-  if (!client || isAdsTestMode()) {
-    return simulateBreak(type, name);
-  }
-
   const w = globalThis as H5Window;
   if (typeof w.adBreak !== "function") {
     return { shown: false, breakStatus: "notReady" };
@@ -162,14 +150,13 @@ export async function showH5AdBreak(
   if (!libraryReady) {
     if (typeof console !== "undefined" && console.info) {
       console.info(
-        "[ads] adsbygoogle.js has not taken over the queue yet — check network / ad blockers",
+        "[ads] adsbygoogle.js not active — blocker, network, or H5 not serving",
       );
     }
-    // Still attempt the break — push queues until the library loads.
-  } else {
-    // Re-assert preload once the library is live.
-    configureH5AdsSound(true);
+    return { shown: false, breakStatus: "h5NotReady" };
   }
+
+  configureH5AdsSound(true);
 
   return new Promise((resolve) => {
     let settled = false;
@@ -178,6 +165,9 @@ export async function showH5AdBreak(
       if (settled) return;
       settled = true;
       releaseAdsAudio();
+      if (typeof console !== "undefined" && console.info) {
+        console.info(`[ads] ${type}/${name} → ${result.breakStatus}`, result);
+      }
       resolve(result);
     };
     const timer = setTimeout(() => {
@@ -213,7 +203,6 @@ export async function showH5AdBreak(
       };
 
       if (type === "reward") {
-        // User already tapped "Watch ad" — show immediately when inventory exists.
         placement.beforeReward = (showAdFn) => {
           try {
             showAdFn();
@@ -237,6 +226,47 @@ export async function showH5AdBreak(
   });
 }
 
+export async function showH5AdBreak(
+  type: AdBreakType,
+  name: string,
+): Promise<AdBreakResult> {
+  if (Platform.OS !== "web") {
+    return { shown: false, breakStatus: "unsupported" };
+  }
+  if (!canLoadPersonalizedAds()) {
+    return { shown: false, breakStatus: "noConsent" };
+  }
+
+  const client = getAdsClientId();
+  if (!client || isAdsTestMode()) {
+    return simulateBreak(type, name);
+  }
+
+  // Serialize — overlapping adBreak calls are rejected by Google.
+  if (breakInFlight) {
+    if (type === "reward") {
+      // Wait briefly for the in-flight break (often a silent forced interstitial).
+      try {
+        await Promise.race([
+          breakInFlight,
+          new Promise((r) => setTimeout(r, 1_500)),
+        ]);
+      } catch {
+        // ignore
+      }
+    } else {
+      return { shown: false, breakStatus: "busy" };
+    }
+  }
+
+  const run = runAdBreak(type, name);
+  breakInFlight = run;
+  void run.finally(() => {
+    if (breakInFlight === run) breakInFlight = null;
+  });
+  return run;
+}
+
 export function isH5AdsConfigured(): boolean {
   return Platform.OS === "web" && !!getAdsClientId();
 }
@@ -245,11 +275,13 @@ export function getH5AdsDiagnostics(): {
   client: string | null;
   libraryLoaded: boolean;
   ready: boolean;
+  breakBusy: boolean;
 } {
   return {
     client: getAdsClientId(),
     libraryLoaded: isAdsByGoogleLibraryLoaded(),
     ready: h5ApiReady(),
+    breakBusy: breakInFlight != null,
   };
 }
 

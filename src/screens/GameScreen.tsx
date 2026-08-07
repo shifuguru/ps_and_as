@@ -4768,11 +4768,17 @@ function GameScreenBoard() {
   const [rewardedAdXp, setRewardedAdXp] = useState(75);
   const [rewardedAdRemaining, setRewardedAdRemaining] = useState(0);
   const [rewardedAdBusy, setRewardedAdBusy] = useState(false);
+  const [rewardedAdError, setRewardedAdError] = useState<string | null>(null);
   const [rewardedBonusXp, setRewardedBonusXp] = useState(0);
   const forcedAdInFlight = useRef(false);
+  const rewardedAdWatchGen = useRef(0);
 
   useEffect(() => {
-    if (!rankingsModalVisible) setRewardedBonusXp(0);
+    if (!rankingsModalVisible) {
+      setRewardedBonusXp(0);
+      setRewardedAdError(null);
+      setRewardedAdBusy(false);
+    }
   }, [rankingsModalVisible]);
 
   useEffect(() => {
@@ -4818,7 +4824,15 @@ function GameScreenBoard() {
 
   const handleWatchRewardedAd = useCallback(() => {
     if (rewardedAdBusy || spectatorMode) return;
+    const watchId = ++rewardedAdWatchGen.current;
     setRewardedAdBusy(true);
+    setRewardedAdError(null);
+    // Hard ceiling so the button can never stick on "Loading ad…".
+    const safety = setTimeout(() => {
+      if (rewardedAdWatchGen.current !== watchId) return;
+      setRewardedAdBusy(false);
+      setRewardedAdError("No ad ready right now. Try again in a moment.");
+    }, 8_000);
     void (async () => {
       try {
         const {
@@ -4828,20 +4842,28 @@ function GameScreenBoard() {
         } = await import("../services/ads/AdsService");
         const { commitRoundXpEarned } = await import("../services/playerStats");
         const result = await showRewardedAdForXp();
+        if (rewardedAdWatchGen.current !== watchId) return;
         if (result.ok && result.xpGranted > 0) {
           await commitRoundXpEarned(result.xpGranted, 0);
           setRewardedBonusXp((n) => n + result.xpGranted);
-        } else if (result.reason) {
-          Alert.alert("Ad unavailable", rewardedAdFailureMessage(result.reason));
+          setRewardedAdError(null);
+        } else {
+          setRewardedAdError(
+            rewardedAdFailureMessage(result.reason || "notShown"),
+          );
         }
         const ui = await getRewardedAdUiState();
         setRewardedAdAvailable(ui.available && ui.remaining > 0);
         setRewardedAdRemaining(ui.remaining);
         setRewardedAdXp(ui.xp);
       } catch {
-        Alert.alert("Ad unavailable", "Could not show an ad. Try again later.");
+        if (rewardedAdWatchGen.current !== watchId) return;
+        setRewardedAdError("Could not show an ad. Try again later.");
       } finally {
-        setRewardedAdBusy(false);
+        clearTimeout(safety);
+        if (rewardedAdWatchGen.current === watchId) {
+          setRewardedAdBusy(false);
+        }
       }
     })();
   }, [rewardedAdBusy, spectatorMode]);
@@ -6174,6 +6196,7 @@ function GameScreenBoard() {
         rewardedAdXp={rewardedAdXp}
         rewardedAdRemaining={rewardedAdRemaining}
         rewardedAdBusy={rewardedAdBusy}
+        rewardedAdError={rewardedAdError}
         onWatchRewardedAd={handleWatchRewardedAd}
         onToggleReady={() => {
           const id = myPlayerId;
