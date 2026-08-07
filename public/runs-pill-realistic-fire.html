@@ -5,239 +5,179 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Runs! pill — realistic fire</title>
   <style>
-    :root {
-      --bg0: #040606;
-      --pill: #f3eee3;
-      --ink: #1a120c;
-    }
+    :root { --bg0: #040606; --pill: #f3eee3; --ink: #1a120c; }
     * { box-sizing: border-box; margin: 0; }
     html, body {
       height: 100%;
       background:
-        radial-gradient(ellipse 50% 40% at 50% 54%, rgba(255, 110, 20, 0.1), transparent 60%),
+        radial-gradient(ellipse 50% 40% at 50% 54%, rgba(255, 110, 20, 0.12), transparent 60%),
         radial-gradient(ellipse 90% 80% at 50% 50%, #0c1411 0%, var(--bg0) 72%);
-      color: #cfc8bc;
-      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
       overflow: hidden;
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
     }
-    .stage {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      display: grid;
-      place-items: center;
-    }
-    canvas {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
+    .stage { height: 100%; display: grid; place-items: center; position: relative; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
     .pill {
-      position: relative;
-      z-index: 2;
-      padding: 15px 40px;
-      border-radius: 999px;
+      position: relative; z-index: 2;
+      padding: 15px 40px; border-radius: 999px;
       background: linear-gradient(180deg, #fffaf1 0%, var(--pill) 52%, #e7dece 100%);
-      color: var(--ink);
-      font-weight: 800;
-      font-size: 30px;
-      letter-spacing: 0.03em;
-      line-height: 1;
+      color: var(--ink); font-weight: 800; font-size: 30px; letter-spacing: 0.03em;
       border: 1.5px solid rgba(255, 190, 70, 0.9);
       box-shadow:
         0 0 0 1px rgba(255, 130, 25, 0.4),
         0 0 20px rgba(255, 150, 40, 0.55),
         0 0 40px rgba(255, 90, 10, 0.22),
         inset 0 1px 0 rgba(255, 255, 255, 0.7);
-      user-select: none;
-      pointer-events: none;
+      pointer-events: none; user-select: none;
     }
     .label {
-      position: absolute;
-      top: 18px;
-      left: 20px;
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #6f8572;
-      z-index: 3;
+      position: absolute; top: 18px; left: 20px; z-index: 3;
+      font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #6f8572;
     }
   </style>
 </head>
 <body>
-  <div class="label">Realistic fire · conveyor columns · steady rise</div>
+  <div class="label">Realistic fire · dense continuous wall</div>
   <div class="stage">
     <canvas id="fire"></canvas>
     <div class="pill" id="pill">Runs!</div>
   </div>
   <script>
     /**
-     * Conveyor fire: fixed particles per column, evenly spaced ages that wrap.
-     * Rise speed is identical for every tongue — no random respawn waves.
+     * Dense continuous fire wall (reference): heavily overlapping soft
+     * particles across the full rim — not discrete candle columns.
+     * Fixed rise + wrapping ages = steady burn.
      */
     const canvas = document.getElementById("fire");
     const pillEl = document.getElementById("pill");
     const ctx = canvas.getContext("2d", { alpha: true });
-    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    const DPR = Math.min(devicePixelRatio || 1, 2);
+
+    const BURN = {
+      riseTop: -92, riseSide: -50, riseBottom: -28, riseEmber: -70,
+      lifeTop: 0.58, lifeSide: 0.45, lifeBottom: 0.38, lifeEmber: 0.9,
+      swayFreq: 2.4, emberSwayFreq: 1.8,
+    };
 
     let W = 0, H = 0;
     let pill = { x: 0, y: 0, w: 0, h: 0 };
-
-    const COLUMNS = 16;
-    const PER_COLUMN = 9;
-    const BURN = {
-      riseTop: -96,
-      riseSide: -54,
-      riseBottom: -30,
-      riseEmber: -72,
-      lifeTop: 0.62,
-      lifeSide: 0.48,
-      lifeBottom: 0.4,
-      lifeEmber: 0.85,
-      swayFreq: 2.8,
-      emberSwayFreq: 2.0,
-    };
-
     const particles = [];
     const embers = [];
 
     function resize() {
-      W = window.innerWidth;
-      H = window.innerHeight;
+      W = innerWidth; H = innerHeight;
       canvas.width = Math.floor(W * DPR);
       canvas.height = Math.floor(H * DPR);
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       syncPill();
+      initField();
     }
 
     function syncPill() {
       const r = pillEl.getBoundingClientRect();
-      pill = {
-        x: r.left + r.width / 2,
-        y: r.top + r.height / 2,
-        w: r.width,
-        h: r.height,
-      };
-      // Keep fuel-line origins locked if the pill moves/resizes.
-      const span = topSpan();
-      for (const p of particles) {
-        if (p.zone === "top") {
-          p.originY = span.y;
-          p.anchorX = columnX(p.column) + p.laneJitter;
-        }
-      }
-      for (const e of embers) {
-        e.originY = span.y;
-      }
+      pill = { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
     }
 
     function topSpan() {
-      const hw = pill.w / 2;
-      const hh = pill.h / 2;
+      const hw = pill.w / 2, hh = pill.h / 2;
       return {
-        left: pill.x - hw + hh * 0.15,
-        right: pill.x + hw - hh * 0.15,
+        left: pill.x - hw + hh * 0.05,
+        right: pill.x + hw - hh * 0.05,
         y: pill.y - hh,
       };
-    }
-
-    function columnX(column) {
-      const span = topSpan();
-      if (COLUMNS <= 1) return pill.x;
-      return span.left + (span.right - span.left) * (column / (COLUMNS - 1));
     }
 
     function initField() {
       particles.length = 0;
       embers.length = 0;
       const span = topSpan();
-      const lane = (span.right - span.left) / COLUMNS;
+      const width = Math.max(8, span.right - span.left);
+      const topCount = Math.max(36, Math.round(width / 4.5));
+      const layers = 3;
 
-      for (let c = 0; c < COLUMNS; c++) {
-        for (let s = 0; s < PER_COLUMN; s++) {
-          const laneJitter = (Math.random() - 0.5) * lane * 0.22;
-          const anchorX = columnX(c) + laneJitter;
+      for (let i = 0; i < topCount; i++) {
+        const t = i / (topCount - 1);
+        const anchorX = span.left + width * t;
+        const originY = span.y + (Math.random() - 0.35) * 3;
+        for (let layer = 0; layer < layers; layer++) {
           const rise = BURN.riseTop;
           const life = BURN.lifeTop;
-          const age = (s / PER_COLUMN) * life;
+          const age = ((i * layers + layer) / (topCount * layers)) * life;
           particles.push({
+            anchorX, originY,
+            x: anchorX, y: originY + rise * age,
+            rise, life, age,
+            size: 18 + Math.random() * 14,
+            heat: 0.78 + Math.random() * 0.22,
+            seed: Math.random() * Math.PI * 2,
+            stretch: 1.35 + Math.random() * 0.55,
+            front: layer === 2 && i % 4 === 0,
+            drift: 4.5 + Math.random() * 4,
             zone: "top",
-            column: c,
-            laneJitter,
-            anchorX,
-            originY: span.y,
-            x: anchorX,
-            y: span.y + rise * age,
-            rise,
-            life,
-            age,
-            size: 11 + Math.random() * 5,
-            heat: 0.84 + Math.random() * 0.14,
-            seed: Math.random() * Math.PI * 2,
-            stretch: 1.9 + Math.random() * 0.3,
-            front: s % 3 === 0,
           });
         }
       }
 
-      // Light side wrap
-      const hw = pill.w / 2;
-      const hh = pill.h / 2;
+      const hw = pill.w / 2, hh = pill.h / 2;
       const flat = Math.max(0, hw - hh);
-      for (let s = 0; s < 4; s++) {
+      const wrapCount = Math.max(10, Math.round(topCount * 0.35));
+      for (let i = 0; i < wrapCount; i++) {
+        const u = i / Math.max(1, wrapCount - 1);
         for (const side of ["left", "right"]) {
-          const a =
-            side === "left"
-              ? Math.PI * 0.75 + (s / 3) * Math.PI * 0.45
-              : -Math.PI * 0.2 + (s / 3) * Math.PI * 0.45;
-          const anchorX =
-            pill.x + (side === "left" ? -flat : flat) + Math.cos(a) * hh;
-          const originY = pill.y + Math.sin(a) * hh * 0.75;
-          const rise = BURN.riseSide;
-          const life = BURN.lifeSide;
-          const age = (s / 4) * life;
+          const a = side === "left"
+            ? Math.PI * 0.55 + u * Math.PI * 0.9
+            : -Math.PI * 0.45 + u * Math.PI * 0.9;
+          const anchorX = pill.x + (side === "left" ? -flat : flat) + Math.cos(a) * hh;
+          const originY = pill.y + Math.sin(a) * hh;
+          const rise = BURN.riseSide, life = BURN.lifeSide;
+          const age = (u * 0.5 + (side === "left" ? 0 : 0.5)) * life;
           particles.push({
-            zone: side,
-            column: -1,
-            laneJitter: 0,
-            anchorX,
-            originY,
-            x: anchorX,
-            y: originY + rise * age,
-            rise,
-            life,
-            age,
-            size: 7 + Math.random() * 3,
-            heat: 0.55 + Math.random() * 0.25,
+            anchorX, originY, x: anchorX, y: originY + rise * age,
+            rise, life, age,
+            size: 13 + Math.random() * 9,
+            heat: 0.55 + Math.random() * 0.3,
             seed: Math.random() * Math.PI * 2,
-            stretch: 1.25,
-            front: false,
+            stretch: 1.15 + Math.random() * 0.35,
+            front: false, drift: 3 + Math.random() * 2.5, zone: side,
           });
         }
       }
 
-      for (let i = 0; i < COLUMNS; i++) {
-        const anchorX = columnX(i);
-        const rise = BURN.riseEmber;
-        const life = BURN.lifeEmber;
-        const age = (i / COLUMNS) * life;
+      const bottomCount = Math.max(12, Math.round(topCount * 0.4));
+      for (let i = 0; i < bottomCount; i++) {
+        const t = i / (bottomCount - 1);
+        const anchorX = span.left + width * t;
+        const originY = pill.y + hh;
+        const rise = BURN.riseBottom, life = BURN.lifeBottom;
+        const age = (i / bottomCount) * life;
+        particles.push({
+          anchorX, originY, x: anchorX, y: originY + rise * age,
+          rise, life, age,
+          size: 12 + Math.random() * 8,
+          heat: 0.5 + Math.random() * 0.3,
+          seed: Math.random() * Math.PI * 2,
+          stretch: 1.05 + Math.random() * 0.3,
+          front: false, drift: 2.5 + Math.random() * 2.5, zone: "bottom",
+        });
+      }
+
+      const emberCount = Math.max(16, Math.round(topCount * 0.7));
+      for (let i = 0; i < emberCount; i++) {
+        const t = i / (emberCount - 1);
+        const anchorX = span.left + width * t + (Math.random() - 0.5) * 8;
+        const rise = BURN.riseEmber, life = BURN.lifeEmber;
+        const age = (i / emberCount) * life;
         embers.push({
-          anchorX,
-          originY: span.y,
-          x: anchorX,
-          y: span.y + rise * age,
-          rise,
-          life,
-          age,
-          size: 1.3 + (i % 3) * 0.35,
-          phase: (i / COLUMNS) * Math.PI * 2,
+          anchorX, originY: span.y,
+          x: anchorX, y: span.y + rise * age,
+          rise, life, age,
+          size: 1.3 + Math.random() * 1.6,
+          phase: (i / emberCount) * Math.PI * 2,
         });
       }
     }
 
-    function drawSoftBlob(x, y, rx, ry, stops) {
+    function blob(x, y, rx, ry, stops) {
       const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
       for (const [o, c] of stops) g.addColorStop(o, c);
       ctx.fillStyle = g;
@@ -246,50 +186,31 @@
       ctx.fill();
     }
 
-    function drawParticle(p) {
+    function drawP(p) {
       const t = p.age / p.life;
-      const grow = t < 0.08 ? t / 0.08 : 1;
-      const fade = t > 0.82 ? 1 - (t - 0.82) / 0.18 : 1;
-      const a = grow * fade * (0.34 + p.heat * 0.38);
-      if (a < 0.02) return;
-
-      const rx = p.size * 0.42;
-      const ry = p.size * p.stretch;
-
+      const grow = t < 0.1 ? t / 0.1 : 1;
+      const fade = t > 0.75 ? 1 - (t - 0.75) / 0.25 : 1;
+      const a = grow * fade * (0.24 + p.heat * 0.34);
+      if (a < 0.015) return;
+      const rx = p.size * (0.7 + (1 - t) * 0.15);
+      const ry = p.size * p.stretch * (0.85 + t * 0.25);
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = a;
-      drawSoftBlob(p.x, p.y, rx, ry, [
-        [0, `rgba(255,${Math.floor(210 * p.heat)},55,1)`],
-        [0.3, `rgba(255,${Math.floor(120 + 35 * p.heat)},16,0.8)`],
-        [0.65, "rgba(255,60,5,0.32)"],
-        [1, "rgba(40,0,0,0)"],
+      blob(p.x, p.y, rx, ry, [
+        [0, `rgba(255,${Math.floor(220 * p.heat)},70,1)`],
+        [0.28, `rgba(255,${Math.floor(140 + 40 * p.heat)},25,0.85)`],
+        [0.58, "rgba(255,90,10,0.4)"],
+        [1, "rgba(50,5,0,0)"],
       ]);
-      if (t < 0.35) {
-        const k = 1 - t / 0.35;
-        ctx.globalAlpha = a * 0.8 * k;
-        drawSoftBlob(p.x, p.y + ry * 0.15, rx * 0.45, ry * 0.4, [
-          [0, "rgba(255,255,240,1)"],
-          [0.45, `rgba(255,230,${Math.floor(130 * p.heat)},0.85)`],
-          [1, "rgba(255,140,20,0)"],
+      if (t < 0.4) {
+        ctx.globalAlpha = a * 0.85 * (1 - t / 0.4);
+        blob(p.x, p.y + ry * 0.2, rx * 0.55, ry * 0.42, [
+          [0, "rgba(255,255,245,1)"],
+          [0.4, `rgba(255,235,${Math.floor(140 * p.heat)},0.9)`],
+          [1, "rgba(255,150,30,0)"],
         ]);
       }
-      ctx.restore();
-    }
-
-    function drawEmber(e) {
-      const t = e.age / e.life;
-      const tw = 0.75 + 0.25 * Math.sin(e.phase + t * Math.PI * 2);
-      const a = Math.sin(t * Math.PI) * tw;
-      if (a < 0.02) return;
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      ctx.globalAlpha = a;
-      drawSoftBlob(e.x, e.y, e.size * 2.2, e.size * 2.2, [
-        [0, "rgba(255,245,180,1)"],
-        [0.4, "rgba(255,165,45,0.75)"],
-        [1, "rgba(255,60,0,0)"],
-      ]);
       ctx.restore();
     }
 
@@ -299,18 +220,21 @@
       ctx.globalCompositeOperation = "lighter";
       const g = ctx.createLinearGradient(span.left, span.y, span.right, span.y);
       g.addColorStop(0, "rgba(255,140,30,0)");
-      g.addColorStop(0.08, "rgba(255,160,40,0.16)");
-      g.addColorStop(0.5, "rgba(255,170,50,0.18)");
-      g.addColorStop(0.92, "rgba(255,160,40,0.16)");
+      g.addColorStop(0.06, "rgba(255,160,40,0.2)");
+      g.addColorStop(0.5, "rgba(255,175,55,0.24)");
+      g.addColorStop(0.94, "rgba(255,160,40,0.2)");
       g.addColorStop(1, "rgba(255,140,30,0)");
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.ellipse(
-        pill.x, span.y + 2,
-        (span.right - span.left) * 0.52,
-        pill.h * 0.55,
-        0, 0, Math.PI * 2
-      );
+      ctx.ellipse(pill.x, span.y, (span.right - span.left) * 0.55, pill.h * 0.7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const rim = ctx.createRadialGradient(pill.x, pill.y, pill.h * 0.3, pill.x, pill.y, pill.w * 0.58);
+      rim.addColorStop(0, "rgba(255,190,70,0.14)");
+      rim.addColorStop(0.55, "rgba(255,110,25,0.07)");
+      rim.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = rim;
+      ctx.beginPath();
+      ctx.ellipse(pill.x, pill.y, pill.w * 0.6, pill.h * 0.85, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -320,13 +244,15 @@
         p.age += dt;
         if (p.age >= p.life) p.age -= p.life;
         p.y = p.originY + p.rise * p.age;
-        p.x = p.anchorX + Math.sin(time * BURN.swayFreq + p.seed) * 5.5;
+        p.x = p.anchorX
+          + Math.sin(time * BURN.swayFreq + p.seed) * p.drift
+          + Math.sin(time * BURN.swayFreq * 0.5 + p.anchorX * 0.04) * 2;
       }
       for (const e of embers) {
         e.age += dt;
         if (e.age >= e.life) e.age -= e.life;
         e.y = e.originY + e.rise * e.age;
-        e.x = e.anchorX + Math.sin(time * BURN.emberSwayFreq + e.phase) * 7;
+        e.x = e.anchorX + Math.sin(time * BURN.emberSwayFreq + e.phase) * 9;
       }
     }
 
@@ -339,49 +265,48 @@
       c.closePath();
     }
 
-    let last = performance.now();
-    let simTime = 0;
+    let last = performance.now(), sim = 0;
     function frame(now) {
-      let frameDt = Math.min(0.05, (now - last) / 1000);
+      let fd = Math.min(0.05, (now - last) / 1000);
       last = now;
       const step = 1 / 60;
-      while (frameDt > 0) {
-        const dt = Math.min(step, frameDt);
-        simTime += dt;
-        update(dt, simTime);
-        frameDt -= dt;
+      while (fd > 0) {
+        const dt = Math.min(step, fd);
+        sim += dt;
+        update(dt, sim);
+        fd -= dt;
       }
-
       syncPill();
       ctx.clearRect(0, 0, W, H);
       drawBloom();
-
-      for (const p of particles) {
-        if (!p.front) drawParticle(p);
+      for (const p of particles) if (!p.front) drawP(p);
+      for (const e of embers) {
+        const t = e.age / e.life;
+        const a = Math.sin(t * Math.PI) * (0.7 + 0.3 * Math.sin(e.phase + t * Math.PI * 2));
+        if (a < 0.02) continue;
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = a;
+        blob(e.x, e.y, e.size * 2.4, e.size * 2.4, [
+          [0, "rgba(255,245,180,1)"],
+          [0.4, "rgba(255,165,45,0.75)"],
+          [1, "rgba(255,60,0,0)"],
+        ]);
+        ctx.restore();
       }
-      for (const e of embers) drawEmber(e);
-
       ctx.save();
       ctx.beginPath();
       ctx.rect(0, 0, W, H);
-      const insetX = pill.w / 2 - 8;
-      const insetY = pill.h / 2 - 5;
-      roundRectPath(ctx, pill.x - insetX, pill.y - insetY, insetX * 2, insetY * 2, insetY);
+      const ix = pill.w / 2 - 8, iy = pill.h / 2 - 5;
+      roundRectPath(ctx, pill.x - ix, pill.y - iy, ix * 2, iy * 2, iy);
       ctx.clip("evenodd");
-      for (const p of particles) {
-        if (p.front) drawParticle(p);
-      }
+      for (const p of particles) if (p.front) drawP(p);
       ctx.restore();
-
       requestAnimationFrame(frame);
     }
 
-    window.addEventListener("resize", () => {
-      resize();
-      initField();
-    });
+    addEventListener("resize", resize);
     resize();
-    initField();
     requestAnimationFrame(frame);
   </script>
 </body>

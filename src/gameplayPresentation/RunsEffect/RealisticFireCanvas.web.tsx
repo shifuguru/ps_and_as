@@ -72,16 +72,12 @@ export default function RealisticFireCanvas({
       h: height,
     };
 
-    // Badge-tuned conveyor: readable tongues at ~60–90px pill widths.
-    const scale = Math.max(0.42, Math.min(0.75, width / 140));
-    const columns = Math.max(8, Math.min(14, Math.round(width / 7)));
-    const perColumn = 7;
+    // Dense continuous wall — overlapping blobs, not candle columns.
+    const scale = Math.max(0.4, Math.min(0.72, width / 150));
     const cfg = {
-      maxParticles: columns * perColumn,
-      maxEmbers: Math.max(6, Math.round(columns * 0.75)),
+      maxParticles: Math.max(60, Math.round(width * 1.4)),
+      maxEmbers: Math.max(10, Math.round(width * 0.22)),
       scale,
-      columns,
-      perColumn,
     };
     const { particles, embers } = initFireField(pill, cfg);
 
