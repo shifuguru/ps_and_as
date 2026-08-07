@@ -439,7 +439,7 @@ Investigation: [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.
 
 **Documented intent:** Cover AI + server costs (~$40–50 NZD/mo) without breaking fair play. Web-first Google H5 Games Ads; native AdMob later behind the same client API.
 
-**Current behaviour:** Web H5 interstitial (every 3 rounds), rewarded XP, consent banner, and Stripe Remove Ads are implemented. Android native stubs ads/billing (`Platform.OS !== "web"`).
+**Current behaviour:** Web H5 interstitial (every 3 rounds), rewarded XP, consent banner, and Stripe Remove Ads are implemented. Android native stubs ads/billing (`Platform.OS !== "web"`). Rewarded breaks call `beforeReward(showAdFn)`. Readiness checks whether `adsbygoogle.js` replaced `adsbygoogle.push` (the official `adBreak` wrapper always contains `adsbygoogle.push` and must not be treated as “not ready”).
 
 **Target behaviour:**
 
