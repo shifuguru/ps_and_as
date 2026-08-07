@@ -1,10 +1,5 @@
 import React, { useEffect, useMemo } from "react";
-import {
-  Image,
-  Platform,
-  StyleSheet,
-  View,
-} from "react-native";
+import { Image, Platform, StyleSheet, View } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -20,8 +15,6 @@ import { RUNS_LAYOUT, type FlameSeed } from "./constants";
 
 const FIRE_BAND = require("../../../assets/effects/runs-fire-band.png");
 
-const AnimatedImage = Animated.createAnimatedComponent(Image);
-
 type Props = {
   width: number;
   height: number;
@@ -35,7 +28,8 @@ type Props = {
 };
 
 function FireSpriteLayer({
-  style,
+  width,
+  height,
   intensity,
   ignition,
   effectOpacity,
@@ -45,7 +39,8 @@ function FireSpriteLayer({
   baseOpacity,
   baseScale,
 }: {
-  style: object;
+  width: number;
+  height: number;
   intensity: SharedValue<number>;
   ignition: SharedValue<number>;
   effectOpacity: SharedValue<number>;
@@ -121,13 +116,16 @@ function FireSpriteLayer({
   });
 
   return (
-    <AnimatedImage
-      source={FIRE_BAND}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      style={[style, animStyle] as any}
-      resizeMode="stretch"
+    <Animated.View
+      style={[styles.spriteWrap, { width, height }, animStyle]}
       pointerEvents="none"
-    />
+    >
+      <Image
+        source={FIRE_BAND}
+        style={styles.sprite}
+        resizeMode="stretch"
+      />
+    </Animated.View>
   );
 }
 
@@ -163,16 +161,6 @@ export default function FlameLayer({
 
   if (!dims) return null;
 
-  const imgStyle = {
-    position: "absolute" as const,
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: dims.auraW,
-    height: dims.auraH,
-  };
-
   return (
     <View
       style={[
@@ -185,16 +173,15 @@ export default function FlameLayer({
         },
         Platform.OS === "web"
           ? ({
-              // Soften sprite edges slightly without turning it into a glow bar.
               filter: "drop-shadow(0 0 4px rgba(255,120,20,0.35))",
             } as object)
           : null,
       ]}
       pointerEvents="none"
     >
-      {/* Soft under-glow copy */}
       <FireSpriteLayer
-        style={[imgStyle, styles.glowCopy]}
+        width={dims.auraW}
+        height={dims.auraH}
         intensity={flameIntensity}
         ignition={ignition}
         effectOpacity={effectOpacity}
@@ -204,9 +191,9 @@ export default function FlameLayer({
         baseOpacity={0.45}
         baseScale={1.06}
       />
-      {/* Main fire */}
       <FireSpriteLayer
-        style={imgStyle}
+        width={dims.auraW}
+        height={dims.auraH}
         intensity={flameIntensity}
         ignition={ignition}
         effectOpacity={effectOpacity}
@@ -216,9 +203,9 @@ export default function FlameLayer({
         baseOpacity={1}
         baseScale={1}
       />
-      {/* Secondary flicker layer for living depth */}
       <FireSpriteLayer
-        style={imgStyle}
+        width={dims.auraW}
+        height={dims.auraH}
         intensity={flameIntensity}
         ignition={ignition}
         effectOpacity={effectOpacity}
@@ -237,7 +224,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     overflow: "visible",
   },
-  glowCopy: {
-    opacity: 0.5,
+  spriteWrap: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+  },
+  sprite: {
+    width: "100%",
+    height: "100%",
   },
 });
