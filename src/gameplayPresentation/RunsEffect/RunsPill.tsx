@@ -13,6 +13,7 @@ import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import GlowLayer from "./GlowLayer";
 import FlameLayer from "./FlameLayer";
 import EmberLayer, { type EmberSpread } from "./EmberLayer";
+import HeatShimmer from "./HeatShimmer";
 import { useRunsAnimation } from "./useRunsAnimation";
 import {
   FLAME_SEEDS,
@@ -27,7 +28,7 @@ type Props = {
   label?: string;
   /** Custom pill body — use for multi-line role-style content. */
   children?: React.ReactNode;
-  /** Existing glass pill styles (body + highlighted). */
+  /** Existing glass pill styles. */
   pillStyle?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
   /** Root wrapper style (e.g. full-width stretch). */
@@ -36,28 +37,28 @@ type Props = {
   /** Warm Runs! by default; pass platinum (etc.) for variants. */
   palette?: RunsPalette;
   flameSeeds?: FlameSeed[];
-  /** Soft bloom behind the glass. */
+  /** Soft bloom behind the pill. */
   showGlow?: boolean;
-  /** Large flame wisps. Off = sparkles only. */
+  /** Soft flame band above the pill. Off = sparkles only. */
   showFlames?: boolean;
-  /** Cap on rising flame wisps (px). */
+  /** Cap on flame rise height (px). */
   maxFlameHeight?: number;
   /**
    * Ember / sparkle pattern.
-   * `top` — rise from the top (default Runs!).
+   * `top` — rise from the flame band (default Runs!).
    * `around` — small sparkles inside + outside all sides.
    */
   emberSpread?: EmberSpread;
   /**
-   * When true, larger flame wisps stay mostly inside the pill;
-   * only tiny sparkles extend outside.
+   * When true, compact energy for streak / prestige widgets.
+   * Open mode = centered, pill-constrained Runs! fire.
    */
   containFlames?: boolean;
 };
 
 /**
- * Runs! glass capsule with premium energy accent layers.
- * Glass pill remains the hero — glow / flames / embers are accents only.
+ * Warm cream Runs! pill centered in a soft, pill-constrained fire band.
+ * Flames rise from the top rim ~half the pill height; text stays readable.
  */
 export default function RunsPill({
   label,
@@ -88,22 +89,47 @@ export default function RunsPill({
     }
   };
 
-  const burstStyle = useAnimatedStyle(() => {
-    return {
-      opacity: anim.ignition.value * 0.85 * anim.effectOpacity.value,
-      transform: [
-        { scaleX: 0.6 + anim.ignition.value * 0.55 },
-        { scaleY: 0.5 + anim.ignition.value * 0.9 },
-        { translateY: 2 + anim.ignition.value * 4 },
-      ],
-    } as ViewStyle;
-  });
-
   const flamesOn = showFlames && active;
   const glowOn = showGlow && active;
+  // Open mode: hard-cap rise to ~half pill height (step brief).
   const flameMax = containFlames
-    ? Math.min(maxFlameHeight, Math.max(12, size.height * 0.7 || 14))
-    : maxFlameHeight;
+    ? Math.min(maxFlameHeight, Math.max(12, size.height * 0.55 || 14))
+    : Math.min(
+        maxFlameHeight,
+        Math.max(10, (size.height || 22) * RUNS_LAYOUT.auraHeightFactor),
+      );
+
+  const pillPopStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: anim.pillScale.value }],
+  }));
+
+  const warmPillChrome =
+    !containFlames && palette.pillFill
+      ? ({
+          backgroundColor: palette.pillFill,
+          borderWidth: RUNS_LAYOUT.neonBorderWidth,
+          borderColor: palette.pillBorder ?? palette.core,
+          borderRadius: RUNS_LAYOUT.pillRadius,
+          ...Platform.select({
+            ios: {
+              shadowColor: palette.core,
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 0.7,
+              shadowRadius: 8,
+            },
+            android: { elevation: 6 },
+            web: {
+              boxShadow: `0 0 10px 1px ${palette.glowCore}`,
+            } as object,
+            default: {},
+          }),
+        } satisfies ViewStyle)
+      : null;
+
+  const warmLabel =
+    !containFlames && palette.pillText
+      ? ({ color: palette.pillText } satisfies TextStyle)
+      : null;
 
   return (
     <View
@@ -111,6 +137,7 @@ export default function RunsPill({
       onLayout={onLayout}
       pointerEvents="box-none"
     >
+      {/* Soft heat bloom — centered on the pill. */}
       {glowOn ? (
         <View style={styles.behind} pointerEvents="none">
           <GlowLayer
@@ -122,29 +149,18 @@ export default function RunsPill({
         </View>
       ) : null}
 
-      {/* Flames behind the glass so the pill reads as the fuel source. */}
+      {/* Soft fire band BEHIND the pill, locked to pill width. */}
       {flamesOn ? (
         <View
           style={[
-            styles.flameAccent,
-            containFlames && styles.flameAccentContained,
+            styles.flameAura,
+            containFlames && styles.flameAuraContained,
           ]}
           pointerEvents="none"
         >
-          {glowOn ? (
-            <Animated.View
-              style={[
-                styles.ignitionBurst,
-                {
-                  backgroundColor: palette.glowCore,
-                  shadowColor: palette.core,
-                },
-                burstStyle,
-              ]}
-            />
-          ) : null}
           <FlameLayer
             width={size.width}
+            height={size.height}
             flameIntensity={anim.flameIntensity}
             ignition={anim.ignition}
             effectOpacity={anim.effectOpacity}
@@ -155,13 +171,29 @@ export default function RunsPill({
         </View>
       ) : null}
 
-      <View style={[styles.glassPill, pillStyle]}>
+      {/* Warm cream pill — dead center of the effect. */}
+      <Animated.View
+        style={[styles.glassPill, warmPillChrome, pillStyle, pillPopStyle]}
+      >
         {children ?? (
-          <Text numberOfLines={1} style={[styles.label, textStyle]}>
+          <Text
+            numberOfLines={1}
+            style={[styles.label, warmLabel, textStyle]}
+          >
             {label}
           </Text>
         )}
-      </View>
+      </Animated.View>
+
+      {flamesOn && !containFlames ? (
+        <HeatShimmer
+          width={size.width}
+          height={size.height}
+          shimmer={anim.shimmer}
+          effectOpacity={anim.effectOpacity}
+          active={active}
+        />
+      ) : null}
 
       <View style={styles.sparkleAccent} pointerEvents="none">
         <EmberLayer
@@ -190,6 +222,15 @@ const styles = StyleSheet.create({
     overflow: "visible",
     zIndex: 0,
   },
+  flameAura: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+    overflow: "visible",
+  },
+  flameAuraContained: {
+    overflow: "hidden",
+    borderRadius: 14,
+  },
   glassPill: {
     position: "relative",
     zIndex: 2,
@@ -206,30 +247,9 @@ const styles = StyleSheet.create({
       ? ({ whiteSpace: "nowrap" } as object)
       : null),
   },
-  /** Behind glass — base of the flame sits in the pill (fuel), tips rise up. */
-  flameAccent: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 1,
-    overflow: "visible",
-  },
-  flameAccentContained: {
-    overflow: "hidden",
-    borderRadius: 14,
-  },
   sparkleAccent: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 4,
     overflow: "visible",
-  },
-  ignitionBurst: {
-    position: "absolute",
-    left: "18%",
-    right: "18%",
-    bottom: -4,
-    height: 10,
-    borderRadius: 999,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.85,
-    shadowRadius: 8,
   },
 });

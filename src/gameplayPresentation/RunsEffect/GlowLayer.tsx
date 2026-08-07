@@ -14,8 +14,7 @@ type Props = {
 };
 
 /**
- * Soft bloom behind the glass pill — illuminates felt, never overpowers UI.
- * Scale/opacity only (no animated blur).
+ * Tight warm bloom centered on the pill — heat around the badge, not a huge halo.
  */
 export default function GlowLayer({
   glowOpacity,
@@ -23,29 +22,29 @@ export default function GlowLayer({
   effectOpacity,
   palette = RUNS_COLORS,
 }: Props) {
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value * 0.55 * effectOpacity.value,
+  const outerStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value * 0.65 * effectOpacity.value,
     transform: [{ scale: glowScale.value }],
   }));
 
-  const coreStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value * 0.4 * effectOpacity.value,
-    transform: [{ scale: 0.88 + glowScale.value * 0.08 }],
+  const midStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value * 0.5 * effectOpacity.value,
+    transform: [{ scale: 0.92 + glowScale.value * 0.08 }],
   }));
 
   return (
     <View style={styles.wrap} pointerEvents="none">
       <Animated.View
-        style={[styles.halo, { backgroundColor: palette.glow }, glowStyle]}
+        style={[styles.outer, { backgroundColor: palette.glow }, outerStyle]}
       />
       <Animated.View
         style={[
-          styles.core,
+          styles.mid,
           {
             backgroundColor: palette.glowSoft,
             shadowColor: palette.core,
           },
-          coreStyle,
+          midStyle,
         ]}
       />
     </View>
@@ -59,19 +58,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "visible",
   },
-  halo: {
+  outer: {
     position: "absolute",
-    width: "112%",
-    height: "130%",
+    width: "118%",
+    height: "150%",
     borderRadius: 999,
   },
-  core: {
+  mid: {
     position: "absolute",
-    width: "100%",
-    height: "108%",
+    width: "104%",
+    height: "118%",
     borderRadius: 999,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.55,
     shadowRadius: RUNS_LAYOUT.glowPad,
   },
 });

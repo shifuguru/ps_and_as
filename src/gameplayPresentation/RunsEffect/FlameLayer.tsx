@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { StyleSheet, View, type ViewStyle } from "react-native";
+import React, { useEffect, useMemo } from "react";
+import { Image, Platform, StyleSheet, View, type ViewStyle } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -11,49 +11,59 @@ import Animated, {
   cancelAnimation,
   type SharedValue,
 } from "react-native-reanimated";
-import { FLAME_SEEDS, RUNS_LAYOUT, type FlameSeed } from "./constants";
+import { RUNS_LAYOUT, type FlameSeed } from "./constants";
+
+const FIRE_BAND = require("../../../assets/effects/runs-fire-band.png");
 
 type Props = {
   width: number;
+  height: number;
   flameIntensity: SharedValue<number>;
   ignition: SharedValue<number>;
   effectOpacity: SharedValue<number>;
+  /** Kept for API compatibility with palette variants; unused for sprite fire. */
   seeds?: FlameSeed[];
   maxFlameHeight?: number;
-  /** Keep wisps mostly inside the pill (rise from the inner bottom edge). */
   contained?: boolean;
 };
 
-function FlameWisp({
-  seed,
-  pillWidth,
-  flameIntensity,
+function FireSpriteLayer({
+  width,
+  height,
+  intensity,
   ignition,
   effectOpacity,
-  maxFlameHeight,
-  contained,
+  delayMs,
+  periodMs,
+  swayMs,
+  baseOpacity,
+  baseScale,
 }: {
-  seed: FlameSeed;
-  pillWidth: number;
-  flameIntensity: SharedValue<number>;
+  width: number;
+  height: number;
+  intensity: SharedValue<number>;
   ignition: SharedValue<number>;
   effectOpacity: SharedValue<number>;
-  maxFlameHeight: number;
-  contained: boolean;
+  delayMs: number;
+  periodMs: number;
+  swayMs: number;
+  baseOpacity: number;
+  baseScale: number;
 }) {
   const flicker = useSharedValue(0);
+  const sway = useSharedValue(0);
 
   useEffect(() => {
     flicker.value = withDelay(
-      seed.delayMs,
+      delayMs,
       withRepeat(
         withSequence(
           withTiming(1, {
-            duration: seed.periodMs * 0.45,
+            duration: periodMs * 0.4,
             easing: Easing.inOut(Easing.sin),
           }),
-          withTiming(0.15, {
-            duration: seed.periodMs * 0.55,
+          withTiming(0.2, {
+            duration: periodMs * 0.6,
             easing: Easing.inOut(Easing.sin),
           }),
         ),
@@ -61,115 +71,166 @@ function FlameWisp({
         false,
       ),
     );
-    return () => cancelAnimation(flicker);
-  }, [flicker, seed.delayMs, seed.periodMs]);
+    sway.value = withDelay(
+      delayMs * 0.5,
+      withRepeat(
+        withSequence(
+          withTiming(1, {
+            duration: swayMs * 0.5,
+            easing: Easing.inOut(Easing.sin),
+          }),
+          withTiming(-1, {
+            duration: swayMs * 0.5,
+            easing: Easing.inOut(Easing.sin),
+          }),
+        ),
+        -1,
+        false,
+      ),
+    );
+    return () => {
+      cancelAnimation(flicker);
+      cancelAnimation(sway);
+    };
+  }, [flicker, sway, delayMs, periodMs, swayMs]);
 
-  const style = useAnimatedStyle(() => {
-    const intensity = flameIntensity.value;
+  const animStyle = useAnimatedStyle(() => {
     const burst = ignition.value;
-    const baseH = seed.height * (0.35 + intensity * 0.65 + burst * 0.35);
-    const scaleY = 0.55 + flicker.value * 0.55 + burst * 0.4;
-    const scaleX = 0.75 + (1 - flicker.value) * 0.35;
-    // Rise upward from the fuel line (negative Y). Contained = subtler lift.
-    const lift = contained
-      ? -2 - burst * 4 - flicker.value * 3 * intensity
-      : -6 - burst * 12 - flicker.value * 6 * intensity;
+    const i = intensity.value;
+    const scaleY =
+      baseScale * (0.9 + flicker.value * 0.14 + burst * 0.18 + i * 0.04);
+    const scaleX = 0.98 + (1 - flicker.value) * 0.04;
     const opacity =
       effectOpacity.value *
-      intensity *
-      (0.35 + flicker.value * 0.55 + burst * 0.25);
-
+      i *
+      baseOpacity *
+      (0.72 + flicker.value * 0.28 + burst * 0.15);
     return {
       opacity,
-      height: Math.min(
-        maxFlameHeight + 4,
-        baseH * (maxFlameHeight / RUNS_LAYOUT.maxFlameHeight),
-      ),
       transform: [
-        { translateY: lift },
+        { translateX: sway.value * 1.5 },
         { scaleY },
         { scaleX },
-        { rotate: `${seed.rotDeg * (0.6 + flicker.value * 0.5)}deg` },
       ],
     } as ViewStyle;
   });
 
-  const left = Math.max(0, seed.x * pillWidth - seed.width / 2);
-
   return (
     <Animated.View
-      style={[
-        styles.wisp,
-        {
-          left,
-          width: seed.width,
-          borderRadius: seed.width / 2,
-          backgroundColor: seed.color,
-        },
-        style,
-      ]}
-    />
+      style={[styles.spriteWrap, { width, height }, animStyle]}
+      pointerEvents="none"
+    >
+      <Image
+        source={FIRE_BAND}
+        style={styles.sprite}
+        resizeMode="stretch"
+      />
+    </Animated.View>
   );
 }
 
 /**
- * Soft energy wisps rising from the bottom edge of the pill (fuel source).
- * Wisp bases sit on the fuel line; tips rise upward. Soft blobs — not comic fire.
+ * Realistic fire sprite centered on the pill.
+ * Hot base tucks behind the top rim; tips rise ~half the pill height.
  */
 export default function FlameLayer({
   width,
+  height,
   flameIntensity,
   ignition,
   effectOpacity,
-  seeds = FLAME_SEEDS,
   maxFlameHeight = RUNS_LAYOUT.maxFlameHeight,
   contained = false,
 }: Props) {
-  if (width <= 0) return null;
+  const dims = useMemo(() => {
+    if (width <= 0) return null;
+    const pillH = Math.max(height, 22);
+    const rise = contained
+      ? Math.min(maxFlameHeight, pillH * 0.45)
+      : Math.min(maxFlameHeight, pillH * RUNS_LAYOUT.auraHeightFactor);
+    // Tuck only the hot base behind the rim — keep "Runs!" fully clear.
+    const tuck = pillH * 0.28;
+    const side = contained ? 0 : width * RUNS_LAYOUT.auraSideSpill;
+    return {
+      auraW: width + side * 2,
+      auraH: rise + tuck,
+      left: -side,
+      top: -rise,
+    };
+  }, [width, height, maxFlameHeight, contained]);
+
+  if (!dims) return null;
 
   return (
     <View
       style={[
-        styles.row,
-        contained
-          ? {
-              height: maxFlameHeight + 8,
-              bottom: 1,
-            }
-          : {
-              height: maxFlameHeight + 18,
-              // Slight overhang so the base reads as inside the pill edge.
-              bottom: -(maxFlameHeight * 0.12),
-            },
+        styles.field,
+        {
+          width: dims.auraW,
+          height: dims.auraH,
+          left: dims.left,
+          top: dims.top,
+        },
+        Platform.OS === "web"
+          ? ({
+              filter: "drop-shadow(0 0 4px rgba(255,120,20,0.35))",
+            } as object)
+          : null,
       ]}
       pointerEvents="none"
     >
-      {seeds.map((seed) => (
-        <FlameWisp
-          key={seed.id}
-          seed={seed}
-          pillWidth={width}
-          flameIntensity={flameIntensity}
-          ignition={ignition}
-          effectOpacity={effectOpacity}
-          maxFlameHeight={maxFlameHeight}
-          contained={contained}
-        />
-      ))}
+      <FireSpriteLayer
+        width={dims.auraW}
+        height={dims.auraH}
+        intensity={flameIntensity}
+        ignition={ignition}
+        effectOpacity={effectOpacity}
+        delayMs={40}
+        periodMs={1200}
+        swayMs={1800}
+        baseOpacity={0.45}
+        baseScale={1.06}
+      />
+      <FireSpriteLayer
+        width={dims.auraW}
+        height={dims.auraH}
+        intensity={flameIntensity}
+        ignition={ignition}
+        effectOpacity={effectOpacity}
+        delayMs={0}
+        periodMs={980}
+        swayMs={1500}
+        baseOpacity={1}
+        baseScale={1}
+      />
+      <FireSpriteLayer
+        width={dims.auraW}
+        height={dims.auraH}
+        intensity={flameIntensity}
+        ignition={ignition}
+        effectOpacity={effectOpacity}
+        delayMs={160}
+        periodMs={860}
+        swayMs={1300}
+        baseOpacity={0.55}
+        baseScale={0.96}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
+  field: {
     position: "absolute",
-    left: 0,
-    right: 0,
     overflow: "visible",
   },
-  wisp: {
+  spriteWrap: {
     position: "absolute",
-    // Anchor on the fuel line at the bottom of the flame row.
-    bottom: 0,
+    left: 0,
+    top: 0,
+  },
+  sprite: {
+    width: "100%",
+    height: "100%",
   },
 });
