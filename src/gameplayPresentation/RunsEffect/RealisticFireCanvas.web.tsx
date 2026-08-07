@@ -6,6 +6,7 @@ import {
   drawFireParticle,
   makeEmber,
   makeParticle,
+  prewarmFireSim,
   stepFireSim,
   type FireEmber,
   type FireParticle,
@@ -92,6 +93,8 @@ export default function RealisticFireCanvas({
     for (let i = 0; i < Math.min(10, cfg.maxEmbers); i++) {
       embers.push(makeEmber(pill, scale, columns));
     }
+    // Settle streams before the first painted frame (no ignition aurora flash).
+    prewarmFireSim(particles, embers, pill, cfg, 1.0);
 
     let raf = 0;
     let last = performance.now();

@@ -145,15 +145,18 @@ export function makeParticle(
 
   const travel = (top ? 48 : 22) * scale * (0.9 + Math.random() * 0.2);
   const life = Math.max(0.28, travel / Math.abs(rise));
+  // Age + matching height so first paint already has established tongues
+  // (avoids a fuel-line aurora flash when every particle starts at y=rim).
+  const age = Math.random() * life * 0.92;
 
   return {
     x: s.x,
-    y: s.y,
+    y: s.y + rise * age,
     anchorX: s.x,
     vx: 0,
     rise,
     life,
-    age: Math.random() * life * 0.55,
+    age,
     size,
     heat: top ? 0.82 + Math.random() * 0.18 : 0.55 + Math.random() * 0.3,
     seed: Math.random() * 1000,
@@ -170,16 +173,34 @@ export function makeEmber(
 ): FireEmber {
   const s = sampleEmitter(pill, columns);
   const rise = -(55 + Math.random() * 14) * scale;
+  const life = 0.55 + Math.random() * 0.35;
+  const age = Math.random() * life * 0.85;
   return {
     x: s.x,
-    y: s.y,
+    y: s.y + rise * age,
     anchorX: s.x,
     rise,
-    life: 0.55 + Math.random() * 0.35,
-    age: 0,
+    life,
+    age,
     size: (1.0 + Math.random() * 1.6) * scale,
     phase: Math.random() * Math.PI * 2,
   };
+}
+
+/** Advance the sim before first paint so streams look established. */
+export function prewarmFireSim(
+  particles: FireParticle[],
+  embers: FireEmber[],
+  pill: PillGeom,
+  cfg: FireSimConfig,
+  seconds = 0.9,
+): void {
+  const dt = 1 / 30;
+  let time = 0;
+  for (let t = 0; t < seconds; t += dt) {
+    time += dt;
+    stepFireSim(particles, embers, pill, dt, time, cfg);
+  }
 }
 
 export function stepFireSim(
