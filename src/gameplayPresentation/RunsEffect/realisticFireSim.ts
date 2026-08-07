@@ -52,6 +52,23 @@ export type FireSimConfig = {
   columns?: number;
 };
 
+/** Shared burn tempo — same for every tongue (not randomized per particle). */
+export const FIRE_BURN = {
+  /** Top-edge rise speed (px/s, negative = up). */
+  riseTop: -78,
+  riseSide: -44,
+  riseBottom: -24,
+  riseEmber: -60,
+  /** Lifetime (s) — fixed so streams don't cycle at mixed tempos. */
+  lifeTop: 0.62,
+  lifeSide: 0.48,
+  lifeBottom: 0.4,
+  lifeEmber: 0.7,
+  /** Shared lateral sway frequency (Hz-ish). Phase differs; tempo does not. */
+  swayFreq: 2.8,
+  emberSwayFreq: 2.0,
+} as const;
+
 function topSpan(pill: PillGeom): { left: number; right: number; y: number } {
   const hw = pill.w / 2;
   const hh = pill.h / 2;
@@ -129,24 +146,26 @@ export function makeParticle(
   const top = s.zone === "top";
   const bottom = s.zone === "bottom";
 
-  // Narrow rise-speed band → even burn; streams stay readable as flames.
-  const rise = top
-    ? -(70 + Math.random() * 16) * scale
+  // Constant burn rate — speed/life are shared; only phase/size jitter differ.
+  const rise =
+    (top
+      ? FIRE_BURN.riseTop
+      : bottom
+        ? FIRE_BURN.riseBottom
+        : FIRE_BURN.riseSide) * scale;
+  const life = top
+    ? FIRE_BURN.lifeTop
     : bottom
-      ? -(22 + Math.random() * 8) * scale
-      : -(40 + Math.random() * 12) * scale;
+      ? FIRE_BURN.lifeBottom
+      : FIRE_BURN.lifeSide;
 
   // Smaller / narrower blobs so tongues don't fuse into one aurora sheet.
   const size = top
-    ? (7 + Math.random() * 7) * scale
-    : (5 + Math.random() * 5) * scale;
+    ? (8 + Math.random() * 5) * scale
+    : (5.5 + Math.random() * 3.5) * scale;
+  const stretch = top ? 1.85 + Math.random() * 0.35 : 1.2 + Math.random() * 0.2;
 
-  const stretch = top ? 1.7 + Math.random() * 0.7 : 1.15 + Math.random() * 0.35;
-
-  const travel = (top ? 48 : 22) * scale * (0.9 + Math.random() * 0.2);
-  const life = Math.max(0.28, travel / Math.abs(rise));
-  // Age + matching height so first paint already has established tongues
-  // (avoids a fuel-line aurora flash when every particle starts at y=rim).
+  // Age + matching height so first paint already has established tongues.
   const age = Math.random() * life * 0.92;
 
   return {
@@ -159,7 +178,7 @@ export function makeParticle(
     age,
     size,
     heat: top ? 0.82 + Math.random() * 0.18 : 0.55 + Math.random() * 0.3,
-    seed: Math.random() * 1000,
+    seed: Math.random() * Math.PI * 2,
     front,
     stretch,
     zone: s.zone,
@@ -172,8 +191,8 @@ export function makeEmber(
   columns = 14,
 ): FireEmber {
   const s = sampleEmitter(pill, columns);
-  const rise = -(55 + Math.random() * 14) * scale;
-  const life = 0.55 + Math.random() * 0.35;
+  const rise = FIRE_BURN.riseEmber * scale;
+  const life = FIRE_BURN.lifeEmber;
   const age = Math.random() * life * 0.85;
   return {
     x: s.x,
@@ -182,7 +201,7 @@ export function makeEmber(
     rise,
     life,
     age,
-    size: (1.0 + Math.random() * 1.6) * scale,
+    size: (1.1 + Math.random() * 1.2) * scale,
     phase: Math.random() * Math.PI * 2,
   };
 }
@@ -228,21 +247,14 @@ export function stepFireSim(
       particles[i] = makeParticle(pill, p.front, scale, columns);
       continue;
     }
-    const t = p.age / p.life;
-
-    // Constant vertical burn — no random acceleration spikes.
+    // Constant vertical burn — fixed rise, no acceleration.
     p.y += p.rise * dt;
 
-    // Soft lateral flicker around the column anchor only (keeps streams distinct).
+    // Shared sway tempo; only phase differs (seed). Amplitude stays small.
     const wobble =
-      Math.sin(time * 3.2 + p.seed) * 6 * scale +
-      Math.sin(time * 5.1 + p.seed * 1.3) * 3 * scale;
-    const pull = (p.anchorX + wobble * (0.35 + t * 0.65) - p.x) * 8;
-    p.vx += pull * dt;
-    p.vx *= 1 - 4 * dt;
-    p.x += p.vx * dt;
-    // Hard-ish lane clamp so streams don't drift into a center curtain.
-    const laneSlack = 10 * scale;
+      Math.sin(time * FIRE_BURN.swayFreq + p.seed) * 5 * scale;
+    p.x += (p.anchorX + wobble - p.x) * Math.min(1, 10 * dt);
+    const laneSlack = 9 * scale;
     if (p.x < p.anchorX - laneSlack) p.x = p.anchorX - laneSlack;
     if (p.x > p.anchorX + laneSlack) p.x = p.anchorX + laneSlack;
   }
@@ -254,11 +266,10 @@ export function stepFireSim(
       embers.splice(i, 1);
       continue;
     }
-    const t = e.age / e.life;
     e.y += e.rise * dt;
     e.x =
       e.anchorX +
-      Math.sin(time * 2.2 + e.phase) * 8 * scale * (0.3 + t * 0.7);
+      Math.sin(time * FIRE_BURN.emberSwayFreq + e.phase) * 7 * scale;
   }
 }
 
@@ -286,16 +297,16 @@ export function drawFireParticle(
   const t = Math.min(1, p.age / p.life);
   if (t >= 1) return;
 
-  // Birth quick, hold, fade — opacity only (speed stays constant).
-  const grow = t < 0.12 ? t / 0.12 : 1;
-  const fade = t > 0.55 ? 1 - (t - 0.55) / 0.45 : 1;
-  const a = grow * fade * (0.28 + p.heat * 0.4) * intensity;
+  // Opacity envelope only — size stays stable so fade doesn't read as slowdown.
+  const grow = t < 0.1 ? t / 0.1 : 1;
+  const fade = t > 0.72 ? 1 - (t - 0.72) / 0.28 : 1;
+  const a = grow * fade * (0.3 + p.heat * 0.4) * intensity;
   if (a < 0.02) return;
 
   // Tall narrow ellipse = readable flame tongue, not a wide aurora blot.
-  const base = p.size * (0.85 + (1 - t) * 0.25);
+  const base = p.size;
   const rx = base * 0.42;
-  const ry = base * p.stretch * (1.05 + t * 0.35);
+  const ry = base * p.stretch;
 
   ctx.save();
   ctx.globalCompositeOperation = "lighter";

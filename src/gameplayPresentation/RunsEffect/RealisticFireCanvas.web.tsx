@@ -98,6 +98,7 @@ export default function RealisticFireCanvas({
 
     let raf = 0;
     let last = performance.now();
+    let simTime = 0;
     let alive = true;
 
     const roundRectPath = (
@@ -118,16 +119,21 @@ export default function RealisticFireCanvas({
 
     const frame = (now: number) => {
       if (!alive) return;
-      const dt = Math.min(0.033, (now - last) / 1000);
+      // Fixed step → constant burn rate even when frames hitch.
+      let frameDt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      const time = now / 1000;
+      const step = 1 / 60;
+      while (frameDt > 0) {
+        const dt = Math.min(step, frameDt);
+        simTime += dt;
+        stepFireSim(particles, embers, pill, dt, simTime, cfg);
+        frameDt -= dt;
+      }
       const intensityNow = Math.max(0, Math.min(1, intensityRef.current));
-
-      stepFireSim(particles, embers, pill, dt, time, cfg);
 
       ctx.clearRect(0, 0, cw, ch);
       if (intensityNow > 0.02) {
-        drawFireBloom(ctx, pill, time, intensityNow * 0.85);
+        drawFireBloom(ctx, pill, simTime, intensityNow * 0.85);
         for (const p of particles) {
           if (!p.front) drawFireParticle(ctx, p, intensityNow);
         }
