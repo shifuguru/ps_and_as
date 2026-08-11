@@ -8,7 +8,7 @@
  * Day-0 (roundsPlayed === 0): Brand → Pitch → Rules → Play (+ helper) →
  * Identity → (A2HS) → XP nudge → What's New → Support
  * Play: primary "Play" vs AI; "Play with friends" for online; practice count
- * and same-device lobby live in PracticeSetupModal.
+ * lives in PracticeSetupModal.
  *
  * Deferred (need telemetry or session handoff — not built here):
  * - Last Match panel after round complete
@@ -111,7 +111,6 @@ const FRIENDS_WIDE_MIN = 900;
 export type PlayerHubActions = {
   onPlay: (playerCount: number) => void;
   onPlayWithFriends: () => void;
-  onSameDeviceLobby: () => void;
   onOpenAchievements: () => void;
   onOpenTitles: () => void;
   onOpenWhatsNew: () => void;
@@ -862,7 +861,6 @@ export default function PlayerHub({
           setPracticePlayerCount(count);
           void writePracticePlayerCount(count);
         }}
-        onSameDeviceLobby={() => run(actions.onSameDeviceLobby)}
         onClose={() => setPracticeSetupOpen(false)}
       />
     </ScreenContainer>
