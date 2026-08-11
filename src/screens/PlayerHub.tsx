@@ -94,6 +94,7 @@ import {
   readDisplayTitleTrackId,
   displayedTitleForStats,
 } from "../services/titlePreferences";
+import { triggerHaptic } from "../utils/haptics";
 import type { OnlinePlayer } from "../services/onlinePresence";
 
 const AVATAR_SIZE = 88;
