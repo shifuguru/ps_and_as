@@ -128,6 +128,43 @@ export default function RunsPill({
     ? Math.min(maxFlameHeight, Math.max(12, size.height * 0.7 || 14))
     : maxFlameHeight;
 
+  const fireChromeStyle =
+    realisticOn && palette.chromeBorder
+      ? ({
+          borderWidth: 1.5,
+          borderColor: palette.chromeBorder,
+          backgroundColor: palette.chromeBackground,
+          ...(Platform.OS === "web" && palette.chromeBackgroundGradient
+            ? ({
+                backgroundImage: palette.chromeBackgroundGradient,
+                backgroundColor: "transparent",
+              } as object)
+            : null),
+          ...Platform.select({
+            web: palette.chromeBoxShadow
+              ? ({ boxShadow: palette.chromeBoxShadow } as object)
+              : {},
+            ios: palette.chromeShadowColor
+              ? {
+                  shadowColor: palette.chromeShadowColor,
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.55,
+                  shadowRadius: 10,
+                }
+              : {},
+            android: { elevation: 6 },
+            default: {},
+          }),
+        } as ViewStyle)
+      : realisticOn
+        ? styles.glassPillRunsFire
+        : null;
+
+  const labelColor =
+    realisticOn && palette.chromeText
+      ? palette.chromeText
+      : undefined;
+
   return (
     <View
       style={[styles.root, style]}
@@ -151,6 +188,7 @@ export default function RunsPill({
           height={size.height}
           active={active}
           intensity={fireIntensity}
+          fireKind={palette.fireKind}
         />
       ) : null}
 
@@ -189,12 +227,19 @@ export default function RunsPill({
       <View
         style={[
           styles.glassPill,
-          realisticOn ? styles.glassPillRunsFire : null,
+          fireChromeStyle,
           pillStyle,
         ]}
       >
         {children ?? (
-          <Text numberOfLines={1} style={[styles.label, textStyle]}>
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.label,
+              labelColor ? { color: labelColor } : null,
+              textStyle,
+            ]}
+          >
             {label}
           </Text>
         )}
