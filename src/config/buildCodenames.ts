@@ -120,6 +120,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.54": "Cut the Deck",
   "1.1.55": "Grand Slam Gamble",
   "1.1.56": "Grand Slam Gamble",
+  "1.1.57": "No Pass Zone",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
