@@ -316,6 +316,8 @@ Two disconnect stories; architecture readers may apply standard-room rules to bo
 **Notes:**  
 Public Open Bot Table is **off by default** (`ENABLE_OPEN_BOT_TABLE` unset): no BOTOPN create/deal loop, Find Game hide (D-010) kept. Code retained for opt-in tests / QA League (`QALEG` via `PS_QA_LEAGUE`). Gap remains relevant if the table is re-enabled. Gameplay Auditor Finding 4 reaffirmed (2026-06-08): immediate demotion removes human from `gameState` mid-round with no pause or grace.
 
+**Related (Resolved on critical-issues branch):** After 2 humans purge CPUs, demoting one left a solo human; next deal dealt **54 cards**. Fixed via `restoreBotsWhenUnderstaffed` on demote / `startNextRound` + abort/reset guard when lobby `< 2`. Regression: `scripts/test-table-roster.mjs`.
+
 ---
 
 ## Online pass optimistic local mutation

@@ -151,6 +151,52 @@ function ensureHumanHost(room) {
   }
 }
 
+function seatedBotCount(room) {
+  return room.players.filter(
+    (p) => isBotMember(p) && !p.isSpectator && !p.disconnectedAt,
+  ).length;
+}
+
+/**
+ * After 2+ humans purge CPUs, a leave/demote can leave a single human seated.
+ * Without bots the next deal is an illegal 1-player / 54-card hand.
+ * Restore missing CPU seats whenever seated humans drop below the purge
+ * threshold (same `>= 2` gate as promoteReadySpectators).
+ */
+function restoreBotsWhenUnderstaffed(room) {
+  if (!room?.isBotHosted) return false;
+  // Mirror promoteReadySpectators: bots stay purged while 2+ humans are seated.
+  if (countHumansSeated(room) >= 2) return false;
+
+  const existingIds = new Set(room.players.map((p) => p.id));
+  let added = 0;
+  for (const bot of createBotMembers()) {
+    if (existingIds.has(bot.id)) {
+      const member = room.players.find((p) => p.id === bot.id);
+      if (member) {
+        member.isSpectator = false;
+        member.disconnectedAt = null;
+        member.ready = true;
+      }
+      continue;
+    }
+    room.players.push({ ...bot });
+    existingIds.add(bot.id);
+    added += 1;
+  }
+
+  if (added > 0 || seatedBotCount(room) > 0) {
+    ensureHumanHost(room);
+    if (added > 0) {
+      console.log(
+        `[Server] Restored ${added} bot seat(s) after human count dropped below 2`,
+      );
+    }
+    return added > 0;
+  }
+  return false;
+}
+
 const gameHasDeadHandSlot = tableRoster.gameHasDeadHandSlot;
 
 function isBotActiveAtTable(room, playerId) {
@@ -1105,6 +1151,7 @@ function afterBotRoomPlayerLeft(room, roomId, ctx) {
   room.players = room.players.filter(
     (p) => isBotMember(p) || !p.disconnectedAt,
   );
+  restoreBotsWhenUnderstaffed(room);
   ensureHumanHost(room);
 
   if (room.inGame && room.gameState) {
@@ -1166,6 +1213,8 @@ module.exports = {
   promoteReadySpectators,
   replaceDeadHandInGameState,
   countHumansSeated,
+  restoreBotsWhenUnderstaffed,
+  seatedBotCount,
   autoReadyBotsForNextRound,
   broadcastReadyForNextRound,
   BOT_RANKINGS_DWELL_MS,
