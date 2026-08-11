@@ -33,6 +33,7 @@ const {
   resolveCompletedAcknowledgmentTrick,
   isTrickOpeningLead,
   resolveTrickLeaderIndex,
+  abandonOrphanedAcknowledgmentTrick,
 } = require('./gameBridge');
 const {
   viewForPlayer,
@@ -1136,6 +1137,8 @@ function removePlayerFromActiveGame(room, playerId) {
   const wasLeader = gs.lastPlayPlayerIndex === idx;
   const wasRunOnTop =
     !!gs.runOnTop?.active && gs.runOnTop.playerIndex === idx;
+  // Capture before splice — lastClear / pile joker still mark ack after removal.
+  const wasAckPhase = isTrickAcknowledgmentPassPhase(gs);
 
   gs.players = gs.players.filter((p) => p.id !== playerId);
   gs.finishedOrder = (gs.finishedOrder || []).filter((id) => id !== playerId);
@@ -1164,6 +1167,17 @@ function removePlayerFromActiveGame(room, playerId) {
         gs.runOnTop.playerIndex = remappedOnTop;
       }
     }
+  }
+
+  // Clear-leader demoted mid-joker / rank-close ack: remapped lastPlay is either
+  // null (soft-lock — resolve never finishes) or a prior living seat (wrong
+  // clear winner). Abandon the clear and force the next living seat to lead.
+  if (wasLeader && wasAckPhase && isTrickAcknowledgmentPassPhase(gs)) {
+    const anchor = Math.max(0, Math.min(idx, gs.players.length) - 1);
+    const abandoned = abandonOrphanedAcknowledgmentTrick(gs, anchor);
+    room.gameState = abandoned;
+    reconcileCurrentPlayerIndex(room);
+    return;
   }
 
   if (wasCurrent) {

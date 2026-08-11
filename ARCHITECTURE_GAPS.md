@@ -318,6 +318,8 @@ Public Open Bot Table is **off by default** (`ENABLE_OPEN_BOT_TABLE` unset): no 
 
 **Related (Resolved on critical-issues branch):** After 2 humans purge CPUs, demoting one left a solo human; next deal dealt **54 cards**. Fixed via `restoreBotsWhenUnderstaffed` on demote / `startNextRound` + abort/reset guard when lobby `< 2`. Regression: `scripts/test-table-roster.mjs`.
 
+**Related (Resolved on critical-issues branch):** Demoting the joker/rank-close leader mid-acknowledgment cleared `lastPlayPlayerIndex` (or remapped to a prior seat) while leaving ack markers → soft-lock (`resolveCompletedAcknowledgmentTrick` never finishes) or wrong clear winner. Fixed via `abandonOrphanedAcknowledgmentTrick` in `removePlayerFromActiveGame`. Regression: `scripts/test-demote-joker-ack.mjs`.
+
 ---
 
 ## Online pass optimistic local mutation
