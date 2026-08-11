@@ -132,6 +132,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.66": "Double Down Darling",
   "1.1.67": "Pile On Patrol",
   "1.1.68": "Off-Suit Outburst",
+  "1.1.69": "Pass Parade",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
