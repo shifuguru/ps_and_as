@@ -1,8 +1,9 @@
 /** Visual + timing tokens for the Runs! energy effect. */
 
 import { hexToRgba } from "../../utils/colorTheory";
+import { WARM_FIRE_FACE } from "./realisticFireSim";
 
-/** Warm Runs! energy — pill face warms into the flame at the top edge. */
+/** Warm Runs! energy — pill face uses the same tones as the fire core. */
 export const RUNS_COLORS = {
   core: "#FFB200",
   hot: "#FF8C1A",
@@ -14,9 +15,8 @@ export const RUNS_COLORS = {
   flameA: "rgba(255,178,40,0.72)",
   flameB: "rgba(255,120,20,0.55)",
   flameC: "rgba(255,90,10,0.4)",
-  chromeBackground: "#FFF0D8",
-  chromeBackgroundGradient:
-    "linear-gradient(to bottom, #FFE8A8 0%, #FFF0D0 42%, #FFFBF2 100%)",
+  chromeBackground: WARM_FIRE_FACE.warm,
+  chromeBackgroundGradient: `linear-gradient(to bottom, ${WARM_FIRE_FACE.mid} 0%, ${WARM_FIRE_FACE.warm} 48%, ${WARM_FIRE_FACE.core} 100%)`,
   fireKind: "warm",
 } as const;
 
