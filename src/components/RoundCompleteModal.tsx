@@ -61,6 +61,8 @@ type Props = {
   rewardedAdXp?: number;
   rewardedAdRemaining?: number;
   rewardedAdBusy?: boolean;
+  /** Shown under the watch-ad button when a request fails. */
+  rewardedAdError?: string | null;
   onWatchRewardedAd?: () => void;
 };
 
@@ -385,6 +387,7 @@ export default function RoundCompleteModal({
   rewardedAdXp = 75,
   rewardedAdRemaining = 0,
   rewardedAdBusy = false,
+  rewardedAdError = null,
   onWatchRewardedAd,
 }: Props) {
   const { colors, ui, blur, palette } = useAppTheme();
@@ -579,21 +582,26 @@ export default function RoundCompleteModal({
             ) : null}
 
             {rewardedAdAvailable && onWatchRewardedAd && !spectatorMode ? (
-              <AppButton
-                label={
-                  rewardedAdBusy
-                    ? "Loading ad…"
-                    : `Watch ad · +${rewardedAdXp} XP`
-                }
-                variant="secondary"
-                disabled={rewardedAdBusy || rewardedAdRemaining <= 0}
-                onPress={() => {
-                  triggerHaptic("light");
-                  onWatchRewardedAd();
-                }}
-                accessibilityLabel={`Watch an ad for ${rewardedAdXp} XP`}
-                style={{ marginBottom: 10 }}
-              />
+              <>
+                <AppButton
+                  label={
+                    rewardedAdBusy
+                      ? "Loading ad…"
+                      : `Watch ad · +${rewardedAdXp} XP`
+                  }
+                  variant="secondary"
+                  disabled={rewardedAdBusy || rewardedAdRemaining <= 0}
+                  onPress={() => {
+                    triggerHaptic("light");
+                    onWatchRewardedAd();
+                  }}
+                  accessibilityLabel={`Watch an ad for ${rewardedAdXp} XP`}
+                  style={{ marginBottom: rewardedAdError ? 6 : 10 }}
+                />
+                {rewardedAdError ? (
+                  <Text style={styles.spectatorHint}>{rewardedAdError}</Text>
+                ) : null}
+              </>
             ) : null}
 
             <View style={styles.footerActions}>
