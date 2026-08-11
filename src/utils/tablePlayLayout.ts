@@ -69,8 +69,22 @@ export const STAGE_PLAY_TYPE_BADGE_GAP = 16;
 export const STAGE_PLAY_TYPE_BADGE_HEIGHT = 30;
 export const STAGE_TURN_HINT_GAP = 8;
 
+/**
+ * Reserved vertical chrome below the card bottoms for play-type pills
+ * ("Joker!", "Runs!", "Doubles", …). Always reserved so the player ring
+ * stays centred on cards + pills as one table unit, even when a pill is
+ * momentarily hidden.
+ */
+export const STAGE_PLAY_TYPE_CHROME_BELOW =
+  STAGE_PLAY_TYPE_BADGE_GAP + STAGE_PLAY_TYPE_BADGE_HEIGHT;
+
+/**
+ * Vertical centre of the card row inside the gameplay stage.
+ * Biased upward by half the play-type pill band so cards + pills share
+ * the stage centre (which the player ring orbits).
+ */
 export function stageCardRowCenterY(zoneHeight: number): number {
-  return zoneHeight * STACK_CENTER_Y;
+  return zoneHeight * STACK_CENTER_Y - STAGE_PLAY_TYPE_CHROME_BELOW / 2;
 }
 
 /** Play-type pills ("Singles", "Runs!", …) — anchored below the card row anchor. */
@@ -611,7 +625,7 @@ function layoutChronologicalPlays(
   }
 
   const centerX = zoneWidth / 2;
-  const centerY = zoneHeight * STACK_CENTER_Y;
+  const centerY = stageCardRowCenterY(zoneHeight);
   const edgePad = 6;
 
   const buriedByShape = computeBuriedByShape(plays);

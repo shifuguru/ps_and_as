@@ -238,11 +238,13 @@ export function computePlayAreaLayout(
   const ringBottomY = ringBandBottom - seat.footprintH * 0.28;
   const seatBandCy = (ringTopY + ringBottomY) / 2;
   /**
-   * Optical centre = current trick (primary anchor).
-   * Ring cy follows this centre — seats orbit the trick, not the reverse.
-   * Biased below geometric mid so pile + avatars sit lower in the play band
-   * (more air under the HUD, closer to the hand). On very short shells stay
-   * nearer mid so seats and pills don’t collide with HUD / hand chrome.
+   * Optical centre = gameplay stage (cards + play-type pills).
+   * Ring cy follows this centre — seats orbit the stage, not the reverse.
+   * Card-row content is biased up inside the stage (see stageCardRowCenterY)
+   * so pills below the pile stay inside the shared centre. Biased below
+   * geometric mid of the play band so pile + avatars sit lower (more air
+   * under the HUD, closer to the hand). On very short shells stay nearer
+   * mid so seats and pills don’t collide with HUD / hand chrome.
    */
   const viewportCy =
     height *
