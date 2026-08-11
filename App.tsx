@@ -4,6 +4,7 @@ import SplashScreen from "./src/screens/SplashScreen";
 import CreateGame from "./src/screens/CreateGame";
 import FindGame from "./src/screens/FindGame";
 import GameScreen from "./src/screens/GameScreen";
+import Achievements from "./src/screens/Achievements";
 import Titles from "./src/screens/Titles";
 import Settings from "./src/screens/Settings";
 import UpdateLog from "./src/screens/UpdateLog";
