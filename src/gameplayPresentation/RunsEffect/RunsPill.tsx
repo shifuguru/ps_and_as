@@ -227,8 +227,8 @@ export default function RunsPill({
       <View
         style={[
           styles.glassPill,
-          fireChromeStyle,
           pillStyle,
+          fireChromeStyle,
         ]}
       >
         {children ?? (
@@ -283,15 +283,15 @@ const styles = StyleSheet.create({
   /** Warm fuel-edge chrome when the canvas fire is lit (reference look). */
   glassPillRunsFire: {
     borderWidth: 1.5,
-    borderColor: "rgba(255, 180, 55, 0.92)",
-    backgroundColor: "rgba(255, 250, 240, 0.96)",
+    borderColor: "#FFB347",
+    backgroundColor: "#FFF4E0",
     ...Platform.select({
       web: {
         boxShadow:
-          "0 0 0 1px rgba(255, 130, 25, 0.35), 0 0 14px rgba(255, 140, 30, 0.45)",
+          "0 0 0 1px rgba(255, 179, 71, 0.55), 0 0 12px rgba(255, 140, 30, 0.4)",
       } as object,
       ios: {
-        shadowColor: "#FF8C1A",
+        shadowColor: "#FFB347",
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.55,
         shadowRadius: 10,
