@@ -2,27 +2,27 @@
 
 import { hexToRgba } from "../../utils/colorTheory";
 
-/** Petrol flame — blue fuel base rising into hot orange / yellow tips. */
+/** Warm orange flame with a light blue fuel spill along the bottom of the pill. */
 export const RUNS_COLORS = {
   core: "#FFB200",
   hot: "#FF8C1A",
-  edge: "#0077CC",
-  glow: "rgba(0,130,255,0.24)",
-  glowSoft: "rgba(0,100,220,0.14)",
-  glowCore: "rgba(255,200,80,0.38)",
+  edge: "#FF6A00",
+  glow: "rgba(255,170,40,0.22)",
+  glowSoft: "rgba(255,150,40,0.14)",
+  glowCore: "rgba(255,200,80,0.35)",
   ember: "rgba(255,200,90,0.9)",
-  flameA: "rgba(0,160,255,0.78)",
-  flameB: "rgba(255,140,30,0.62)",
-  flameC: "rgba(255,200,60,0.48)",
-  chromeBorder: "rgba(0, 150, 255, 0.88)",
-  chromeBackground: "rgba(6, 32, 64, 0.94)",
-  chromeText: "#FFF4E0",
-  chromeShadowColor: "#0088FF",
+  flameA: "rgba(255,178,40,0.72)",
+  flameB: "rgba(255,120,20,0.55)",
+  flameC: "rgba(255,90,10,0.4)",
+  chromeBorder: "rgba(255, 180, 55, 0.92)",
+  chromeBackground: "rgba(255, 250, 240, 0.96)",
+  chromeText: "#111111",
+  chromeShadowColor: "#FF8C1A",
   chromeBoxShadow:
-    "0 0 0 1px rgba(0, 130, 255, 0.42), 0 0 14px rgba(255, 140, 30, 0.38)",
+    "0 0 0 1px rgba(255, 130, 25, 0.35), 0 0 14px rgba(255, 140, 30, 0.45)",
   chromeBackgroundGradient:
-    "linear-gradient(to top, rgba(0, 90, 200, 0.96) 0%, rgba(18, 70, 130, 0.92) 38%, rgba(255, 190, 90, 0.9) 100%)",
-  fireKind: "petrol",
+    "linear-gradient(to top, rgba(140, 220, 255, 0.5) 0%, rgba(170, 230, 255, 0.22) 18%, rgba(255, 250, 240, 0.96) 20%, rgba(255, 250, 240, 0.96) 100%)",
+  fireKind: "warm",
 } as const;
 
 /** Cool blue flame for the On top! modifier pill. */
