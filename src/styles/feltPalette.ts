@@ -242,20 +242,11 @@ export function resolveTextVariant(
 export function binaryFeltInk(feltHex: string): {
   color: "#FFFFFF" | "#111111";
   textShadowColor: string;
-  textShadowRadius: number;
 } {
   const variant = resolveTextVariant(feltHex, "auto");
   return variant === "light"
-    ? {
-        color: "#FFFFFF",
-        textShadowColor: "rgba(0, 0, 0, 0.78)",
-        textShadowRadius: 10,
-      }
-    : {
-        color: "#111111",
-        textShadowColor: "rgba(255, 255, 255, 0.65)",
-        textShadowRadius: 8,
-      };
+    ? { color: "#FFFFFF", textShadowColor: "rgba(0, 0, 0, 0.9)" }
+    : { color: "#111111", textShadowColor: "rgba(255, 255, 255, 0.85)" };
 }
 
 /** Prefer the user's text choice, but never pick an unreadable pairing on the felt. */

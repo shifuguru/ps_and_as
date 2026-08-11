@@ -29,7 +29,7 @@ import {
   unifiedActivePileGroupZ,
   stageCardRowCenterY,
   stagePlayTypeBadgeTop,
-  stageRunXpTop,
+  stageRunXpBandHeight,
   playStackTopFromLayout,
 } from "../utils/tablePlayLayout";
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
@@ -402,9 +402,9 @@ export default function GameTable({
     [layout.positions, stageHeight, refCardHeight],
   );
 
-  const runXpTop = useMemo(
-    () => stageRunXpTop(stageHeight, refCardHeight, playStackTop),
-    [stageHeight, refCardHeight, playStackTop],
+  const runXpBandHeight = useMemo(
+    () => stageRunXpBandHeight(playStackTop),
+    [playStackTop],
   );
 
   const runXpInk = useMemo(() => binaryFeltInk(feltTint), [feltTint]);
@@ -646,7 +646,7 @@ export default function GameTable({
                 style={[
                   styles.runXpLabel,
                   {
-                    top: runXpTop,
+                    height: runXpBandHeight,
                     opacity: collectToStack ? badgeOpacity : 1,
                   },
                 ]}
@@ -659,13 +659,7 @@ export default function GameTable({
                     {
                       color: runXpInk.color,
                       textShadowColor: runXpInk.textShadowColor,
-                      textShadowRadius: runXpInk.textShadowRadius,
                     },
-                    Platform.OS === "web"
-                      ? ({
-                          textShadow: `0 1px 2px ${runXpInk.textShadowColor}, 0 2px 12px ${runXpInk.textShadowColor}`,
-                        } as object)
-                      : null,
                   ]}
                 >
                   +{runXpPoolAmount} XP
@@ -847,7 +841,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
+    top: 0,
     alignItems: "center",
+    justifyContent: "flex-end",
     overflow: "visible",
     zIndex: GROUP_Z_STRIDE * 8,
   },
@@ -857,8 +853,10 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.35,
     textAlign: "center",
-    textShadowOffset: { width: 0, height: 2 },
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
     flexShrink: 0,
+    backgroundColor: "transparent",
     ...(Platform.OS === "web"
       ? ({ whiteSpace: "nowrap", userSelect: "none" } as object)
       : null),

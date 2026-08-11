@@ -67,6 +67,8 @@ export const STACK_CENTER_Y = 0.5;
 /** Fixed chrome slots inside the gameplay stage — never derived from pile bounds. */
 export const STAGE_PLAY_TYPE_BADGE_GAP = 16;
 export const STAGE_PLAY_TYPE_BADGE_HEIGHT = 30;
+/** Clear space between run XP text baseline and the top of the card stack. */
+export const STAGE_RUN_XP_ABOVE_STACK = 14;
 export const STAGE_TURN_HINT_GAP = 8;
 
 export function stageCardRowCenterY(zoneHeight: number): number {
@@ -83,19 +85,12 @@ export function stagePlayTypeBadgeTop(
   return centerY + refCardH / 2 + STAGE_PLAY_TYPE_BADGE_GAP;
 }
 
-/** Run XP total — large label above the card row. */
-export function stageRunXpTop(
-  zoneHeight: number,
-  cardHeight: number,
-  playStackTop?: number,
+/** Vertical band for run XP — ends STAGE_RUN_XP_ABOVE_STACK px above the stack. */
+export function stageRunXpBandHeight(
+  playStackTop: number,
+  gap = STAGE_RUN_XP_ABOVE_STACK,
 ): number {
-  const stackTop =
-    playStackTop ??
-    stageCardRowCenterY(zoneHeight) -
-      (cardHeight > 0 ? cardHeight : BASE_CARD_H) / 2;
-  const gap = 18;
-  const textBlock = 28;
-  return Math.max(4, stackTop - gap - textBlock);
+  return Math.max(0, playStackTop - gap);
 }
 
 /** Highest (smallest y) play-group anchor in the current stack layout. */
