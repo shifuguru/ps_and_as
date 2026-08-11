@@ -137,8 +137,7 @@ export default function Titles({
               {activeTitle ?? "None selected"}
             </Text>
             <Text style={styles.hint}>
-              Unlock title tracks by playing. Check one track to show its current
-              tier under your name on the hub.
+              Selected title track will be displayed on your profile.
             </Text>
           </BlurPanel>
 
