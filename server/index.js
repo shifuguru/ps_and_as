@@ -1944,6 +1944,9 @@ io.on('connection', (socket) => {
         playerName: joined.name,
       });
       broadcastGameState(io, room);
+      // Ready votes may have completed while this seat was away (start was
+      // blocked by pause). Re-check now that the table is unpaused.
+      tryStartNextRoundIfReady(code);
     }
     if (joined) {
       socket.emit('connected', connectedPayload(joined, socket));
