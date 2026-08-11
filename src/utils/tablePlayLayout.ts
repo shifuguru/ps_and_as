@@ -67,6 +67,8 @@ export const STACK_CENTER_Y = 0.5;
 /** Fixed chrome slots inside the gameplay stage — never derived from pile bounds. */
 export const STAGE_PLAY_TYPE_BADGE_GAP = 16;
 export const STAGE_PLAY_TYPE_BADGE_HEIGHT = 30;
+export const STAGE_RUN_XP_GAP = 12;
+export const STAGE_RUN_XP_LINE = 22;
 export const STAGE_TURN_HINT_GAP = 8;
 
 export function stageCardRowCenterY(zoneHeight: number): number {
@@ -81,6 +83,14 @@ export function stagePlayTypeBadgeTop(
   const centerY = stageCardRowCenterY(zoneHeight);
   const refCardH = cardHeight > 0 ? cardHeight : BASE_CARD_H;
   return centerY + refCardH / 2 + STAGE_PLAY_TYPE_BADGE_GAP;
+}
+
+/** Run XP total — large label above the card row. */
+export function stageRunXpTop(zoneHeight: number, cardHeight: number): number {
+  const centerY = stageCardRowCenterY(zoneHeight);
+  const refCardH = cardHeight > 0 ? cardHeight : BASE_CARD_H;
+  const cardTop = centerY - refCardH / 2;
+  return Math.max(6, cardTop - STAGE_RUN_XP_GAP - STAGE_RUN_XP_LINE);
 }
 
 /** Turn status pill — fixed slot below play-type pills (or card row when pills hidden). */

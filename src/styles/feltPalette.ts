@@ -238,6 +238,17 @@ export function resolveTextVariant(
   return relativeLuminance(surface) < AUTO_LUMINANCE_THRESHOLD ? "light" : "dark";
 }
 
+/** High-contrast ink on felt — pure white or near-black only. */
+export function binaryFeltInk(feltHex: string): {
+  color: "#FFFFFF" | "#111111";
+  textShadowColor: string;
+} {
+  const variant = resolveTextVariant(feltHex, "auto");
+  return variant === "light"
+    ? { color: "#FFFFFF", textShadowColor: "rgba(0, 0, 0, 0.55)" }
+    : { color: "#111111", textShadowColor: "rgba(255, 255, 255, 0.42)" };
+}
+
 /** Prefer the user's text choice, but never pick an unreadable pairing on the felt. */
 export function effectiveOnFeltVariant(
   feltHex: string,
