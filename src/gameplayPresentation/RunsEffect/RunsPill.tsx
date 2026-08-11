@@ -296,11 +296,25 @@ const styles = StyleSheet.create({
     borderRadius: RUNS_LAYOUT.pillRadius,
     overflow: "hidden",
   },
-  /** Warm fire face — matches WARM_FIRE_FACE from the canvas sim. */
+  /** Warm fire face — matches WARM_FIRE_FACE pill tones. */
   glassPillRunsFire: {
-    backgroundColor: WARM_FIRE_FACE.warm,
-    borderWidth: 0,
-    borderColor: "transparent",
+    backgroundColor: WARM_FIRE_FACE.pillMid,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 179, 71, 0.9)",
+    ...Platform.select({
+      web: {
+        boxShadow:
+          "0 0 0 1px rgba(255, 130, 25, 0.45), 0 0 14px rgba(255, 140, 30, 0.5)",
+      } as object,
+      ios: {
+        shadowColor: "#FF8C1A",
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.55,
+        shadowRadius: 10,
+      },
+      android: { elevation: 6 },
+      default: {},
+    }),
   },
   label: {
     fontWeight: "800",

@@ -265,6 +265,10 @@ export const WARM_FIRE_FACE = {
   hot: "#FFD237",
   /** coreGradientStops warm mid at full heat */
   mid: "#FFE682",
+  /** Pill gradient — slightly deeper than flame core for readable contrast */
+  pillDeep: "#FFD060",
+  pillMid: "#FFE8A0",
+  pillLight: "#FFF0D0",
 } as const;
 
 function lerp(a: number, b: number, t: number): number {

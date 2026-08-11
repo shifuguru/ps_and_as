@@ -3,7 +3,7 @@
 import { hexToRgba } from "../../utils/colorTheory";
 import { WARM_FIRE_FACE } from "./realisticFireSim";
 
-/** Warm Runs! energy — pill face uses the same tones as the fire core. */
+/** Warm Runs! energy — pill face + orange rim glow (mirrors On top! chrome). */
 export const RUNS_COLORS = {
   core: "#FFB200",
   hot: "#FF8C1A",
@@ -15,8 +15,12 @@ export const RUNS_COLORS = {
   flameA: "rgba(255,178,40,0.72)",
   flameB: "rgba(255,120,20,0.55)",
   flameC: "rgba(255,90,10,0.4)",
-  chromeBackground: WARM_FIRE_FACE.warm,
-  chromeBackgroundGradient: `linear-gradient(to bottom, ${WARM_FIRE_FACE.mid} 0%, ${WARM_FIRE_FACE.warm} 48%, ${WARM_FIRE_FACE.core} 100%)`,
+  chromeBorder: "rgba(255, 179, 71, 0.9)",
+  chromeBackground: WARM_FIRE_FACE.pillMid,
+  chromeShadowColor: "#FF8C1A",
+  chromeBoxShadow:
+    "0 0 0 1px rgba(255, 130, 25, 0.45), 0 0 14px rgba(255, 140, 30, 0.5)",
+  chromeBackgroundGradient: `linear-gradient(to bottom, ${WARM_FIRE_FACE.pillDeep} 0%, ${WARM_FIRE_FACE.pillMid} 48%, ${WARM_FIRE_FACE.pillLight} 100%)`,
   fireKind: "warm",
 } as const;
 
