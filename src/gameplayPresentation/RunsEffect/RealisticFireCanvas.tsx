@@ -7,7 +7,7 @@ type Props = {
   active?: boolean;
   /** 0–1 master intensity (idle settle / ignition). */
   intensity?: number;
-  fireKind?: "petrol" | "blue" | "warm";
+  fireKind?: "petrol" | "blue" | "warm" | "platinum";
   style?: StyleProp<ViewStyle>;
 };
 

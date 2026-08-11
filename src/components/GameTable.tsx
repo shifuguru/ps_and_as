@@ -37,6 +37,8 @@ import { RunsPill } from "../gameplayPresentation/RunsEffect";
 import {
   ON_TOP_COLORS,
   ON_TOP_FLAME_SEEDS,
+  JOKER_COLORS,
+  JOKER_FLAME_SEEDS,
 } from "../gameplayPresentation/RunsEffect/constants";
 
 /** z-index stride per play group — cards within use 0..stride-1 by left-to-right order. */
@@ -408,6 +410,19 @@ export default function GameTable({
 
   const showRunsEffect = playModifierLabel === "Runs!";
   const showOnTopEffect = playModifierLabel === "On top!";
+  const showJokerEffect = playModifierLabel === "Joker!";
+  const showEffectPill =
+    showRunsEffect || showOnTopEffect || showJokerEffect;
+  const effectPalette = showOnTopEffect
+    ? ON_TOP_COLORS
+    : showJokerEffect
+      ? JOKER_COLORS
+      : undefined;
+  const effectFlameSeeds = showOnTopEffect
+    ? ON_TOP_FLAME_SEEDS
+    : showJokerEffect
+      ? JOKER_FLAME_SEEDS
+      : undefined;
 
   const stageStyle =
     stageWidth > 0 && stageHeight > 0
@@ -644,13 +659,11 @@ export default function GameTable({
                     </View>
                   ) : null}
                   {playModifierLabel ? (
-                    showRunsEffect || showOnTopEffect ? (
+                    showEffectPill ? (
                       <RunsPill
                         label={playModifierLabel}
-                        palette={showOnTopEffect ? ON_TOP_COLORS : undefined}
-                        flameSeeds={
-                          showOnTopEffect ? ON_TOP_FLAME_SEEDS : undefined
-                        }
+                        palette={effectPalette}
+                        flameSeeds={effectFlameSeeds}
                         pillStyle={
                           showOnTopEffect
                             ? styles.playTypeBadgeBody

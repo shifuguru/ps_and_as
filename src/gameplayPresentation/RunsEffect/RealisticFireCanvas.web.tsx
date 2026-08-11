@@ -11,6 +11,7 @@ import {
   PETROL_FIRE_PALETTE,
   BLUE_FIRE_PALETTE,
   WARM_FIRE_PALETTE,
+  PLATINUM_FIRE_PALETTE,
   type FireEmber,
   type FireParticle,
   type FireVisualPalette,
@@ -21,6 +22,7 @@ import type { FireKind } from "./constants";
 function firePaletteForKind(kind?: FireKind): FireVisualPalette {
   if (kind === "petrol") return PETROL_FIRE_PALETTE;
   if (kind === "blue") return BLUE_FIRE_PALETTE;
+  if (kind === "platinum") return PLATINUM_FIRE_PALETTE;
   return WARM_FIRE_PALETTE;
 }
 

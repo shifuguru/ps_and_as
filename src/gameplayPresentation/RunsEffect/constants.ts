@@ -47,6 +47,29 @@ export const ON_TOP_COLORS = {
   fireKind: "blue",
 } as const;
 
+/** Grim reaper Joker! — dark pill with spectral platinum flames. */
+export const JOKER_COLORS = {
+  core: "#E8ECF4",
+  hot: "#D4DCE8",
+  edge: "#8E9BB0",
+  glow: "rgba(200,210,230,0.28)",
+  glowSoft: "rgba(160,170,190,0.16)",
+  glowCore: "rgba(235,242,255,0.45)",
+  ember: "rgba(230,236,248,0.95)",
+  flameA: "rgba(230,236,248,0.82)",
+  flameB: "rgba(180,195,220,0.68)",
+  flameC: "rgba(120,130,150,0.5)",
+  chromeBorder: "rgba(200, 210, 230, 0.88)",
+  chromeBackground: "rgba(10, 12, 16, 0.96)",
+  chromeText: "#E8ECF4",
+  chromeShadowColor: "#B8C4D8",
+  chromeBoxShadow:
+    "0 0 0 1px rgba(140, 150, 170, 0.5), 0 0 14px rgba(200, 210, 230, 0.45)",
+  chromeBackgroundGradient:
+    "linear-gradient(to top, rgba(6, 8, 12, 0.98) 0%, rgba(16, 20, 28, 0.95) 40%, rgba(36, 42, 54, 0.9) 100%)",
+  fireKind: "platinum",
+} as const;
+
 /** Cool platinum / silver energy for President streak prestige. */
 export const PLATINUM_STREAK_COLORS = {
   core: "#F2F5FA",
@@ -61,7 +84,7 @@ export const PLATINUM_STREAK_COLORS = {
   flameC: "rgba(150,165,195,0.45)",
 } as const;
 
-export type FireKind = "petrol" | "blue" | "warm";
+export type FireKind = "petrol" | "blue" | "warm" | "platinum";
 
 export type RunsPalette = {
   core: string;
@@ -151,6 +174,7 @@ export function flameSeedsFromPalette(palette: RunsPalette): FlameSeed[] {
 /** Deterministic soft seeds — avoids re-randomising every render. */
 export const FLAME_SEEDS: FlameSeed[] = makeFlameSeeds(RUNS_COLORS);
 export const ON_TOP_FLAME_SEEDS: FlameSeed[] = makeFlameSeeds(ON_TOP_COLORS);
+export const JOKER_FLAME_SEEDS: FlameSeed[] = makeFlameSeeds(JOKER_COLORS);
 export const PLATINUM_FLAME_SEEDS: FlameSeed[] = makeFlameSeeds(
   PLATINUM_STREAK_COLORS,
 );

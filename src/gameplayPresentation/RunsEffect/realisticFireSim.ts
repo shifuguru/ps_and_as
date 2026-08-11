@@ -245,7 +245,7 @@ export function stepFireSim(
   }
 }
 
-export type FireVisualKind = "petrol" | "blue" | "warm";
+export type FireVisualKind = "petrol" | "blue" | "warm" | "platinum";
 
 export type FireVisualPalette = {
   kind: FireVisualKind;
@@ -254,6 +254,7 @@ export type FireVisualPalette = {
 export const WARM_FIRE_PALETTE: FireVisualPalette = { kind: "warm" };
 export const PETROL_FIRE_PALETTE: FireVisualPalette = { kind: "petrol" };
 export const BLUE_FIRE_PALETTE: FireVisualPalette = { kind: "blue" };
+export const PLATINUM_FIRE_PALETTE: FireVisualPalette = { kind: "platinum" };
 
 /** Warm fire face tones — shared by canvas flames and the Runs! pill fill. */
 export const WARM_FIRE_FACE = {
@@ -294,6 +295,14 @@ function particleGradientStops(
       [1, rgba(3, 105, 161, 0)],
     ];
   }
+  if (palette.kind === "platinum") {
+    return [
+      [0, rgba(248, 250, 255, 0.96)],
+      [0.32, rgba(210, 218, 235, 0.78)],
+      [0.68, rgba(130, 140, 160, 0.38)],
+      [1, rgba(18, 20, 26, 0)],
+    ];
+  }
   if (palette.kind === "petrol") {
     const tip = t;
     const r = lerp(0, 255, tip);
@@ -328,6 +337,13 @@ function coreGradientStops(
       [0, "rgba(240,249,255,1)"],
       [0.45, rgba(186, 230, 253, 0.85)],
       [1, rgba(56, 189, 248, 0)],
+    ];
+  }
+  if (palette.kind === "platinum") {
+    return [
+      [0, "rgba(248,250,255,1)"],
+      [0.45, rgba(210, 218, 235, 0.85)],
+      [1, rgba(90, 98, 118, 0)],
     ];
   }
   if (palette.kind === "petrol") {
@@ -440,6 +456,12 @@ export function drawFireEmber(
           [0.4, "rgba(56,189,248,0.75)"],
           [1, "rgba(14,165,233,0)"],
         ]
+      : palette.kind === "platinum"
+        ? [
+            [0, "rgba(245,248,255,1)"],
+            [0.4, "rgba(190,200,220,0.75)"],
+            [1, "rgba(30,34,42,0)"],
+          ]
       : palette.kind === "petrol"
         ? [
             [0, "rgba(255,245,200,1)"],
@@ -475,6 +497,12 @@ export function drawFireBloom(
     g.addColorStop(0.5, "rgba(125,211,252,0.2)");
     g.addColorStop(0.92, "rgba(56,189,248,0.16)");
     g.addColorStop(1, "rgba(14,165,233,0)");
+  } else if (palette.kind === "platinum") {
+    g.addColorStop(0, "rgba(120,130,150,0)");
+    g.addColorStop(0.08, "rgba(190,200,220,0.14)");
+    g.addColorStop(0.5, "rgba(235,242,255,0.18)");
+    g.addColorStop(0.92, "rgba(190,200,220,0.14)");
+    g.addColorStop(1, "rgba(120,130,150,0)");
   } else if (palette.kind === "petrol") {
     g.addColorStop(0, "rgba(0,120,255,0)");
     g.addColorStop(0.08, "rgba(0,150,255,0.18)");
@@ -514,6 +542,10 @@ export function drawFireBloom(
   if (palette.kind === "blue") {
     rim.addColorStop(0, "rgba(186,230,253,0.12)");
     rim.addColorStop(0.65, "rgba(14,165,233,0.06)");
+    rim.addColorStop(1, "rgba(0,0,0,0)");
+  } else if (palette.kind === "platinum") {
+    rim.addColorStop(0, "rgba(235,242,255,0.12)");
+    rim.addColorStop(0.65, "rgba(140,150,170,0.06)");
     rim.addColorStop(1, "rgba(0,0,0,0)");
   } else if (palette.kind === "petrol") {
     rim.addColorStop(0, "rgba(0,150,255,0.12)");
