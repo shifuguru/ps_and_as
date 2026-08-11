@@ -6,6 +6,7 @@
  *   node scripts/test-play-and-trade-integrity.mjs
  */
 import path from "path";
+import fs from "fs";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
 
@@ -349,6 +350,61 @@ function testBotSpectatorRetentionOnLeave() {
   console.log("ok: bot-table connected spectators retained on leave");
 }
 
+function testDualJokerTradeRemovesOnlyOne() {
+  const { removeCardsFromHandConsume } = require("../server/cardConsume");
+  const { pickHighestCards } = require("../server/gameBridge");
+
+  const fromHand = [
+    card("joker", 16),
+    card("joker", 16),
+    card("hearts", 14),
+    card("clubs", 3),
+  ];
+  const taken = pickHighestCards(fromHand, 1);
+  assert(taken.length === 1 && taken[0].suit === "joker", "must take one joker");
+
+  const buggy = fromHand.filter(
+    (c) => !taken.find((t) => t.suit === c.suit && t.value === c.value),
+  );
+  assert(
+    buggy.filter((c) => c.suit === "joker").length === 0,
+    "precondition: suit+value filter would wipe both jokers",
+  );
+
+  const after = removeCardsFromHandConsume(fromHand, taken);
+  assert(
+    after.filter((c) => c.suit === "joker" && c.value === 16).length === 1,
+    "consume-on-match must leave the second joker",
+  );
+  assert(after.length === fromHand.length - 1, "exactly one card removed");
+
+  // 5+ president path: taking both jokers must still remove both.
+  const both = pickHighestCards(fromHand, 2);
+  const afterBoth = removeCardsFromHandConsume(fromHand, both);
+  assert(
+    afterBoth.filter((c) => c.suit === "joker").length === 0,
+    "taking two jokers must remove both",
+  );
+
+  const src = fs.readFileSync(
+    path.join(__dirname, "../server/index.js"),
+    "utf8",
+  );
+  assert(
+    src.includes("removeCardsFromHandConsume"),
+    "server prepareCardTrades must use consume-on-match helper",
+  );
+  assert(
+    !/playerHands\[assholeId\]\s*=\s*\(fromHand[^)]*\)\.filter/.test(src),
+    "server must not use suit+value filter to strip trade cards from asshole",
+  );
+  assert(
+    !/playerHands\[viceAssId\]\s*=\s*\(fromHand[^)]*\)\.filter/.test(src),
+    "server must not use suit+value filter to strip trade cards from vice asshole",
+  );
+  console.log("ok: dual-joker mandatory trade consume-on-match");
+}
+
 function main() {
   testDuplicatePlayRejected();
   testLegitimatePairStillWorks();
@@ -358,6 +414,7 @@ function main() {
   testInvalidAtomicTenDirectionRejected();
   testServerAtomicTenGuardPresent();
   testBotSpectatorRetentionOnLeave();
+  testDualJokerTradeRemovesOnlyOne();
   console.log("\nAll play/trade integrity checks passed.");
 }
 
