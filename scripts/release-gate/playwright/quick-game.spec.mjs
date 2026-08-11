@@ -15,7 +15,7 @@ test.describe("Quick Game smoke", () => {
     const base = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:8081";
     await page.goto(base);
     // Hook data-testid on Home/Quick Game when wiring this test for real.
-    await page.getByRole("button", { name: /quick game/i }).click();
+    await page.getByRole("button", { name: /^play$/i }).click();
     await page.getByRole("button", { name: /start|play/i }).click();
     await page.waitForTimeout(2000);
     // Gameplay assertion placeholder — prefer data-testid="game-phase-playing"

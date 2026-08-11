@@ -14,6 +14,9 @@ import BlurPanel from "./src/components/BlurPanel";
 import { ThemeProvider, useAppTheme } from "./src/context/ThemeContext";
 import { CardAppearanceProvider } from "./src/context/CardAppearanceContext";
 import { preloadGamePreferences } from "./src/services/gamePreferences";
+import {
+  clampPracticePlayerCount,
+} from "./src/services/practicePreferences";
 import { ensurePlayerStatsRestored } from "./src/services/playerStats";
 import { preloadAdsConsent } from "./src/services/ads/adsConsent";
 import { preloadAdsEntitlement } from "./src/services/ads/adsEntitlement";
@@ -316,19 +319,23 @@ function AppContent() {
     };
   }, [splashVisible]);
 
-  const startRandomGame = async () => {
+  const startPracticeGame = async (playerCount: number) => {
     if (onboardingBlocking || !localPlayerName?.trim()) return;
     disconnectRoom();
     const playerInfo = await getOrCreatePlayerId();
     const hostName = localPlayerName.trim();
     const savedTint = (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
-    console.log("[App] Quick Game requested", {
+    const totalPlayers = clampPracticePlayerCount(playerCount);
+    const botCount = Math.max(0, totalPlayers - 1);
+    console.log("[App] Practice game requested", {
       hostName,
       playerInfoId: playerInfo.id,
+      totalPlayers,
+      botCount,
     });
     setLocalPlayerName(hostName);
     setLocalPlayerId(playerInfo.id);
-    const botNames = pickCpuDisplayNames(3, [hostName]);
+    const botNames = pickCpuDisplayNames(botCount, [hostName]);
     setLobbyMembers([
       { id: playerInfo.id, name: hostName, feltTint: savedTint },
       ...botNames.map((name, i) => ({
@@ -347,7 +354,7 @@ function AppContent() {
     }
     setRoomAdapter(null);
     setJoinedRoomId(null);
-    trackAnalyticsEvent("quick_game_started");
+    trackAnalyticsEvent("quick_game_started", { playerCount: totalPlayers });
     setScreen("game");
   };
 
@@ -882,12 +889,12 @@ function AppContent() {
               refreshKey={hubRefreshKey}
               onNavigateSound={() => playEffect("click")}
               actions={{
-                onQuickGame: () => {
+                onPlay: (playerCount) => {
                   if (onboardingBlocking || !localPlayerName) return;
-                  trackAnalyticsEvent("cta_quick_game");
-                  void startRandomGame();
+                  trackAnalyticsEvent("cta_quick_game", { playerCount });
+                  void startPracticeGame(playerCount);
                 },
-                onHostLobby: () => {
+                onSameDeviceLobby: () => {
                   if (onboardingBlocking || !localPlayerName) return;
                   trackAnalyticsEvent("cta_local_game");
                   disconnectRoom();
@@ -896,7 +903,7 @@ function AppContent() {
                   setJoinedRoomId(null);
                   setScreen("create");
                 },
-                onJoinLobby: () => {
+                onPlayWithFriends: () => {
                   if (onboardingBlocking || !localPlayerName) return;
                   trackAnalyticsEvent("cta_online_game");
                   disconnectRoom();
