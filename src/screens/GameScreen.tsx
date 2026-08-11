@@ -102,6 +102,11 @@ import {
 } from "../game/multiplayerSync";
 import { pickTrickShout } from "../rewards/trickShouts";
 import {
+  recordDealJokersForHand,
+  recordCompletedTradeJokers,
+  recordCompletedTradesForLocalPlayer,
+} from "../rewards/titleEventRecording";
+import {
   resolveAvatarBorder,
   type AvatarBorderDesign,
 } from "../rewards/avatarBorders";
@@ -718,6 +723,40 @@ function GameScreen({
   const pendingOpeningPlayerIdRef = useRef<string | null>(null);
   const pendingDealSeedRef = useRef<number | undefined>(undefined);
   const myPlayerIdRef = useRef<string | null>(null);
+  const titleDealJokersRoundKeyRef = useRef<string | null>(null);
+  const titleTradesRecordedRef = useRef<Set<string>>(new Set());
+  const recordTitleTradesOnce = useCallback(
+    (trades: ClientPendingTrade[], localId: string | null) => {
+      if (!localId) return;
+      for (const trade of trades) {
+        if (!trade.completed) continue;
+        const key = `${trade.key}:${trade.winnerId}:${trade.loserId}`;
+        if (titleTradesRecordedRef.current.has(key)) continue;
+        titleTradesRecordedRef.current.add(key);
+        recordCompletedTradeJokers(trade, localId);
+      }
+    },
+    [],
+  );
+
+  const recordTitleDealJokers = useCallback(
+    (
+      prep: CeremonyPrepPayload,
+      dealtPlayers: GameState["players"],
+      localId: string | null,
+    ) => {
+      if (!localId) return;
+      const roundKey = roundCeremonyKey(prep.baseState as GameStateWithDealSeed);
+      if (titleDealJokersRoundKeyRef.current === roundKey) return;
+      titleDealJokersRoundKeyRef.current = roundKey;
+      const local = dealtPlayers.find((p) => p.id === localId);
+      if (local?.hand?.length) {
+        recordDealJokersForHand(local.hand);
+      }
+    },
+    [],
+  );
+
   const explicitFeltThemesRef = useRef<Set<string>>(new Set());
   const roomNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nudgeHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1363,6 +1402,7 @@ function GameScreen({
     ) => {
       const pendingHands = pendingTradesCompleteRef.current;
       if (onlineMultiplayer && pendingHands) {
+        recordTitleTradesOnce(trades, myPlayerIdRef.current);
         finalizeCeremonyRound(players, baseState, pendingHands);
         return;
       }
@@ -1373,6 +1413,7 @@ function GameScreen({
       if (!onlineMultiplayer) {
         autoCompleteCpuWinnerTrades(playersCopy, tradesCopy);
       }
+      recordTitleTradesOnce(tradesCopy, myPlayerIdRef.current);
 
       if (tradesCopy.length === 0 || tradesCopy.every((t) => t.completed)) {
         const localId = myPlayerIdRef.current;
@@ -1406,7 +1447,12 @@ function GameScreen({
       const first = tradesCopy.find((t) => !t.completed) ?? null;
       setActiveTrade(first);
     },
-    [finalizeCeremonyRound, onlineMultiplayer, scheduleTradeReturnReveal],
+    [
+      finalizeCeremonyRound,
+      onlineMultiplayer,
+      scheduleTradeReturnReveal,
+      recordTitleTradesOnce,
+    ],
   );
 
   const launchRoundAfterDeal = useCallback(
@@ -1438,6 +1484,12 @@ function GameScreen({
           return;
         }
         if (launchMode === "finalizeNow") {
+          recordTitleDealJokers(
+            prep,
+            prep.dealtPlayers ?? prep.players,
+            myPlayerIdRef.current,
+          );
+          recordTitleTradesOnce(prep.trades, myPlayerIdRef.current);
           const finalizePlayers = ceremonyPlayersForFinalize(
             prep,
             prep.dealtPlayers ?? prep.players,
@@ -1467,7 +1519,7 @@ function GameScreen({
       setCeremonyPrep(prep);
       setState(hiddenState);
     },
-    [beginTradePhase, finalizeCeremonyRound, shouldSkipDealAnimations, clearLastHandReveal],
+    [beginTradePhase, finalizeCeremonyRound, shouldSkipDealAnimations, clearLastHandReveal, recordTitleDealJokers, recordTitleTradesOnce],
   );
 
   const launchCeremonyFromDeal = useCallback(
@@ -1514,6 +1566,11 @@ function GameScreen({
             prep.serverPlayerHands,
           )
         : prep.dealtPlayers ?? prep.players;
+      recordTitleDealJokers(
+        prep,
+        prep.dealtPlayers ?? prep.players,
+        myPlayerIdRef.current,
+      );
       beginTradePhase(prep.baseState, tradePlayers, prep.trades);
       return;
     }
@@ -1536,6 +1593,7 @@ function GameScreen({
     (baseState: GameState, finishedOrder: string[], nextDealSeed?: number) => {
       setAwaitingDealerReshuffle(false);
       clearLastHandReveal();
+      titleTradesRecordedRef.current = new Set();
       const deal = executeCeremonyDeal(baseState, finishedOrder, {
         dealSeed: nextDealSeed,
         hostId: resolvedHostId,
@@ -1575,6 +1633,7 @@ function GameScreen({
       if (!tradePhase || !activeTrade) return;
       const ok = completeWinnerReturn(tradePhase.players, activeTrade, selected);
       if (!ok) return;
+      recordTitleTradesOnce([activeTrade], myPlayerIdRef.current);
       if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
         networkAdapter.submitTradeSelection(roomId, selected);
       }
@@ -1600,6 +1659,7 @@ function GameScreen({
       roomId,
       finalizeCeremonyRound,
       scheduleTradeReturnReveal,
+      recordTitleTradesOnce,
     ],
   );
 
@@ -2444,6 +2504,7 @@ function GameScreen({
           );
           if (merged.some((t, i) => t.completed !== prep.trades[i]?.completed)) {
             setCeremonyPrep({ ...prep, trades: merged });
+            recordTitleTradesOnce(merged, myPlayerIdRef.current);
           }
         }
         finishSpectator();

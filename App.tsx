@@ -4,7 +4,7 @@ import SplashScreen from "./src/screens/SplashScreen";
 import CreateGame from "./src/screens/CreateGame";
 import FindGame from "./src/screens/FindGame";
 import GameScreen from "./src/screens/GameScreen";
-import Achievements from "./src/screens/Achievements";
+import Titles from "./src/screens/Titles";
 import Settings from "./src/screens/Settings";
 import UpdateLog from "./src/screens/UpdateLog";
 import ReadMeScreen from "./src/screens/ReadMeScreen";
@@ -98,6 +98,7 @@ function AppContent() {
   >("menu");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [achievementsOpen, setAchievementsOpen] = useState(false);
+  const [titlesOpen, setTitlesOpen] = useState(false);
   const [updateLogOpen, setUpdateLogOpen] = useState(false);
   const [readmeOpen, setReadmeOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -493,6 +494,13 @@ function AppContent() {
 
   const closeAchievements = () => setAchievementsOpen(false);
 
+  const openTitles = () => setTitlesOpen(true);
+
+  const closeTitles = () => {
+    setTitlesOpen(false);
+    setHubRefreshKey((k) => k + 1);
+  };
+
   const openUpdateLog = () => setUpdateLogOpen(true);
 
   const closeUpdateLog = () => setUpdateLogOpen(false);
@@ -508,6 +516,8 @@ function AppContent() {
       closeUpdateLog();
     } else if (achievementsOpen) {
       closeAchievements();
+    } else if (titlesOpen) {
+      closeTitles();
     } else if (settingsOpen) {
       closeSettings();
     }
@@ -515,6 +525,7 @@ function AppContent() {
     readmeOpen,
     updateLogOpen,
     achievementsOpen,
+    titlesOpen,
     settingsOpen,
     closeSettings,
   ]);
@@ -522,7 +533,7 @@ function AppContent() {
   useWebEscapeKey(
     closeTopBackModal,
     menuVisible &&
-      (settingsOpen || achievementsOpen || updateLogOpen || readmeOpen),
+      (settingsOpen || achievementsOpen || titlesOpen || updateLogOpen || readmeOpen),
   );
 
   const lobbyMembersRef = useRef(lobbyMembers);
@@ -895,6 +906,7 @@ function AppContent() {
                   setScreen("find");
                 },
                 onOpenAchievements: openAchievements,
+                onOpenTitles: openTitles,
                 onOpenWhatsNew: openUpdateLog,
                 onOpenSettings: openSettings,
                 onOpenReadMe: openReadMe,
@@ -1174,6 +1186,14 @@ function AppContent() {
                   }
                 }}
               />
+            </View>
+          </WebModalPortal>
+        )}
+        {menuVisible && titlesOpen && (
+          <WebModalPortal style={appStyles.settingsOverlay}>
+            <FullscreenBlurScrim />
+            <View style={appStyles.settingsForeground}>
+              <Titles onBack={closeTitles} />
             </View>
           </WebModalPortal>
         )}

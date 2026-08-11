@@ -18,6 +18,11 @@ const STAT_FIELDS = [
   "bestPresidentStreak",
   "xp",
   "tricksWon",
+  "gamesWon",
+  "gamesLost",
+  "jokersReceivedInDeal",
+  "jokersReceivedInTrade",
+  "jokersGivenInTrade",
 ];
 
 const APPEARANCE_VALUES = new Set(["system", "light", "dark"]);
@@ -58,6 +63,10 @@ function normalizeProfile(raw) {
   if (typeof raw.feltTint === "string") {
     const tint = raw.feltTint.trim().toLowerCase();
     if (/^#[0-9a-f]{6}$/.test(tint)) out.feltTint = tint;
+  }
+  if (typeof raw.displayTitleTrackId === "string") {
+    const id = raw.displayTitleTrackId.trim();
+    if (/^[a-z][a-z0-9_]*$/.test(id)) out.displayTitleTrackId = id;
   }
   // Entitlement: only trust true from server-side setters; clients strip this.
   if (raw.adsRemoved === true) out.adsRemoved = true;

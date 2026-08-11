@@ -11,6 +11,8 @@ export type CloudPlayerProfile = {
   appearance?: AppearancePreference;
   textContrast?: TextContrastPreference;
   feltTint?: string;
+  /** Active title track id for hub / profile display. */
+  displayTitleTrackId?: string;
   /** Server-verified Remove Ads entitlement — client cannot grant via PUT. */
   adsRemoved?: boolean;
 };
@@ -45,6 +47,17 @@ export function mergePlayerStats(
     bestPresidentStreak: Math.max(local.bestPresidentStreak, r.bestPresidentStreak),
     xp: Math.max(local.xp, r.xp),
     tricksWon: Math.max(local.tricksWon, r.tricksWon),
+    gamesWon: Math.max(local.gamesWon, r.gamesWon),
+    gamesLost: Math.max(local.gamesLost, r.gamesLost),
+    jokersReceivedInDeal: Math.max(
+      local.jokersReceivedInDeal,
+      r.jokersReceivedInDeal,
+    ),
+    jokersReceivedInTrade: Math.max(
+      local.jokersReceivedInTrade,
+      r.jokersReceivedInTrade,
+    ),
+    jokersGivenInTrade: Math.max(local.jokersGivenInTrade, r.jokersGivenInTrade),
   };
 }
 
@@ -59,6 +72,17 @@ function normalizeRemoteStats(raw: Partial<PlayerStats>): PlayerStats {
     bestPresidentStreak: Math.max(0, Math.floor(raw.bestPresidentStreak ?? 0)),
     xp: Math.max(0, Math.floor(raw.xp ?? 0)),
     tricksWon: Math.max(0, Math.floor(raw.tricksWon ?? 0)),
+    gamesWon: Math.max(0, Math.floor(raw.gamesWon ?? 0)),
+    gamesLost: Math.max(0, Math.floor(raw.gamesLost ?? 0)),
+    jokersReceivedInDeal: Math.max(
+      0,
+      Math.floor(raw.jokersReceivedInDeal ?? 0),
+    ),
+    jokersReceivedInTrade: Math.max(
+      0,
+      Math.floor(raw.jokersReceivedInTrade ?? 0),
+    ),
+    jokersGivenInTrade: Math.max(0, Math.floor(raw.jokersGivenInTrade ?? 0)),
   };
 }
 
@@ -87,6 +111,10 @@ function normalizeRemoteProfile(
   if (typeof raw.feltTint === "string") {
     const tint = raw.feltTint.trim().toLowerCase();
     if (/^#[0-9a-f]{6}$/.test(tint)) out.feltTint = tint;
+  }
+  if (typeof raw.displayTitleTrackId === "string") {
+    const id = raw.displayTitleTrackId.trim();
+    if (/^[a-z][a-z0-9_]*$/.test(id)) out.displayTitleTrackId = id;
   }
   if (raw.adsRemoved === true) out.adsRemoved = true;
   return Object.keys(out).length ? out : null;
@@ -268,6 +296,14 @@ export async function applyCloudProfileLocally(
     try {
       const { setWallpaperTint } = await import("./wallpaper");
       await setWallpaperTint(normalized.feltTint);
+    } catch {
+      // ignore
+    }
+  }
+  if (normalized.displayTitleTrackId) {
+    try {
+      const { writeDisplayTitleTrackId } = await import("./titlePreferences");
+      await writeDisplayTitleTrackId(normalized.displayTitleTrackId);
     } catch {
       // ignore
     }
