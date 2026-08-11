@@ -43,6 +43,21 @@ assert.deepStrictEqual(
   },
 );
 
+assert.deepStrictEqual(
+  mergeProfile({ displayTitleTrackId: "lucky" }, { displayTitleTrackId: "president" }),
+  { displayTitleTrackId: "president" },
+);
+
+assert.deepStrictEqual(
+  mergeProfile({ displayTitleTrackId: "lucky" }, { displayTitleTrackId: null }),
+  { displayTitleTrackId: null },
+);
+
+assert.deepStrictEqual(
+  normalizeProfile({ displayTitleTrackId: null }),
+  { displayTitleTrackId: null },
+);
+
 const id = `google:test-profile-${Date.now()}`;
 const entry = upsertPlayerStats(
   id,

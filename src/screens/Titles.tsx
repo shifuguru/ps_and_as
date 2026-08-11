@@ -84,15 +84,15 @@ export default function Titles({
     const row = tracks.find((t) => t.track.id === trackId);
     if (!row?.unlocked) return;
     triggerHaptic("light");
+    const previousTrackId = displayTrackId;
+    const nextTrackId = displayTrackId === trackId ? null : trackId;
     setSavingTrackId(trackId);
+    setDisplayTrackId(nextTrackId);
     try {
-      if (displayTrackId === trackId) {
-        await setDisplayTitleTrackId(null);
-        setDisplayTrackId(null);
-      } else {
-        await setDisplayTitleTrackId(trackId);
-        setDisplayTrackId(trackId);
-      }
+      await setDisplayTitleTrackId(nextTrackId);
+    } catch (error) {
+      console.error("[Titles] Failed to save display title:", error);
+      setDisplayTrackId(previousTrackId);
     } finally {
       setSavingTrackId(null);
     }
@@ -220,6 +220,7 @@ function TitleTrackRow({
           <TouchableOpacity
             onPress={onToggleDisplay}
             disabled={saving}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: isDisplayed }}
             accessibilityLabel={`Display ${row.track.trackName} title`}
