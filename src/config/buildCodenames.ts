@@ -128,6 +128,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.62": "Your Turn, Apparently",
   "1.1.63": "No Pass Zone",
   "1.1.64": "Off-Suit Outburst",
+  "1.1.65": "No Pass Zone",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
