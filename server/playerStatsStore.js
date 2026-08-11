@@ -64,9 +64,13 @@ function normalizeProfile(raw) {
     const tint = raw.feltTint.trim().toLowerCase();
     if (/^#[0-9a-f]{6}$/.test(tint)) out.feltTint = tint;
   }
-  if (typeof raw.displayTitleTrackId === "string") {
-    const id = raw.displayTitleTrackId.trim();
-    if (/^[a-z][a-z0-9_]*$/.test(id)) out.displayTitleTrackId = id;
+  if (Object.prototype.hasOwnProperty.call(raw, "displayTitleTrackId")) {
+    if (raw.displayTitleTrackId == null) {
+      out.displayTitleTrackId = null;
+    } else if (typeof raw.displayTitleTrackId === "string") {
+      const id = raw.displayTitleTrackId.trim();
+      if (/^[a-z][a-z0-9_]*$/.test(id)) out.displayTitleTrackId = id;
+    }
   }
   // Entitlement: only trust true from server-side setters; clients strip this.
   if (raw.adsRemoved === true) out.adsRemoved = true;
@@ -85,6 +89,19 @@ function mergeProfile(existing, incoming) {
   const left = normalizeProfile(existing) || {};
   const right = normalizeProfile(incoming) || {};
   const merged = { ...left, ...right };
+  if (
+    incoming &&
+    typeof incoming === "object" &&
+    Object.prototype.hasOwnProperty.call(incoming, "displayTitleTrackId")
+  ) {
+    const trackId = incoming.displayTitleTrackId;
+    if (trackId == null) {
+      merged.displayTitleTrackId = null;
+    } else if (typeof trackId === "string") {
+      const id = trackId.trim();
+      if (/^[a-z][a-z0-9_]*$/.test(id)) merged.displayTitleTrackId = id;
+    }
+  }
   // Once granted, adsRemoved sticks even if incoming omitted it.
   if (left.adsRemoved === true) merged.adsRemoved = true;
   return Object.keys(merged).length ? merged : null;

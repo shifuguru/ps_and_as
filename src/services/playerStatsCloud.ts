@@ -11,8 +11,8 @@ export type CloudPlayerProfile = {
   appearance?: AppearancePreference;
   textContrast?: TextContrastPreference;
   feltTint?: string;
-  /** Active title track id for hub / profile display. */
-  displayTitleTrackId?: string;
+  /** Active title track id for hub / profile display; null clears. */
+  displayTitleTrackId?: string | null;
   /** Server-verified Remove Ads entitlement — client cannot grant via PUT. */
   adsRemoved?: boolean;
 };
@@ -112,9 +112,13 @@ function normalizeRemoteProfile(
     const tint = raw.feltTint.trim().toLowerCase();
     if (/^#[0-9a-f]{6}$/.test(tint)) out.feltTint = tint;
   }
-  if (typeof raw.displayTitleTrackId === "string") {
-    const id = raw.displayTitleTrackId.trim();
-    if (/^[a-z][a-z0-9_]*$/.test(id)) out.displayTitleTrackId = id;
+  if (Object.prototype.hasOwnProperty.call(raw, "displayTitleTrackId")) {
+    if (raw.displayTitleTrackId == null) {
+      out.displayTitleTrackId = null;
+    } else if (typeof raw.displayTitleTrackId === "string") {
+      const id = raw.displayTitleTrackId.trim();
+      if (/^[a-z][a-z0-9_]*$/.test(id)) out.displayTitleTrackId = id;
+    }
   }
   if (raw.adsRemoved === true) out.adsRemoved = true;
   return Object.keys(out).length ? out : null;
@@ -258,6 +262,12 @@ export async function readLocalCloudProfile(): Promise<CloudPlayerProfile> {
   } catch {
     // ignore
   }
+  try {
+    const { readDisplayTitleTrackId } = await import("./titlePreferences");
+    profile.displayTitleTrackId = (await readDisplayTitleTrackId()) ?? null;
+  } catch {
+    // ignore
+  }
   return profile;
 }
 
@@ -300,10 +310,10 @@ export async function applyCloudProfileLocally(
       // ignore
     }
   }
-  if (normalized.displayTitleTrackId) {
+  if (Object.prototype.hasOwnProperty.call(normalized, "displayTitleTrackId")) {
     try {
       const { writeDisplayTitleTrackId } = await import("./titlePreferences");
-      await writeDisplayTitleTrackId(normalized.displayTitleTrackId);
+      await writeDisplayTitleTrackId(normalized.displayTitleTrackId ?? null);
     } catch {
       // ignore
     }

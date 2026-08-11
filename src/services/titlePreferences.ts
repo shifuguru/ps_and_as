@@ -59,12 +59,11 @@ export async function setDisplayTitleTrackId(trackId: string | null): Promise<vo
       "./playerStatsCloud"
     );
     const profile = await readLocalCloudProfile();
-    const nextProfile = { ...profile };
-    if (trackId && isValidTrackId(trackId)) {
-      nextProfile.displayTitleTrackId = trackId;
-    } else {
-      delete nextProfile.displayTitleTrackId;
-    }
+    const nextProfile = {
+      ...profile,
+      displayTitleTrackId:
+        trackId && isValidTrackId(trackId) ? trackId : null,
+    };
     void pushCloudPlayerRecord(playerId, { profile: nextProfile });
   } catch {
     /* non-critical */
