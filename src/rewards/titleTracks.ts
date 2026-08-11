@@ -75,14 +75,14 @@ export const TITLE_TRACKS: TitleTrackDef[] = [
   {
     id: "lucky",
     trackName: "Luck",
-    description: "Games won, jokers from the deal, trades, and giving jokers to President",
+    description: "Gained by winning games, and receiving Jokers.",
     kind: "points",
     tiers: LUCKY_TIERS,
   },
   {
     id: "unlucky",
     trackName: "Unlucky",
-    description: "Games lost and jokers traded away to President or Vice President",
+    description: "Gained by losing games, and trading Jokers away.",
     kind: "points",
     tiers: UNLUCKY_TIERS,
   },
