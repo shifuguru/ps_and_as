@@ -162,7 +162,6 @@ export default function RunsPill({
             ...(Platform.OS === "web" && palette.chromeBackgroundGradient
               ? ({
                   backgroundImage: palette.chromeBackgroundGradient,
-                  backgroundColor: "transparent",
                 } as object)
               : null),
             borderWidth: 0,
