@@ -222,12 +222,34 @@ function startNextRound(roomId) {
   if (!room) return;
   if (room.isBotHosted) {
     botHosted.clearBotNextRoundSchedule(room, roomId, io);
+    // Defense in depth: never deal a 1-player bot table after demote/purge.
+    botHosted.restoreBotsWhenUnderstaffed(room);
   }
   const prevState = room.gameState;
   const promoted = room.isBotHosted
     ? botHosted.promoteReadySpectators(room)
     : [promoteReadySpectator(room)].filter(Boolean);
   const rosterChanged = promoted.length > 0;
+  let lobbyPlayers = tableRoster.buildLobbyPlayersForAuthoritativeRound(room);
+  if (lobbyPlayers.length < 2) {
+    if (room.isBotHosted) {
+      botHosted.restoreBotsWhenUnderstaffed(room);
+      lobbyPlayers = tableRoster.buildLobbyPlayersForAuthoritativeRound(room);
+    }
+    if (lobbyPlayers.length < 2) {
+      console.warn(
+        `[Server] startNextRound aborted — need 2+ seated players (have ${lobbyPlayers.length}) in ${roomId}`,
+      );
+      if (room.isBotHosted) {
+        botHosted.resetBotHostedRoom(
+          roomId,
+          getBotContext(),
+          'Restarting bot table — not enough players for a round.',
+        );
+      }
+      return;
+    }
+  }
   const dealSeed = Math.floor(Math.random() * 2147483647);
   const lastOrder = finishOrderForNextRound(room, promoted, prevState);
 
@@ -933,6 +955,9 @@ function demoteBotTablePlayerToSpectator(room, roomId, player) {
     reason: player.awayReason || 'disconnected',
   });
   removePlayerFromActiveGame(room, player.id);
+  // 2-human purge removes CPUs; demoting back under MAX_SEATED must restore
+  // bots before the next deal or the lone human gets a 54-card hand.
+  botHosted.restoreBotsWhenUnderstaffed(room);
   advancePastInactiveSeats(room, cloneGameState);
   gameSync.bumpStateVersion(room);
   broadcastGameState(io, room);
