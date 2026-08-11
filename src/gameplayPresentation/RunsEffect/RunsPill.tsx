@@ -128,8 +128,8 @@ export default function RunsPill({
     ? Math.min(maxFlameHeight, Math.max(12, size.height * 0.7 || 14))
     : maxFlameHeight;
 
-  const fireChromeStyle =
-    realisticOn && palette.chromeBorder
+  const fireChromeStyle = realisticOn
+    ? palette.chromeBorder
       ? ({
           borderWidth: 1.5,
           borderColor: palette.chromeBorder,
@@ -156,9 +156,20 @@ export default function RunsPill({
             default: {},
           }),
         } as ViewStyle)
-      : realisticOn
-        ? styles.glassPillRunsFire
-        : null;
+      : palette.chromeBackground
+        ? ({
+            backgroundColor: palette.chromeBackground,
+            borderWidth: 0,
+            borderColor: "transparent",
+            ...Platform.select({
+              web: { boxShadow: "none" } as object,
+              ios: { shadowOpacity: 0, shadowRadius: 0 },
+              android: { elevation: 0 },
+              default: {},
+            }),
+          } as ViewStyle)
+        : styles.glassPillRunsFire
+    : null;
 
   const labelColor =
     realisticOn && palette.chromeText
@@ -280,25 +291,11 @@ const styles = StyleSheet.create({
     borderRadius: RUNS_LAYOUT.pillRadius,
     overflow: "hidden",
   },
-  /** Warm fuel-edge chrome when the canvas fire is lit (reference look). */
+  /** Cream face only — flames meet the pill edge with no rim or shadow. */
   glassPillRunsFire: {
-    borderWidth: 1.5,
-    borderColor: "#FFB347",
     backgroundColor: "#FFF4E0",
-    ...Platform.select({
-      web: {
-        boxShadow:
-          "0 0 0 1px rgba(255, 179, 71, 0.55), 0 0 12px rgba(255, 140, 30, 0.4)",
-      } as object,
-      ios: {
-        shadowColor: "#FFB347",
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.55,
-        shadowRadius: 10,
-      },
-      android: { elevation: 6 },
-      default: {},
-    }),
+    borderWidth: 0,
+    borderColor: "transparent",
   },
   label: {
     fontWeight: "800",
