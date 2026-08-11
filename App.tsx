@@ -894,15 +894,6 @@ function AppContent() {
                   trackAnalyticsEvent("cta_quick_game", { playerCount });
                   void startPracticeGame(playerCount);
                 },
-                onSameDeviceLobby: () => {
-                  if (onboardingBlocking || !localPlayerName) return;
-                  trackAnalyticsEvent("cta_local_game");
-                  disconnectRoom();
-                  setIsOnlineGame(false);
-                  setRoomAdapter(null);
-                  setJoinedRoomId(null);
-                  setScreen("create");
-                },
                 onPlayWithFriends: () => {
                   if (onboardingBlocking || !localPlayerName) return;
                   trackAnalyticsEvent("cta_online_game");

@@ -22,7 +22,6 @@ type Props = {
   visible: boolean;
   playerCount: number;
   onSelectPlayerCount: (count: number) => void;
-  onSameDeviceLobby: () => void;
   onClose: () => void;
 };
 
@@ -35,7 +34,6 @@ export default function PracticeSetupModal({
   visible,
   playerCount,
   onSelectPlayerCount,
-  onSameDeviceLobby,
   onClose,
 }: Props) {
   const { ui, blur, colors } = useAppTheme();
@@ -111,21 +109,6 @@ export default function PracticeSetupModal({
             onPress={onClose}
             style={styles.doneBtn}
           />
-
-          <View style={styles.divider} />
-
-          <Text style={styles.sectionLabel}>Same device</Text>
-          <AppButton
-            label="Friends on this device"
-            icon="person"
-            variant="secondary"
-            onPress={() => {
-              triggerHaptic("medium");
-              onClose();
-              onSameDeviceLobby();
-            }}
-            accessibilityLabel="Friends on this device — pass and play on one screen"
-          />
         </BlurPanel>
       </View>
     </Modal>
@@ -188,11 +171,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     doneBtn: {
       marginTop: 4,
-    },
-    divider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: colors.panelBorder,
-      marginVertical: 4,
     },
   });
 }
