@@ -58,7 +58,29 @@ assert(
       p.id === "spec-1" ? { ...p, isSpectator: false } : p,
     ),
   }),
-  "no dead hand when human seated",
+  "no dead hand when human seated with bots (3 seats)",
+);
+
+assert(
+  tableRoster.shouldUseDeadHandForDeal({
+    isBotHosted: true,
+    players: [
+      { id: "cpu-1", isSpectator: false, disconnectedAt: null },
+      { id: "cpu-2", isSpectator: false, disconnectedAt: null },
+    ],
+  }),
+  "dead hand for bot-only autopilot (2 seats)",
+);
+
+assert(
+  tableRoster.shouldUseDeadHandForDeal({
+    isBotHosted: true,
+    players: [
+      { id: "h1", isSpectator: false, disconnectedAt: null },
+      { id: "h2", isSpectator: false, disconnectedAt: null },
+    ],
+  }),
+  "dead hand after 2 humans purge bots on bot-hosted room",
 );
 
 const r2 = mkRoom({ deadHand: false, gameState: { players: [{ id: "cpu-1" }, { id: "cpu-2" }, { id: "human-old" }], readyForNextRound: { "spec-1": true } } });
