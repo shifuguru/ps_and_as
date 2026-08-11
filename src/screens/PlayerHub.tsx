@@ -72,6 +72,12 @@ import {
   type DailyChallengeState,
 } from "../services/dailyChallenge";
 import {
+  claimDailyLoginIfReady,
+  DAILY_LOGIN_XP,
+  loadDailyLoginState,
+  type DailyLoginState,
+} from "../services/dailyLoginReward";
+import {
   resolveAvatarBorder,
   type AvatarBorderDesign,
 } from "../rewards/avatarBorders";
@@ -149,11 +155,13 @@ export default function PlayerHub({
   } | null>(null);
   const [dailyDef, setDailyDef] = useState<DailyChallengeDef | null>(null);
   const [dailyState, setDailyState] = useState<DailyChallengeState | null>(null);
+  const [loginState, setLoginState] = useState<DailyLoginState | null>(null);
   const [featured, setFeatured] = useState<FeaturedStat | null>(null);
   const [displayedTitle, setDisplayedTitle] = useState<string | null>(null);
   const [lightsOnOpen, setLightsOnOpen] = useState(false);
   const [onlinePlayersOpen, setOnlinePlayersOpen] = useState(false);
   const [dailyClaiming, setDailyClaiming] = useState(false);
+  const [loginClaiming, setLoginClaiming] = useState(false);
   const ringPulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -207,6 +215,8 @@ export default function PlayerHub({
     );
     setDailyDef(daily.def);
     setDailyState(marked);
+    const login = await loadDailyLoginState();
+    setLoginState(login);
   }, [playerTitle]);
 
   useEffect(() => {
@@ -255,6 +265,30 @@ export default function PlayerHub({
     }
   }, [dailyClaiming, dailyDef, dailyState, stats]);
 
+  const claimLoginReward = useCallback(async () => {
+    if (!loginState || loginClaiming || loginState.claimed) {
+      return;
+    }
+
+    setLoginClaiming(true);
+    triggerHaptic("medium");
+    try {
+      const claimed = await claimDailyLoginIfReady(loginState);
+      setLoginState(claimed.state);
+      if (claimed.grantedXp > 0) {
+        const refreshed = await getPlayerStats();
+        setStats(refreshed);
+        setFeatured(selectFeaturedStat(refreshed));
+        const nextRefreshed = selectNextAchievement(refreshed);
+        setNextAch(nextRefreshed);
+        setGoals(selectHubGoals(refreshed, 3, nextRefreshed?.def.id));
+        setBorder(resolveAvatarBorder(refreshed));
+      }
+    } finally {
+      setLoginClaiming(false);
+    }
+  }, [loginClaiming, loginState]);
+
   const level = levelProgressFromXp(stats?.xp ?? 0);
   /** Cold open: no rounds yet — answer what/why/start before empty meta chrome. */
   const statsReady = stats !== null;
@@ -267,6 +301,7 @@ export default function PlayerHub({
   const dailyDone = !!dailyProgress?.done;
   const canClaimDaily =
     dailyDone && !!dailyDef && !!dailyState && !dailyState.rewardClaimed;
+  const canClaimLogin = !!loginState && !loginState.claimed;
   const recentRarity = recent
     ? rarityForAchievementId(recent.def.id)
     : null;
@@ -373,6 +408,54 @@ export default function PlayerHub({
       </View>
     </BlurPanel>
   );
+
+  const loginCard =
+    canClaimLogin && loginState ? (
+      <BlurPanel
+        intensity={44}
+        style={[
+          styles.card,
+          styles.utilityCard,
+          styles.dailyClaimableCard,
+        ]}
+      >
+        <View style={styles.dailyHeader}>
+          <MenuIcon name="bolt" size={16} color={colors.accent} />
+          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
+            Daily Bonus
+          </Text>
+          <Text style={styles.rewardInline}>+{DAILY_LOGIN_XP} XP</Text>
+        </View>
+        <Text style={styles.goalTitle}>Welcome back</Text>
+        <Text style={styles.goalSub}>
+          Tap to claim your free XP for today.
+        </Text>
+        <Text style={styles.rewardLine}>
+          {loginClaiming
+            ? "Claiming…"
+            : `Tap to claim · +${DAILY_LOGIN_XP} XP`}
+        </Text>
+      </BlurPanel>
+    ) : null;
+
+  const dailyLoginPanel =
+    loginCard == null ? null : (
+      <TouchableOpacity
+        activeOpacity={0.85}
+        disabled={loginClaiming}
+        onPress={() => {
+          void claimLoginReward();
+        }}
+        accessibilityRole="button"
+        accessibilityState={{
+          disabled: loginClaiming,
+          busy: loginClaiming,
+        }}
+        accessibilityLabel={`Claim daily login bonus, ${DAILY_LOGIN_XP} XP`}
+      >
+        {loginCard}
+      </TouchableOpacity>
+    );
 
   const dailyCard =
     hasPlayed &&
@@ -542,6 +625,9 @@ export default function PlayerHub({
               Play a round to start tracking XP and unlocks.
             </Text>
           ) : null}
+
+          {/* Daily login bonus — tap to claim; resets at UTC midnight */}
+          {dailyLoginPanel}
 
           {/* Daily Challenge — time-sensitive (after first play); XP on tap */}
           {dailyChallengePanel}

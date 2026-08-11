@@ -2,6 +2,7 @@
 
 import { hexToRgba } from "../../utils/colorTheory";
 
+/** Warm orange flame with a light blue fuel spill along the bottom of the pill. */
 export const RUNS_COLORS = {
   core: "#FFB200",
   hot: "#FF8C1A",
@@ -13,6 +14,38 @@ export const RUNS_COLORS = {
   flameA: "rgba(255,178,40,0.72)",
   flameB: "rgba(255,120,20,0.55)",
   flameC: "rgba(255,90,10,0.4)",
+  chromeBorder: "rgba(255, 180, 55, 0.92)",
+  chromeBackground: "rgba(255, 250, 240, 0.96)",
+  chromeText: "#111111",
+  chromeShadowColor: "#FF8C1A",
+  chromeBoxShadow:
+    "0 0 0 1px rgba(255, 130, 25, 0.35), 0 0 14px rgba(255, 140, 30, 0.45)",
+  chromeBackgroundGradient:
+    "linear-gradient(to top, rgba(140, 220, 255, 0.5) 0%, rgba(170, 230, 255, 0.22) 18%, rgba(255, 250, 240, 0.96) 20%, rgba(255, 250, 240, 0.96) 100%)",
+  fireKind: "warm",
+} as const;
+
+/** Cool blue flame for the On top! modifier pill. */
+export const ON_TOP_COLORS = {
+  core: "#7DD3FC",
+  hot: "#38BDF8",
+  edge: "#0369A1",
+  glow: "rgba(56,189,248,0.28)",
+  glowSoft: "rgba(14,165,233,0.16)",
+  glowCore: "rgba(186,230,253,0.45)",
+  ember: "rgba(186,230,253,0.95)",
+  flameA: "rgba(14,165,233,0.82)",
+  flameB: "rgba(56,189,248,0.68)",
+  flameC: "rgba(125,211,252,0.5)",
+  chromeBorder: "rgba(56, 189, 248, 0.9)",
+  chromeBackground: "rgba(8, 24, 48, 0.94)",
+  chromeText: "#E0F2FE",
+  chromeShadowColor: "#0EA5E9",
+  chromeBoxShadow:
+    "0 0 0 1px rgba(14, 165, 233, 0.45), 0 0 14px rgba(56, 189, 248, 0.5)",
+  chromeBackgroundGradient:
+    "linear-gradient(to top, rgba(3, 105, 161, 0.96) 0%, rgba(14, 116, 144, 0.9) 42%, rgba(186, 230, 253, 0.88) 100%)",
+  fireKind: "blue",
 } as const;
 
 /** Cool platinum / silver energy for President streak prestige. */
@@ -29,6 +62,8 @@ export const PLATINUM_STREAK_COLORS = {
   flameC: "rgba(150,165,195,0.45)",
 } as const;
 
+export type FireKind = "petrol" | "blue" | "warm";
+
 export type RunsPalette = {
   core: string;
   hot: string;
@@ -40,6 +75,13 @@ export type RunsPalette = {
   flameA: string;
   flameB: string;
   flameC: string;
+  chromeBorder?: string;
+  chromeBackground?: string;
+  chromeText?: string;
+  chromeShadowColor?: string;
+  chromeBoxShadow?: string;
+  chromeBackgroundGradient?: string;
+  fireKind?: FireKind;
 };
 
 export const RUNS_TIMING = {
@@ -109,6 +151,7 @@ export function flameSeedsFromPalette(palette: RunsPalette): FlameSeed[] {
 
 /** Deterministic soft seeds — avoids re-randomising every render. */
 export const FLAME_SEEDS: FlameSeed[] = makeFlameSeeds(RUNS_COLORS);
+export const ON_TOP_FLAME_SEEDS: FlameSeed[] = makeFlameSeeds(ON_TOP_COLORS);
 export const PLATINUM_FLAME_SEEDS: FlameSeed[] = makeFlameSeeds(
   PLATINUM_STREAK_COLORS,
 );
