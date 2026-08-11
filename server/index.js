@@ -51,6 +51,7 @@ const {
   adjustSeatIndexAfterRemoval,
   lastPlayIndexAfterRemoval,
 } = require('./seatIndex');
+const { removeCardsFromHandConsume } = require('./cardConsume');
 const {
   validateDisplayText,
   normalizeRoomCode,
@@ -646,14 +647,13 @@ function prepareCardTrades(gameState, playerHands, options = {}) {
       // Asshole gives 2 best, President must choose 2 to give back
       const fromHand = playerHands[assholeId] || [];
       const taken = pickHighestCards(fromHand, 2);
-      // remove taken from asshole hand
-      playerHands[assholeId] = (fromHand || []).filter(c => !taken.find(t => t.suit === c.suit && t.value === c.value));
+      playerHands[assholeId] = removeCardsFromHandConsume(fromHand, taken);
       pending.president = { fromId: assholeId, count: 2, incoming: taken, selected: null };
     } else {
       // 3-4 players: Asshole gives 1 best, President chooses 1 to return
       const fromHand = playerHands[assholeId] || [];
       const taken = pickHighestCards(fromHand, 1);
-      playerHands[assholeId] = (fromHand || []).filter(c => !taken.find(t => t.suit === c.suit && t.value === c.value));
+      playerHands[assholeId] = removeCardsFromHandConsume(fromHand, taken);
       pending.president = { fromId: assholeId, count: 1, incoming: taken, selected: null };
     }
   }
@@ -669,7 +669,7 @@ function prepareCardTrades(gameState, playerHands, options = {}) {
     // Vice Asshole gives 1 best, Vice President chooses 1 to return
     const fromHand = playerHands[viceAssId] || [];
     const taken = pickHighestCards(fromHand, 1);
-    playerHands[viceAssId] = (fromHand || []).filter(c => !taken.find(t => t.suit === c.suit && t.value === c.value));
+    playerHands[viceAssId] = removeCardsFromHandConsume(fromHand, taken);
     pending.vicePresident = { fromId: viceAssId, count: 1, incoming: taken, selected: null };
   }
 
