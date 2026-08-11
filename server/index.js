@@ -33,7 +33,7 @@ const {
   resolveCompletedAcknowledgmentTrick,
   isTrickOpeningLead,
   resolveTrickLeaderIndex,
-  abandonOrphanedAcknowledgmentTrick,
+  abandonOrphanedClearTrick,
 } = require('./gameBridge');
 const {
   viewForPlayer,
@@ -1137,8 +1137,14 @@ function removePlayerFromActiveGame(room, playerId) {
   const wasLeader = gs.lastPlayPlayerIndex === idx;
   const wasRunOnTop =
     !!gs.runOnTop?.active && gs.runOnTop.playerIndex === idx;
-  // Capture before splice — lastClear / pile joker still mark ack after removal.
-  const wasAckPhase = isTrickAcknowledgmentPassPhase(gs);
+  // Capture before splice — ack, single-play bomb, joker, and On Top are all
+  // owned by the removed seat; remapping lastPlay would soft-lock or mis-award.
+  const ownedClear =
+    wasLeader &&
+    (isTrickAcknowledgmentPassPhase(gs) ||
+      !!gs.fourOfAKindChallenge?.active ||
+      !!gs.lastClear ||
+      wasRunOnTop);
 
   gs.players = gs.players.filter((p) => p.id !== playerId);
   gs.finishedOrder = (gs.finishedOrder || []).filter((id) => id !== playerId);
@@ -1169,12 +1175,9 @@ function removePlayerFromActiveGame(room, playerId) {
     }
   }
 
-  // Clear-leader demoted mid-joker / rank-close ack: remapped lastPlay is either
-  // null (soft-lock — resolve never finishes) or a prior living seat (wrong
-  // clear winner). Abandon the clear and force the next living seat to lead.
-  if (wasLeader && wasAckPhase && isTrickAcknowledgmentPassPhase(gs)) {
+  if (ownedClear) {
     const anchor = Math.max(0, Math.min(idx, gs.players.length) - 1);
-    const abandoned = abandonOrphanedAcknowledgmentTrick(gs, anchor);
+    const abandoned = abandonOrphanedClearTrick(gs, anchor);
     room.gameState = abandoned;
     reconcileCurrentPlayerIndex(room);
     return;
@@ -1420,7 +1423,8 @@ function removeSocketFromOtherRooms(socket, profileId, keepRoomId) {
     if (room.inGame && !player.isSpectator) {
       player.socketId = null;
       socket.leave(roomId);
-      markPlayerAway(roomId, player, 'left');
+      // Pause with reconnect grace — not an intentional Leave (which aborts).
+      markPlayerAway(roomId, player, 'disconnected');
       listChanged = true;
       continue;
     }
@@ -1465,8 +1469,12 @@ function removeSocketFromOtherRooms(socket, profileId, keepRoomId) {
 function migrateHost(roomId) {
   const room = rooms[roomId];
   if (!room || room.players.length === 0) return null;
-  
-  const newHost = room.players.find(p => p.socketId && !p.disconnectedAt);
+
+  // Prefer a connected living seat; if everyone is away, still assign a
+  // pending host so the lobby is not permanently orphaned (no Start/Dismiss).
+  const newHost =
+    room.players.find((p) => p.socketId && !p.disconnectedAt) ||
+    room.players[0];
   if (newHost) {
     const oldHost = room.host;
     room.host = newHost.id;
@@ -1481,6 +1489,17 @@ function migrateHost(roomId) {
     return newHost;
   }
   return null;
+}
+
+/** Ensure the room has a host that is still a member (heal after away-only migrate). */
+function ensureLivingHost(roomId) {
+  const room = rooms[roomId];
+  if (!room || room.players.length === 0) return null;
+  const hostOk = room.players.some(
+    (p) => p.id === room.host && p.socketId && !p.disconnectedAt,
+  );
+  if (hostOk) return null;
+  return migrateHost(roomId);
 }
 
 /** End an in-progress online game for everyone — unfair to continue short-handed. */
@@ -1903,11 +1922,12 @@ io.on('connection', (socket) => {
     const existingPlayer = findReconnectPlayer(room, reconnectSecret);
     let wasAway = false;
 
+    // Stale secret after seat removal must not hard-block a fresh join of the
+    // still-open room (lobby grace / BOTOPN grace / early purge). Ignore it.
     if (reconnectSecret && !existingPlayer) {
-      socket.emit('error', {
-        message: 'Reconnect failed. Rejoin from the same device session.',
-      });
-      return;
+      console.log(
+        `[Server] Ignoring stale reconnectSecret for room ${code} — allowing fresh join`,
+      );
     }
     
     if (existingPlayer) {
@@ -1973,6 +1993,11 @@ io.on('connection', (socket) => {
 
     socket.join(code);
     const joined = room.players.find((p) => p.socketId === socket.id);
+    // Heal host if the previous host was removed or is still away while a
+    // connected member is present (covers migrateHost away-only assignment).
+    if (joined && !joined.disconnectedAt) {
+      ensureLivingHost(code);
+    }
     io.to(code).emit('lobbyUpdate', buildLobbyUpdate(room));
     if (wasAway && room.inGame && joined && !joined.isSpectator) {
       analytics.track('player_reconnected', {
