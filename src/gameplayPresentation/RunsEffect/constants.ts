@@ -2,7 +2,7 @@
 
 import { hexToRgba } from "../../utils/colorTheory";
 
-/** Warm Runs! energy — pill face is solid cream; flames sit flush on top. */
+/** Warm Runs! energy — pill face warms into the flame at the top edge. */
 export const RUNS_COLORS = {
   core: "#FFB200",
   hot: "#FF8C1A",
@@ -14,7 +14,9 @@ export const RUNS_COLORS = {
   flameA: "rgba(255,178,40,0.72)",
   flameB: "rgba(255,120,20,0.55)",
   flameC: "rgba(255,90,10,0.4)",
-  chromeBackground: "#FFF4E0",
+  chromeBackground: "#FFF0D8",
+  chromeBackgroundGradient:
+    "linear-gradient(to bottom, #FFE8A8 0%, #FFF0D0 42%, #FFFBF2 100%)",
   fireKind: "warm",
 } as const;
 

@@ -159,6 +159,12 @@ export default function RunsPill({
       : palette.chromeBackground
         ? ({
             backgroundColor: palette.chromeBackground,
+            ...(Platform.OS === "web" && palette.chromeBackgroundGradient
+              ? ({
+                  backgroundImage: palette.chromeBackgroundGradient,
+                  backgroundColor: "transparent",
+                } as object)
+              : null),
             borderWidth: 0,
             borderColor: "transparent",
             ...Platform.select({
@@ -291,9 +297,9 @@ const styles = StyleSheet.create({
     borderRadius: RUNS_LAYOUT.pillRadius,
     overflow: "hidden",
   },
-  /** Cream face only — flames meet the pill edge with no rim or shadow. */
+  /** Warm cream face — top edge matches the flame's hot yellow base. */
   glassPillRunsFire: {
-    backgroundColor: "#FFF4E0",
+    backgroundColor: "#FFF0D8",
     borderWidth: 0,
     borderColor: "transparent",
   },
