@@ -90,7 +90,10 @@ import {
   selectFeaturedStat,
   type FeaturedStat,
 } from "../services/featuredStat";
-import { triggerHaptic } from "../utils/haptics";
+import {
+  readDisplayTitleTrackId,
+  displayedTitleForStats,
+} from "../services/titlePreferences";
 import type { OnlinePlayer } from "../services/onlinePresence";
 
 const AVATAR_SIZE = 88;
@@ -102,6 +105,7 @@ export type PlayerHubActions = {
   onHostLobby: () => void;
   onJoinLobby: () => void;
   onOpenAchievements: () => void;
+  onOpenTitles: () => void;
   onOpenWhatsNew: () => void;
   onOpenSettings: () => void;
   onOpenReadMe: () => void;
@@ -117,7 +121,7 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   /** When true, reloads hub data (e.g. after returning to menu). */
   refreshKey?: number;
-  /** Future title string — layout reserved; leave undefined for now. */
+  /** Override displayed title — hub loads from title preferences when omitted. */
   playerTitle?: string | null;
 };
 
@@ -153,6 +157,7 @@ export default function PlayerHub({
   const [dailyState, setDailyState] = useState<DailyChallengeState | null>(null);
   const [loginState, setLoginState] = useState<DailyLoginState | null>(null);
   const [featured, setFeatured] = useState<FeaturedStat | null>(null);
+  const [displayedTitle, setDisplayedTitle] = useState<string | null>(null);
   const [lightsOnOpen, setLightsOnOpen] = useState(false);
   const [onlinePlayersOpen, setOnlinePlayersOpen] = useState(false);
   const [dailyClaiming, setDailyClaiming] = useState(false);
@@ -180,8 +185,12 @@ export default function PlayerHub({
 
   const reload = useCallback(async () => {
     const s = await getPlayerStats();
+    const trackId = await readDisplayTitleTrackId();
     await syncUnlockSnapshot(s);
     setStats(s);
+    setDisplayedTitle(
+      playerTitle ?? displayedTitleForStats(s, trackId) ?? null,
+    );
     setFeatured(selectFeaturedStat(s));
     const next = selectNextAchievement(s);
     setNextAch(next);
@@ -208,7 +217,7 @@ export default function PlayerHub({
     setDailyState(marked);
     const login = await loadDailyLoginState();
     setLoginState(login);
-  }, []);
+  }, [playerTitle]);
 
   useEffect(() => {
     void reload();
@@ -348,6 +357,16 @@ export default function PlayerHub({
             <View style={styles.identityActions}>
               <TouchableOpacity
                 activeOpacity={0.8}
+                onPress={() => run(actions.onOpenTitles)}
+                accessibilityRole="button"
+                accessibilityLabel="Open titles"
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                style={styles.identityActionBtn}
+              >
+                <MenuIcon name="list" size={18} color={colors.accent} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.8}
                 onPress={() => run(actions.onOpenAchievements)}
                 accessibilityRole="button"
                 accessibilityLabel="Open achievements"
@@ -368,9 +387,9 @@ export default function PlayerHub({
               </TouchableOpacity>
             </View>
           </View>
-          {playerTitle ? (
+          {(playerTitle ?? displayedTitle) ? (
             <Text style={styles.titleSlot} numberOfLines={1}>
-              {playerTitle}
+              {playerTitle ?? displayedTitle}
             </Text>
           ) : null}
           <Text style={styles.identityMeta}>Level {level.level}</Text>
@@ -656,8 +675,16 @@ export default function PlayerHub({
                 </View>
               </View>
               <TouchableOpacity
-                onPress={() => run(actions.onOpenAchievements)}
+                onPress={() => run(actions.onOpenTitles)}
                 style={styles.linkBtn}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.linkBtnText}>View Titles</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.linkBtn}
+                onPress={() => run(actions.onOpenAchievements)}
+                activeOpacity={0.85}
               >
                 <Text style={styles.linkBtnText}>View Achievements</Text>
               </TouchableOpacity>

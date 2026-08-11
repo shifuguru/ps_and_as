@@ -28,6 +28,16 @@ export type PlayerStats = {
   /** Career XP — authoritative progression currency. */
   xp: number;
   tricksWon: number;
+  /** President or Vice President finishes — Lucky title track. */
+  gamesWon: number;
+  /** Asshole or Vice Asshole finishes — Unlucky title track. */
+  gamesLost: number;
+  /** Jokers in opening hand after the deal. */
+  jokersReceivedInDeal: number;
+  /** Jokers received as President / VP in role trades. */
+  jokersReceivedInTrade: number;
+  /** Jokers given as Asshole / Vice Asshole in role trades. */
+  jokersGivenInTrade: number;
 };
 
 /** Stats fields that can drive achievement / prestige progress. */
@@ -198,6 +208,11 @@ export const DEFAULT_PLAYER_STATS: PlayerStats = {
   bestPresidentStreak: 0,
   xp: 0,
   tricksWon: 0,
+  gamesWon: 0,
+  gamesLost: 0,
+  jokersReceivedInDeal: 0,
+  jokersReceivedInTrade: 0,
+  jokersGivenInTrade: 0,
 };
 
 export const TRICK_WIN_XP = 15;
@@ -302,6 +317,11 @@ function normalizeStats(raw: Partial<PlayerStats> | null): PlayerStats {
     bestPresidentStreak: raw?.bestPresidentStreak ?? 0,
     xp: raw?.xp ?? 0,
     tricksWon: raw?.tricksWon ?? 0,
+    gamesWon: raw?.gamesWon ?? 0,
+    gamesLost: raw?.gamesLost ?? 0,
+    jokersReceivedInDeal: raw?.jokersReceivedInDeal ?? 0,
+    jokersReceivedInTrade: raw?.jokersReceivedInTrade ?? 0,
+    jokersGivenInTrade: raw?.jokersGivenInTrade ?? 0,
   };
 }
 
@@ -315,7 +335,12 @@ function statsEqual(a: PlayerStats, b: PlayerStats): boolean {
     a.presidentStreak === b.presidentStreak &&
     a.bestPresidentStreak === b.bestPresidentStreak &&
     a.xp === b.xp &&
-    a.tricksWon === b.tricksWon
+    a.tricksWon === b.tricksWon &&
+    a.gamesWon === b.gamesWon &&
+    a.gamesLost === b.gamesLost &&
+    a.jokersReceivedInDeal === b.jokersReceivedInDeal &&
+    a.jokersReceivedInTrade === b.jokersReceivedInTrade &&
+    a.jokersGivenInTrade === b.jokersGivenInTrade
   );
 }
 
@@ -460,6 +485,9 @@ export async function recordRoundResult(
   if (role === "Vice Asshole") stats.timesViceAsshole += 1;
   if (role === "Asshole") stats.timesAsshole += 1;
 
+  if (role === "President" || role === "Vice President") stats.gamesWon += 1;
+  if (role === "Asshole" || role === "Vice Asshole") stats.gamesLost += 1;
+
   await savePlayerStats(stats);
   if (Platform.OS === "ios") {
     const { syncStatsToGameCenter } = await import("./gameCenterSync");
@@ -563,4 +591,38 @@ export function formatAchievementPrestige(prestige: number): string {
 export function winRate(stats: PlayerStats): number {
   if (stats.roundsPlayed === 0) return 0;
   return Math.round((stats.timesPresident / stats.roundsPlayed) * 100);
+}
+
+async function bumpStatCounter(
+  field:
+    | "jokersReceivedInDeal"
+    | "jokersReceivedInTrade"
+    | "jokersGivenInTrade",
+  delta: number,
+): Promise<PlayerStats> {
+  const amount = Math.max(0, Math.floor(delta));
+  if (amount <= 0) return getPlayerStats();
+  const stats = await getPlayerStats();
+  stats[field] += amount;
+  await savePlayerStats(stats);
+  return stats;
+}
+
+/** Jokers in the local human's opening hand after the deal. */
+export async function recordJokersInDeal(count: number): Promise<PlayerStats> {
+  return bumpStatCounter("jokersReceivedInDeal", count);
+}
+
+/** Jokers received as President / VP in a completed role trade. */
+export async function recordJokersReceivedInTrade(
+  count: number,
+): Promise<PlayerStats> {
+  return bumpStatCounter("jokersReceivedInTrade", count);
+}
+
+/** Jokers given as Asshole / Vice Asshole in a completed role trade. */
+export async function recordJokersGivenInTrade(
+  count: number,
+): Promise<PlayerStats> {
+  return bumpStatCounter("jokersGivenInTrade", count);
 }
