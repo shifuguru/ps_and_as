@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Runs! pill — in-game size</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    html, body {
+      height: 100%;
+      background:
+        radial-gradient(ellipse 70% 60% at 50% 45%, #1a3d2e 0%, #0a1812 55%, #050a08 100%);
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+      overflow: hidden;
+    }
+    .label {
+      position: absolute; top: 18px; left: 20px; z-index: 3;
+      font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #7d907f;
+    }
+    .stage { height: 100%; display: grid; place-items: center; }
+    .host { position: relative; width: 72px; height: 28px; }
+    canvas { position: absolute; pointer-events: none; }
+    .pill {
+      position: relative; z-index: 2; width: 100%; height: 100%;
+      border-radius: 999px; display: grid; place-items: center;
+      background: rgba(255, 250, 240, 0.96); color: #111;
+      font-weight: 800; font-size: 11px; letter-spacing: 0.4px;
+      border: 1.5px solid rgba(255, 180, 55, 0.92);
+      box-shadow:
+        0 0 0 1px rgba(255, 130, 25, 0.35),
+        0 0 14px rgba(255, 140, 30, 0.45);
+    }
+  </style>
+</head>
+<body>
+  <div class="label">In-game Runs! · dense continuous wall</div>
+  <div class="stage">
+    <div class="host" id="host">
+      <canvas id="fire"></canvas>
+      <div class="pill">Runs!</div>
+    </div>
+  </div>
+  <script>
+    const canvas = document.getElementById("fire");
+    const ctx = canvas.getContext("2d", { alpha: true });
+    const DPR = Math.min(devicePixelRatio || 1, 2);
+    const BURN = {
+      riseTop: -72, riseSide: -40, riseBottom: -22, riseEmber: -56,
+      lifeTop: 0.58, lifeSide: 0.45, lifeBottom: 0.38, lifeEmber: 0.9,
+      swayFreq: 2.4, emberSwayFreq: 1.8,
+    };
+    const W = 72, H = 28;
+    const scale = Math.max(0.4, Math.min(0.72, W / 150));
+    const padX = Math.max(22, W * 0.45);
+    const padTop = Math.max(36, H * 2.1);
+    const padBottom = Math.max(14, H * 0.55);
+    const cw = Math.ceil(W + padX * 2);
+    const ch = Math.ceil(H + padTop + padBottom);
+    canvas.width = Math.floor(cw * DPR);
+    canvas.height = Math.floor(ch * DPR);
+    canvas.style.width = cw + "px";
+    canvas.style.height = ch + "px";
+    canvas.style.left = -padX + "px";
+    canvas.style.top = -padTop + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    const pill = { x: padX + W / 2, y: padTop + H / 2, w: W, h: H };
+    function topSpan() {
+      const hw = pill.w / 2, hh = pill.h / 2;
+      return { left: pill.x - hw + hh * 0.05, right: pill.x + hw - hh * 0.05, y: pill.y - hh };
+    }
+
+    const particles = [];
+    const embers = [];
+    const span = topSpan();
+    const width = span.right - span.left;
+    const topCount = Math.max(28, Math.round(width / (3.2 * scale)));
+    const layers = 3;
+    for (let i = 0; i < topCount; i++) {
+      const t = i / (topCount - 1);
+      const anchorX = span.left + width * t;
+      const originY = span.y + (Math.random() - 0.35) * 2.5 * scale;
+      for (let layer = 0; layer < layers; layer++) {
+        const rise = BURN.riseTop * scale;
+        const life = BURN.lifeTop;
+        const age = ((i * layers + layer) / (topCount * layers)) * life;
+        particles.push({
+          anchorX, originY, x: anchorX, y: originY + rise * age,
+          rise, life, age,
+          size: (14 + Math.random() * 10) * scale,
+          heat: 0.78 + Math.random() * 0.22,
+          seed: Math.random() * Math.PI * 2,
+          stretch: 1.35 + Math.random() * 0.55,
+          front: layer === 2 && i % 4 === 0,
+          drift: (3.5 + Math.random() * 3) * scale,
+        });
+      }
+    }
+    // light wrap
+    const hw = pill.w / 2, hh = pill.h / 2, flat = Math.max(0, hw - hh);
+    for (let i = 0; i < 8; i++) {
+      const u = i / 7;
+      for (const side of ["left", "right"]) {
+        const a = side === "left" ? Math.PI * 0.55 + u * Math.PI * 0.9 : -Math.PI * 0.45 + u * Math.PI * 0.9;
+        const anchorX = pill.x + (side === "left" ? -flat : flat) + Math.cos(a) * hh;
+        const originY = pill.y + Math.sin(a) * hh;
+        const rise = BURN.riseSide * scale, life = BURN.lifeSide;
+        const age = (u * 0.5 + (side === "left" ? 0 : 0.5)) * life;
+        particles.push({
+          anchorX, originY, x: anchorX, y: originY + rise * age,
+          rise, life, age, size: (10 + Math.random() * 7) * scale,
+          heat: 0.55 + Math.random() * 0.3, seed: Math.random() * Math.PI * 2,
+          stretch: 1.15, front: false, drift: (2 + Math.random() * 2) * scale,
+        });
+      }
+    }
+    for (let i = 0; i < Math.max(12, Math.round(topCount * 0.7)); i++) {
+      const t = i / Math.max(1, topCount * 0.7 - 1);
+      const anchorX = span.left + width * t;
+      const rise = BURN.riseEmber * scale, life = BURN.lifeEmber;
+      const age = (i / 12) * life;
+      embers.push({
+        anchorX, originY: span.y, x: anchorX, y: span.y + rise * age,
+        rise, life, age, size: (1.1 + Math.random() * 1.4) * scale,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+
+    function blob(x, y, rx, ry, stops) {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
+      for (const [o, c] of stops) g.addColorStop(o, c);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    function drawP(p) {
+      const t = p.age / p.life;
+      const a = (t < 0.1 ? t / 0.1 : 1) * (t > 0.75 ? 1 - (t - 0.75) / 0.25 : 1) * (0.22 + p.heat * 0.32);
+      if (a < 0.015) return;
+      const rx = p.size * (0.7 + (1 - t) * 0.15);
+      const ry = p.size * p.stretch * (0.85 + t * 0.25);
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = a;
+      blob(p.x, p.y, rx, ry, [
+        [0, `rgba(255,${Math.floor(220 * p.heat)},70,1)`],
+        [0.28, `rgba(255,${Math.floor(140 + 40 * p.heat)},25,0.85)`],
+        [0.58, "rgba(255,90,10,0.4)"],
+        [1, "rgba(50,5,0,0)"],
+      ]);
+      if (t < 0.4) {
+        ctx.globalAlpha = a * 0.85 * (1 - t / 0.4);
+        blob(p.x, p.y + ry * 0.2, rx * 0.55, ry * 0.42, [
+          [0, "rgba(255,255,245,1)"], [0.4, "rgba(255,235,140,0.9)"], [1, "rgba(255,150,30,0)"],
+        ]);
+      }
+      ctx.restore();
+    }
+
+    let last = performance.now(), sim = 0;
+    function frame(now) {
+      let fd = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const step = 1 / 60;
+      while (fd > 0) {
+        const dt = Math.min(step, fd);
+        sim += dt;
+        for (const p of particles) {
+          p.age += dt; if (p.age >= p.life) p.age -= p.life;
+          p.y = p.originY + p.rise * p.age;
+          p.x = p.anchorX
+            + Math.sin(sim * BURN.swayFreq + p.seed) * p.drift
+            + Math.sin(sim * BURN.swayFreq * 0.5 + p.anchorX * 0.04) * 1.5 * scale;
+        }
+        for (const e of embers) {
+          e.age += dt; if (e.age >= e.life) e.age -= e.life;
+          e.y = e.originY + e.rise * e.age;
+          e.x = e.anchorX + Math.sin(sim * BURN.emberSwayFreq + e.phase) * 7 * scale;
+        }
+        fd -= dt;
+      }
+      ctx.clearRect(0, 0, cw, ch);
+      for (const p of particles) if (!p.front) drawP(p);
+      for (const e of embers) {
+        const t = e.age / e.life;
+        const a = Math.sin(t * Math.PI) * (0.7 + 0.3 * Math.sin(e.phase + t * Math.PI * 2));
+        if (a < 0.02) continue;
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = a;
+        blob(e.x, e.y, e.size * 2.4, e.size * 2.4, [
+          [0, "rgba(255,245,180,1)"], [0.4, "rgba(255,165,45,0.75)"], [1, "rgba(255,60,0,0)"],
+        ]);
+        ctx.restore();
+      }
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, cw, ch);
+      const ix = pill.w / 2 - 3, iy = pill.h / 2 - 2;
+      const x = pill.x - ix, y = pill.y - iy, w = ix * 2, h = iy * 2, r = iy;
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+      ctx.clip("evenodd");
+      for (const p of particles) if (p.front) drawP(p);
+      ctx.restore();
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
