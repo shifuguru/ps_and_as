@@ -67,8 +67,6 @@ export const STACK_CENTER_Y = 0.5;
 /** Fixed chrome slots inside the gameplay stage — never derived from pile bounds. */
 export const STAGE_PLAY_TYPE_BADGE_GAP = 16;
 export const STAGE_PLAY_TYPE_BADGE_HEIGHT = 30;
-export const STAGE_RUN_XP_GAP = 12;
-export const STAGE_RUN_XP_LINE = 22;
 export const STAGE_TURN_HINT_GAP = 8;
 
 export function stageCardRowCenterY(zoneHeight: number): number {
@@ -86,11 +84,33 @@ export function stagePlayTypeBadgeTop(
 }
 
 /** Run XP total — large label above the card row. */
-export function stageRunXpTop(zoneHeight: number, cardHeight: number): number {
-  const centerY = stageCardRowCenterY(zoneHeight);
-  const refCardH = cardHeight > 0 ? cardHeight : BASE_CARD_H;
-  const cardTop = centerY - refCardH / 2;
-  return Math.max(6, cardTop - STAGE_RUN_XP_GAP - STAGE_RUN_XP_LINE);
+export function stageRunXpTop(
+  zoneHeight: number,
+  cardHeight: number,
+  playStackTop?: number,
+): number {
+  const stackTop =
+    playStackTop ??
+    stageCardRowCenterY(zoneHeight) -
+      (cardHeight > 0 ? cardHeight : BASE_CARD_H) / 2;
+  const gap = 18;
+  const textBlock = 28;
+  return Math.max(4, stackTop - gap - textBlock);
+}
+
+/** Highest (smallest y) play-group anchor in the current stack layout. */
+export function playStackTopFromLayout(
+  positions: ReadonlyArray<{ top: number }>,
+  zoneHeight: number,
+  cardHeight: number,
+): number {
+  if (positions.length === 0) {
+    return (
+      stageCardRowCenterY(zoneHeight) -
+      (cardHeight > 0 ? cardHeight : BASE_CARD_H) / 2
+    );
+  }
+  return Math.min(...positions.map((p) => p.top));
 }
 
 /** Turn status pill — fixed slot below play-type pills (or card row when pills hidden). */
