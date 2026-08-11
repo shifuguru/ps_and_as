@@ -7,7 +7,8 @@
  *
  * Day-0 (roundsPlayed === 0): Brand → Pitch → Rules → Play (+ helper) →
  * Identity → (A2HS) → XP nudge → What's New → Support
- * (skip empty Daily / Next Achievement / Journey / Stats)
+ * Play: primary "Play" vs AI; "Play with friends" for online; practice count
+ * and same-device lobby live in PracticeSetupModal.
  *
  * Deferred (need telemetry or session handoff — not built here):
  * - Last Match panel after round complete
@@ -34,6 +35,7 @@ import AppButton from "../components/ui/AppButton";
 import AvatarRewardBorder from "../components/AvatarRewardBorder";
 import KeepLightsOnModal from "../components/KeepLightsOnModal";
 import OnlinePlayersModal from "../components/OnlinePlayersModal";
+import PracticeSetupModal from "../components/PracticeSetupModal";
 import MenuIcon from "../components/MenuIcon";
 import HubProgressRing from "../components/HubProgressRing";
 import NextAchievementCard from "../components/NextAchievementCard";
@@ -95,15 +97,20 @@ import {
   displayedTitleForStats,
 } from "../services/titlePreferences";
 import type { OnlinePlayer } from "../services/onlinePresence";
+import {
+  readPracticePlayerCount,
+  writePracticePlayerCount,
+  PRACTICE_DEFAULT_PLAYERS,
+} from "../services/practicePreferences";
 
 const AVATAR_SIZE = 88;
 const RING_SIZE = 112;
 const FRIENDS_WIDE_MIN = 900;
 
 export type PlayerHubActions = {
-  onQuickGame: () => void;
-  onHostLobby: () => void;
-  onJoinLobby: () => void;
+  onPlay: (playerCount: number) => void;
+  onPlayWithFriends: () => void;
+  onSameDeviceLobby: () => void;
   onOpenAchievements: () => void;
   onOpenTitles: () => void;
   onOpenWhatsNew: () => void;
@@ -160,6 +167,10 @@ export default function PlayerHub({
   const [displayedTitle, setDisplayedTitle] = useState<string | null>(null);
   const [lightsOnOpen, setLightsOnOpen] = useState(false);
   const [onlinePlayersOpen, setOnlinePlayersOpen] = useState(false);
+  const [practiceSetupOpen, setPracticeSetupOpen] = useState(false);
+  const [practicePlayerCount, setPracticePlayerCount] = useState(
+    PRACTICE_DEFAULT_PLAYERS,
+  );
   const [dailyClaiming, setDailyClaiming] = useState(false);
   const [loginClaiming, setLoginClaiming] = useState(false);
   const ringPulse = useRef(new Animated.Value(1)).current;
@@ -206,6 +217,8 @@ export default function PlayerHub({
     } else {
       setRecent(null);
     }
+    const practiceCount = await readPracticePlayerCount();
+    setPracticePlayerCount(practiceCount);
     const daily = await loadDailyChallengeState(s);
     // Mark complete for UI, but never auto-grant XP — player taps to claim.
     const marked = await markDailyChallengeCompleteIfReady(
@@ -557,17 +570,17 @@ export default function PlayerHub({
             style={styles.rulesEntryButton}
           />
 
-          {/* Play — primary visit intent sits on felt (no competing glass shell) */}
+          {/* Play — one primary path vs AI; friends online is secondary */}
           <View style={styles.playHero}>
             <AppButton
-              label="Quick Game"
+              label="Play"
               icon="bolt"
               variant="primary"
-              onPress={() => run(actions.onQuickGame)}
+              onPress={() => run(() => actions.onPlay(practicePlayerCount))}
               accessibilityLabel={
                 isDay0
-                  ? "Quick Game. Practice versus AI and learn in one round"
-                  : "Quick Game"
+                  ? "Play. Practice versus AI and learn in one round"
+                  : `Play versus AI with ${practicePlayerCount} players`
               }
               style={styles.primaryCta}
             />
@@ -576,24 +589,29 @@ export default function PlayerHub({
                 Practice versus AI. Learn in one round.
               </Text>
             ) : null}
-            <View style={styles.secondaryRow}>
-              <AppButton
-                label="Local Game"
-                icon="person"
-                variant="secondary"
-                style={{ flex: 1 }}
-                onPress={() => run(actions.onHostLobby)}
-                accessibilityLabel="Local Game — play with CPU or friends on this device"
-              />
-              <AppButton
-                label="Online Game"
-                icon="globe"
-                variant="secondary"
-                style={{ flex: 1 }}
-                onPress={() => run(actions.onJoinLobby)}
-                accessibilityLabel="Online Game — find or host a multiplayer table"
-              />
-            </View>
+            <TouchableOpacity
+              style={styles.practiceCountBtn}
+              onPress={() => {
+                triggerHaptic("light");
+                setPracticeSetupOpen(true);
+              }}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={`Practice setup. ${practicePlayerCount} players at the table`}
+              hitSlop={{ top: 6, bottom: 6, left: 12, right: 12 }}
+            >
+              <Text style={styles.practiceCountText}>
+                vs AI · {practicePlayerCount} player
+                {practicePlayerCount === 1 ? "" : "s"}
+              </Text>
+            </TouchableOpacity>
+            <AppButton
+              label="Play with friends"
+              icon="globe"
+              variant="secondary"
+              onPress={() => run(actions.onPlayWithFriends)}
+              accessibilityLabel="Play with friends — join or invite to an online table"
+            />
             {onlinePlayerCount > 0 ? (
               <TouchableOpacity
                 style={styles.onlineHintBtn}
@@ -795,7 +813,7 @@ export default function PlayerHub({
             </BlurPanel>
           </TouchableOpacity>
 
-          {/* Support — secondary destination; Quick Game remains the only primary CTA */}
+          {/* Support — secondary destination; Play remains the only primary CTA */}
           <BlurPanel
             intensity={44}
             style={[styles.card, styles.utilityCard, styles.supportCard]}
@@ -835,6 +853,16 @@ export default function PlayerHub({
         playerCount={onlinePlayerCount}
         players={onlinePlayers}
         onClose={() => setOnlinePlayersOpen(false)}
+      />
+      <PracticeSetupModal
+        visible={practiceSetupOpen}
+        playerCount={practicePlayerCount}
+        onSelectPlayerCount={(count) => {
+          setPracticePlayerCount(count);
+          void writePracticePlayerCount(count);
+        }}
+        onSameDeviceLobby={() => run(actions.onSameDeviceLobby)}
+        onClose={() => setPracticeSetupOpen(false)}
       />
     </ScreenContainer>
   );
@@ -1132,8 +1160,22 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       letterSpacing: 0.15,
       marginBottom: 4,
     },
-    primaryCta: { marginBottom: 10 },
-    secondaryRow: { flexDirection: "row", gap: 8 },
+    primaryCta: { marginBottom: 4 },
+    practiceCountBtn: {
+      alignSelf: "center",
+      minHeight: 36,
+      justifyContent: "center",
+      paddingHorizontal: 8,
+      marginTop: -2,
+      marginBottom: 2,
+    },
+    practiceCountText: {
+      textAlign: "center",
+      color: colors.accent,
+      fontSize: 13,
+      fontWeight: "600",
+      textDecorationLine: "underline",
+    },
     onlineHintBtn: {
       marginTop: 10,
       alignSelf: "center",

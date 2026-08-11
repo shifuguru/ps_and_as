@@ -283,7 +283,7 @@ export default function FindGame({
       <LobbyStatusBar
         playerCount={availableRooms.length}
         countLabel="Open"
-        roomName="Find Game"
+        roomName="Play with Friends"
         statusLabel="Server"
         statusValue={connectionLabel(connectionStatus)}
         topInset={insets.top}
@@ -338,85 +338,11 @@ export default function FindGame({
               </View>
             </View>
 
-            {/* Primary task: join a room */}
-            <BlurPanel style={styles.joinHero} intensity={52}>
-              <Text style={styles.joinHeroTitle}>Join With Code</Text>
-              <View
-                style={[
-                  styles.codeInputWrap,
-                  codeFocused && styles.codeInputWrapFocused,
-                ]}
-              >
-                <TextInput
-                  placeholder="Enter room code"
-                  placeholderTextColor={colors.textQuaternary}
-                  value={roomCode}
-                  onChangeText={(text) =>
-                    setRoomCode(normalizeRoomCodeInput(text))
-                  }
-                  onFocus={() => setCodeFocused(true)}
-                  onBlur={() => setCodeFocused(false)}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  spellCheck={false}
-                  textContentType={
-                    Platform.OS === "ios" ? "oneTimeCode" : "none"
-                  }
-                  autoComplete={
-                    Platform.OS === "web" ? "one-time-code" : "off"
-                  }
-                  importantForAutofill="no"
-                  passwordRules={Platform.OS === "ios" ? "" : undefined}
-                  keyboardType={
-                    Platform.OS === "ios" ? "ascii-capable" : "default"
-                  }
-                  {...(Platform.OS === "web"
-                    ? ({
-                        name: "ps-and-as-room-join-code",
-                        id: "ps-and-as-room-join-code",
-                        autoComplete: "one-time-code",
-                        "data-1p-ignore": true,
-                        "data-lpignore": "true",
-                        "data-bwignore": "true",
-                        "data-form-type": "other",
-                      } as object)
-                    : null)}
-                  style={styles.codeInput}
-                />
+            {error ? (
+              <View style={styles.errorPanel}>
+                <Text style={styles.errorText}>{error}</Text>
               </View>
-              <TouchableOpacity
-                style={[
-                  ui.btnGoldFill,
-                  styles.codeJoinBtn,
-                  !normalizeRoomCodeInput(roomCode) && styles.codeJoinBtnDisabled,
-                ]}
-                onPress={handleJoinWithCode}
-                disabled={!normalizeRoomCodeInput(roomCode)}
-              >
-                <Text style={ui.btnGoldFillText}>Join</Text>
-              </TouchableOpacity>
-            </BlurPanel>
-
-            {/* Secondary: host */}
-            <TouchableOpacity
-              style={[
-                styles.hostSecondary,
-                connectionStatus !== "connected" && styles.hostSecondaryDisabled,
-              ]}
-              activeOpacity={0.85}
-              onPress={handleHost}
-              disabled={connectionStatus !== "connected"}
-              accessibilityRole="button"
-              accessibilityLabel="Host Open Game"
-            >
-              <MenuIcon name="plus" size={18} color={colors.accent} />
-              <View style={styles.hostSecondaryCopy}>
-                <Text style={styles.hostSecondaryTitle}>Host Open Game</Text>
-                <Text style={styles.hostSecondaryHint}>
-                  Open a lobby and share the room code
-                </Text>
-              </View>
-            </TouchableOpacity>
+            ) : null}
 
             <View style={styles.listHeader}>
               <View style={styles.listHeaderLeft}>
@@ -446,17 +372,11 @@ export default function FindGame({
               </TouchableOpacity>
             </View>
 
-            {error ? (
-              <View style={styles.errorPanel}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
-
             {publicRooms.length === 0 && roomsLoaded ? (
               <View style={styles.emptyState}>
-                <Text style={ui.emptyTitle}>No Public Games Available</Text>
+                <Text style={ui.emptyTitle}>No Open Tables</Text>
                 <Text style={ui.emptyBody}>
-                  Host above and share the room code, or check again later.
+                  Invite friends below or join with a room code.
                 </Text>
               </View>
             ) : (
@@ -538,6 +458,84 @@ export default function FindGame({
                 );
               })
             )}
+
+            <BlurPanel style={styles.joinHero} intensity={52}>
+              <Text style={styles.joinHeroTitle}>Join With Code</Text>
+              <View
+                style={[
+                  styles.codeInputWrap,
+                  codeFocused && styles.codeInputWrapFocused,
+                ]}
+              >
+                <TextInput
+                  placeholder="Enter room code"
+                  placeholderTextColor={colors.textQuaternary}
+                  value={roomCode}
+                  onChangeText={(text) =>
+                    setRoomCode(normalizeRoomCodeInput(text))
+                  }
+                  onFocus={() => setCodeFocused(true)}
+                  onBlur={() => setCodeFocused(false)}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  spellCheck={false}
+                  textContentType={
+                    Platform.OS === "ios" ? "oneTimeCode" : "none"
+                  }
+                  autoComplete={
+                    Platform.OS === "web" ? "one-time-code" : "off"
+                  }
+                  importantForAutofill="no"
+                  passwordRules={Platform.OS === "ios" ? "" : undefined}
+                  keyboardType={
+                    Platform.OS === "ios" ? "ascii-capable" : "default"
+                  }
+                  {...(Platform.OS === "web"
+                    ? ({
+                        name: "ps-and-as-room-join-code",
+                        id: "ps-and-as-room-join-code",
+                        autoComplete: "one-time-code",
+                        "data-1p-ignore": true,
+                        "data-lpignore": "true",
+                        "data-bwignore": "true",
+                        "data-form-type": "other",
+                      } as object)
+                    : null)}
+                  style={styles.codeInput}
+                />
+              </View>
+              <TouchableOpacity
+                style={[
+                  ui.btnGoldFill,
+                  styles.codeJoinBtn,
+                  !normalizeRoomCodeInput(roomCode) && styles.codeJoinBtnDisabled,
+                ]}
+                onPress={handleJoinWithCode}
+                disabled={!normalizeRoomCodeInput(roomCode)}
+              >
+                <Text style={ui.btnGoldFillText}>Join</Text>
+              </TouchableOpacity>
+            </BlurPanel>
+
+            <TouchableOpacity
+              style={[
+                styles.hostSecondary,
+                connectionStatus !== "connected" && styles.hostSecondaryDisabled,
+              ]}
+              activeOpacity={0.85}
+              onPress={handleHost}
+              disabled={connectionStatus !== "connected"}
+              accessibilityRole="button"
+              accessibilityLabel="Invite friends"
+            >
+              <MenuIcon name="plus" size={18} color={colors.accent} />
+              <View style={styles.hostSecondaryCopy}>
+                <Text style={styles.hostSecondaryTitle}>Invite Friends</Text>
+                <Text style={styles.hostSecondaryHint}>
+                  Start a table and share your room code
+                </Text>
+              </View>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardShell>
