@@ -2547,6 +2547,22 @@ export function resolveCompletedAcknowledgmentTrick(state: GameState): GameState
   return finalizeTrickWin(state, leaderIndex);
 }
 
+/**
+ * Clear-leader left mid-acknowledgment (bot-table demote/kick). Remapping
+ * lastPlay to a prior living seat awards the clear to the wrong player; clearing
+ * lastPlay to null leaves resolveCompletedAcknowledgmentTrick unable to finish
+ * → permanent soft-lock with pile still up. Dump the clear and force a new lead.
+ */
+export function abandonOrphanedAcknowledgmentTrick(
+  state: GameState,
+  nextLeadFromIndex: number,
+): GameState {
+  if (!isTrickAcknowledgmentPassPhase(state)) return state;
+  if (state.players.length === 0) return state;
+  const leadIdx = nextActivePlayerIndex(state, nextLeadFromIndex);
+  return finalizeTrickWin(state, leadIdx);
+}
+
 /** After joker / rank-close / quad bomb — skip prior passers; finalize if everyone else already passed. */
 export function advanceTurnAfterClearPlay(
   state: GameState,
