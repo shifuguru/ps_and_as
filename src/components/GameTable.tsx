@@ -864,6 +864,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: "center",
+    // Let Runs! fire tongues rise past the badge box.
+    overflow: "visible",
+    zIndex: 6,
   },
   playTypeBadgeRow: {
     flexDirection: "row",
@@ -872,6 +875,7 @@ const styles = StyleSheet.create({
     gap: 8,
     maxWidth: "100%",
     flexWrap: "nowrap",
+    overflow: "visible",
   },
   playTypeBadgeBody: {
     backgroundColor: "rgba(212, 175, 55, 0.14)",
