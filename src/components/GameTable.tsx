@@ -34,6 +34,10 @@ import Svg, { Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
 import type { MeasurableNode } from "../utils/playFlightDiagnostics";
 import TableAmbience from "../gameplayPresentation/TableAmbience";
 import { RunsPill } from "../gameplayPresentation/RunsEffect";
+import {
+  ON_TOP_COLORS,
+  ON_TOP_FLAME_SEEDS,
+} from "../gameplayPresentation/RunsEffect/constants";
 
 /** z-index stride per play group — cards within use 0..stride-1 by left-to-right order. */
 const GROUP_Z_STRIDE = 100;
@@ -196,7 +200,6 @@ export default function GameTable({
   const [zoneSize, setZoneSize] = useState({ width: 0, height: 0 });
   const collectAnim = useRef(new Animated.Value(0)).current;
   const tableFadeAnim = useRef(new Animated.Value(1)).current;
-  const onTopFlashAnim = useRef(new Animated.Value(0)).current;
   const collectHeldRef = useRef(false);
   const [stackFaceDown, setStackFaceDown] = useState(false);
 
@@ -403,55 +406,8 @@ export default function GameTable({
     extrapolate: "clamp",
   });
 
-  const showOnTopModifierFlash =
-    playModifierFlash && playModifierLabel === "On top!";
   const showRunsEffect = playModifierLabel === "Runs!";
-
-  useEffect(() => {
-    if (!showOnTopModifierFlash) {
-      onTopFlashAnim.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(onTopFlashAnim, {
-          toValue: 1,
-          duration: 600,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: false,
-        }),
-        Animated.timing(onTopFlashAnim, {
-          toValue: 0,
-          duration: 600,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: false,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [showOnTopModifierFlash, onTopFlashAnim]);
-
-  const onTopModifierBackground = showOnTopModifierFlash
-    ? onTopFlashAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["rgba(212, 175, 55, 0.14)", "rgba(255, 255, 255, 0.96)"],
-      })
-    : undefined;
-
-  const onTopModifierBorder = showOnTopModifierFlash
-    ? onTopFlashAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["rgba(212, 175, 55, 0.38)", "rgba(255, 255, 255, 0.95)"],
-      })
-    : undefined;
-
-  const onTopModifierTextColor = showOnTopModifierFlash
-    ? onTopFlashAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["#d4af37", "#111111"],
-      })
-    : undefined;
+  const showOnTopEffect = playModifierLabel === "On top!";
 
   const stageStyle =
     stageWidth > 0 && stageHeight > 0
@@ -688,40 +644,16 @@ export default function GameTable({
                     </View>
                   ) : null}
                   {playModifierLabel ? (
-                    showRunsEffect ? (
+                    showRunsEffect || showOnTopEffect ? (
                       <RunsPill
                         label={playModifierLabel}
-                        pillStyle={[
-                          styles.playTypeBadgeBody,
-                          styles.playTypeBadgeBodyHighlighted,
-                        ]}
-                        textStyle={[
-                          styles.playTypeBadgeText,
-                          styles.playTypeBadgeTextHighlighted,
-                        ]}
+                        palette={showOnTopEffect ? ON_TOP_COLORS : undefined}
+                        flameSeeds={
+                          showOnTopEffect ? ON_TOP_FLAME_SEEDS : undefined
+                        }
+                        pillStyle={styles.playTypeBadgeBody}
                         active
                       />
-                    ) : showOnTopModifierFlash ? (
-                      <Animated.View
-                        style={[
-                          styles.playTypeBadgeBody,
-                          styles.playTypeBadgeFlash,
-                          {
-                            backgroundColor: onTopModifierBackground,
-                            borderColor: onTopModifierBorder,
-                          },
-                        ]}
-                      >
-                        <Animated.Text
-                          numberOfLines={1}
-                          style={[
-                            styles.playTypeBadgeText,
-                            { color: onTopModifierTextColor },
-                          ]}
-                        >
-                          {playModifierLabel}
-                        </Animated.Text>
-                      </Animated.View>
                     ) : (
                       <View
                         style={[

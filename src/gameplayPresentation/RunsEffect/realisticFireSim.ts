@@ -245,6 +245,97 @@ export function stepFireSim(
   }
 }
 
+export type FireVisualKind = "petrol" | "blue" | "warm";
+
+export type FireVisualPalette = {
+  kind: FireVisualKind;
+};
+
+export const WARM_FIRE_PALETTE: FireVisualPalette = { kind: "warm" };
+export const PETROL_FIRE_PALETTE: FireVisualPalette = { kind: "petrol" };
+export const BLUE_FIRE_PALETTE: FireVisualPalette = { kind: "blue" };
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function rgba(r: number, g: number, b: number, a: number): string {
+  return `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a})`;
+}
+
+/** Vertical travel 0 = fuel line, 1 = fully risen — drives petrol blue→orange. */
+function particleGradientStops(
+  palette: FireVisualPalette,
+  travel: number,
+  heat: number,
+): Array<[number, string]> {
+  const t = Math.max(0, Math.min(1, travel));
+  if (palette.kind === "blue") {
+    return [
+      [0, rgba(224, 242, 254, 0.95)],
+      [0.35, rgba(56, 189, 248, 0.78)],
+      [0.7, rgba(14, 165, 233, 0.42)],
+      [1, rgba(3, 105, 161, 0)],
+    ];
+  }
+  if (palette.kind === "petrol") {
+    const tip = t;
+    const r = lerp(0, 255, tip);
+    const g = lerp(150, 200, tip);
+    const b = lerp(255, 55, tip);
+    const rMid = lerp(40, 255, tip);
+    const gMid = lerp(170, 140, tip);
+    const bMid = lerp(255, 16, tip);
+    return [
+      [0, rgba(lerp(80, r, 0.35), lerp(210, g, 0.35), lerp(255, b, 0.35), 1)],
+      [0.3, rgba(rMid, gMid, bMid, 0.82)],
+      [0.65, rgba(r, g, b, 0.34)],
+      [1, rgba(40, 0, 0, 0)],
+    ];
+  }
+  return [
+    [0, rgba(255, 210 * heat, 55, 1)],
+    [0.3, rgba(255, 120 + 35 * heat, 16, 0.8)],
+    [0.65, "rgba(255,60,5,0.32)"],
+    [1, "rgba(40,0,0,0)"],
+  ];
+}
+
+function coreGradientStops(
+  palette: FireVisualPalette,
+  travel: number,
+  heat: number,
+): Array<[number, string]> {
+  const t = Math.max(0, Math.min(1, travel));
+  if (palette.kind === "blue") {
+    return [
+      [0, "rgba(240,249,255,1)"],
+      [0.45, rgba(186, 230, 253, 0.85)],
+      [1, rgba(56, 189, 248, 0)],
+    ];
+  }
+  if (palette.kind === "petrol") {
+    return [
+      [0, rgba(lerp(220, 255, t), lerp(245, 255, t), lerp(255, 240, t), 1)],
+      [
+        0.45,
+        rgba(
+          lerp(0, 255, t),
+          lerp(180, 230, t),
+          lerp(255, 130, t),
+          0.85,
+        ),
+      ],
+      [1, rgba(255, 140, 20, 0)],
+    ];
+  }
+  return [
+    [0, "rgba(255,255,240,1)"],
+    [0.45, `rgba(255,230,${Math.floor(130 * heat)},0.85)`],
+    [1, "rgba(255,140,20,0)"],
+  ];
+}
+
 export function drawSoftBlob(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -265,6 +356,7 @@ export function drawFireParticle(
   ctx: CanvasRenderingContext2D,
   p: FireParticle,
   intensity = 1,
+  palette: FireVisualPalette = WARM_FIRE_PALETTE,
 ): void {
   const t = Math.min(1, p.age / p.life);
   if (t >= 1) return;
@@ -284,22 +376,27 @@ export function drawFireParticle(
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = a;
 
-  drawSoftBlob(ctx, p.x, p.y, rx, ry, [
-    [0, `rgba(255,${Math.floor(210 * p.heat)},55,1)`],
-    [0.3, `rgba(255,${Math.floor(120 + 35 * p.heat)},16,0.8)`],
-    [0.65, "rgba(255,60,5,0.32)"],
-    [1, "rgba(40,0,0,0)"],
-  ]);
+  drawSoftBlob(
+    ctx,
+    p.x,
+    p.y,
+    rx,
+    ry,
+    particleGradientStops(palette, t, p.heat),
+  );
 
   // Hot core near birth (close to the fuel line).
   if (t < 0.4) {
     const k = 1 - t / 0.4;
     ctx.globalAlpha = a * 0.85 * k;
-    drawSoftBlob(ctx, p.x, p.y + ry * 0.15, rx * 0.45, ry * 0.4, [
-      [0, "rgba(255,255,240,1)"],
-      [0.45, `rgba(255,230,${Math.floor(130 * p.heat)},0.85)`],
-      [1, "rgba(255,140,20,0)"],
-    ]);
+    drawSoftBlob(
+      ctx,
+      p.x,
+      p.y + ry * 0.15,
+      rx * 0.45,
+      ry * 0.4,
+      coreGradientStops(palette, t, p.heat),
+    );
   }
   ctx.restore();
 }
@@ -308,6 +405,7 @@ export function drawFireEmber(
   ctx: CanvasRenderingContext2D,
   e: FireEmber,
   intensity = 1,
+  palette: FireVisualPalette = WARM_FIRE_PALETTE,
 ): void {
   const t = e.age / e.life;
   if (t >= 1) return;
@@ -319,11 +417,25 @@ export function drawFireEmber(
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = a;
-  drawSoftBlob(ctx, e.x, e.y, s * 2.2, s * 2.2, [
-    [0, "rgba(255,245,180,1)"],
-    [0.4, "rgba(255,165,45,0.75)"],
-    [1, "rgba(255,60,0,0)"],
-  ]);
+  const emberStops: Array<[number, string]> =
+    palette.kind === "blue"
+      ? [
+          [0, "rgba(224,242,254,1)"],
+          [0.4, "rgba(56,189,248,0.75)"],
+          [1, "rgba(14,165,233,0)"],
+        ]
+      : palette.kind === "petrol"
+        ? [
+            [0, "rgba(255,245,200,1)"],
+            [0.4, "rgba(255,165,45,0.75)"],
+            [1, "rgba(0,80,200,0)"],
+          ]
+        : [
+            [0, "rgba(255,245,180,1)"],
+            [0.4, "rgba(255,165,45,0.75)"],
+            [1, "rgba(255,60,0,0)"],
+          ];
+  drawSoftBlob(ctx, e.x, e.y, s * 2.2, s * 2.2, emberStops);
   ctx.restore();
 }
 
@@ -332,6 +444,7 @@ export function drawFireBloom(
   pill: PillGeom,
   _time: number,
   intensity = 1,
+  palette: FireVisualPalette = WARM_FIRE_PALETTE,
 ): void {
   // Thin rim warmth along the top — NOT a tall center-weighted curtain.
   const span = topSpan(pill);
@@ -340,12 +453,25 @@ export function drawFireBloom(
   ctx.globalAlpha = intensity * 0.75;
 
   const g = ctx.createLinearGradient(span.left, span.y, span.right, span.y);
-  // Even brightness across width (slight edge falloff only).
-  g.addColorStop(0, "rgba(255,140,30,0)");
-  g.addColorStop(0.08, "rgba(255,160,40,0.16)");
-  g.addColorStop(0.5, "rgba(255,170,50,0.18)");
-  g.addColorStop(0.92, "rgba(255,160,40,0.16)");
-  g.addColorStop(1, "rgba(255,140,30,0)");
+  if (palette.kind === "blue") {
+    g.addColorStop(0, "rgba(14,165,233,0)");
+    g.addColorStop(0.08, "rgba(56,189,248,0.16)");
+    g.addColorStop(0.5, "rgba(125,211,252,0.2)");
+    g.addColorStop(0.92, "rgba(56,189,248,0.16)");
+    g.addColorStop(1, "rgba(14,165,233,0)");
+  } else if (palette.kind === "petrol") {
+    g.addColorStop(0, "rgba(0,120,255,0)");
+    g.addColorStop(0.08, "rgba(0,150,255,0.18)");
+    g.addColorStop(0.5, "rgba(255,170,50,0.2)");
+    g.addColorStop(0.92, "rgba(255,150,40,0.16)");
+    g.addColorStop(1, "rgba(0,120,255,0)");
+  } else {
+    g.addColorStop(0, "rgba(255,140,30,0)");
+    g.addColorStop(0.08, "rgba(255,160,40,0.16)");
+    g.addColorStop(0.5, "rgba(255,170,50,0.18)");
+    g.addColorStop(0.92, "rgba(255,160,40,0.16)");
+    g.addColorStop(1, "rgba(255,140,30,0)");
+  }
 
   ctx.fillStyle = g;
   ctx.beginPath();
@@ -369,9 +495,19 @@ export function drawFireBloom(
     pill.y,
     pill.w * 0.55,
   );
-  rim.addColorStop(0, "rgba(255,190,70,0.1)");
-  rim.addColorStop(0.65, "rgba(255,120,30,0.05)");
-  rim.addColorStop(1, "rgba(0,0,0,0)");
+  if (palette.kind === "blue") {
+    rim.addColorStop(0, "rgba(186,230,253,0.12)");
+    rim.addColorStop(0.65, "rgba(14,165,233,0.06)");
+    rim.addColorStop(1, "rgba(0,0,0,0)");
+  } else if (palette.kind === "petrol") {
+    rim.addColorStop(0, "rgba(0,150,255,0.12)");
+    rim.addColorStop(0.65, "rgba(255,140,30,0.06)");
+    rim.addColorStop(1, "rgba(0,0,0,0)");
+  } else {
+    rim.addColorStop(0, "rgba(255,190,70,0.1)");
+    rim.addColorStop(0.65, "rgba(255,120,30,0.05)");
+    rim.addColorStop(1, "rgba(0,0,0,0)");
+  }
   ctx.fillStyle = rim;
   ctx.beginPath();
   ctx.ellipse(pill.x, pill.y, pill.w * 0.56, pill.h * 0.7, 0, 0, Math.PI * 2);

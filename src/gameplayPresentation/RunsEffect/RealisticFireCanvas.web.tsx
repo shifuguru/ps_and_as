@@ -8,10 +8,21 @@ import {
   makeParticle,
   prewarmFireSim,
   stepFireSim,
+  PETROL_FIRE_PALETTE,
+  BLUE_FIRE_PALETTE,
+  WARM_FIRE_PALETTE,
   type FireEmber,
   type FireParticle,
+  type FireVisualPalette,
   type PillGeom,
 } from "./realisticFireSim";
+import type { FireKind } from "./constants";
+
+function firePaletteForKind(kind?: FireKind): FireVisualPalette {
+  if (kind === "petrol") return PETROL_FIRE_PALETTE;
+  if (kind === "blue") return BLUE_FIRE_PALETTE;
+  return WARM_FIRE_PALETTE;
+}
 
 type Props = {
   width: number;
@@ -19,6 +30,7 @@ type Props = {
   active?: boolean;
   /** 0–1 master intensity (idle settle / ignition). */
   intensity?: number;
+  fireKind?: FireKind;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -31,12 +43,15 @@ export default function RealisticFireCanvas({
   height,
   active = true,
   intensity = 1,
+  fireKind,
   style,
 }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const intensityRef = useRef(intensity);
+  const firePaletteRef = useRef(firePaletteForKind(fireKind));
   const [hostReady, setHostReady] = useState(false);
   intensityRef.current = intensity;
+  firePaletteRef.current = firePaletteForKind(fireKind);
 
   useEffect(() => {
     if (!active || width <= 0 || height <= 0 || !hostReady) return;
@@ -127,11 +142,12 @@ export default function RealisticFireCanvas({
 
       ctx.clearRect(0, 0, cw, ch);
       if (intensityNow > 0.02) {
-        drawFireBloom(ctx, pill, time, intensityNow * 0.85);
+        const palette = firePaletteRef.current;
+        drawFireBloom(ctx, pill, time, intensityNow * 0.85, palette);
         for (const p of particles) {
-          if (!p.front) drawFireParticle(ctx, p, intensityNow);
+          if (!p.front) drawFireParticle(ctx, p, intensityNow, palette);
         }
-        for (const e of embers) drawFireEmber(ctx, e, intensityNow);
+        for (const e of embers) drawFireEmber(ctx, e, intensityNow, palette);
 
         ctx.save();
         ctx.beginPath();
@@ -148,7 +164,7 @@ export default function RealisticFireCanvas({
         );
         ctx.clip("evenodd");
         for (const p of particles) {
-          if (p.front) drawFireParticle(ctx, p, intensityNow * 0.9);
+          if (p.front) drawFireParticle(ctx, p, intensityNow * 0.9, palette);
         }
         ctx.restore();
       }
@@ -163,7 +179,7 @@ export default function RealisticFireCanvas({
       cancelAnimationFrame(raf);
       if (canvas.parentNode === host) host.removeChild(canvas);
     };
-  }, [active, width, height, hostReady]);
+  }, [active, width, height, hostReady, fireKind]);
 
   if (!active || width <= 0 || height <= 0) {
     return null;
