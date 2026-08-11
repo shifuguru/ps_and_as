@@ -2547,6 +2547,28 @@ export function resolveCompletedAcknowledgmentTrick(state: GameState): GameState
   return finalizeTrickWin(state, leaderIndex);
 }
 
+/**
+ * When the clear/bomb/On Top owner is removed mid-trick (BOTOPN demote),
+ * dump the pile and force the next living seat to lead. Without this,
+ * lastPlay remaps to null (soft-lock) or a prior living play (wrong winner).
+ */
+export function abandonOrphanedClearTrick(
+  state: GameState,
+  nextLeadFromIndex: number,
+): GameState {
+  if (state.players.length === 0) return state;
+  const leadIdx = nextActivePlayerIndex(state, nextLeadFromIndex);
+  return finalizeTrickWin(state, leadIdx);
+}
+
+/** @deprecated Prefer abandonOrphanedClearTrick — kept for call-site clarity. */
+export function abandonOrphanedAcknowledgmentTrick(
+  state: GameState,
+  nextLeadFromIndex: number,
+): GameState {
+  return abandonOrphanedClearTrick(state, nextLeadFromIndex);
+}
+
 /** After joker / rank-close / quad bomb — skip prior passers; finalize if everyone else already passed. */
 export function advanceTurnAfterClearPlay(
   state: GameState,
