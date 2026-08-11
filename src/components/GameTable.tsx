@@ -30,6 +30,7 @@ import {
   stageCardRowCenterY,
   stagePlayTypeBadgeTop,
   stageRunXpTop,
+  playStackTopFromLayout,
 } from "../utils/tablePlayLayout";
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
 import type { MeasurableNode } from "../utils/playFlightDiagnostics";
@@ -396,9 +397,14 @@ export default function GameTable({
     [stageHeight, refCardHeight],
   );
 
+  const playStackTop = useMemo(
+    () => playStackTopFromLayout(layout.positions, stageHeight, refCardHeight),
+    [layout.positions, stageHeight, refCardHeight],
+  );
+
   const runXpTop = useMemo(
-    () => stageRunXpTop(stageHeight, refCardHeight),
-    [stageHeight, refCardHeight],
+    () => stageRunXpTop(stageHeight, refCardHeight, playStackTop),
+    [stageHeight, refCardHeight, playStackTop],
   );
 
   const runXpInk = useMemo(() => binaryFeltInk(feltTint), [feltTint]);
@@ -653,7 +659,13 @@ export default function GameTable({
                     {
                       color: runXpInk.color,
                       textShadowColor: runXpInk.textShadowColor,
+                      textShadowRadius: runXpInk.textShadowRadius,
                     },
+                    Platform.OS === "web"
+                      ? ({
+                          textShadow: `0 1px 2px ${runXpInk.textShadowColor}, 0 2px 12px ${runXpInk.textShadowColor}`,
+                        } as object)
+                      : null,
                   ]}
                 >
                   +{runXpPoolAmount} XP
@@ -837,15 +849,15 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
     overflow: "visible",
-    zIndex: 6,
+    zIndex: GROUP_Z_STRIDE * 8,
   },
   runXpText: {
-    fontSize: 19,
+    fontSize: 20,
+    lineHeight: 24,
     fontWeight: "800",
     letterSpacing: 0.35,
     textAlign: "center",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
+    textShadowOffset: { width: 0, height: 2 },
     flexShrink: 0,
     ...(Platform.OS === "web"
       ? ({ whiteSpace: "nowrap", userSelect: "none" } as object)
