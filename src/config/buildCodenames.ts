@@ -125,6 +125,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.59": "Table Stakes Tantrum",
   "1.1.60": "Bottom Deck Energy",
   "1.1.61": "Your Turn, Apparently",
+  "1.1.62": "Your Turn, Apparently",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
