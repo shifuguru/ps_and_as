@@ -197,7 +197,7 @@ function TitleTrackRow({
     ? `${formatTitleTrackValue(row)} / ${row.nextThreshold?.toLocaleString() ?? "—"}`
     : formatTitleTrackProgressLabel(row);
 
-  return (
+  const card = (
     <BlurPanel
       style={[
         ui.panel,
@@ -216,23 +216,17 @@ function TitleTrackRow({
           </Text>
         </View>
         {row.unlocked ? (
-          <TouchableOpacity
-            onPress={onToggleDisplay}
-            disabled={saving}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: isDisplayed }}
-            accessibilityLabel={`Display ${row.track.trackName} title`}
+          <View
+            pointerEvents="none"
             style={[
               styles.checkBox,
               isDisplayed && styles.checkBoxOn,
             ]}
-            activeOpacity={0.85}
           >
             {isDisplayed ? (
               <Text style={styles.checkMark}>✓</Text>
             ) : null}
-          </TouchableOpacity>
+          </View>
         ) : null}
       </View>
       <Text style={styles.trackDesc}>{row.track.description}</Text>
@@ -244,6 +238,24 @@ function TitleTrackRow({
         animated={!locked}
       />
     </BlurPanel>
+  );
+
+  if (locked) {
+    return <View style={styles.trackCardPressable}>{card}</View>;
+  }
+
+  return (
+    <TouchableOpacity
+      onPress={onToggleDisplay}
+      disabled={saving}
+      activeOpacity={0.9}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: isDisplayed }}
+      accessibilityLabel={`Display ${row.track.trackName} title`}
+      style={styles.trackCardPressable}
+    >
+      {card}
+    </TouchableOpacity>
   );
 }
 
@@ -283,7 +295,8 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "800",
       marginBottom: 8,
     },
-    trackCard: { marginTop: 12 },
+    trackCard: {},
+    trackCardPressable: { marginTop: 12 },
     trackCardLocked: { opacity: 0.72 },
     trackCardActive: {
       borderWidth: StyleSheet.hairlineWidth,
@@ -319,14 +332,15 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       height: 28,
       borderRadius: 8,
       borderWidth: 2,
-      borderColor: hexToRgba(colors.textSecondary, 0.45),
+      borderColor: hexToRgba(colors.textPrimary, 0.72),
+      backgroundColor: hexToRgba(colors.textPrimary, 0.1),
       alignItems: "center",
       justifyContent: "center",
       marginTop: 2,
     },
     checkBoxOn: {
       borderColor: colors.accent,
-      backgroundColor: hexToRgba(colors.accent, 0.22),
+      backgroundColor: hexToRgba(colors.accent, 0.28),
     },
     checkMark: {
       color: colors.accent,
