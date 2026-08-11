@@ -22,6 +22,7 @@ import {
   type FlameSeed,
   type RunsPalette,
 } from "./constants";
+import { WARM_FIRE_FACE } from "./realisticFireSim";
 
 const USE_REALISTIC_FIRE = Platform.OS === "web";
 
@@ -137,7 +138,6 @@ export default function RunsPill({
           ...(Platform.OS === "web" && palette.chromeBackgroundGradient
             ? ({
                 backgroundImage: palette.chromeBackgroundGradient,
-                backgroundColor: "transparent",
               } as object)
             : null),
           ...Platform.select({
@@ -162,7 +162,6 @@ export default function RunsPill({
             ...(Platform.OS === "web" && palette.chromeBackgroundGradient
               ? ({
                   backgroundImage: palette.chromeBackgroundGradient,
-                  backgroundColor: "transparent",
                 } as object)
               : null),
             borderWidth: 0,
@@ -297,9 +296,9 @@ const styles = StyleSheet.create({
     borderRadius: RUNS_LAYOUT.pillRadius,
     overflow: "hidden",
   },
-  /** Warm cream face — top edge matches the flame's hot yellow base. */
+  /** Warm fire face — matches WARM_FIRE_FACE from the canvas sim. */
   glassPillRunsFire: {
-    backgroundColor: "#FFF0D8",
+    backgroundColor: WARM_FIRE_FACE.warm,
     borderWidth: 0,
     borderColor: "transparent",
   },

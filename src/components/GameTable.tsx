@@ -651,7 +651,11 @@ export default function GameTable({
                         flameSeeds={
                           showOnTopEffect ? ON_TOP_FLAME_SEEDS : undefined
                         }
-                        pillStyle={styles.playTypeBadgeBody}
+                        pillStyle={
+                          showOnTopEffect
+                            ? styles.playTypeBadgeBody
+                            : styles.runsPillBody
+                        }
                         active
                       />
                     ) : (
@@ -816,6 +820,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderWidth: 1,
     borderColor: "rgba(212, 175, 55, 0.38)",
+    alignSelf: "center",
+    flexShrink: 0,
+    maxWidth: "100%",
+  },
+  /** Layout only — Runs! chrome owns the warm face color. */
+  runsPillBody: {
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     alignSelf: "center",
     flexShrink: 0,
     maxWidth: "100%",

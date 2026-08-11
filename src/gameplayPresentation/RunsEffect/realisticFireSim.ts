@@ -255,6 +255,18 @@ export const WARM_FIRE_PALETTE: FireVisualPalette = { kind: "warm" };
 export const PETROL_FIRE_PALETTE: FireVisualPalette = { kind: "petrol" };
 export const BLUE_FIRE_PALETTE: FireVisualPalette = { kind: "blue" };
 
+/** Warm fire face tones — shared by canvas flames and the Runs! pill fill. */
+export const WARM_FIRE_FACE = {
+  /** coreGradientStops warm birth */
+  core: "#FFFFF0",
+  /** drawFireEmber warm inner */
+  warm: "#FFF5B4",
+  /** particleGradientStops warm birth at full heat */
+  hot: "#FFD237",
+  /** coreGradientStops warm mid at full heat */
+  mid: "#FFE682",
+} as const;
+
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
