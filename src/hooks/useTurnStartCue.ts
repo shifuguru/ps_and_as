@@ -1,30 +1,33 @@
 import { useEffect, useRef } from "react";
+import {
+  nextTurnStartCue,
+  type TurnStartCueState,
+} from "../audio/sfxPlayback";
 
 /**
- * Fires `onTurnStart` exactly once per false → true transition of `isMyTurn`.
- * Ignores re-renders while the turn stays active; resets when the turn ends.
+ * Fires `onTurnStart` once per authoritative turn ownership period, when the
+ * turn becomes presentable (controls unlocked). Presentation flicker
+ * (flights / holds) must not re-arm the cue.
  */
 export function useTurnStartCue(
-  isMyTurn: boolean,
+  isMyTurnAuthority: boolean,
+  isMyTurnPresentable: boolean,
   onTurnStart: () => void,
   enabled = true,
 ): void {
-  const wasMyTurnRef = useRef(false);
+  const stateRef = useRef<TurnStartCueState>({
+    firedForAuthorityTurn: false,
+  });
   const onTurnStartRef = useRef(onTurnStart);
   onTurnStartRef.current = onTurnStart;
 
   useEffect(() => {
-    if (!enabled) {
-      wasMyTurnRef.current = false;
-      return;
-    }
-    if (isMyTurn && !wasMyTurnRef.current) {
-      wasMyTurnRef.current = true;
-      onTurnStartRef.current();
-      return;
-    }
-    if (!isMyTurn) {
-      wasMyTurnRef.current = false;
-    }
-  }, [isMyTurn, enabled]);
+    const { state, fire } = nextTurnStartCue(stateRef.current, {
+      enabled,
+      authority: isMyTurnAuthority,
+      presentable: isMyTurnPresentable,
+    });
+    stateRef.current = state;
+    if (fire) onTurnStartRef.current();
+  }, [isMyTurnAuthority, isMyTurnPresentable, enabled]);
 }
