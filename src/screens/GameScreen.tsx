@@ -3516,6 +3516,93 @@ function GameScreen({
     onlineMultiplayer,
   ]);
 
+  // Joker acknowledgment: auto-pass seated humans who do not press Pass in time.
+  useEffect(() => {
+    if (
+      !state ||
+      trickPauseActive ||
+      gameplayLocked ||
+      roundOver ||
+      roundEndLastPlayHold ||
+      readOnlyGame
+    ) {
+      jokerAckDeadlineRef.current = null;
+      return;
+    }
+
+    if (!isJokerAcknowledgmentPassPhase(state)) {
+      jokerAckDeadlineRef.current = null;
+      return;
+    }
+
+    const playerId = myPlayerId;
+    if (!playerId || !canAcknowledgmentPass(state, playerId)) {
+      return;
+    }
+
+    if (jokerAckDeadlineRef.current == null) {
+      jokerAckDeadlineRef.current = Date.now() + JOKER_ACK_AUTO_PASS_MS;
+    }
+
+    const fireAutoPass = () => {
+      const live = stateRef.current;
+      if (!live || !playerId) return;
+      if (
+        trickPauseActiveRef.current ||
+        gameplayLockedRef.current ||
+        roundOverRef.current ||
+        roundEndHoldScheduledRef.current
+      ) {
+        return;
+      }
+      if (
+        !isJokerAcknowledgmentPassPhase(live) ||
+        !canAcknowledgmentPass(live, playerId)
+      ) {
+        return;
+      }
+      jokerAckDeadlineRef.current = null;
+      setSelected([]);
+      emitDebug("action:pass:human:auto-joker-ack", { playerId });
+      void onPlaySound?.("pass");
+      if (onlineMultiplayer) {
+        const optimistic = passTurn(live, playerId);
+        if (optimistic !== live) {
+          setState(optimistic);
+        }
+        setActionPending(true);
+        broadcastGameAction({
+          type: "pass",
+          playerId,
+        });
+        return;
+      }
+      const next = passTurn(live, playerId);
+      if (next !== live) {
+        setState(next);
+      }
+    };
+
+    const remaining = (jokerAckDeadlineRef.current ?? Date.now()) - Date.now();
+    if (remaining <= 0) {
+      fireAutoPass();
+      return;
+    }
+
+    const timer = setTimeout(fireAutoPass, remaining);
+    return () => clearTimeout(timer);
+  }, [
+    state,
+    myPlayerId,
+    trickPauseActive,
+    gameplayLocked,
+    roundOver,
+    roundEndLastPlayHold,
+    readOnlyGame,
+    onlineMultiplayer,
+    onPlaySound,
+  ]);
+
   useEffect(() => {
     if (!state) return;
     if (!tradeReturnRevealActive || tradeReturnFlight) return;
@@ -4696,93 +4783,6 @@ function GameScreenBoard() {
     !state.tenRulePending;
   const isHumanPassEligible =
     !presentationHoldActive && (isHumanTurn || humanCanAckPass);
-
-  // Joker acknowledgment: auto-pass seated humans who do not press Pass in time.
-  useEffect(() => {
-    if (
-      !state ||
-      trickPauseActive ||
-      gameplayLocked ||
-      roundOver ||
-      roundEndLastPlayHold ||
-      readOnlyGame
-    ) {
-      jokerAckDeadlineRef.current = null;
-      return;
-    }
-
-    if (!isJokerAcknowledgmentPassPhase(state)) {
-      jokerAckDeadlineRef.current = null;
-      return;
-    }
-
-    const playerId = myPlayerId;
-    if (!playerId || !canAcknowledgmentPass(state, playerId)) {
-      return;
-    }
-
-    if (jokerAckDeadlineRef.current == null) {
-      jokerAckDeadlineRef.current = Date.now() + JOKER_ACK_AUTO_PASS_MS;
-    }
-
-    const fireAutoPass = () => {
-      const live = stateRef.current;
-      if (!live || !playerId) return;
-      if (
-        trickPauseActiveRef.current ||
-        gameplayLockedRef.current ||
-        roundOverRef.current ||
-        roundEndHoldScheduledRef.current
-      ) {
-        return;
-      }
-      if (
-        !isJokerAcknowledgmentPassPhase(live) ||
-        !canAcknowledgmentPass(live, playerId)
-      ) {
-        return;
-      }
-      jokerAckDeadlineRef.current = null;
-      setSelected([]);
-      emitDebug("action:pass:human:auto-joker-ack", { playerId });
-      void onPlaySound?.("pass");
-      if (onlineMultiplayer) {
-        const optimistic = passTurn(live, playerId);
-        if (optimistic !== live) {
-          setState(optimistic);
-        }
-        setActionPending(true);
-        broadcastGameAction({
-          type: "pass",
-          playerId,
-        });
-        return;
-      }
-      const next = passTurn(live, playerId);
-      if (next !== live) {
-        setState(next);
-      }
-    };
-
-    const remaining = (jokerAckDeadlineRef.current ?? Date.now()) - Date.now();
-    if (remaining <= 0) {
-      fireAutoPass();
-      return;
-    }
-
-    const timer = setTimeout(fireAutoPass, remaining);
-    return () => clearTimeout(timer);
-  }, [
-    state,
-    myPlayerId,
-    trickPauseActive,
-    gameplayLocked,
-    roundOver,
-    roundEndLastPlayHold,
-    readOnlyGame,
-    onlineMultiplayer,
-    onPlaySound,
-  ]);
 
   let hand = [] as CardType[];
   const handPlayer =
