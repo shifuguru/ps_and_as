@@ -4,6 +4,7 @@ import {
   View,
   Text,
   StyleSheet,
+  ScrollView,
   useWindowDimensions,
   Animated,
   Easing,
@@ -25,6 +26,7 @@ import type { AvatarBorderDesign } from "../rewards/avatarBorders";
 import { ROUND_COMPLETE_Z } from "../styles/overlayZIndex";
 import LeaveGameConfirmModal from "./LeaveGameConfirmModal";
 import ProgressionToastHost from "../gameplayPresentation/ProgressionToastHost";
+import { useLayoutInsets } from "../hooks/useLayoutInsets";
 
 function rankXpAnimationReady(
   player: { id: string; name: string },
@@ -393,8 +395,10 @@ export default function RoundCompleteModal({
   const { colors, ui, blur, palette } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const feltGreen = palette.complementBright;
-  const { width } = useWindowDimensions();
+  const insets = useLayoutInsets();
+  const { width, height } = useWindowDimensions();
   const cardWidth = Math.min(width - 48, 400);
+  const maxCardHeight = Math.min(height - insets.top - insets.bottom - 48, 640);
   const canClaimSeat = spectatorMode && deadHandSeatOpen;
   const displayReadyStates = useMemo(() => {
     // CPUs never manually ready — count and show them ready whenever seated.
@@ -492,6 +496,22 @@ export default function RoundCompleteModal({
       ? "Not Ready"
       : "Next Round";
 
+  const cardChromeHeight =
+    40 + // modalCard vertical padding
+    44 + // title + subtitle
+    36 + // ready count + margin
+    58; // footer actions + margin
+  let optionalFooterHeight = 0;
+  if (botsAutoReady && botDealSecondsLeft != null) optionalFooterHeight += 32;
+  if (canClaimSeat) optionalFooterHeight += 40;
+  if (rewardedAdAvailable && onWatchRewardedAd && !spectatorMode) {
+    optionalFooterHeight += rewardedAdError ? 68 : 52;
+  }
+  const rankingsMaxHeight = Math.max(
+    120,
+    maxCardHeight - cardChromeHeight - optionalFooterHeight,
+  );
+
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
       <View style={styles.modalRoot} pointerEvents="box-none">
@@ -502,12 +522,22 @@ export default function RoundCompleteModal({
             {
               opacity: modalOpacity,
               transform: [{ scale: modalScale }],
+              paddingTop: Math.max(24, insets.top + 12),
+              paddingBottom: Math.max(24, insets.bottom + 12),
             },
           ]}
           pointerEvents="box-none"
         >
           <BlurPanel
-            style={[ui.modalCard, { width: cardWidth, maxWidth: cardWidth }]}
+            style={[
+              ui.modalCard,
+              styles.modalCard,
+              {
+                width: cardWidth,
+                maxWidth: cardWidth,
+                maxHeight: maxCardHeight,
+              },
+            ]}
             preset={blur.modal}
             onLayout={() => {
               setBoardDisplayed(true);
@@ -516,7 +546,13 @@ export default function RoundCompleteModal({
             <Text style={ui.modalTitle}>Round Complete</Text>
             <Text style={ui.modalBody}>Final Rankings</Text>
 
-            <View style={styles.rankings}>
+            <ScrollView
+              style={[styles.rankingsScroll, { maxHeight: rankingsMaxHeight }]}
+              contentContainerStyle={styles.rankings}
+              showsVerticalScrollIndicator
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+            >
               {rankedOrder.map((playerId, index) => {
                 const player = players.find((p) => p.id === playerId);
                 if (!player) {
@@ -554,7 +590,7 @@ export default function RoundCompleteModal({
                   />
                 );
               })}
-            </View>
+            </ScrollView>
 
             <Text style={styles.readyCount}>
               {readyCount}/{readyDenominator}{" "}
@@ -667,17 +703,23 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      padding: 24,
+      paddingHorizontal: 24,
       zIndex: ROUND_COMPLETE_Z + 1,
+    },
+    modalCard: {
+      width: "100%",
     },
     toastHost: {
       ...StyleSheet.absoluteFillObject,
       zIndex: ROUND_COMPLETE_Z + 5,
       elevation: ROUND_COMPLETE_Z + 5,
     },
-    rankings: {
+    rankingsScroll: {
       width: "100%",
       marginBottom: 12,
+      minHeight: 0,
+    },
+    rankings: {
       gap: 8,
     },
     rankRow: {
