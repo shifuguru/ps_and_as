@@ -156,6 +156,7 @@ import GameplayVignette from "../gameplayPresentation/GameplayVignette";
 import { GAMEPLAY_PRESENTATION } from "../gameplayPresentation/featureFlags";
 import { pushGameplayToast } from "../gameplayPresentation/progressionToastBus";
 import { playCardsSfxId, type PlaySoundFn } from "../audio/gameSfx";
+import { collectNewPassKeys } from "../audio/sfxPlayback";
 import { useTurnStartCue } from "../hooks/useTurnStartCue";
 import { triggerHaptic } from "../utils/haptics";
 import RoundCompleteModal from "../components/RoundCompleteModal";
@@ -3564,7 +3565,7 @@ function GameScreen({
       jokerAckDeadlineRef.current = null;
       setSelected([]);
       emitDebug("action:pass:human:auto-joker-ack", { playerId });
-      void onPlaySound?.("pass");
+      // Pass SFX: trick-action observer (all seats).
       if (onlineMultiplayer) {
         const optimistic = passTurn(live, playerId);
         if (optimistic !== live) {
@@ -4755,6 +4756,26 @@ function GameScreenBoard() {
     prevStackCollectingRef.current = !!stackCollecting;
   }, [stackCollecting, onPlaySound]);
 
+  // Pass SFX for every seat (local / remote / CPU) from trick actions — not only
+  // local button presses — so the table stays audible while you're waiting.
+  const heardPassKeysRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const actions = state.currentTrick?.actions;
+    const wasEmpty = heardPassKeysRef.current.size === 0;
+    const { newKeys, nextHeard } = collectNewPassKeys(
+      actions,
+      heardPassKeysRef.current,
+    );
+    heardPassKeysRef.current = nextHeard;
+    if (newKeys.length === 0) return;
+    // Reconnect / late hydrate can land a trick that already has several passes —
+    // seed silently instead of blasting a chord of pass cues.
+    if (wasEmpty && newKeys.length > 1) return;
+    for (let i = 0; i < newKeys.length; i++) {
+      void onPlaySound?.("pass");
+    }
+  }, [state.currentTrick?.actions, onPlaySound]);
+
   const prevCeremonyPhaseRef = useRef(ceremonyDealProgress.phase);
   useEffect(() => {
     const phase = ceremonyDealProgress.phase;
@@ -5368,7 +5389,7 @@ function GameScreenBoard() {
       playerName: actor.name,
       before: snapshotState(state),
     });
-    void onPlaySound?.("pass");
+    // Pass SFX: trick-action observer (all seats).
     if (onlineMultiplayer) {
       const optimistic = passTurn(state, actor.id);
       if (optimistic !== state) {

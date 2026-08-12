@@ -506,6 +506,31 @@ Players cannot reliably tap Quit Game or Next Round after an ad load failure.
 
 ---
 
+## Game SFX silence while waiting + playback latency
+
+**Category:** UI / Audio
+
+**Intended behaviour:**  
+Gameplay SFX (play, land, pass, pile clear, turn start, etc.) fire promptly for **all seats** throughout a round — including while the local player has already passed and is waiting. Audio should not depend on the local seat’s turn or a fresh user gesture for each cue.
+
+**Current behaviour:**  
+`useMenuAudio.playEffect` calls `Audio.Sound.createAsync` on every cue (load + new media element each time). After the local player passes and stops interacting, browsers tighten autoplay and new elements fail silently; cues return once the player taps again on their turn. Creating/decoding on each play also adds a noticeable delay between the action and the sound. Remote/CPU passes never triggered pass SFX (only local pass paths did).
+
+**Impact:**  
+Table feels muted after passing; when audio does play it lags the animation.
+
+**Files likely involved:**  
+`src/hooks/useMenuAudio.ts`, `src/audio/gameSfx.ts`, `src/screens/GameScreen.tsx`, `src/services/ads/adsAudioBridge.ts`
+
+**Priority:** P2 (player-visible audio)
+
+**Status:** Open
+
+**Notes:**  
+Fix: preload/reuse a small sound pool, resume audio subsystem before play, fire pass SFX from trick action observation (all seats).
+
+---
+
 ## Android Play Store release
 
 **Category:** Product / distribution
