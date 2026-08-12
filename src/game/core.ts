@@ -2186,33 +2186,80 @@ function combinationsOfSize<T>(items: T[], k: number): T[][] {
   ];
 }
 
-/** Every legal same-rank subset of size 1..min(4, n) — not just hand-order prefixes. */
-function rankGroupPlayCombinations(cards: Card[]): Card[][] {
-  const limit = Math.min(4, cards.length);
-  const out: Card[][] = [];
-  for (let take = 1; take <= limit; take++) {
-    out.push(...combinationsOfSize(cards, take));
-  }
-  return out;
-}
+/**
+ * Relative weights for trick-opening lead size when quads are not available.
+ * Quads are always led when legal (see pickCpuEmptyPileLead). Triples are
+ * weighted lowest — they dump three cards but are cheap to beat; doubles and
+ * singles sit between.
+ */
+const CPU_LEAD_SIZE_WEIGHTS: Record<number, number> = {
+  1: 30,
+  2: 45,
+  3: 5,
+};
 
-/** Empty-pile lead candidates — all 1..4 card combos per rank (lowest rank first). */
-function emptyPilePlayCandidates(
+/**
+ * Pick a trick-opening lead on an empty pile. Lowest valid rank first; always
+ * play quads when available, otherwise weighted random among other sizes.
+ */
+function pickCpuEmptyPileLead(
   hand: Card[],
   grouped: Record<number, Card[]>,
-): Card[][] {
-  const candidates: Card[][] = [];
+  ctx: CpuPlayContext,
+  random: () => number = Math.random,
+): Card[] | null {
   const values = Object.keys(grouped)
     .map(Number)
     .sort((a, b) => rankIndex(a) - rankIndex(b));
+
   for (const v of values) {
-    candidates.push(...rankGroupPlayCombinations(grouped[v]));
+    const cards = grouped[v];
+    const bySize = new Map<number, Card[][]>();
+    const limit = Math.min(4, cards.length);
+    for (let take = 1; take <= limit; take++) {
+      for (const combo of combinationsOfSize(cards, take)) {
+        if (!cpuPlayIsValid(hand, combo, ctx)) continue;
+        let bucket = bySize.get(take);
+        if (!bucket) {
+          bucket = [];
+          bySize.set(take, bucket);
+        }
+        bucket.push(combo);
+      }
+    }
+    if (bySize.size === 0) continue;
+
+    if (bySize.has(4)) {
+      const quadCombos = bySize.get(4)!;
+      return quadCombos[Math.floor(random() * quadCombos.length)];
+    }
+
+    const sizes = Array.from(bySize.keys()).sort((a, b) => a - b);
+    const totalWeight = sizes.reduce(
+      (sum, size) => sum + (CPU_LEAD_SIZE_WEIGHTS[size] ?? 1),
+      0,
+    );
+    let roll = random() * totalWeight;
+    let chosenSize = sizes[sizes.length - 1];
+    for (const size of sizes) {
+      roll -= CPU_LEAD_SIZE_WEIGHTS[size] ?? 1;
+      if (roll <= 0) {
+        chosenSize = size;
+        break;
+      }
+    }
+    const combos = bySize.get(chosenSize)!;
+    return combos[Math.floor(random() * combos.length)];
   }
-  return candidates;
+  return null;
 }
 
 /** Brute-force any legal play when heuristics miss (prevents CPU deadlocks). */
-function enumerateValidCpuPlay(hand: Card[], ctx: CpuPlayContext): Card[] | null {
+function enumerateValidCpuPlay(
+  hand: Card[],
+  ctx: CpuPlayContext,
+  random: () => number = Math.random,
+): Card[] | null {
   if (!hand.length) return null;
   const grouped: Record<number, Card[]> = {};
   hand.forEach((card) => {
@@ -2224,7 +2271,14 @@ function enumerateValidCpuPlay(hand: Card[], ctx: CpuPlayContext): Card[] | null
   const candidates: Card[][] = [];
 
   if (pileCount === 0) {
-    candidates.push(...emptyPilePlayCandidates(hand, grouped));
+    const lead = pickCpuEmptyPileLead(hand, grouped, ctx, random);
+    if (lead) return lead;
+    for (const value of Object.keys(grouped).map(Number).sort((a, b) => rankIndex(a) - rankIndex(b))) {
+      const limit = Math.min(4, grouped[value].length);
+      for (let take = 1; take <= limit; take++) {
+        candidates.push(...combinationsOfSize(grouped[value], take));
+      }
+    }
   } else {
     const joker = hand.find((c) => isJoker(c));
     if (joker) candidates.push([joker]);
@@ -2258,6 +2312,7 @@ export function findCPUPlay(
   lastRoundOrder?: string[],
   currentPlayerId?: string,
   runOnTop?: boolean,
+  random: () => number = Math.random,
 ): Card[] | null {
   if (!hand || hand.length === 0) return null;
 
@@ -2285,13 +2340,11 @@ export function findCPUPlay(
     grouped[card.value].push(card);
   });
 
-  // If pile is empty, prefer 3♣ if present; else play the lowest valid rank set.
+  // If pile is empty, play the lowest valid rank with a weighted random set size.
   if (pileCount === 0) {
-    const emptyCandidates = emptyPilePlayCandidates(hand, grouped);
-    for (const candidate of emptyCandidates) {
-      if (cpuPlayIsValid(hand, candidate, ctx)) return candidate;
-    }
-    return enumerateValidCpuPlay(hand, ctx);
+    const lead = pickCpuEmptyPileLead(hand, grouped, ctx, random);
+    if (lead) return lead;
+    return enumerateValidCpuPlay(hand, ctx, random);
   }
 
   // Sticky Runs: extend with adjacent card/group matching locked multiplicity.

@@ -2324,6 +2324,183 @@ console.log("Dead hand post-trade opening tests passed");
 
 console.log("CPU round-1 opening tests passed");
 
+// --- CPU trick-opening multiples (doubles / triples / quads) ---
+
+{
+  const hand: Card[] = [
+    { suit: "hearts", value: 7 },
+    { suit: "diamonds", value: 7 },
+    { suit: "clubs", value: 9 },
+  ];
+  const ctx = {
+    trick: { trickNumber: 2, actions: [] } as const,
+    players: [{ id: "cpu-1", name: "B", hand, role: "Neutral" as const }],
+    trickHistory: [{ trickNumber: 1, actions: [], winnerId: "cpu-1" }],
+  };
+  const single = findCPUPlay(
+    hand,
+    [],
+    undefined,
+    [],
+    undefined,
+    ctx.trick,
+    ctx.players,
+    [],
+    ctx.trickHistory,
+    ["a", "b"],
+    "cpu-1",
+    false,
+    () => 0,
+  );
+  assert.strictEqual(
+    single?.length,
+    1,
+    "CPU can open a trick with a single 7",
+  );
+  const pair = findCPUPlay(
+    hand,
+    [],
+    undefined,
+    [],
+    undefined,
+    ctx.trick,
+    ctx.players,
+    [],
+    ctx.trickHistory,
+    ["a", "b"],
+    "cpu-1",
+    false,
+    () => 0.99,
+  );
+  assert.strictEqual(
+    pair?.length,
+    2,
+    "CPU can open a trick with double 7s when held",
+  );
+}
+
+{
+  const hand: Card[] = [
+    { suit: "clubs", value: 3 },
+    { suit: "diamonds", value: 3 },
+    { suit: "hearts", value: 3 },
+    { suit: "spades", value: 5 },
+  ];
+  const triple = findCPUPlay(
+    hand,
+    [],
+    undefined,
+    [],
+    undefined,
+    { trickNumber: 1, actions: [] },
+    [{ id: "cpu-1", name: "B", hand, role: "Neutral" }],
+    [],
+    [],
+    undefined,
+    "cpu-1",
+    false,
+    () => 0.98,
+  );
+  assert.ok(
+    triple && triple.length === 3 && triple.every((c) => c.value === 3),
+    "CPU can open round 1 with triple 3s when all three are held",
+  );
+  assert.ok(
+    triple.some((c) => c.suit === "clubs"),
+    "Triple 3s opening must still include living 3♣",
+  );
+}
+
+{
+  const hand: Card[] = [
+    { suit: "hearts", value: 8 },
+    { suit: "diamonds", value: 8 },
+    { suit: "clubs", value: 8 },
+    { suit: "spades", value: 8 },
+    { suit: "clubs", value: 11 },
+  ];
+  const quad = findCPUPlay(
+    hand,
+    [],
+    undefined,
+    [],
+    undefined,
+    { trickNumber: 2, actions: [] },
+    [{ id: "cpu-1", name: "B", hand, role: "Neutral" }],
+    [],
+    [{ trickNumber: 1, actions: [], winnerId: "cpu-1" }],
+    ["a", "b"],
+    "cpu-1",
+    false,
+    () => 0,
+  );
+  assert.strictEqual(
+    quad?.length,
+    4,
+    "CPU always opens with quad 8s when held (even on low RNG roll)",
+  );
+}
+
+{
+  const hand: Card[] = [
+    { suit: "clubs", value: 3 },
+    { suit: "diamonds", value: 3 },
+    { suit: "hearts", value: 3 },
+    { suit: "spades", value: 5 },
+  ];
+  let tripleCount = 0;
+  for (let i = 0; i < 100; i++) {
+    const play = findCPUPlay(
+      hand,
+      [],
+      undefined,
+      [],
+      undefined,
+      { trickNumber: 1, actions: [] },
+      [{ id: "cpu-1", name: "B", hand, role: "Neutral" }],
+      [],
+      [],
+      undefined,
+      "cpu-1",
+      false,
+    );
+    if (play?.length === 3) tripleCount += 1;
+  }
+  assert.ok(
+    tripleCount < 40,
+    "CPU should rarely open with triple 3s (lowest weight) when smaller sets are legal",
+  );
+}
+
+{
+  const hand: Card[] = [
+    { suit: "hearts", value: 7 },
+    { suit: "diamonds", value: 7 },
+    { suit: "clubs", value: 9 },
+  ];
+  const sizes = new Set<number>();
+  for (let i = 0; i < 80; i++) {
+    const play = findCPUPlay(
+      hand,
+      [],
+      undefined,
+      [],
+      undefined,
+      { trickNumber: 2, actions: [] },
+      [{ id: "cpu-1", name: "B", hand, role: "Neutral" }],
+      [],
+      [{ trickNumber: 1, actions: [], winnerId: "cpu-1" }],
+      ["a", "b"],
+      "cpu-1",
+      false,
+    );
+    sizes.add(play?.length ?? 0);
+  }
+  assert.ok(sizes.has(1) && sizes.has(2), "CPU trick-opening size should vary across plays");
+}
+
+console.log("CPU trick-opening multiples tests passed");
+
 // --- Server role-trade sync helpers ---
 {
   assert.strictEqual(
