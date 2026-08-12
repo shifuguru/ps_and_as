@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import BlurPanel from "./BlurPanel";
 import AppButton from "./ui/AppButton";
+import KofiButton from "./ui/KofiButton";
 import { useAppTheme } from "../context/ThemeContext";
 import { resolveDonateUrl } from "../config/donateUrl";
 import { triggerHaptic } from "../utils/haptics";
@@ -61,12 +62,9 @@ export default function KeepLightsOnModal({ visible, onClose }: Props) {
               }}
               accessibilityLabel="Close without donating"
             />
-            <AppButton
-              label="Contribute"
-              variant="primary"
+            <KofiButton
               style={{ flex: 1.35 }}
               onPress={openDonate}
-              accessibilityLabel="Open donation page"
             />
           </View>
         </BlurPanel>
