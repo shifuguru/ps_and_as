@@ -625,6 +625,12 @@ const local = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
+    ...Platform.select({
+      web: {
+        backfaceVisibility: "hidden" as const,
+      },
+      default: {},
+    }),
   },
   cardDisabled: {
     opacity: 0.88,
