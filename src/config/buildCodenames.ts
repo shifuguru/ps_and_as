@@ -136,6 +136,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.70": "Shuffle Or Scramble",
   "1.1.71": "Four Of A Kind Mind",
   "1.1.72": "Shuffle Or Scramble",
+  "1.1.73": "Ten High Drama",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
