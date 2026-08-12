@@ -143,6 +143,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.77": "Grand Slam Gamble",
   "1.1.78": "Fold Em And Hold Em",
   "1.1.79": "Quad Squad Goals",
+  "1.1.80": "Dealer's Remorse",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
