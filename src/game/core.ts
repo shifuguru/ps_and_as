@@ -2186,18 +2186,21 @@ function combinationsOfSize<T>(items: T[], k: number): T[][] {
   ];
 }
 
-/** Relative weights for trick-opening lead size (singles most common). */
+/**
+ * Relative weights for trick-opening lead size when quads are not available.
+ * Quads are always led when legal (see pickCpuEmptyPileLead). Triples are
+ * weighted lowest — they dump three cards but are cheap to beat; doubles and
+ * singles sit between.
+ */
 const CPU_LEAD_SIZE_WEIGHTS: Record<number, number> = {
-  1: 45,
-  2: 30,
-  3: 15,
-  4: 10,
+  1: 30,
+  2: 45,
+  3: 5,
 };
 
 /**
- * Pick a trick-opening lead on an empty pile. Lowest valid rank first; among
- * sizes available for that rank, choose weighted at random so CPUs sometimes
- * open singles and sometimes doubles/triples/quads like human players.
+ * Pick a trick-opening lead on an empty pile. Lowest valid rank first; always
+ * play quads when available, otherwise weighted random among other sizes.
  */
 function pickCpuEmptyPileLead(
   hand: Card[],
@@ -2225,6 +2228,11 @@ function pickCpuEmptyPileLead(
       }
     }
     if (bySize.size === 0) continue;
+
+    if (bySize.has(4)) {
+      const quadCombos = bySize.get(4)!;
+      return quadCombos[Math.floor(random() * quadCombos.length)];
+    }
 
     const sizes = Array.from(bySize.keys()).sort((a, b) => a - b);
     const totalWeight = sizes.reduce(

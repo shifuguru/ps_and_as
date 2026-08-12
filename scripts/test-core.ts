@@ -2399,7 +2399,7 @@ console.log("CPU round-1 opening tests passed");
     undefined,
     "cpu-1",
     false,
-    () => 0.99,
+    () => 0.98,
   );
   assert.ok(
     triple && triple.length === 3 && triple.every((c) => c.value === 3),
@@ -2432,12 +2432,43 @@ console.log("CPU round-1 opening tests passed");
     ["a", "b"],
     "cpu-1",
     false,
-    () => 0.99,
+    () => 0,
   );
   assert.strictEqual(
     quad?.length,
     4,
-    "CPU can open a trick with quad 8s when held",
+    "CPU always opens with quad 8s when held (even on low RNG roll)",
+  );
+}
+
+{
+  const hand: Card[] = [
+    { suit: "clubs", value: 3 },
+    { suit: "diamonds", value: 3 },
+    { suit: "hearts", value: 3 },
+    { suit: "spades", value: 5 },
+  ];
+  let tripleCount = 0;
+  for (let i = 0; i < 100; i++) {
+    const play = findCPUPlay(
+      hand,
+      [],
+      undefined,
+      [],
+      undefined,
+      { trickNumber: 1, actions: [] },
+      [{ id: "cpu-1", name: "B", hand, role: "Neutral" }],
+      [],
+      [],
+      undefined,
+      "cpu-1",
+      false,
+    );
+    if (play?.length === 3) tripleCount += 1;
+  }
+  assert.ok(
+    tripleCount < 40,
+    "CPU should rarely open with triple 3s (lowest weight) when smaller sets are legal",
   );
 }
 
