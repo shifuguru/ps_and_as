@@ -108,6 +108,11 @@ function fanNormSpan(containerWidth: number, step: number): number {
 /** Padding below card feet inside the hand zone */
 const FAN_BOTTOM_PADDING = 0;
 
+/** Avoid subpixel hand slots that leave 1px card-edge ghosts after play (web compositor). */
+function snapHandPx(value: number): number {
+  return Platform.OS === "web" ? Math.round(value) : value;
+}
+
 /** Headroom above card tops for arc + selected lift + centre scale (comfortable tier) */
 const BASE_FAN_HEADROOM = HAND_SELECT_LIFT + MAX_CENTER_LIFT + 24;
 
@@ -750,9 +755,12 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     return () => scrollX.removeListener(id);
   }, [scrollX]);
 
-  const applyScroll = (value: number) => {
+  const applyScroll = (value: number, snap = false) => {
     const { min, max } = boundsRef.current;
-    const clamped = clampScroll(value, min, max);
+    let clamped = clampScroll(value, min, max);
+    if (snap && Platform.OS === "web") {
+      clamped = Math.round(clamped);
+    }
     scrollRef.current = clamped;
     scrollX.setValue(clamped);
     setScrollOffset((prev) => (prev === clamped ? prev : clamped));
@@ -796,7 +804,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
       anchorRankRef.current = cards[focused]?.value ?? null;
     }
 
-    applyScroll(clampScroll(preserved, b.min, b.max));
+    applyScroll(clampScroll(preserved, b.min, b.max), prev > next);
 
     if (pendingFocusIndex != null && pendingFocusIndex >= next) {
       setPendingFocusIndex(null);
@@ -1171,8 +1179,38 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
            */
           const cardInteractionLocked =
             !inOutgoingPlay && (selectionLocked ? false : !isPlayable);
+          const slotLeft = snapHandPx(slot.left);
+          const slotBottom = snapHandPx(slot.bottom);
+          const slotTransform = pivotAroundBottom(
+            slot.angle,
+            cardWidth,
+            cardHeight,
+            1,
+          );
+          const slotStyle = [
+            styles.cardSlot,
+            {
+              left: slotLeft,
+              bottom: slotBottom,
+              width: cardWidth,
+              height: cardHeight,
+              zIndex: isSelected
+                ? 2000 + slot.zIndex
+                : isPressed || index === pendingFocusIndex
+                  ? 2500 + index
+                  : slot.zIndex,
+              opacity: isSelected ? 1 : slot.opacity,
+              transform: slotTransform,
+            },
+          ] as ViewStyle[];
           if (concealed) {
-            return null;
+            return (
+              <View
+                key={identity}
+                style={[...slotStyle, styles.concealedCardSlot]}
+                pointerEvents="none"
+              />
+            );
           }
           const waitingFocusHighlight = selectionLocked
             ? isFocused
@@ -1181,31 +1219,11 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
             : null;
           return (
             <View
-              key={`${identity}-${index}`}
+              key={identity}
               ref={(node) => {
                 cardSlotRefs.current[index] = node;
               }}
-              style={[
-                styles.cardSlot,
-                {
-                  left: slot.left,
-                  bottom: slot.bottom,
-                  width: cardWidth,
-                  height: cardHeight,
-                  zIndex: isSelected
-                    ? 2000 + slot.zIndex
-                    : isPressed || index === pendingFocusIndex
-                      ? 2500 + index
-                      : slot.zIndex,
-                  opacity: isSelected ? 1 : slot.opacity,
-                  transform: pivotAroundBottom(
-                    slot.angle,
-                    cardWidth,
-                    cardHeight,
-                    1,
-                  ),
-                },
-              ]}
+              style={slotStyle}
               onTouchStart={() => setPressedIndex(index)}
               onTouchEnd={() => setPressedIndex(null)}
               onTouchCancel={() => setPressedIndex(null)}
@@ -1291,5 +1309,10 @@ const styles = StyleSheet.create({
   },
   cardSlot: {
     position: "absolute",
+  },
+  /** Occupies fan space while a play flight hides the card — avoids 1px compositor ghosts. */
+  concealedCardSlot: {
+    opacity: 0,
+    overflow: "hidden",
   },
 });
