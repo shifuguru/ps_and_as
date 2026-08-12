@@ -158,25 +158,28 @@ writeWav(
   ),
 );
 
-// Local turn start — short bright knock + soft chime (not a ringtone)
+// Local turn start — soft double felt tap (no pitched chime / IM beep).
 writeWav(
   "turn_start.wav",
-  mix(
-    thud(0.08, 0.18, 160),
-    paperNoise(0.06, 0.1, 0.02),
-    (() => {
-      const n = Math.floor(SAMPLE_RATE * 0.22);
-      const out = new Float32Array(n);
-      const delay = Math.floor(SAMPLE_RATE * 0.07);
-      for (let i = 0; i < n - delay; i += 1) {
-        const t = i / SAMPLE_RATE;
-        const e = Math.exp(-t / 0.08);
-        out[i + delay] += Math.sin(2 * Math.PI * 523 * t) * 0.1 * e;
-        out[i + delay] += Math.sin(2 * Math.PI * 784 * t) * 0.05 * e;
+  (() => {
+    const n = Math.floor(SAMPLE_RATE * 0.18);
+    const out = new Float32Array(n);
+    const tap = (atSec, gain) => {
+      const start = Math.floor(SAMPLE_RATE * atSec);
+      // Broadband contact only — avoid sine “ding” partials.
+      const paper = paperNoise(0.05, gain, 0.012);
+      const body = thud(0.055, gain * 0.55, 90);
+      for (let i = 0; i < paper.length && start + i < n; i += 1) {
+        out[start + i] += paper[i];
       }
-      return out;
-    })(),
-  ),
+      for (let i = 0; i < body.length && start + i < n; i += 1) {
+        out[start + i] += body[i] * 0.65;
+      }
+    };
+    tap(0.0, 0.28);
+    tap(0.05, 0.18);
+    return mix(out);
+  })(),
 );
 
 // Deal flap
