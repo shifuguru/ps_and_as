@@ -45,6 +45,7 @@ const botHosted = require('./botHostedRooms');
 const { computeRoundXpByPlayerId } = require('./roundXp');
 const tableRoster = require('./tableRoster');
 const gameSync = require('./gameSync');
+const { isPrePlayDealWindow } = require('./dealWindow');
 const analytics = require('./analyticsStore');
 const { advancePastInactiveSeats } = require('./turnAdvance');
 const {
@@ -2137,11 +2138,21 @@ io.on('connection', (socket) => {
         socket.emit('error', { message: 'Reconnect to continue playing' });
         return;
       }
-      const dealerId = resolveDealerId(room.gameState.players, {
+      const gs = room.gameState;
+      // Round-1 dead-hand reshuffle is only valid before any play. After the
+      // opening 3 leaves living hands, needsRoundOneDealerReshuffle can flip
+      // true again and would otherwise wipe an in-progress match.
+      if (!isPrePlayDealWindow(gs)) {
+        socket.emit('error', {
+          message: 'Reshuffle not allowed after play has started',
+        });
+        return;
+      }
+      const dealerId = resolveDealerId(gs.players, {
         hostId: room.host,
-        lastRoundOrder: room.gameState.lastRoundOrder,
-        finishedOrder: room.gameState.finishedOrder,
-        roles: room.gameState.roles,
+        lastRoundOrder: gs.lastRoundOrder,
+        finishedOrder: gs.finishedOrder,
+        roles: gs.roles,
       });
       if (player.id !== dealerId) {
         socket.emit('error', { message: 'Only the dealer can reshuffle' });
@@ -2149,19 +2160,19 @@ io.on('connection', (socket) => {
       }
       const dealerContext = buildDealerContext({
         hostId: room.host,
-        finishOrder: room.gameState.lastRoundOrder,
-        lastRoundOrder: room.gameState.lastRoundOrder,
-        roles: room.gameState.roles,
+        finishOrder: gs.lastRoundOrder,
+        lastRoundOrder: gs.lastRoundOrder,
+        roles: gs.roles,
       });
-      if (!needsRoundOneDealerReshuffle(room.gameState.players, dealerContext)) {
+      if (!needsRoundOneDealerReshuffle(gs.players, dealerContext)) {
         socket.emit('error', { message: 'Reshuffle not needed right now' });
         return;
       }
       // Always server-authored — never trust client dealSeed (cherry-pick risk).
       const dealSeed = Math.floor(Math.random() * 2147483647);
       const lastOrder = livingFinishOrder(
-        room.gameState,
-        room.gameState.lastRoundOrder?.slice() ?? [],
+        gs,
+        gs.lastRoundOrder?.slice() ?? [],
       );
       beginAuthoritativeRound(room, dealSeed, {
         lastRoundOrder: lastOrder.length >= 2 ? lastOrder : undefined,
