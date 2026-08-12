@@ -14,6 +14,9 @@ import { triggerHaptic } from "../../utils/haptics";
 const KOFI_BUTTON_IMAGE =
   "https://storage.ko-fi.com/cdn/brandasset/kofi_button_red.png";
 
+/** Native aspect ratio of the official Ko-fi button artwork. */
+const KOFI_BUTTON_ASPECT = 174 / 44;
+
 type Props = {
   style?: StyleProp<ViewStyle>;
   url?: string;
@@ -38,7 +41,7 @@ export default function KofiButton({ style, url }: Props) {
       <Image
         source={{ uri: KOFI_BUTTON_IMAGE }}
         style={styles.image}
-        resizeMode="contain"
+        resizeMode="stretch"
         accessibilityIgnoresInvertColors
       />
     </TouchableOpacity>
@@ -47,12 +50,13 @@ export default function KofiButton({ style, url }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 48,
+    width: "100%",
+    minHeight: 56,
+    alignSelf: "stretch",
   },
   image: {
-    width: 174,
-    height: 44,
+    width: "100%",
+    aspectRatio: KOFI_BUTTON_ASPECT,
+    minHeight: 56,
   },
 });

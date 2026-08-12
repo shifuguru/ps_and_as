@@ -8,5 +8,6 @@ export function resolveDonateUrl(): string {
       ? process.env?.EXPO_PUBLIC_DONATE_URL?.trim()
       : "";
   if (fromEnv) return fromEnv;
-  return "https://ko-fi.com/shifuguru";
+  // Opens Ko-fi's tip/payment form directly (not the full profile feed).
+  return "https://ko-fi.com/shifuguru/tip";
 }
