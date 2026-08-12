@@ -26,6 +26,7 @@ import {
   ViewStyle,
   Platform,
   Animated,
+  Easing,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import AddToHomeScreenBanner from "../components/AddToHomeScreenBanner";
@@ -39,6 +40,8 @@ import PracticeSetupModal from "../components/PracticeSetupModal";
 import MenuIcon from "../components/MenuIcon";
 import HubProgressRing from "../components/HubProgressRing";
 import NextAchievementCard from "../components/NextAchievementCard";
+import RewardClaimBurst from "../components/RewardClaimBurst";
+import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import { useClientBuildLabel } from "../hooks/useClientBuildLabel";
@@ -171,9 +174,15 @@ export default function PlayerHub({
   const [practicePlayerCount, setPracticePlayerCount] = useState(
     PRACTICE_DEFAULT_PLAYERS,
   );
-  const [dailyClaiming, setDailyClaiming] = useState(false);
-  const [loginClaiming, setLoginClaiming] = useState(false);
   const ringPulse = useRef(new Animated.Value(1)).current;
+  const xpPulse = useRef(new Animated.Value(1)).current;
+  const pendingLoginClaimRef = useRef<{ state: DailyLoginState } | null>(null);
+  const pendingDailyClaimRef = useRef<{ state: DailyChallengeState } | null>(
+    null,
+  );
+  const { display: displayXp, animateTo: animateXpTo } = useAnimatedNumber(
+    stats?.xp ?? 0,
+  );
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -242,67 +251,90 @@ export default function PlayerHub({
     fn();
   };
 
-  const claimDailyReward = useCallback(async () => {
-    if (
-      !dailyDef ||
-      !dailyState ||
-      !stats ||
-      dailyClaiming ||
-      dailyState.rewardClaimed
-    ) {
-      return;
+  const refreshStatsAfterXpGrant = useCallback(
+    async (targetXp: number) => {
+      animateXpTo(targetXp);
+      Animated.sequence([
+        Animated.timing(xpPulse, {
+          toValue: 1.14,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+        Animated.timing(xpPulse, {
+          toValue: 1,
+          duration: 340,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+      const refreshed = await getPlayerStats();
+      setStats(refreshed);
+      setFeatured(selectFeaturedStat(refreshed));
+      const nextRefreshed = selectNextAchievement(refreshed);
+      setNextAch(nextRefreshed);
+      setGoals(selectHubGoals(refreshed, 3, nextRefreshed?.def.id));
+      setBorder(resolveAvatarBorder(refreshed));
+    },
+    [animateXpTo, xpPulse],
+  );
+
+  const claimDailyReward = useCallback(async (): Promise<number> => {
+    if (!dailyDef || !dailyState || !stats || dailyState.rewardClaimed) {
+      return 0;
     }
     const progress = dailyChallengeProgress(dailyDef, dailyState, stats);
-    if (!progress.done) return;
+    if (!progress.done) return 0;
 
-    setDailyClaiming(true);
     triggerHaptic("medium");
-    try {
-      const claimed = await claimDailyChallengeIfReady(
-        dailyDef,
-        dailyState,
-        stats,
-      );
-      setDailyState(claimed.state);
-      if (claimed.grantedXp > 0) {
-        const refreshed = await getPlayerStats();
-        setStats(refreshed);
-        setFeatured(selectFeaturedStat(refreshed));
-        const nextRefreshed = selectNextAchievement(refreshed);
-        setNextAch(nextRefreshed);
-        setGoals(selectHubGoals(refreshed, 3, nextRefreshed?.def.id));
-        setBorder(resolveAvatarBorder(refreshed));
+    const claimed = await claimDailyChallengeIfReady(
+      dailyDef,
+      dailyState,
+      stats,
+    );
+    pendingDailyClaimRef.current = { state: claimed.state };
+    return claimed.grantedXp;
+  }, [dailyDef, dailyState, stats]);
+
+  const onDailyBurstComplete = useCallback(
+    async (grantedXp: number) => {
+      if (pendingDailyClaimRef.current) {
+        setDailyState(pendingDailyClaimRef.current.state);
+        pendingDailyClaimRef.current = null;
       }
-    } finally {
-      setDailyClaiming(false);
-    }
-  }, [dailyClaiming, dailyDef, dailyState, stats]);
+      if (grantedXp > 0) {
+        const refreshed = await getPlayerStats();
+        await refreshStatsAfterXpGrant(refreshed.xp);
+      }
+    },
+    [refreshStatsAfterXpGrant],
+  );
 
-  const claimLoginReward = useCallback(async () => {
-    if (!loginState || loginClaiming || loginState.claimed) {
-      return;
+  const claimLoginReward = useCallback(async (): Promise<number> => {
+    if (!loginState || loginState.claimed) {
+      return 0;
     }
 
-    setLoginClaiming(true);
     triggerHaptic("medium");
-    try {
-      const claimed = await claimDailyLoginIfReady(loginState);
-      setLoginState(claimed.state);
-      if (claimed.grantedXp > 0) {
-        const refreshed = await getPlayerStats();
-        setStats(refreshed);
-        setFeatured(selectFeaturedStat(refreshed));
-        const nextRefreshed = selectNextAchievement(refreshed);
-        setNextAch(nextRefreshed);
-        setGoals(selectHubGoals(refreshed, 3, nextRefreshed?.def.id));
-        setBorder(resolveAvatarBorder(refreshed));
-      }
-    } finally {
-      setLoginClaiming(false);
-    }
-  }, [loginClaiming, loginState]);
+    const claimed = await claimDailyLoginIfReady(loginState);
+    pendingLoginClaimRef.current = { state: claimed.state };
+    return claimed.grantedXp;
+  }, [loginState]);
 
-  const level = levelProgressFromXp(stats?.xp ?? 0);
+  const onLoginBurstComplete = useCallback(
+    async (grantedXp: number) => {
+      if (pendingLoginClaimRef.current) {
+        setLoginState(pendingLoginClaimRef.current.state);
+        pendingLoginClaimRef.current = null;
+      }
+      if (grantedXp > 0) {
+        const refreshed = await getPlayerStats();
+        await refreshStatsAfterXpGrant(refreshed.xp);
+      }
+    },
+    [refreshStatsAfterXpGrant],
+  );
+
+  const displayLevel = levelProgressFromXp(displayXp);
   /** Cold open: no rounds yet — answer what/why/start before empty meta chrome. */
   const statsReady = stats !== null;
   const hasPlayed = (stats?.roundsPlayed ?? 0) > 0;
@@ -333,7 +365,7 @@ export default function PlayerHub({
         >
           <HubProgressRing
             size={RING_SIZE}
-            progress={level.fraction}
+            progress={displayLevel.fraction}
             strokeWidth={5}
             trackColor={hexToRgba(colors.accent, 0.2)}
             fillColor={colors.accent}
@@ -358,7 +390,7 @@ export default function PlayerHub({
             </View>
           </HubProgressRing>
           <View style={styles.levelBadge}>
-            <Text style={styles.levelBadgeText}>{level.level}</Text>
+            <Text style={styles.levelBadgeText}>{displayLevel.level}</Text>
           </View>
         </Animated.View>
 
@@ -405,16 +437,20 @@ export default function PlayerHub({
               {playerTitle ?? displayedTitle}
             </Text>
           ) : null}
-          <Text style={styles.identityMeta}>Level {level.level}</Text>
-          <Text style={styles.careerXp}>
-            {(stats?.xp ?? 0).toLocaleString()} XP
-          </Text>
+          <Text style={styles.identityMeta}>Level {displayLevel.level}</Text>
+          <Animated.Text
+            style={[
+              styles.careerXp,
+              { transform: [{ scale: xpPulse }] },
+            ]}
+          >
+            {displayXp.toLocaleString()} XP
+          </Animated.Text>
           <ProgressMeter
-            progress={level.fraction}
+            progress={displayLevel.fraction}
             label="To next level"
-            valueLabel={`${level.xpIntoLevel} / ${level.xpForLevel}`}
+            valueLabel={`${displayLevel.xpIntoLevel} / ${displayLevel.xpForLevel}`}
             style={{ marginTop: 8 }}
-            animated
             prestige
           />
         </View>
@@ -444,30 +480,22 @@ export default function PlayerHub({
           Tap to claim your free XP for today.
         </Text>
         <Text style={styles.rewardLine}>
-          {loginClaiming
-            ? "Claiming…"
-            : `Tap to claim · +${DAILY_LOGIN_XP} XP`}
+          {`Tap to claim · +${DAILY_LOGIN_XP} XP`}
         </Text>
       </BlurPanel>
     ) : null;
 
   const dailyLoginPanel =
     loginCard == null ? null : (
-      <TouchableOpacity
-        activeOpacity={0.85}
-        disabled={loginClaiming}
-        onPress={() => {
-          void claimLoginReward();
-        }}
-        accessibilityRole="button"
-        accessibilityState={{
-          disabled: loginClaiming,
-          busy: loginClaiming,
+      <RewardClaimBurst
+        onClaim={claimLoginReward}
+        onBurstComplete={(grantedXp) => {
+          void onLoginBurstComplete(grantedXp);
         }}
         accessibilityLabel={`Claim daily login bonus, ${DAILY_LOGIN_XP} XP`}
       >
         {loginCard}
-      </TouchableOpacity>
+      </RewardClaimBurst>
     );
 
   const dailyCard =
@@ -503,9 +531,7 @@ export default function PlayerHub({
         />
         {dailyDone ? (
           <Text style={styles.rewardLine}>
-            {dailyClaiming
-              ? "Claiming…"
-              : `Tap to claim · +${dailyDef.rewardXp} XP`}
+            {`Tap to claim · +${dailyDef.rewardXp} XP`}
           </Text>
         ) : null}
       </BlurPanel>
@@ -513,21 +539,15 @@ export default function PlayerHub({
 
   const dailyChallengePanel =
     dailyCard == null ? null : canClaimDaily && dailyDef ? (
-      <TouchableOpacity
-        activeOpacity={0.85}
-        disabled={dailyClaiming}
-        onPress={() => {
-          void claimDailyReward();
-        }}
-        accessibilityRole="button"
-        accessibilityState={{
-          disabled: dailyClaiming,
-          busy: dailyClaiming,
+      <RewardClaimBurst
+        onClaim={claimDailyReward}
+        onBurstComplete={(grantedXp) => {
+          void onDailyBurstComplete(grantedXp);
         }}
         accessibilityLabel={`Claim daily challenge reward, ${dailyDef.rewardXp} XP`}
       >
         {dailyCard}
-      </TouchableOpacity>
+      </RewardClaimBurst>
     ) : (
       dailyCard
     );

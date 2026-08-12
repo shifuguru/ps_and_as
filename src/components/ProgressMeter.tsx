@@ -26,6 +26,8 @@ type Props = {
   fillColor?: string;
   /** Animate fill width when progress changes (level-up hook ready). */
   animated?: boolean;
+  /** Milliseconds for fill animation when `animated` is true. */
+  animationDuration?: number;
   /** Slightly richer chrome for identity XP bar. */
   prestige?: boolean;
 };
@@ -38,6 +40,7 @@ export default function ProgressMeter({
   style,
   fillColor,
   animated = false,
+  animationDuration = 520,
   prestige = false,
 }: Props) {
   const { colors } = useAppTheme();
@@ -57,10 +60,10 @@ export default function ProgressMeter({
     }
     Animated.timing(anim, {
       toValue: clamped,
-      duration: 520,
+      duration: animationDuration,
       useNativeDriver: false,
     }).start();
-  }, [anim, animated, clamped]);
+  }, [anim, animated, animationDuration, clamped]);
 
   const widthInterp = anim.interpolate({
     inputRange: [0, 1],
