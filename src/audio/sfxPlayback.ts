@@ -14,10 +14,16 @@ export function resolveEffectVolume(effect: GameSfxId | string): number {
       return 0.72;
     case "card_select":
       return 0.45;
+    case "card_play":
+    case "card_play_multi":
+      return 0.68;
     case "card_land":
       return 0.48;
     case "pass":
       return 0.5;
+    case "click":
+    case "chips":
+      return 0.7;
     default:
       return 0.6;
   }
@@ -72,4 +78,32 @@ export function collectNewPassKeys(
     newKeys.push(key);
   }
   return { newKeys, nextHeard };
+}
+
+/**
+ * Turn-start cue policy: fire once per authoritative turn ownership period,
+ * and only when the turn is presentable (flights / holds cleared).
+ *
+ * Using presentable alone double-fires when presentation briefly gates off
+ * mid-ownership (opponent play → you briefly writable → flight hold → writable).
+ */
+export type TurnStartCueState = {
+  firedForAuthorityTurn: boolean;
+};
+
+export function nextTurnStartCue(
+  prev: TurnStartCueState,
+  opts: {
+    enabled: boolean;
+    authority: boolean;
+    presentable: boolean;
+  },
+): { state: TurnStartCueState; fire: boolean } {
+  if (!opts.enabled || !opts.authority) {
+    return { state: { firedForAuthorityTurn: false }, fire: false };
+  }
+  if (opts.presentable && !prev.firedForAuthorityTurn) {
+    return { state: { firedForAuthorityTurn: true }, fire: true };
+  }
+  return { state: prev, fire: false };
 }

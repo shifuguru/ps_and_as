@@ -17,7 +17,8 @@ assert.strictEqual(SFX_POOL_SIZE >= 2, true, "pool must allow overlap");
 assert.strictEqual(resolveEffectVolume("turn_start"), 0.72);
 assert.strictEqual(resolveEffectVolume("card_select"), 0.45);
 assert.strictEqual(resolveEffectVolume("pass"), 0.5);
-assert.strictEqual(resolveEffectVolume("card_play"), 0.6);
+assert.strictEqual(resolveEffectVolume("card_play"), 0.68);
+assert.strictEqual(resolveEffectVolume("click"), 0.7);
 
 {
   const playing = [false, false, false];
@@ -87,5 +88,40 @@ assert.strictEqual(
 
 assert.strictEqual(playCardsSfxId(1), "card_play");
 assert.strictEqual(playCardsSfxId(3), "card_play_multi");
+
+import {
+  nextTurnStartCue,
+  type TurnStartCueState,
+} from "../src/audio/sfxPlayback";
+
+{
+  let state: TurnStartCueState = { firedForAuthorityTurn: false };
+  let step = nextTurnStartCue(state, {
+    enabled: true,
+    authority: true,
+    presentable: false,
+  });
+  assert.strictEqual(step.fire, false);
+  state = step.state;
+  step = nextTurnStartCue(state, {
+    enabled: true,
+    authority: true,
+    presentable: true,
+  });
+  assert.strictEqual(step.fire, true);
+  state = step.state;
+  step = nextTurnStartCue(state, {
+    enabled: true,
+    authority: true,
+    presentable: false,
+  });
+  state = step.state;
+  step = nextTurnStartCue(state, {
+    enabled: true,
+    authority: true,
+    presentable: true,
+  });
+  assert.strictEqual(step.fire, false, "presentation flicker must not re-fire");
+}
 
 console.log("test-sfx-playback: ok");

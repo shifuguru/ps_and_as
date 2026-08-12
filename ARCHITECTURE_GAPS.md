@@ -524,10 +524,10 @@ Table feels muted after passing; when audio does play it lags the animation.
 
 **Priority:** P2 (player-visible audio)
 
-**Status:** Resolved — pooled/reused SFX + resume-before-play; pass cues from trick actions (all seats)
+**Status:** Resolved — pooled/reused SFX + resume-before-play; pass cues from trick actions (all seats); sync play fast-path; card_play before flight measure; turn_start once per authority period
 
 **Notes:**  
-Fix: preload/reuse a small sound pool, resume audio subsystem before play, fire pass SFX from trick action observation (all seats). Regression: `npm run test-sfx-playback`.
+Fix: preload/reuse a small sound pool, resume audio subsystem before play, fire pass SFX from trick action observation (all seats). Follow-ups: sync pool playback (click latency), early flight throw cue (not after measure), turn-start gated on authority+presentable to stop double chime. Regression: `npm run test-sfx-playback`, `npm run test-turn-start-cue`.
 
 ---
 

@@ -109,31 +109,33 @@ writeWav(
   mix(paperNoise(0.04, 0.28, 0.01), thud(0.05, 0.1, 140)),
 );
 
-// Single card throw / travel toward the pile
+// Single card throw / travel toward the pile — hard attack so it reads at throw,
+// not as a late whoosh that gets mistaken for card_land.
 writeWav(
   "card_play.wav",
   mix(
-    flutterWhoosh(0.14, 0.22),
-    paperNoise(0.08, 0.18, 0.022),
-    thud(0.09, 0.14, 110),
+    paperNoise(0.035, 0.32, 0.01),
+    thud(0.06, 0.2, 125),
+    flutterWhoosh(0.12, 0.16),
   ),
 );
 
-// Multiple cards together — staggered flutters
+// Multiple cards together — staggered flutters with an immediate attack
 writeWav(
   "card_play_multi.wav",
   mix(
-    flutterWhoosh(0.16, 0.2),
+    paperNoise(0.04, 0.28, 0.012),
+    thud(0.07, 0.18, 115),
+    flutterWhoosh(0.14, 0.16),
     (() => {
-      const a = paperNoise(0.07, 0.16, 0.018);
-      const b = paperNoise(0.07, 0.14, 0.02);
-      const out = new Float32Array(Math.floor(SAMPLE_RATE * 0.2));
-      const delay = Math.floor(SAMPLE_RATE * 0.04);
+      const a = paperNoise(0.06, 0.14, 0.016);
+      const b = paperNoise(0.06, 0.12, 0.018);
+      const out = new Float32Array(Math.floor(SAMPLE_RATE * 0.18));
+      const delay = Math.floor(SAMPLE_RATE * 0.035);
       for (let i = 0; i < a.length; i += 1) out[i] += a[i];
       for (let i = 0; i < b.length; i += 1) out[i + delay] += b[i];
       return out;
     })(),
-    thud(0.12, 0.16, 100),
   ),
 );
 

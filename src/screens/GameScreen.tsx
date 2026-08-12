@@ -4337,6 +4337,9 @@ function GameScreenBoard() {
   }, []);
   const handlePlayFlightStarted = useCallback(
     (playKey: string) => {
+      // Idempotent: GamePlayArea may notify before measure and again when the
+      // flight actually starts — only one throw cue per playKey.
+      if (flightPlaySfxStartedRef.current.has(playKey)) return;
       const startedAt = notePlayFlightStarted(playKey);
       logTurnRingVerifyEvent("FLIGHT_STARTED", {
         currentPlayerIndex: state.currentPlayerIndex,
@@ -4740,7 +4743,10 @@ function GameScreenBoard() {
   const actingPlayerId =
     isHumanTurn && myPlayerId ? myPlayerId : displayTurnPlayer.id;
 
+  // Authority owns the turn; presentable waits out flights/holds so the cue
+  // does not fire twice (once as the prior play resolves, again when unlocked).
   useTurnStartCue(
+    isHumanTurnServer && !roundOver && !gameplayLocked && !readOnlyGame,
     isHumanTurn && !roundOver && !gameplayLocked && !readOnlyGame,
     () => {
       void onPlaySound?.("turn_start");

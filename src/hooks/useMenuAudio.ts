@@ -231,70 +231,96 @@ export function useMenuAudio() {
     [],
   );
 
+  const playPooledEntry = useCallback(
+    (effect: string, entry: PoolEntry) => {
+      const volume = resolveEffectVolume(effect);
+      entry.playing = true;
+      // Fire-and-forget: awaiting setStatusAsync added tap→sound latency.
+      void entry.sound
+        .setStatusAsync({
+          positionMillis: 0,
+          shouldPlay: true,
+          volume,
+        })
+        .catch(() => {
+          entry.playing = false;
+        });
+    },
+    [],
+  );
+
+  const tryPlayFromPool = useCallback(
+    (effect: string): boolean => {
+      const pool = poolsRef.current.get(effect);
+      if (!pool || pool.length === 0) return false;
+      const playingFlags = pool.map((e) => e.playing);
+      const cursor = poolCursorRef.current.get(effect) ?? 0;
+      const { slot, nextIndex } = pickPoolSlot(playingFlags, cursor);
+      poolCursorRef.current.set(effect, nextIndex);
+      const entry = pool[slot];
+      if (!entry) return false;
+      playPooledEntry(effect, entry);
+      return true;
+    },
+    [playPooledEntry],
+  );
+
   const unlockAudio = useCallback(async () => {
     const AudioModule = await ensureAudioModule();
     if (!AudioModule) return;
     unlockedRef.current = true;
-    await resumeAudioSubsystem(AudioModule);
+    void resumeAudioSubsystem(AudioModule);
     // Warm common cues during the unlock gesture so later idle plays reuse
     // already-unlocked media elements (browser autoplay).
     void ensurePool(AudioModule, "click");
     void ensurePool(AudioModule, "card_select");
     void ensurePool(AudioModule, "card_play");
+    void ensurePool(AudioModule, "card_play_multi");
     void ensurePool(AudioModule, "card_land");
     void ensurePool(AudioModule, "pass");
     void ensurePool(AudioModule, "pile_clear");
     void ensurePool(AudioModule, "turn_start");
+    void ensurePool(AudioModule, "card_deal");
   }, [ensureAudioModule, ensurePool]);
 
   const playEffect = useCallback(
-    async (effect: GameSfxId | string) => {
+    (effect: GameSfxId | string) => {
       if (isAdsAudioSuppressed()) return;
       if (mutedRef.current) return;
 
-      const AudioModule = await ensureAudioModule();
-      if (!AudioModule) return;
-
-      // Always resume — do not treat first unlock as permanent (idle / pass wait).
-      await resumeAudioSubsystem(AudioModule);
-      if (!unlockedRef.current) {
-        unlockedRef.current = true;
-        // Warm common cues during / right after the first gesture so later idle
-        // plays reuse already-unlocked media elements (browser autoplay).
-        void ensurePool(AudioModule, "click");
-        void ensurePool(AudioModule, "card_select");
-        void ensurePool(AudioModule, "card_play");
-        void ensurePool(AudioModule, "card_play_multi");
-        void ensurePool(AudioModule, "card_land");
-        void ensurePool(AudioModule, "pass");
-        void ensurePool(AudioModule, "pile_clear");
-        void ensurePool(AudioModule, "turn_start");
-        void ensurePool(AudioModule, "card_deal");
+      // Fast path: pool already warm — start playback without awaiting resume /
+      // createAsync (those waits made menu clicks and throws feel late).
+      if (tryPlayFromPool(effect)) {
+        const AudioModule = audioModuleRef.current;
+        if (AudioModule) void resumeAudioSubsystem(AudioModule);
+        return;
       }
-      unlockedRef.current = true;
 
-      const pool = await ensurePool(AudioModule, effect);
-      if (pool.length === 0) return;
+      void (async () => {
+        const AudioModule = await ensureAudioModule();
+        if (!AudioModule) return;
 
-      const playingFlags = pool.map((e) => e.playing);
-      const cursor = poolCursorRef.current.get(effect) ?? 0;
-      const { slot, nextIndex } = pickPoolSlot(playingFlags, cursor);
-      poolCursorRef.current.set(effect, nextIndex);
+        void resumeAudioSubsystem(AudioModule);
+        if (!unlockedRef.current) {
+          unlockedRef.current = true;
+          void ensurePool(AudioModule, "click");
+          void ensurePool(AudioModule, "card_select");
+          void ensurePool(AudioModule, "card_play");
+          void ensurePool(AudioModule, "card_play_multi");
+          void ensurePool(AudioModule, "card_land");
+          void ensurePool(AudioModule, "pass");
+          void ensurePool(AudioModule, "pile_clear");
+          void ensurePool(AudioModule, "turn_start");
+          void ensurePool(AudioModule, "card_deal");
+        }
+        unlockedRef.current = true;
 
-      const entry = pool[slot];
-      if (!entry) return;
+        const pool = await ensurePool(AudioModule, effect);
+        if (pool.length === 0) return;
+        // Prefer sync pool play once loaded; avoid a second await on status.
+        if (tryPlayFromPool(effect)) return;
 
-      const volume = resolveEffectVolume(effect);
-      try {
-        entry.playing = true;
-        await entry.sound.setStatusAsync({
-          positionMillis: 0,
-          shouldPlay: true,
-          volume,
-        });
-      } catch (e) {
-        entry.playing = false;
-        // Fallback: one-shot create if a pooled instance is in a bad state.
+        const volume = resolveEffectVolume(effect);
         try {
           const source = resolveEffectSource(effect);
           if (!source) return;
@@ -309,12 +335,12 @@ export function useMenuAudio() {
           });
         } catch (err) {
           if (typeof __DEV__ !== "undefined" && __DEV__) {
-            console.warn("playEffect failed", effect, err ?? e);
+            console.warn("playEffect failed", effect, err);
           }
         }
-      }
+      })();
     },
-    [ensureAudioModule, ensurePool],
+    [ensureAudioModule, ensurePool, tryPlayFromPool],
   );
 
   const toggleMute = useCallback(async () => {
