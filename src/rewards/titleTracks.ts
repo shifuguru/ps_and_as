@@ -74,7 +74,7 @@ const UNLUCKY_TIERS: TitleTrackTier[] = [
 export const TITLE_TRACKS: TitleTrackDef[] = [
   {
     id: "lucky",
-    trackName: "Luck",
+    trackName: "Lucky",
     description: "Gained by winning games, and receiving Jokers.",
     kind: "points",
     tiers: LUCKY_TIERS,
@@ -200,7 +200,13 @@ export function titleTrackProgress(
 }
 
 export function listTitleTrackProgress(stats: PlayerStats): TitleTrackProgress[] {
-  return TITLE_TRACKS.map((track) => titleTrackProgress(stats, track));
+  return TITLE_TRACKS.map((track) => titleTrackProgress(stats, track)).sort(
+    (a, b) => {
+      if (b.tier !== a.tier) return b.tier - a.tier;
+      if (b.fraction !== a.fraction) return b.fraction - a.fraction;
+      return a.track.trackName.localeCompare(b.track.trackName);
+    },
+  );
 }
 
 export function unlockedTitleTracks(stats: PlayerStats): TitleTrackProgress[] {
