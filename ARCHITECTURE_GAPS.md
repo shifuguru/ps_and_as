@@ -524,10 +524,10 @@ Table feels muted after passing; when audio does play it lags the animation.
 
 **Priority:** P2 (player-visible audio)
 
-**Status:** Open
+**Status:** Resolved — pooled/reused SFX + resume-before-play; pass cues from trick actions (all seats)
 
 **Notes:**  
-Fix: preload/reuse a small sound pool, resume audio subsystem before play, fire pass SFX from trick action observation (all seats).
+Fix: preload/reuse a small sound pool, resume audio subsystem before play, fire pass SFX from trick action observation (all seats). Regression: `npm run test-sfx-playback`.
 
 ---
 
