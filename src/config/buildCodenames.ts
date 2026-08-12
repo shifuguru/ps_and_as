@@ -140,6 +140,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.74": "Trick Question",
   "1.1.75": "Wild Draw Four Energy",
   "1.1.76": "Bottom Deck Energy",
+  "1.1.77": "Grand Slam Gamble",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
