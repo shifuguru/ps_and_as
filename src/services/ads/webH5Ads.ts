@@ -8,6 +8,11 @@
  */
 
 import { Platform } from "react-native";
+import { isAdsTestModeEnv } from "./adsConfig";
+import {
+  isAdsPlaceholderMode,
+  showWebAdPlaceholder,
+} from "./adsPlaceholderWeb";
 import { canLoadPersonalizedAds } from "./adsConsent";
 import { releaseAdsAudio, suppressAdsAudio } from "./adsAudioBridge";
 
@@ -60,8 +65,7 @@ function getAdsClientId(): string | null {
 }
 
 function isAdsTestMode(): boolean {
-  const flag = process.env.EXPO_PUBLIC_ADS_TEST?.trim();
-  return flag === "1" || flag === "true";
+  return isAdsTestModeEnv();
 }
 
 /**
@@ -129,12 +133,25 @@ async function simulateBreak(
   name: string,
 ): Promise<AdBreakResult> {
   suppressAdsAudio();
-  await new Promise((r) => setTimeout(r, type === "reward" ? 900 : 600));
+  let viewed = false;
+  if (isAdsPlaceholderMode()) {
+    viewed = await showWebAdPlaceholder(type);
+  } else {
+    await new Promise((r) => setTimeout(r, type === "reward" ? 900 : 600));
+    viewed = true;
+  }
   releaseAdsAudio();
   if (typeof console !== "undefined" && console.info) {
-    console.info(`[ads] simulated ${type} break: ${name}`);
+    console.info(`[ads] simulated ${type} break: ${name}`, { viewed });
   }
-  return { shown: true, breakStatus: "simulated", simulated: true };
+  if (!viewed) {
+    return { shown: false, breakStatus: "dismissed", simulated: true };
+  }
+  return {
+    shown: true,
+    breakStatus: type === "reward" ? "rewarded" : "simulated",
+    simulated: true,
+  };
 }
 
 async function runAdBreak(
@@ -238,7 +255,7 @@ export async function showH5AdBreak(
   }
 
   const client = getAdsClientId();
-  if (!client || isAdsTestMode()) {
+  if (!client || isAdsTestMode() || isAdsPlaceholderMode()) {
     return simulateBreak(type, name);
   }
 
@@ -285,4 +302,4 @@ export function getH5AdsDiagnostics(): {
   };
 }
 
-export { getAdsClientId, isAdsTestMode };
+export { getAdsClientId, isAdsTestMode, isAdsPlaceholderMode };

@@ -18,6 +18,18 @@ export const REMOVE_ADS_PRICE_NZD = 19;
 /** Stripe Price id env is server-side; client only needs the label. */
 export const REMOVE_ADS_PRODUCT_LABEL = "Remove forced ads";
 
+/** Build-time: force simulated / placeholder ads (no live AdSense calls). */
+export function isAdsTestModeEnv(): boolean {
+  const flag = process.env.EXPO_PUBLIC_ADS_TEST?.trim();
+  return flag === "1" || flag === "true";
+}
+
+/** Build-time: visible placeholder UI instead of live AdSense (pre-approval QA). */
+export function isAdsPlaceholderEnv(): boolean {
+  const flag = process.env.EXPO_PUBLIC_ADS_PLACEHOLDER?.trim();
+  return flag === "1" || flag === "true";
+}
+
 export function utcDayKey(d = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
