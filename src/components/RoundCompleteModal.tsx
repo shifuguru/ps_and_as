@@ -496,16 +496,19 @@ export default function RoundCompleteModal({
       ? "Not Ready"
       : "Next Round";
 
+  // Keep footer chrome (ready / ad / actions) fully visible inside BlurPanel's
+  // overflow:hidden maxHeight by shrinking the rankings scroll, not the buttons.
   const cardChromeHeight =
     40 + // modalCard vertical padding
-    44 + // title + subtitle
-    36 + // ready count + margin
-    58; // footer actions + margin
+    52 + // title + subtitle
+    28 + // ready count + margin
+    52; // footer actions
   let optionalFooterHeight = 0;
   if (botsAutoReady && botDealSecondsLeft != null) optionalFooterHeight += 32;
   if (canClaimSeat) optionalFooterHeight += 40;
   if (rewardedAdAvailable && onWatchRewardedAd && !spectatorMode) {
-    optionalFooterHeight += rewardedAdError ? 68 : 52;
+    // Button 48 + margins; error up to 3×17 lineHeight + marginBottom.
+    optionalFooterHeight += rewardedAdError ? 120 : 52;
   }
   const rankingsMaxHeight = Math.max(
     120,
@@ -592,83 +595,89 @@ export default function RoundCompleteModal({
               })}
             </ScrollView>
 
-            <Text style={styles.readyCount}>
-              {readyCount}/{readyDenominator}{" "}
-              {botsAutoReady && canClaimSeat
-                ? "ready to claim seat"
-                : canClaimSeat
-                  ? "ready (including dead hand seat)"
-                  : "ready"}
-            </Text>
-
-            {botsAutoReady && botDealSecondsLeft != null ? (
-              <Text style={styles.botDealTimer}>
-                {botDealSecondsLeft > 0
-                  ? `Next deal in ${botDealSecondsLeft}s`
-                  : "Starting next deal…"}
+            <View style={styles.footerChrome}>
+              <Text style={styles.readyCount}>
+                {readyCount}/{readyDenominator}{" "}
+                {botsAutoReady && canClaimSeat
+                  ? "ready to claim seat"
+                  : canClaimSeat
+                    ? "ready (including dead hand seat)"
+                    : "ready"}
               </Text>
-            ) : null}
 
-            {canClaimSeat ? (
-              <Text style={styles.spectatorHint}>
-                {botsAutoReady
-                  ? "Bots are ready. Tap below to take the dead hand\u2019s seat."
-                  : "Tap below to take the dead hand\u2019s seat next round."}
-              </Text>
-            ) : null}
+              {botsAutoReady && botDealSecondsLeft != null ? (
+                <Text style={styles.botDealTimer}>
+                  {botDealSecondsLeft > 0
+                    ? `Next deal in ${botDealSecondsLeft}s`
+                    : "Starting next deal…"}
+                </Text>
+              ) : null}
 
-            {rewardedAdAvailable && onWatchRewardedAd && !spectatorMode ? (
-              <>
+              {canClaimSeat ? (
+                <Text style={styles.spectatorHint}>
+                  {botsAutoReady
+                    ? "Bots are ready. Tap below to take the dead hand\u2019s seat."
+                    : "Tap below to take the dead hand\u2019s seat next round."}
+                </Text>
+              ) : null}
+
+              {rewardedAdAvailable && onWatchRewardedAd && !spectatorMode ? (
+                <View style={styles.adBlock}>
+                  <AppButton
+                    label={
+                      rewardedAdBusy
+                        ? "Loading ad…"
+                        : `Watch ad · +${rewardedAdXp} XP`
+                    }
+                    variant="secondary"
+                    disabled={rewardedAdBusy || rewardedAdRemaining <= 0}
+                    onPress={() => {
+                      triggerHaptic("light");
+                      onWatchRewardedAd();
+                    }}
+                    accessibilityLabel={`Watch an ad for ${rewardedAdXp} XP`}
+                    style={{
+                      marginBottom: rewardedAdError ? 6 : 10,
+                    }}
+                  />
+                  {rewardedAdError ? (
+                    <Text style={styles.adError} numberOfLines={3}>
+                      {rewardedAdError}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
+              <View style={styles.footerActions}>
                 <AppButton
-                  label={
-                    rewardedAdBusy
-                      ? "Loading ad…"
-                      : `Watch ad · +${rewardedAdXp} XP`
-                  }
-                  variant="secondary"
-                  disabled={rewardedAdBusy || rewardedAdRemaining <= 0}
+                  label="Quit Game"
+                  variant="destructive"
+                  style={{ flex: 1 }}
                   onPress={() => {
                     triggerHaptic("light");
-                    onWatchRewardedAd();
+                    onQuit();
                   }}
-                  accessibilityLabel={`Watch an ad for ${rewardedAdXp} XP`}
-                  style={{ marginBottom: rewardedAdError ? 6 : 10 }}
+                  accessibilityLabel="Quit Game"
                 />
-                {rewardedAdError ? (
-                  <Text style={styles.spectatorHint}>{rewardedAdError}</Text>
-                ) : null}
-              </>
-            ) : null}
-
-            <View style={styles.footerActions}>
-              <AppButton
-                label="Quit Game"
-                variant="destructive"
-                style={{ flex: 1 }}
-                onPress={() => {
-                  triggerHaptic("light");
-                  onQuit();
-                }}
-                accessibilityLabel="Quit Game"
-              />
-              <AppButton
-                label={nextRoundLabel}
-                variant="primary"
-                style={{ flex: 1.45 }}
-                onPress={() => {
-                  triggerHaptic("medium");
-                  onToggleReady();
-                }}
-                accessibilityLabel={
-                  canClaimSeat
-                    ? isReady
-                      ? "Give up dead hand seat"
-                      : "Take dead hand seat next round"
-                    : isReady
-                      ? "Mark Unready For Next Round"
-                      : "Ready For Next Round"
-                }
-              />
+                <AppButton
+                  label={nextRoundLabel}
+                  variant="primary"
+                  style={{ flex: 1.45 }}
+                  onPress={() => {
+                    triggerHaptic("medium");
+                    onToggleReady();
+                  }}
+                  accessibilityLabel={
+                    canClaimSeat
+                      ? isReady
+                        ? "Give up dead hand seat"
+                        : "Take dead hand seat next round"
+                      : isReady
+                        ? "Mark Unready For Next Round"
+                        : "Ready For Next Round"
+                  }
+                />
+              </View>
             </View>
           </BlurPanel>
         </Animated.View>
@@ -904,12 +913,29 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginBottom: 12,
       paddingHorizontal: 4,
     },
+    footerChrome: {
+      width: "100%",
+      flexShrink: 0,
+    },
+    adBlock: {
+      width: "100%",
+      flexShrink: 0,
+    },
+    adError: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 17,
+      textAlign: "center",
+      marginBottom: 12,
+      paddingHorizontal: 4,
+    },
     footerActions: {
       flexDirection: "row",
       alignItems: "stretch",
       gap: 10,
       width: "100%",
       minHeight: 48,
+      flexShrink: 0,
     },
   });
 }
