@@ -2324,6 +2324,97 @@ console.log("Dead hand post-trade opening tests passed");
 
 console.log("CPU round-1 opening tests passed");
 
+// --- CPU trick-opening multiples (doubles / triples / quads) ---
+
+{
+  const hand: Card[] = [
+    { suit: "hearts", value: 7 },
+    { suit: "diamonds", value: 7 },
+    { suit: "clubs", value: 9 },
+  ];
+  const play = findCPUPlay(
+    hand,
+    [],
+    undefined,
+    [],
+    undefined,
+    { trickNumber: 2, actions: [] },
+    [{ id: "cpu-1", name: "B", hand, role: "Neutral" }],
+    [],
+    [{ trickNumber: 1, actions: [], winnerId: "cpu-1" }],
+    ["a", "b"],
+    "cpu-1",
+    false,
+  );
+  assert.strictEqual(
+    play?.length,
+    2,
+    "CPU should open a trick with double 7s when held",
+  );
+}
+
+{
+  const hand: Card[] = [
+    { suit: "clubs", value: 3 },
+    { suit: "diamonds", value: 3 },
+    { suit: "hearts", value: 3 },
+    { suit: "spades", value: 5 },
+  ];
+  const play = findCPUPlay(
+    hand,
+    [],
+    undefined,
+    [],
+    undefined,
+    { trickNumber: 1, actions: [] },
+    [{ id: "cpu-1", name: "B", hand, role: "Neutral" }],
+    [],
+    [],
+    undefined,
+    "cpu-1",
+    false,
+  );
+  assert.ok(
+    play && play.length === 3 && play.every((c) => c.value === 3),
+    "CPU should open round 1 with triple 3s when all three are held",
+  );
+  assert.ok(
+    play.some((c) => c.suit === "clubs"),
+    "Triple 3s opening must still include living 3♣",
+  );
+}
+
+{
+  const hand: Card[] = [
+    { suit: "hearts", value: 8 },
+    { suit: "diamonds", value: 8 },
+    { suit: "clubs", value: 8 },
+    { suit: "spades", value: 8 },
+    { suit: "clubs", value: 11 },
+  ];
+  const play = findCPUPlay(
+    hand,
+    [],
+    undefined,
+    [],
+    undefined,
+    { trickNumber: 2, actions: [] },
+    [{ id: "cpu-1", name: "B", hand, role: "Neutral" }],
+    [],
+    [{ trickNumber: 1, actions: [], winnerId: "cpu-1" }],
+    ["a", "b"],
+    "cpu-1",
+    false,
+  );
+  assert.strictEqual(
+    play?.length,
+    4,
+    "CPU should open a trick with quad 8s when held",
+  );
+}
+
+console.log("CPU trick-opening multiples tests passed");
+
 // --- Server role-trade sync helpers ---
 {
   assert.strictEqual(

@@ -2196,7 +2196,20 @@ function rankGroupPlayCombinations(cards: Card[]): Card[][] {
   return out;
 }
 
-/** Empty-pile lead candidates — all 1..4 card combos per rank (lowest rank first). */
+/**
+ * Trick-opening leads: prefer largest same-rank set (quads → singles) so CPUs
+ * can open with doubles/triples/quads like human players.
+ */
+function rankGroupLeadCombinations(cards: Card[]): Card[][] {
+  const limit = Math.min(4, cards.length);
+  const out: Card[][] = [];
+  for (let take = limit; take >= 1; take--) {
+    out.push(...combinationsOfSize(cards, take));
+  }
+  return out;
+}
+
+/** Empty-pile lead candidates — largest combo per rank first, lowest rank first. */
 function emptyPilePlayCandidates(
   hand: Card[],
   grouped: Record<number, Card[]>,
@@ -2206,7 +2219,7 @@ function emptyPilePlayCandidates(
     .map(Number)
     .sort((a, b) => rankIndex(a) - rankIndex(b));
   for (const v of values) {
-    candidates.push(...rankGroupPlayCombinations(grouped[v]));
+    candidates.push(...rankGroupLeadCombinations(grouped[v]));
   }
   return candidates;
 }
