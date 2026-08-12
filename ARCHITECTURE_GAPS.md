@@ -397,6 +397,31 @@ Fix: never grant On Top when `completedAcrossTurns`; clear challenge markers on 
 
 ---
 
+## On Top closing play cleared too quickly
+
+**Category:** Gameplay / Presentation
+
+**Intended behaviour:**  
+When a player takes On Top, the closing card lands on the table and stays readable long enough for everyone to see it before the trick-pause collect / table clear (`GAME_ARCHITECTURE.md` §3 — On Top is the final play of the current trick; trick pause shows the winning play).
+
+**Current behaviour:**  
+On Top finalizes the trick in the same state update as the play. Trick-pause only adds `PLAY_CARD_FLIGHT_MS` (~360 ms) on top of the short spread hold (~380 ms). Async flight setup (measure) eats into that buffer, so stack collect often starts as the card lands — or before it has sat face-up — and nobody really sees the On Top play.
+
+**Impact:**  
+Player-visible: On Top feels invisible; the table clears before the winning extra play can be read.
+
+**Files likely involved:**  
+`src/screens/GameScreen.tsx` (trick-pause timers, `trickPauseExtraHoldMsRef`, closed-by-play hold), `src/components/GamePlayArea.tsx` (closing-play flight during `skipPlayFlights`), `src/utils/playAnimationTiming.ts`
+
+**Priority:** P2
+
+**Status:** Resolved — closing-play trick pause uses arrive slack + post-land dwell before collect
+
+**Notes:**  
+Pass-out wins keep the short spread hold. Closing-by-play (On Top) now holds `TRICK_CLOSING_PLAY_ARRIVE_MS` + `TRICK_CLOSING_PLAY_DWELL_MS` before stack collect (`src/screens/GameScreen.tsx`).
+
+---
+
 ## Turn Ownership Invariant
 
 **Category:** Gameplay / Core Rules

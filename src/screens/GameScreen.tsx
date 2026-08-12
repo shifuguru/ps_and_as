@@ -245,6 +245,19 @@ const ROUND_TRANSITION_PAUSE_MS = 175;
 const ROUND_TRANSITION_CLEAR_MS = 320;
 const TRADE_RETURN_FLIGHT_MS = 520;
 const TRADE_RETURN_HOLD_MS = 650;
+/**
+ * Trick-pause pacing (ms).
+ * Pass-out wins already show the pile — short spread hold is enough.
+ * Closing plays (On Top) finalize in the same tick as the card appears, so they
+ * need flight/measure slack plus a longer post-land dwell before collect.
+ */
+const TRICK_SPREAD_HOLD_MS = 380;
+const TRICK_STACK_COLLECT_MS = 520;
+const TRICK_WINNER_SHOW_MS = 800;
+/** Async seat measure + card flight before a closing play can sit on the pile. */
+const TRICK_CLOSING_PLAY_ARRIVE_MS = PLAY_CARD_FLIGHT_MS + 220;
+/** Keep the landed On Top / closing play readable before stack collect. */
+const TRICK_CLOSING_PLAY_DWELL_MS = 1100;
 /** Stable empty plays — avoid new `[]` each render during round-end table clear. */
 const EMPTY_TRICK_PLAYS: TrickPlayDisplay[] = [];
 
@@ -802,8 +815,11 @@ function GameScreen({
   const clearHandPlayFlightRef = useRef<(() => void) | null>(null);
   /** Board mirrors handPlayInFlight.playKey so trick-pause can keep On Top capture. */
   const handPlayInFlightKeyRef = useRef<string | null>(null);
-  /** Extra ms before stack collect when a closing hand flight still needs to land. */
-  const trickPauseExtraHoldMsRef = useRef(0);
+  /**
+   * Full spread-hold ms before stack collect for the active trick pause.
+   * Closing plays (On Top) replace the short pass-out hold with arrive + dwell.
+   */
+  const trickPauseSpreadHoldMsRef = useRef(TRICK_SPREAD_HOLD_MS);
   const startNextRoundRef = useRef<(seed?: number) => void>(() => {});
   const finalizeCeremonyRoundRef = useRef<
     (
@@ -1876,9 +1892,6 @@ function GameScreen({
 
   // UX pacing: centralized CPU turn delay for a more relaxed feel
   const CPU_DELAY_MS = 1100;
-  const TRICK_SPREAD_HOLD_MS = 380;
-  const TRICK_STACK_COLLECT_MS = 520;
-  const TRICK_WINNER_SHOW_MS = 800;
 
   function snapshotState(s: GameState | null) {
     if (!s) return null;
@@ -2037,11 +2050,13 @@ function GameScreen({
     const keepClosingHandFlight =
       !!pendingKey &&
       pausePlays.some((p) => playDisplayKey(p) === pendingKey);
-    // Instant close on a play (On Top) needs flight time; pass-outs already landed.
+    // Instant close on a play (On Top) needs arrive slack + dwell; pass-outs already landed.
     const closedByPlay =
       last.actions[last.actions.length - 1]?.type === "play";
-    trickPauseExtraHoldMsRef.current =
-      keepClosingHandFlight || closedByPlay ? PLAY_CARD_FLIGHT_MS : 0;
+    trickPauseSpreadHoldMsRef.current =
+      keepClosingHandFlight || closedByPlay
+        ? TRICK_CLOSING_PLAY_ARRIVE_MS + TRICK_CLOSING_PLAY_DWELL_MS
+        : TRICK_SPREAD_HOLD_MS;
     if (!keepClosingHandFlight) {
       clearHandPlayFlightRef.current?.();
     }
@@ -2064,7 +2079,7 @@ function GameScreen({
       clearTimeout(trickCollectTimerRef.current);
     }
 
-    const spreadHoldMs = TRICK_SPREAD_HOLD_MS + trickPauseExtraHoldMsRef.current;
+    const spreadHoldMs = trickPauseSpreadHoldMsRef.current;
     const pauseTotalMs =
       spreadHoldMs + TRICK_STACK_COLLECT_MS + TRICK_WINNER_SHOW_MS;
 
@@ -2084,7 +2099,7 @@ function GameScreen({
       setTrickPauseActive(false);
       setTrickPauseSnapshot(null);
       setLastTrickWinner(null);
-      trickPauseExtraHoldMsRef.current = 0;
+      trickPauseSpreadHoldMsRef.current = TRICK_SPREAD_HOLD_MS;
       trickPauseTimerRef.current = null;
     }, pauseTotalMs);
 
