@@ -2332,24 +2332,50 @@ console.log("CPU round-1 opening tests passed");
     { suit: "diamonds", value: 7 },
     { suit: "clubs", value: 9 },
   ];
-  const play = findCPUPlay(
+  const ctx = {
+    trick: { trickNumber: 2, actions: [] } as const,
+    players: [{ id: "cpu-1", name: "B", hand, role: "Neutral" as const }],
+    trickHistory: [{ trickNumber: 1, actions: [], winnerId: "cpu-1" }],
+  };
+  const single = findCPUPlay(
     hand,
     [],
     undefined,
     [],
     undefined,
-    { trickNumber: 2, actions: [] },
-    [{ id: "cpu-1", name: "B", hand, role: "Neutral" }],
+    ctx.trick,
+    ctx.players,
     [],
-    [{ trickNumber: 1, actions: [], winnerId: "cpu-1" }],
+    ctx.trickHistory,
     ["a", "b"],
     "cpu-1",
     false,
+    () => 0,
   );
   assert.strictEqual(
-    play?.length,
+    single?.length,
+    1,
+    "CPU can open a trick with a single 7",
+  );
+  const pair = findCPUPlay(
+    hand,
+    [],
+    undefined,
+    [],
+    undefined,
+    ctx.trick,
+    ctx.players,
+    [],
+    ctx.trickHistory,
+    ["a", "b"],
+    "cpu-1",
+    false,
+    () => 0.99,
+  );
+  assert.strictEqual(
+    pair?.length,
     2,
-    "CPU should open a trick with double 7s when held",
+    "CPU can open a trick with double 7s when held",
   );
 }
 
@@ -2360,7 +2386,7 @@ console.log("CPU round-1 opening tests passed");
     { suit: "hearts", value: 3 },
     { suit: "spades", value: 5 },
   ];
-  const play = findCPUPlay(
+  const triple = findCPUPlay(
     hand,
     [],
     undefined,
@@ -2373,13 +2399,14 @@ console.log("CPU round-1 opening tests passed");
     undefined,
     "cpu-1",
     false,
+    () => 0.99,
   );
   assert.ok(
-    play && play.length === 3 && play.every((c) => c.value === 3),
-    "CPU should open round 1 with triple 3s when all three are held",
+    triple && triple.length === 3 && triple.every((c) => c.value === 3),
+    "CPU can open round 1 with triple 3s when all three are held",
   );
   assert.ok(
-    play.some((c) => c.suit === "clubs"),
+    triple.some((c) => c.suit === "clubs"),
     "Triple 3s opening must still include living 3♣",
   );
 }
@@ -2392,7 +2419,7 @@ console.log("CPU round-1 opening tests passed");
     { suit: "spades", value: 8 },
     { suit: "clubs", value: 11 },
   ];
-  const play = findCPUPlay(
+  const quad = findCPUPlay(
     hand,
     [],
     undefined,
@@ -2405,12 +2432,40 @@ console.log("CPU round-1 opening tests passed");
     ["a", "b"],
     "cpu-1",
     false,
+    () => 0.99,
   );
   assert.strictEqual(
-    play?.length,
+    quad?.length,
     4,
-    "CPU should open a trick with quad 8s when held",
+    "CPU can open a trick with quad 8s when held",
   );
+}
+
+{
+  const hand: Card[] = [
+    { suit: "hearts", value: 7 },
+    { suit: "diamonds", value: 7 },
+    { suit: "clubs", value: 9 },
+  ];
+  const sizes = new Set<number>();
+  for (let i = 0; i < 80; i++) {
+    const play = findCPUPlay(
+      hand,
+      [],
+      undefined,
+      [],
+      undefined,
+      { trickNumber: 2, actions: [] },
+      [{ id: "cpu-1", name: "B", hand, role: "Neutral" }],
+      [],
+      [{ trickNumber: 1, actions: [], winnerId: "cpu-1" }],
+      ["a", "b"],
+      "cpu-1",
+      false,
+    );
+    sizes.add(play?.length ?? 0);
+  }
+  assert.ok(sizes.has(1) && sizes.has(2), "CPU trick-opening size should vary across plays");
 }
 
 console.log("CPU trick-opening multiples tests passed");
