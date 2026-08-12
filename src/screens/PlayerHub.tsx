@@ -33,8 +33,8 @@ import AddToHomeScreenBanner from "../components/AddToHomeScreenBanner";
 import BlurPanel from "../components/BlurPanel";
 import ProgressMeter from "../components/ProgressMeter";
 import AppButton from "../components/ui/AppButton";
+import KofiButton from "../components/ui/KofiButton";
 import AvatarRewardBorder from "../components/AvatarRewardBorder";
-import KeepLightsOnModal from "../components/KeepLightsOnModal";
 import OnlinePlayersModal from "../components/OnlinePlayersModal";
 import PracticeSetupModal from "../components/PracticeSetupModal";
 import MenuIcon from "../components/MenuIcon";
@@ -168,7 +168,6 @@ export default function PlayerHub({
   const [loginState, setLoginState] = useState<DailyLoginState | null>(null);
   const [featured, setFeatured] = useState<FeaturedStat | null>(null);
   const [displayedTitle, setDisplayedTitle] = useState<string | null>(null);
-  const [lightsOnOpen, setLightsOnOpen] = useState(false);
   const [onlinePlayersOpen, setOnlinePlayersOpen] = useState(false);
   const [practiceSetupOpen, setPracticeSetupOpen] = useState(false);
   const [practicePlayerCount, setPracticePlayerCount] = useState(
@@ -833,41 +832,22 @@ export default function PlayerHub({
             </BlurPanel>
           </TouchableOpacity>
 
-          {/* Support — secondary destination; Play remains the only primary CTA */}
+          {/* Support — optional Ko-fi contributions */}
           <BlurPanel
             intensity={44}
             style={[styles.card, styles.utilityCard, styles.supportCard]}
           >
-            <View style={styles.supportHeader}>
-              <Text style={styles.supportHeart} accessibilityLabel="Heart">
-                ♥
-              </Text>
-              <Text style={styles.supportTitle}>Keep the Lights On</Text>
-            </View>
             <Text style={styles.supportBody}>
-              Glad you&apos;re at the table. A little support keeps servers running
-              and helps fund the next round of updates — always optional, never pay-to-win.
+              If you&apos;re a proud supporter of this game&apos;s development and
+              would like to contribute, donate using our Ko-fi link.
             </Text>
-            <AppButton
-              label="Support Development"
-              variant="secondary"
-              onPress={() => {
-                triggerHaptic("light");
-                setLightsOnOpen(true);
-              }}
-              accessibilityLabel="Support Development — Keep the Lights On"
-              style={styles.supportCta}
-            />
+            <KofiButton style={styles.supportCta} />
           </BlurPanel>
 
           <Text style={styles.versionLabel}>{versionLabel}</Text>
         </View>
       </ScrollView>
 
-      <KeepLightsOnModal
-        visible={lightsOnOpen}
-        onClose={() => setLightsOnOpen(false)}
-      />
       <OnlinePlayersModal
         visible={onlinePlayersOpen}
         playerCount={onlinePlayerCount}
@@ -1278,27 +1258,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "800",
     },
     supportCard: {
-      gap: 10,
+      gap: 12,
       paddingVertical: 16,
       paddingHorizontal: 16,
-    },
-    supportHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-    supportHeart: {
-      color: colors.accent,
-      fontSize: 18,
-      fontWeight: "700",
-      lineHeight: 22,
-    },
-    supportTitle: {
-      color: colors.textPrimary,
-      fontSize: 16,
-      fontWeight: "800",
-      letterSpacing: 0.2,
-      flex: 1,
     },
     supportBody: {
       color: colors.textSecondary,
@@ -1307,7 +1269,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       lineHeight: 19,
     },
     supportCta: {
-      marginTop: 10,
       width: "100%",
     },
     versionLabel: {

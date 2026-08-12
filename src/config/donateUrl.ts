@@ -1,5 +1,5 @@
 /**
- * Voluntary support link for Keep the Lights On.
+ * Voluntary support link for the Player Hub Ko-fi button.
  * Override with EXPO_PUBLIC_DONATE_URL when available.
  */
 export function resolveDonateUrl(): string {

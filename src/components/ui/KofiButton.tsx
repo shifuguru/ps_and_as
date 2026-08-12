@@ -1,60 +1,58 @@
 import React from "react";
 import {
+  Image,
+  Linking,
   StyleProp,
   StyleSheet,
-  Text,
   TouchableOpacity,
   ViewStyle,
 } from "react-native";
+import { resolveDonateUrl } from "../../config/donateUrl";
+import { triggerHaptic } from "../../utils/haptics";
 
-/** Ko-fi brand red — https://more.ko-fi.com/brand-assets */
-export const KOFI_BRAND_RED = "#FF5E5B";
+/** Official Ko-fi button asset — https://more.ko-fi.com/brand-assets */
+const KOFI_BUTTON_IMAGE =
+  "https://storage.ko-fi.com/cdn/brandasset/kofi_button_red.png";
 
 type Props = {
-  onPress: () => void;
   style?: StyleProp<ViewStyle>;
-  accessibilityLabel?: string;
+  url?: string;
 };
 
-export default function KofiButton({
-  onPress,
-  style,
-  accessibilityLabel = "Support on Ko-fi",
-}: Props) {
+export default function KofiButton({ style, url }: Props) {
+  const target = url ?? resolveDonateUrl();
+
   return (
     <TouchableOpacity
-      style={[styles.button, style]}
-      onPress={onPress}
+      style={[styles.wrap, style]}
+      onPress={() => {
+        triggerHaptic("light");
+        void Linking.openURL(target).catch(() => {
+          /* ignore */
+        });
+      }}
       activeOpacity={0.85}
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
+      accessibilityLabel="Support on Ko-fi"
     >
-      <Text style={styles.icon} accessibilityElementsHidden importantForAccessibility="no">
-        ☕
-      </Text>
-      <Text style={styles.label}>Ko-fi</Text>
+      <Image
+        source={{ uri: KOFI_BUTTON_IMAGE }}
+        style={styles.image}
+        resizeMode="contain"
+        accessibilityIgnoresInvertColors
+      />
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
-    flexDirection: "row",
+  wrap: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    borderRadius: 14,
     minHeight: 48,
-    paddingHorizontal: 14,
-    backgroundColor: KOFI_BRAND_RED,
   },
-  icon: {
-    fontSize: 18,
-    lineHeight: 22,
-  },
-  label: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "800",
+  image: {
+    width: 174,
+    height: 44,
   },
 });
