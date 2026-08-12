@@ -46,7 +46,7 @@ const { computeRoundXpByPlayerId } = require('./roundXp');
 const tableRoster = require('./tableRoster');
 const gameSync = require('./gameSync');
 const analytics = require('./analyticsStore');
-const { advancePastInactiveSeats } = require('./turnAdvance');
+const { advancePastInactiveSeats, syncJokerAckAutoPassTimer } = require('./turnAdvance');
 const {
   adjustSeatIndexAfterRemoval,
   lastPlayIndexAfterRemoval,
@@ -2296,16 +2296,35 @@ io.on('connection', (socket) => {
     gameSync.bumpStateVersion(room);
     broadcastGameState(io, room);
 
-    if (isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
-      const finishOrder = room.gameState.finishedOrder.slice();
-      const handSnapshot = {};
-      for (const p of room.gameState.players) {
-        handSnapshot[p.id] = p.hand;
+    const afterGameActionSideEffects = (liveRoom) => {
+      if (isRoundComplete(liveRoom.gameState) && !liveRoom.gameState.tenRulePending) {
+        const finishOrder = liveRoom.gameState.finishedOrder.slice();
+        const handSnapshot = {};
+        for (const p of liveRoom.gameState.players) {
+          handSnapshot[p.id] = p.hand;
+        }
+        handleRoundFinished(roomId, finishOrder, handSnapshot);
+      } else if (liveRoom.isBotHosted) {
+        botHosted.kickBotTurnLoop(roomId, getBotContext());
       }
-      handleRoundFinished(roomId, finishOrder, handSnapshot);
-    } else if (room.isBotHosted) {
-      botHosted.kickBotTurnLoop(roomId, getBotContext());
-    }
+    };
+
+    afterGameActionSideEffects(room);
+
+    syncJokerAckAutoPassTimer(room, {
+      cloneGameState,
+      afterStateChange: (updatedRoom) => {
+        reconcileCurrentPlayerIndex(updatedRoom);
+        advancePastInactiveSeats(updatedRoom, cloneGameState);
+        updatedRoom.gameState = cloneGameState(
+          repairStuckTurnPointer(updatedRoom.gameState),
+        );
+        reconcileCurrentPlayerIndex(updatedRoom);
+        gameSync.bumpStateVersion(updatedRoom);
+        broadcastGameState(io, updatedRoom);
+        afterGameActionSideEffects(updatedRoom);
+      },
+    });
   });
 
   socket.on('skipBotTable', ({ roomId }) => {

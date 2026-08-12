@@ -2553,6 +2553,13 @@ export function isTrickAcknowledgmentPassPhase(state: GameState): boolean {
   );
 }
 
+/** Joker-only acknowledgment — used for the short auto-pass window after a joker play. */
+export function isJokerAcknowledgmentPassPhase(state: GameState): boolean {
+  if (!isTrickAcknowledgmentPassPhase(state)) return false;
+  if (state.lastClear?.type === "joker") return true;
+  return state.pile.length === 1 && isJoker(state.pile[0]);
+}
+
 /**
  * Cross-turn rank closes are acknowledgment clears (like jokers): after everyone
  * else passes, the trick ends. Do not grant 10-rule On Top just because the
