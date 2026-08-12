@@ -7,7 +7,10 @@ import { Platform, StyleSheet, Text, View } from "react-native";
 import { useAppTheme } from "../context/ThemeContext";
 import { canLoadPersonalizedAds } from "../services/ads/adsConsent";
 import { areForcedAdsRemovedSync } from "../services/ads/adsEntitlement";
-import { getAdsClientId } from "../services/ads/webH5Ads";
+import {
+  getAdsClientId,
+  isAdsPlaceholderMode,
+} from "../services/ads/webH5Ads";
 
 const WAITING_LINES = [
   "You’re out — soak up the rest of the round.",
@@ -35,13 +38,15 @@ function getBannerSlotId(): string | null {
 }
 
 function canShowHandOutBanner(): boolean {
-  return (
-    Platform.OS === "web" &&
-    canLoadPersonalizedAds() &&
-    !areForcedAdsRemovedSync() &&
-    !!getAdsClientId() &&
-    !!getBannerSlotId()
-  );
+  if (Platform.OS !== "web" || !canLoadPersonalizedAds() || areForcedAdsRemovedSync()) {
+    return false;
+  }
+  if (isAdsPlaceholderMode()) return true;
+  return !!getAdsClientId() && !!getBannerSlotId();
+}
+
+function isHandOutPlaceholderBanner(): boolean {
+  return Platform.OS === "web" && isAdsPlaceholderMode();
 }
 
 type Props = {
@@ -56,6 +61,7 @@ export default function HandOutWaitingPanel({ height }: Props) {
   const hostDomId = `ps-hand-out-ad-${reactId}`;
   const [lineIndex, setLineIndex] = useState(0);
   const [showAd, setShowAd] = useState(false);
+  const [placeholderBanner, setPlaceholderBanner] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -66,10 +72,11 @@ export default function HandOutWaitingPanel({ height }: Props) {
 
   useEffect(() => {
     setShowAd(canShowHandOutBanner());
+    setPlaceholderBanner(isHandOutPlaceholderBanner());
   }, []);
 
   useEffect(() => {
-    if (!showAd || Platform.OS !== "web") return;
+    if (!showAd || placeholderBanner || Platform.OS !== "web") return;
     const client = getAdsClientId();
     const slot = getBannerSlotId();
     const doc = (globalThis as { document?: Document }).document;
@@ -106,7 +113,7 @@ export default function HandOutWaitingPanel({ height }: Props) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [showAd, hostDomId]);
+  }, [showAd, placeholderBanner, hostDomId]);
 
   return (
     <View
@@ -117,7 +124,15 @@ export default function HandOutWaitingPanel({ height }: Props) {
       <Text style={styles.line} numberOfLines={2}>
         {WAITING_LINES[lineIndex]}
       </Text>
-      {showAd ? (
+      {showAd && placeholderBanner ? (
+        <View style={styles.placeholderBanner} accessibilityLabel="Ad preview placeholder">
+          <Text style={styles.placeholderBadge}>AD PREVIEW</Text>
+          <Text style={styles.placeholderTitle}>Sample banner (320×50)</Text>
+          <Text style={styles.placeholderHint}>
+            Placeholder — real banner after AdSense approval
+          </Text>
+        </View>
+      ) : showAd ? (
         // RN-web honors `id` / nativeID so AdSense can mount into this node.
         <View
           nativeID={hostDomId}
@@ -169,6 +184,38 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       backgroundColor: colors.surface,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.panelBorder,
+    },
+    placeholderBanner: {
+      flex: 1,
+      minHeight: 90,
+      maxHeight: 120,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      justifyContent: "center",
+      backgroundColor: colors.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.panelBorder,
+      borderStyle: "dashed",
+      gap: 2,
+    },
+    placeholderBadge: {
+      color: colors.textTertiary,
+      fontSize: 9,
+      fontWeight: "800",
+      letterSpacing: 0.8,
+      textTransform: "uppercase",
+    },
+    placeholderTitle: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    placeholderHint: {
+      color: colors.textTertiary,
+      fontSize: 11,
+      fontWeight: "600",
+      lineHeight: 14,
     },
     fillHint: {
       flex: 1,
