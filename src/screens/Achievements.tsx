@@ -131,20 +131,23 @@ export default function Achievements({
     [pageWidth],
   );
 
-  const handlePagerScrollEnd = useCallback(
+  const handlePagerScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const index = Math.round(event.nativeEvent.contentOffset.x / pageWidth);
-      setTabIndex(index);
+      const offsetX = event.nativeEvent.contentOffset.x;
+      const index = Math.min(
+        PROFILE_TABS.length - 1,
+        Math.max(0, Math.round(offsetX / pageWidth)),
+      );
+      setTabIndex((prev) => (prev === index ? prev : index));
     },
     [pageWidth],
   );
 
-  const syncTabFromPagerOffset = useCallback(
-    (offsetX: number) => {
-      const index = Math.round(offsetX / pageWidth);
-      setTabIndex(index);
+  const handlePagerScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      handlePagerScroll(event);
     },
-    [pageWidth],
+    [handlePagerScroll],
   );
 
   const scrollToAchievement = useCallback((achievementId: string) => {
@@ -263,10 +266,10 @@ export default function Achievements({
           decelerationRate="fast"
           showsHorizontalScrollIndicator={false}
           style={styles.pager}
+          scrollEventThrottle={16}
+          onScroll={handlePagerScroll}
           onMomentumScrollEnd={handlePagerScrollEnd}
-          onScrollEndDrag={(event) =>
-            syncTabFromPagerOffset(event.nativeEvent.contentOffset.x)
-          }
+          onScrollEndDrag={handlePagerScrollEnd}
           keyboardShouldPersistTaps="handled"
         >
           <View style={{ width: pageWidth, flex: 1 }}>
