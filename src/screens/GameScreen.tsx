@@ -3918,6 +3918,10 @@ function GameScreen({
         turnBellPlayerId,
         handleTurnBellPress,
         nudgeHighlightPlayerId,
+        tableChatModalVisible,
+        setTableChatModalVisible,
+        tableChatByPlayerId,
+        handleTableChatSelect,
         resolveSeatFeltTint,
         scoreboardXpByPlayerId,
         roundXpByPlayerId,
@@ -4042,6 +4046,10 @@ function GameScreenBoard() {
     turnBellPlayerId,
     handleTurnBellPress,
     nudgeHighlightPlayerId,
+    tableChatModalVisible,
+    setTableChatModalVisible,
+    tableChatByPlayerId,
+    handleTableChatSelect,
     resolveSeatFeltTint,
     scoreboardXpByPlayerId,
     scoreboardRoundXpByPlayerId,
@@ -4187,6 +4195,10 @@ function GameScreenBoard() {
     turnBellPlayerId: string | null;
     handleTurnBellPress: (playerId: string) => void;
     nudgeHighlightPlayerId: string | null;
+    tableChatModalVisible: boolean;
+    setTableChatModalVisible: React.Dispatch<React.SetStateAction<boolean>>;
+    tableChatByPlayerId: Record<string, string>;
+    handleTableChatSelect: (emoteId: string) => void;
     resolveSeatFeltTint: (player: { id: string; name: string }) => string | undefined;
     scoreboardXpByPlayerId: Record<string, number>;
     scoreboardRoundXpByPlayerId: Record<string, number>;
