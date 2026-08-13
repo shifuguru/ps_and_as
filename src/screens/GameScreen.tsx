@@ -1408,6 +1408,7 @@ function GameScreen({
       setActiveTrade(null);
       setTradeReturnPick([]);
       setGameplayLocked(false);
+      setAwaitingDealerReshuffle(false);
       setRoundXpByPlayerId({});
       setForfeitedXpPlayerIds(new Set());
       xpCommittedForRoundRef.current = false;
@@ -2527,6 +2528,7 @@ function GameScreen({
           ceremonyStartedForRoundRef.current = roundKey;
           ceremonyDoneForRoundRef.current = roundKey;
           awaitingDealCeremonyRef.current = false;
+          setAwaitingDealerReshuffle(false);
           setCeremonyPrep(null);
           setTradePhase(null);
           setActiveTrade(null);
@@ -2699,6 +2701,13 @@ function GameScreen({
       }
 
       const syncedForPlay = reconcileSyncedOpeningPlayer(parsed);
+      if (
+        onlineMultiplayer &&
+        serverPendingTradesComplete(parsed.pendingTrades) &&
+        !openingLeadNotYetTaken(syncedForPlay)
+      ) {
+        setAwaitingDealerReshuffle(false);
+      }
       setState(repairStuckTurnPointer(syncedForPlay));
       logTurnRingVerifyEvent("SYNC_RECEIVED", {
         currentPlayerIndex: syncedForPlay.currentPlayerIndex,
