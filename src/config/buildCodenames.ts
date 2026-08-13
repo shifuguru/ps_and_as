@@ -154,6 +154,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.88": "President's Day Off",
   "1.1.89": "Grand Slam Gamble",
   "1.1.90": "Card Shark Week",
+  "1.1.91": "King Me Maybe",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
