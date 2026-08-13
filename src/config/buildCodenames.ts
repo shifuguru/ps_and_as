@@ -147,6 +147,15 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.81": "Your Turn, Apparently",
   "1.1.82": "Ten High Drama",
   "1.1.83": "Shuffle Or Scramble",
+  "1.1.84": "Off-Suit Outburst",
+  "1.1.85": "Off-Suit Outburst",
+  "1.1.86": "Double Down Darling",
+  "1.1.87": "Ace Up the Sleeve",
+  "1.1.88": "President's Day Off",
+  "1.1.89": "Grand Slam Gamble",
+  "1.1.90": "Card Shark Week",
+  "1.1.91": "King Me Maybe",
+  "1.1.92": "Felt Table Fever",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {

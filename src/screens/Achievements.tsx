@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   StyleSheet,
   useWindowDimensions,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import BlurPanel from "../components/BlurPanel";
@@ -46,13 +48,24 @@ import {
   PLATINUM_STREAK_COLORS,
   PLATINUM_FLAME_SEEDS,
 } from "../gameplayPresentation/RunsEffect";
+import { TitlesScrollContent } from "./Titles";
+import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
+
+export type ProfileTab = "achievements" | "titles";
+
+const PROFILE_TABS: { id: ProfileTab; label: string }[] = [
+  { id: "achievements", label: "Achievements" },
+  { id: "titles", label: "Titles" },
+];
 
 export default function Achievements({
   onBack,
   onNavigateToSettings,
+  initialTab = "achievements",
 }: {
   onBack: () => void;
   onNavigateToSettings?: () => void;
+  initialTab?: ProfileTab;
 }) {
   const { colors, ui } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -60,6 +73,11 @@ export default function Achievements({
   const { width } = useWindowDimensions();
   const contentMax = contentMaxWidth(width);
   const bottomBarHeight = menuBottomReserve(insets.bottom || 0);
+  const pageWidth = width;
+  const initialTabIndex = initialTab === "titles" ? 1 : 0;
+
+  const pagerRef = useRef<ScrollView>(null);
+  const [tabIndex, setTabIndex] = useState(initialTabIndex);
 
   const [savedName, setSavedName] = useState("");
   const [stats, setStats] = useState<PlayerStats | null>(null);
@@ -86,6 +104,36 @@ export default function Achievements({
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  useEffect(() => {
+    const index = initialTab === "titles" ? 1 : 0;
+    setTabIndex(index);
+    pagerRef.current?.scrollTo({ x: index * pageWidth, animated: false });
+  }, [initialTab, pageWidth]);
+
+  const scrollToTab = useCallback(
+    (index: number) => {
+      setTabIndex(index);
+      pagerRef.current?.scrollTo({ x: index * pageWidth, animated: true });
+    },
+    [pageWidth],
+  );
+
+  const handlePagerScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const index = Math.round(event.nativeEvent.contentOffset.x / pageWidth);
+      setTabIndex(index);
+    },
+    [pageWidth],
+  );
+
+  const syncTabFromPagerOffset = useCallback(
+    (offsetX: number) => {
+      const index = Math.round(offsetX / pageWidth);
+      setTabIndex(index);
+    },
+    [pageWidth],
+  );
 
   const unlocked = stats ? unlockedAchievements(stats) : [];
   const achievementsByExclusivity = useMemo(
@@ -114,23 +162,55 @@ export default function Achievements({
     );
   }
 
+  const activeTab = PROFILE_TABS[tabIndex]?.id ?? "achievements";
+  const screenTitle =
+    activeTab === "titles" ? "Titles" : "Achievements";
+
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          ui.scrollContent,
-          {
-            paddingTop: insets.top + 12,
-            paddingBottom: bottomBarHeight,
-          },
-        ]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={[styles.content, { maxWidth: contentMax }]}>
-          <ScreenTopBar title="Achievements" />
+      <View style={styles.pagerRoot}>
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: insets.top + 12,
+              maxWidth: contentMax,
+            },
+          ]}
+        >
+          <ScreenTopBar title={screenTitle} />
+          <ProfileTabBar
+            tabs={PROFILE_TABS}
+            activeIndex={tabIndex}
+            onSelect={scrollToTab}
+            colors={colors}
+          />
+        </View>
 
+        <ScrollView
+          ref={pagerRef}
+          horizontal
+          pagingEnabled
+          decelerationRate="fast"
+          showsHorizontalScrollIndicator={false}
+          style={styles.pager}
+          onMomentumScrollEnd={handlePagerScrollEnd}
+          onScrollEndDrag={(event) =>
+            syncTabFromPagerOffset(event.nativeEvent.contentOffset.x)
+          }
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={{ width: pageWidth, flex: 1 }}>
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={[
+                styles.pageScrollContent,
+                { paddingBottom: bottomBarHeight },
+              ]}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={[styles.content, { maxWidth: contentMax }]}>
           <BlurPanel style={ui.panel} intensity={52}>
             <Text style={ui.panelEyebrow}>Player Profile</Text>
 
@@ -296,8 +376,27 @@ export default function Achievements({
               })}
             </View>
           </BlurPanel>
-        </View>
-      </ScrollView>
+              </View>
+            </ScrollView>
+          </View>
+
+          <View style={{ width: pageWidth, flex: 1 }}>
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={[
+                styles.pageScrollContent,
+                { paddingBottom: bottomBarHeight },
+              ]}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={[styles.content, { maxWidth: contentMax }]}>
+                {stats ? <TitlesScrollContent stats={stats} /> : null}
+              </View>
+            </ScrollView>
+          </View>
+        </ScrollView>
+      </View>
 
       <BottomBar>
         <BottomBarControls style={styles.bottomControls}>
@@ -307,6 +406,44 @@ export default function Achievements({
         </BottomBarControls>
       </BottomBar>
     </ScreenContainer>
+  );
+}
+
+function ProfileTabBar({
+  tabs,
+  activeIndex,
+  onSelect,
+  colors,
+}: {
+  tabs: { id: ProfileTab; label: string }[];
+  activeIndex: number;
+  onSelect: (index: number) => void;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  const styles = useMemo(() => createTabBarStyles(colors), [colors]);
+
+  return (
+    <View style={styles.row}>
+      {tabs.map((tab, index) => {
+        const selected = index === activeIndex;
+        return (
+          <TouchableOpacity
+            key={tab.id}
+            style={[styles.segment, selected && styles.segmentSelected]}
+            onPress={() => onSelect(index)}
+            activeOpacity={0.85}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+          >
+            <Text
+              style={[styles.segmentText, selected && styles.segmentTextSelected]}
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
   );
 }
 
@@ -403,8 +540,54 @@ function StreakEnergyPill({
   );
 }
 
+function createTabBarStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+  return StyleSheet.create({
+    row: {
+      flexDirection: "row",
+      gap: 8,
+      marginBottom: 12,
+    },
+    segment: {
+      flex: 1,
+      borderRadius: 12,
+      minHeight: 42,
+      backgroundColor: colors.btnSecondaryBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.panelBorder,
+      ...BUTTON_CENTER,
+    },
+    segmentSelected: {
+      backgroundColor: colors.btnAccentBg,
+      borderColor: colors.btnAccentBorder,
+    },
+    segmentText: buttonLabel(13, {
+      color: colors.textSecondary,
+      fontWeight: "700",
+    }),
+    segmentTextSelected: {
+      color: colors.btnAccentText,
+    },
+  });
+}
+
 function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   return StyleSheet.create({
+    pagerRoot: {
+      flex: 1,
+    },
+    header: {
+      alignSelf: "center",
+      width: "100%",
+      paddingHorizontal: 24,
+    },
+    pager: {
+      flex: 1,
+    },
+    pageScrollContent: {
+      flexGrow: 1,
+      alignItems: "center",
+      paddingHorizontal: 24,
+    },
     loadingRoot: { flex: 1 },
     loadingCenter: {
       flex: 1,

@@ -44,7 +44,7 @@ export const HAND_CONTROLS_GAP = 4;
 export const HAND_ZONE_TOP_CLEARANCE = 0;
 
 /** Extra lift above home-indicator safe area so Play / Leave clear the home bar. */
-const CONTENT_MARGIN = 18;
+const CONTENT_MARGIN = 26;
 
 function contentMarginForShell(shellHeight?: number): number {
   if (shellHeight == null || shellHeight <= 0) return CONTENT_MARGIN;
@@ -85,9 +85,12 @@ export function bottomOuterPad(safeBottom = 0, shellHeight?: number): number {
 export function menuBottomReserve(
   safeBottom = 0,
   shellHeight?: number,
+  options?: { codeInput?: boolean },
 ): number {
+  const codeInputBand = options?.codeInput ? 52 : 0;
   return (
     ACTION_BAR_HEIGHT +
+    codeInputBand +
     18 +
     BOTTOM_LEAVE_ROW_HEIGHT +
     bottomOuterPad(safeBottom, shellHeight) +

@@ -62,6 +62,7 @@ import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import Card from "../components/Card";
 import type { Card as CardType } from "../game/ruleset";
 import { useWebAppInstall } from "../hooks/useWebAppInstall";
+import { SHOW_REMOVE_ADS_PURCHASE } from "../services/ads/adsConfig";
 
 const CARD_PREVIEW_W = 54;
 const CARD_PREVIEW_H = 78;
@@ -481,13 +482,16 @@ export default function Settings({
             <Text style={ui.panelEyebrow}>Support</Text>
             <Text style={styles.tintHint}>
               Ads help cover servers. Forced ads appear every few rounds; you can
-              optionally watch an ad for XP. Remove Ads skips forced ads only.
+              optionally watch an ad for XP.
+              {SHOW_REMOVE_ADS_PURCHASE
+                ? " Remove Ads skips forced ads only."
+                : " Optional Ko-fi contributions are on the home screen."}
             </Text>
             {adsRemoved ? (
               <Text style={styles.accountSyncHint}>
                 Forced ads removed — thanks for supporting the game.
               </Text>
-            ) : Platform.OS === "web" ? (
+            ) : SHOW_REMOVE_ADS_PURCHASE && Platform.OS === "web" ? (
               <>
                 <TouchableOpacity
                   style={[
@@ -546,11 +550,11 @@ export default function Settings({
                   available.
                 </Text>
               </>
-            ) : (
+            ) : SHOW_REMOVE_ADS_PURCHASE ? (
               <Text style={styles.accountSyncHint}>
                 Remove Ads is available on the web version.
               </Text>
-            )}
+            ) : null}
             <TouchableOpacity
               style={{ marginTop: 12 }}
               onPress={() => setPrivacyOpen(true)}
@@ -743,31 +747,6 @@ export default function Settings({
                 Dark card faces with white spades and clubs.
               </Text>
             </View>
-            {onToggleSoundMute ? (
-              <View style={[styles.settingBlock, styles.settingRowSpaced]}>
-                <View style={styles.settingHeaderRow}>
-                  <Text style={[styles.settingLabel, styles.settingLabelInline]}>
-                    Sound effects
-                  </Text>
-                  <View style={styles.settingHeaderSpacer} />
-                  <Switch
-                    value={!(soundMuted ?? false)}
-                    onValueChange={() => onToggleSoundMute()}
-                    trackColor={{
-                      false: colors.panelBorder,
-                      true: colors.accent,
-                    }}
-                    thumbColor={
-                      colors.mode === "light" ? "#ffffff" : colors.textPrimary
-                    }
-                    accessibilityLabel="Sound effects"
-                  />
-                </View>
-                <Text style={[styles.tintHint, styles.settingHint]}>
-                  Card taps, plays, passes, and your-turn cues.
-                </Text>
-              </View>
-            ) : null}
             <View
               style={[
                 styles.cardPreviewHost,
@@ -865,6 +844,31 @@ export default function Settings({
                   : "Shuffle and deal animations are experimental. Off by default."}
               </Text>
             </View>
+            {onToggleSoundMute ? (
+              <View style={[styles.settingBlock, styles.settingRowSpaced]}>
+                <View style={styles.settingHeaderRow}>
+                  <Text style={[styles.settingLabel, styles.settingLabelInline]}>
+                    Sound effects
+                  </Text>
+                  <View style={styles.settingHeaderSpacer} />
+                  <Switch
+                    value={!(soundMuted ?? false)}
+                    onValueChange={() => onToggleSoundMute()}
+                    trackColor={{
+                      false: colors.panelBorder,
+                      true: colors.accent,
+                    }}
+                    thumbColor={
+                      colors.mode === "light" ? "#ffffff" : colors.textPrimary
+                    }
+                    accessibilityLabel="Sound effects"
+                  />
+                </View>
+                <Text style={[styles.tintHint, styles.settingHint]}>
+                  Card taps, plays, passes, and your-turn cues.
+                </Text>
+              </View>
+            ) : null}
           </BlurPanel>
         </View>
       </ScrollView>

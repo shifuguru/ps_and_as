@@ -30,8 +30,11 @@ const keyboardShellProps =
       } as const);
 
 import ScreenContainer from "../components/ScreenContainer";
+import BlurPanel from "../components/BlurPanel";
+import MenuIcon from "../components/MenuIcon";
 import LobbyStatusBar, {
   LOBBY_STATUS_BAR_HEIGHT,
+  LOBBY_STACK_BAR_HEIGHT,
 } from "../components/LobbyStatusBar";
 import BottomBar, {
   BottomBarControls,
@@ -40,7 +43,6 @@ import BottomBar, {
 } from "../components/BottomBar";
 import OpponentSeat from "../components/OpponentSeat";
 import LobbyPlayerModal from "../components/LobbyPlayerModal";
-import ShimmerText from "../components/ShimmerText";
 import { NetworkAdapter, MockAdapter, type LobbyMember } from "../game/network";
 import { isSocketAdapter } from "../game/socketAdapter";
 import { getOrCreatePlayerId } from "../services/gameCenter";
@@ -71,13 +73,9 @@ const LOBBY_SEAT_H = 92;
 const LOBBY_RING_R = 104;
 const LOBBY_ADD_CPU_W = 76;
 const LOBBY_ADD_CPU_H = 92;
+const CAPSULE_RADIUS = 999;
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
-
-function playersNeededLabel(count: number): string {
-  if (count === 1) return "1 More Person";
-  return `Need ${count} More`;
-}
 
 function defaultRoomNameFromHost(hostName: string): string {
   const trimmed = hostName.trim();
@@ -201,7 +199,7 @@ function RoomNameInput({
   onEditingChange?: (editing: boolean) => void;
   validate?: (text: string) => string | null;
   inputStyle: TextStyle;
-  wrapStyle: ViewStyle;
+  wrapStyle: ViewStyle | ViewStyle[];
   wrapFocusedStyle: ViewStyle;
   hintStyle: TextStyle;
 }) {
@@ -391,7 +389,7 @@ export default function CreateGame({
 
   const { width, height: windowHeight } = useWindowDimensions();
   const insets = useLayoutInsets();
-  const topBarHeight = insets.top + LOBBY_STATUS_BAR_HEIGHT;
+  const topBarHeight = insets.top + LOBBY_STACK_BAR_HEIGHT;
   const bottomBarHeight = lobbyBottomReserve(insets.bottom || 0);
 
   const usingMock = !adapter || !isSocketAdapter(adapter);
@@ -469,14 +467,16 @@ export default function CreateGame({
     return displayTextError(validateDisplayText(text, "Room name"));
   }, []);
 
-  const statusLabel = usingMock ? "Local" : isHost ? "You" : "Lobby";
-  const statusValue = usingMock
-    ? "Host"
-    : isHost
-      ? "Host"
-      : connectionStatus === "connected"
-        ? "Guest"
-        : "Connecting…";
+  const displayRoomName = useMemo(() => {
+    const trimmed = roomName.trim();
+    if (trimmed) return trimmed;
+    if (isHost || usingMock) {
+      return defaultRoomNameFromHost(playerName) || "Game Room";
+    }
+    return "Game Room";
+  }, [roomName, playerName, isHost, usingMock]);
+
+  const partyCount = Math.max(1, seatCount);
 
   const contentMaxWidth = Math.min(520, Math.max(320, width - 24));
   const estimatedTableHeight = Math.max(
@@ -922,30 +922,98 @@ export default function CreateGame({
   const primaryLabel = usingMock
     ? "Start Game"
     : isHost
-      ? !lobbyFullEnough
-        ? playersNeededLabel(playersNeeded)
-        : allGuestsReady
-          ? "Start Game"
-          : `${guestsReadyCount}/${guestMembers.length} Ready`
-      : !lobbyFullEnough
-        ? playersNeededLabel(playersNeeded)
-        : isLocalReady
-          ? "Unready"
-          : "Ready";
+      ? "Start Game"
+      : isLocalReady
+        ? "Unready"
+        : "Ready";
+
+  const actionHint = (() => {
+    if (usingMock && !canStart) {
+      const need = Math.max(0, MIN_PLAYERS_FULL_TABLE - seatCount);
+      if (need <= 0) return null;
+      return need === 1
+        ? "Need 1 more player to start"
+        : `Need ${need} more players to start`;
+    }
+    if (!onlineLobby) return null;
+    if (isHost && !lobbyFullEnough) {
+      return playersNeeded === 1
+        ? "Need 1 more player to start"
+        : `Need ${playersNeeded} more players to start`;
+    }
+    if (hostWaitingForGuests) {
+      return `Waiting for all players to ready up (${guestsReadyCount}/${guestMembers.length})…`;
+    }
+    if (!isHost && !lobbyFullEnough) {
+      if (seatCount === 0 && connectionStatus !== "connected") {
+        return "Joining lobby…";
+      }
+      return playersNeeded === 1
+        ? "Waiting for 1 more player"
+        : `Waiting for ${playersNeeded} more players`;
+    }
+    return null;
+  })();
+
+  const tableStatusText = onlineLobby
+    ? localIsSpectator
+      ? "Spectating this round"
+      : seatCount < MIN_PLAYERS
+        ? "Waiting for players"
+        : showDeadHandSeat
+          ? "Table ready — dead hand open for a third"
+          : `${seatCount} at the table`
+    : seatCount < MIN_PLAYERS_FULL_TABLE
+      ? `Need ${MIN_PLAYERS_FULL_TABLE} to start`
+      : `${seatCount} at the table`;
 
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
       <LobbyStatusBar
-        playerCount={seatCount}
-        roomName={roomName}
-        statusLabel={statusLabel}
-        statusValue={statusValue}
+        variant="lobby"
+        hideStatus
+        playerCount={partyCount}
+        roomName={displayRoomName}
+        statusLabel=""
+        statusValue=""
         topInset={insets.top}
       />
 
       {lobbyNotice ? (
         <View style={[local.lobbyNoticeBanner, { top: topBarHeight + 6 }]}>
           <Text style={local.lobbyNoticeText}>{lobbyNotice}</Text>
+        </View>
+      ) : null}
+
+      {onNavigateToAchievements || onNavigateToSettings ? (
+        <View
+          style={[local.utilHost, { top: insets.top + 8 }]}
+          pointerEvents="box-none"
+        >
+          <View style={local.utilRow}>
+            {onNavigateToAchievements ? (
+              <TouchableOpacity
+                style={local.utilBtn}
+                onPress={onNavigateToAchievements}
+                accessibilityRole="button"
+                accessibilityLabel="Stats"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MenuIcon name="trophy" size={16} color={colors.accent} />
+              </TouchableOpacity>
+            ) : null}
+            {onNavigateToSettings ? (
+              <TouchableOpacity
+                style={local.utilBtn}
+                onPress={onNavigateToSettings}
+                accessibilityRole="button"
+                accessibilityLabel="Settings"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MenuIcon name="gear" size={16} color={colors.accent} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
       ) : null}
 
@@ -966,31 +1034,30 @@ export default function CreateGame({
             }}
           >
             <View style={{ width: contentMaxWidth, flex: 1 }}>
-              {/* Utility room chrome — supports the table, does not own the screen */}
               {(onlineLobby && actualRoomId) || canEditRoom || localIsSpectator ? (
-                <View style={local.roomUtility}>
+                <BlurPanel intensity={48} style={local.inviteCard}>
                   {onlineLobby && actualRoomId ? (
-                    <View style={local.roomCodeRow}>
-                      <Text style={local.roomCodeLabel}>Code</Text>
+                    <>
+                      <Text style={local.inviteEyebrow}>Invite Friends</Text>
                       <TouchableOpacity
                         style={[
-                          local.roomCodeButton,
-                          codeCopied && local.roomCodeButtonCopied,
+                          local.codeCapsule,
+                          codeCopied && local.codeCapsuleCopied,
                         ]}
                         onPress={handleCopyRoomCode}
                         activeOpacity={0.85}
                         accessibilityRole="button"
                         accessibilityLabel={`Copy room code ${actualRoomId}`}
                       >
-                        <Text style={local.roomCodeButtonText} numberOfLines={1}>
+                        <Text style={local.codeCapsuleText} numberOfLines={1}>
                           {codeCopied ? "Copied!" : actualRoomId}
                         </Text>
                       </TouchableOpacity>
-                    </View>
+                    </>
                   ) : null}
                   {canEditRoom ? (
                     <RoomNameInput
-                      value={roomName}
+                      value={displayRoomName}
                       onCommit={handleRoomNameCommit}
                       validate={validateRoomName}
                       onEditingChange={(editing) => {
@@ -1000,7 +1067,12 @@ export default function CreateGame({
                         }
                       }}
                       inputStyle={local.roomInput}
-                      wrapStyle={local.roomInputWrap}
+                      wrapStyle={[
+                        local.roomInputWrap,
+                        onlineLobby && actualRoomId
+                          ? local.roomInputWrapSpaced
+                          : null,
+                      ]}
                       wrapFocusedStyle={local.roomInputWrapFocused}
                       hintStyle={local.roomInputHint}
                     />
@@ -1010,7 +1082,7 @@ export default function CreateGame({
                       Spectating — Ready to take a seat next round
                     </Text>
                   ) : null}
-                </View>
+                </BlurPanel>
               ) : null}
 
                 <View
@@ -1024,19 +1096,9 @@ export default function CreateGame({
                     }
                   }}
                 >
-                  <Text style={local.tableHint}>
-                    {onlineLobby
-                      ? localIsSpectator
-                        ? "Spectating this round"
-                        : seatCount < MIN_PLAYERS
-                        ? "Waiting for players"
-                        : showDeadHandSeat
-                          ? "Table ready — dead hand open for a third"
-                          : `${seatCount} at the table`
-                      : seatCount < MIN_PLAYERS_FULL_TABLE
-                        ? `Need ${MIN_PLAYERS_FULL_TABLE} to start`
-                        : `${seatCount} at the table`}
-                  </Text>
+                  <View style={local.statusChip}>
+                    <Text style={local.statusChipText}>{tableStatusText}</Text>
+                  </View>
 
                   <View
                     style={[
@@ -1160,9 +1222,11 @@ export default function CreateGame({
                               compact={ringLayout.compactSeats}
                               layoutWidth={ringLayout.width}
                             />
-                            {seat.isHostSeat && (
-                              <Text style={[local.hostBadge, { color: colors.accent }]}>Host</Text>
-                            )}
+                            {seat.isHostSeat ? (
+                              <View style={local.hostBadgePill}>
+                                <Text style={local.hostBadgeText}>Host</Text>
+                              </View>
+                            ) : null}
                           </TouchableOpacity>
                           )}
 
@@ -1221,40 +1285,28 @@ export default function CreateGame({
             </View>
             ) : null}
 
-            {hostWaitingForGuests ? (
-              <Text style={local.lobbyWaitHint}>
-                Waiting for all players to ready up ({guestsReadyCount}/
-                {guestMembers.length})…
-              </Text>
+            {actionHint ? (
+              <Text style={local.actionHint}>{actionHint}</Text>
             ) : null}
 
-            <View style={local.actionRow}>
-              {onNavigateToAchievements ? (
-                <TouchableOpacity
-                  style={local.lobbyTertiaryBtn}
-                  onPress={onNavigateToAchievements}
-                  accessibilityRole="button"
-                  accessibilityLabel="Stats"
-                >
-                  <ShimmerText style={local.lobbyTertiaryText}>Stats</ShimmerText>
-                </TouchableOpacity>
-              ) : (
-                <View style={local.lobbyTertiaryBtn} />
-              )}
+            <View style={local.actionTrack}>
               <AnimatedTouchable
                 style={[
-                  ui.btnGoldFill,
-                  local.lobbyPrimaryBtn,
-                  primaryDisabled && local.lobbyPrimaryDisabled,
-                  showReadyAction &&
-                    isLocalReady &&
-                    local.lobbyPrimaryReady,
-                  showReadyFlash && local.lobbyPrimaryFlash,
+                  local.primaryCapsule,
+                  primaryDisabled
+                    ? local.primaryCapsuleDisabled
+                    : showReadyAction && isLocalReady
+                      ? local.primaryCapsuleReady
+                      : {
+                          backgroundColor: colors.actionPrimaryBg,
+                          borderColor: colors.actionPrimaryBorder,
+                        },
+                  showReadyFlash && local.primaryCapsuleFlash,
                   showReadyFlash && {
                     backgroundColor: readyFlash.interpolate({
                       inputRange: [0, 1],
                       outputRange: [
-                        colors.accent,
+                        colors.actionPrimaryBg,
                         colors.mode === "light"
                           ? "rgba(255,255,255,0.96)"
                           : "rgba(255,255,255,0.92)",
@@ -1263,13 +1315,13 @@ export default function CreateGame({
                     borderColor: readyFlash.interpolate({
                       inputRange: [0, 1],
                       outputRange: [
-                        hexToRgba(colors.accent, 0.55),
+                        colors.actionPrimaryBorder,
                         colors.mode === "light"
                           ? "rgba(255,255,255,0.95)"
                           : "rgba(255,255,255,0.95)",
                       ],
                     }),
-                    borderWidth: 1,
+                    borderWidth: 1.5,
                   },
                 ]}
                 onPress={handlePrimaryAction}
@@ -1282,15 +1334,11 @@ export default function CreateGame({
                 {showReadyFlash ? (
                   <Animated.Text
                     style={[
-                      ui.btnGoldFillText,
-                      local.lobbyPrimaryBtnText,
+                      local.primaryCapsuleText,
                       {
                         color: readyFlash.interpolate({
                           inputRange: [0, 1],
-                          outputRange: [
-                            colors.textOnAccent,
-                            "#111111",
-                          ],
+                          outputRange: [colors.actionPrimaryText, "#111111"],
                         }),
                       },
                     ]}
@@ -1300,30 +1348,17 @@ export default function CreateGame({
                 ) : (
                   <Text
                     style={[
-                      ui.btnGoldFillText,
-                      local.lobbyPrimaryBtnText,
-                      primaryDisabled && local.lobbyPrimaryTextDisabled,
+                      local.primaryCapsuleText,
+                      primaryDisabled && local.primaryCapsuleTextDisabled,
                       showReadyAction &&
                         isLocalReady &&
-                        local.lobbyPrimaryReadyText,
+                        local.primaryCapsuleReadyText,
                     ]}
                   >
                     {primaryLabel}
                   </Text>
                 )}
               </AnimatedTouchable>
-              {onNavigateToSettings ? (
-                <TouchableOpacity
-                  style={local.lobbyTertiaryBtn}
-                  onPress={onNavigateToSettings}
-                  accessibilityRole="button"
-                  accessibilityLabel="Settings"
-                >
-                  <Text style={local.lobbyTertiaryText}>Settings</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={local.lobbyTertiaryBtn} />
-              )}
             </View>
 
             <BottomBarLeave onPress={handleLeave} />
@@ -1345,7 +1380,6 @@ export default function CreateGame({
 
 function createLocalStyles(colors: AppThemeColors) {
   const isDark = colors.mode === "dark";
-  const frostLine = isDark ? colors.textPrimary : "#ffffff";
 
   return StyleSheet.create({
   lobbyNoticeBanner: {
@@ -1369,10 +1403,59 @@ function createLocalStyles(colors: AppThemeColors) {
     fontWeight: "700",
     textAlign: "center",
   },
-  roomUtility: {
-    gap: 10,
-    marginBottom: 8,
+  utilHost: {
+    position: "absolute",
+    right: 12,
+    zIndex: 45,
+    elevation: 45,
   },
+  utilRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  utilBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: hexToRgba(colors.textPrimary, isDark ? 0.1 : 0.08),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: hexToRgba(colors.accent, isDark ? 0.28 : 0.22),
+  },
+  inviteCard: {
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
+    overflow: "hidden",
+  },
+  inviteEyebrow: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  codeCapsule: {
+    width: "100%",
+    minHeight: 48,
+    borderRadius: CAPSULE_RADIUS,
+    borderWidth: 1,
+    borderColor: colors.actionSecondaryBorder,
+    backgroundColor: colors.actionSecondaryBg,
+    paddingHorizontal: 16,
+    ...BUTTON_CENTER,
+  },
+  codeCapsuleCopied: {
+    borderColor: hexToRgba(colors.accent, isDark ? 0.55 : 0.45),
+    backgroundColor: hexToRgba(colors.accent, isDark ? 0.14 : 0.1),
+  },
+  codeCapsuleText: buttonLabel(17, {
+    color: colors.accent,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+  }),
   supportNote: {
     color: colors.textSecondary,
     fontSize: 13,
@@ -1394,22 +1477,19 @@ function createLocalStyles(colors: AppThemeColors) {
   roomInputWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: hexToRgba(
-      isDark ? frostLine : "#ffffff",
-      isDark ? 0.1 : 0.55,
-    ),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.accent, isDark ? 0.2 : 0.16),
-    borderRadius: 12,
-    paddingLeft: 14,
-    paddingRight: 12,
-    minHeight: 44,
+    backgroundColor: colors.actionSecondaryBg,
+    borderWidth: 1,
+    borderColor: colors.actionSecondaryBorder,
+    borderRadius: CAPSULE_RADIUS,
+    paddingLeft: 16,
+    paddingRight: 14,
+    minHeight: 48,
+  },
+  roomInputWrapSpaced: {
+    marginTop: 12,
   },
   roomInputWrapFocused: {
-    borderColor: hexToRgba(colors.accent, isDark ? 0.45 : 0.36),
-    backgroundColor: isDark
-      ? hexToRgba(frostLine, 0.14)
-      : hexToRgba("#ffffff", 0.92),
+    borderColor: hexToRgba(colors.accent, isDark ? 0.55 : 0.45),
   },
   roomInput: {
     flex: 1,
@@ -1447,52 +1527,28 @@ function createLocalStyles(colors: AppThemeColors) {
     fontWeight: "700",
     textAlign: "center",
   },
-  roomCodeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  roomCodeLabel: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-    flexShrink: 0,
-  },
-  roomCodeButton: {
-    marginLeft: "auto",
-    minWidth: 96,
-    maxWidth: "56%",
-    minHeight: 36,
-    paddingHorizontal: 12,
-    backgroundColor: hexToRgba(colors.accent, isDark ? 0.12 : 0.1),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.accent, isDark ? 0.4 : 0.32),
-    borderRadius: 12,
-    ...BUTTON_CENTER,
-  },
-  roomCodeButtonCopied: {
-    borderColor: hexToRgba(colors.accent, 0.55),
-    backgroundColor: hexToRgba(colors.accent, 0.22),
-  },
-  roomCodeButtonText: buttonLabel(15, {
-    color: colors.accent,
-    fontWeight: "800",
-    letterSpacing: 1.2,
-  }),
   tableArea: {
     flex: 1,
     minHeight: 0,
     justifyContent: "center",
     alignItems: "center",
-    paddingTop: 8,
+    paddingTop: 4,
   },
-  tableHint: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "600",
-    letterSpacing: 0.2,
+  statusChip: {
+    alignSelf: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: CAPSULE_RADIUS,
+    backgroundColor: hexToRgba(colors.textPrimary, isDark ? 0.08 : 0.06),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: hexToRgba(colors.accent, isDark ? 0.22 : 0.18),
     marginBottom: 12,
+  },
+  statusChipText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.2,
     textAlign: "center",
   },
   seatRing: {
@@ -1507,6 +1563,7 @@ function createLocalStyles(colors: AppThemeColors) {
   seatTapTarget: {
     width: "100%",
     alignItems: "center",
+    position: "relative",
   },
   removeSeatBtn: {
     position: "absolute",
@@ -1529,11 +1586,21 @@ function createLocalStyles(colors: AppThemeColors) {
     lineHeight: 19,
     marginTop: -1,
   },
-  hostBadge: {
-    marginTop: 2,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.2,
+  hostBadgePill: {
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: CAPSULE_RADIUS,
+    backgroundColor: hexToRgba(colors.accent, isDark ? 0.16 : 0.12),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: hexToRgba(colors.accent, isDark ? 0.38 : 0.28),
+  },
+  hostBadgeText: {
+    color: colors.accent,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
   },
   emptySeat: {
     position: "absolute",
@@ -1574,55 +1641,41 @@ function createLocalStyles(colors: AppThemeColors) {
   bottomControls: {
     paddingTop: BOTTOM_BAR_TOP_PAD,
   },
-  lobbyWaitHint: {
+  actionHint: {
     textAlign: "center",
     color: colors.textSecondary,
     fontSize: 13,
     fontWeight: "600",
     marginBottom: 10,
-    letterSpacing: 0.2,
+    lineHeight: 18,
+    paddingHorizontal: 8,
   },
-  actionRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 10,
-    minHeight: 52,
-  },
-  lobbyTertiaryBtn: {
-    flex: 0.85,
+  actionTrack: {
+    width: "100%",
     minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 6,
+    marginBottom: 2,
   },
-  lobbyTertiaryText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  lobbyPrimaryBtn: {
-    flex: 1.6,
+  primaryCapsule: {
+    width: "100%",
     minHeight: 52,
-    borderRadius: 14,
-    paddingHorizontal: 10,
+    borderRadius: CAPSULE_RADIUS,
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
     ...BUTTON_CENTER,
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.22,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 2 },
+        shadowColor: colors.accent,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.28,
+        shadowRadius: 10,
       },
       android: { elevation: 4 },
       default: {},
     }),
   },
-  lobbyPrimaryBtnText: buttonLabel(16, {
-    letterSpacing: 0.35,
-    textTransform: "uppercase",
-  }),
-  lobbyPrimaryDisabled: {
+  primaryCapsuleDisabled: {
     backgroundColor: colors.actionPrimaryDisabledBg,
+    borderColor: colors.actionPrimaryDisabledBorder,
     opacity: 0.72,
     ...Platform.select({
       ios: { shadowOpacity: 0 },
@@ -1630,18 +1683,11 @@ function createLocalStyles(colors: AppThemeColors) {
       default: {},
     }),
   },
-  lobbyPrimaryTextDisabled: {
-    color: colors.actionPrimaryDisabledText,
+  primaryCapsuleReady: {
+    backgroundColor: colors.actionSecondaryBg,
+    borderColor: colors.actionSecondaryBorder,
   },
-  lobbyPrimaryReady: {
-    backgroundColor: colors.actionPrimaryBg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: hexToRgba(colors.accent, 0.55),
-  },
-  lobbyPrimaryReadyText: {
-    color: colors.actionPrimaryText,
-  },
-  lobbyPrimaryFlash: {
+  primaryCapsuleFlash: {
     ...Platform.select({
       ios: {
         shadowColor: "#fff",
@@ -1651,6 +1697,17 @@ function createLocalStyles(colors: AppThemeColors) {
       },
       android: { elevation: 5 },
     }),
+  },
+  primaryCapsuleText: buttonLabel(16, {
+    color: colors.actionPrimaryText,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  }),
+  primaryCapsuleTextDisabled: {
+    color: colors.actionPrimaryDisabledText,
+  },
+  primaryCapsuleReadyText: {
+    color: colors.actionSecondaryText,
   },
   bottomInner: {
     width: "100%",

@@ -69,6 +69,7 @@ function syncEnvelope(room, gameState, spectator) {
   return {
     gameState: attachSyncMeta(room, gameState),
     spectator,
+    skipDealAnimations: !!room.skipDealAnimations,
     ...botHosted.botNextRoundSyncFields(room),
   };
 }

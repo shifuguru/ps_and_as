@@ -4,8 +4,7 @@ import SplashScreen from "./src/screens/SplashScreen";
 import CreateGame from "./src/screens/CreateGame";
 import FindGame from "./src/screens/FindGame";
 import GameScreen from "./src/screens/GameScreen";
-import Achievements from "./src/screens/Achievements";
-import Titles from "./src/screens/Titles";
+import Achievements, { type ProfileTab } from "./src/screens/Achievements";
 import Settings from "./src/screens/Settings";
 import UpdateLog from "./src/screens/UpdateLog";
 import ReadMeScreen from "./src/screens/ReadMeScreen";
@@ -121,7 +120,8 @@ function AppContent() {
   >("menu");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [achievementsOpen, setAchievementsOpen] = useState(false);
-  const [titlesOpen, setTitlesOpen] = useState(false);
+  const [achievementsInitialTab, setAchievementsInitialTab] =
+    useState<ProfileTab>("achievements");
   const [updateLogOpen, setUpdateLogOpen] = useState(false);
   const [readmeOpen, setReadmeOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -517,15 +517,19 @@ function AppContent() {
     setSettingsOpen(false);
   };
 
-  const openAchievements = () => setAchievementsOpen(true);
+  const openAchievements = () => {
+    setAchievementsInitialTab("achievements");
+    setAchievementsOpen(true);
+  };
 
-  const closeAchievements = () => setAchievementsOpen(false);
-
-  const openTitles = () => setTitlesOpen(true);
-
-  const closeTitles = () => {
-    setTitlesOpen(false);
+  const closeAchievements = () => {
+    setAchievementsOpen(false);
     setHubRefreshKey((k) => k + 1);
+  };
+
+  const openTitles = () => {
+    setAchievementsInitialTab("titles");
+    setAchievementsOpen(true);
   };
 
   const openUpdateLog = () => setUpdateLogOpen(true);
@@ -543,8 +547,6 @@ function AppContent() {
       closeUpdateLog();
     } else if (achievementsOpen) {
       closeAchievements();
-    } else if (titlesOpen) {
-      closeTitles();
     } else if (settingsOpen) {
       closeSettings();
     }
@@ -552,7 +554,6 @@ function AppContent() {
     readmeOpen,
     updateLogOpen,
     achievementsOpen,
-    titlesOpen,
     settingsOpen,
     closeSettings,
   ]);
@@ -560,7 +561,7 @@ function AppContent() {
   useWebEscapeKey(
     closeTopBackModal,
     menuVisible &&
-      (settingsOpen || achievementsOpen || titlesOpen || updateLogOpen || readmeOpen),
+      (settingsOpen || achievementsOpen || updateLogOpen || readmeOpen),
   );
 
   const lobbyMembersRef = useRef(lobbyMembers);
@@ -914,14 +915,76 @@ function AppContent() {
                   trackAnalyticsEvent("cta_quick_game", { playerCount });
                   void startPracticeGame(playerCount);
                 },
-                onPlayWithFriends: () => {
+                onHostOnlineGame: (name) => {
                   if (onboardingBlocking || !localPlayerName) return;
                   trackAnalyticsEvent("cta_online_game");
-                  disconnectRoom();
-                  setIsOnlineGame(false);
-                  setRoomAdapter(null);
-                  setJoinedRoomId(null);
-                  setScreen("find");
+                  void (async () => {
+                    if (
+                      isSocketAdapter(roomAdapter) &&
+                      activeRoomId &&
+                      roomAdapter.isConnected()
+                    ) {
+                      roomAdapter.dismissRoom(activeRoomId);
+                    }
+                    disconnectRoom();
+                    const profile = await getOrCreatePlayerId();
+                    setLocalPlayerName(name);
+                    setRoomAdapter(
+                      new SocketAdapter(undefined, "", name, profile.id, false, feltTint),
+                    );
+                    setJoinedRoomId(null);
+                    setActiveRoomId(null);
+                    setIsOnlineGame(true);
+                    setScreen("create");
+                  })();
+                },
+                onJoinOnlineRoom: (roomId, playerName) => {
+                  if (onboardingBlocking || !localPlayerName) return;
+                  trackAnalyticsEvent("cta_online_join", { roomId });
+                  void (async () => {
+                    const profile = await getOrCreatePlayerId();
+                    setLocalPlayerName(playerName);
+                    setIsSpectator(false);
+                    setRoomAdapter(
+                      new SocketAdapter(
+                        undefined,
+                        roomId,
+                        playerName,
+                        profile.id,
+                        true,
+                        feltTint,
+                      ),
+                    );
+                    setJoinedRoomId(roomId);
+                    setActiveRoomId(roomId);
+                    setIsOnlineGame(true);
+                    setScreen("create");
+                  })();
+                },
+                onSpectateOnlineRoom: (roomId, playerName) => {
+                  if (onboardingBlocking || !localPlayerName) return;
+                  void (async () => {
+                    const profile = await getOrCreatePlayerId();
+                    setLocalPlayerName(playerName);
+                    setLocalPlayerId(profile.id);
+                    setIsSpectator(true);
+                    setLobbyMembers([]);
+                    const adapter = new SocketAdapter(
+                      undefined,
+                      roomId,
+                      playerName,
+                      profile.id,
+                      true,
+                      feltTint,
+                    );
+                    setRoomAdapter(adapter);
+                    setJoinedRoomId(roomId);
+                    setActiveRoomId(roomId);
+                    setIsOnlineGame(true);
+                    setGameInstanceKey((k) => k + 1);
+                    setScreen("game");
+                    await adapter.connect();
+                  })();
                 },
                 onOpenAchievements: openAchievements,
                 onOpenTitles: openTitles,
@@ -987,7 +1050,7 @@ function AppContent() {
               const wasOnlineLobby = isSocketAdapter(roomAdapter);
               disconnectRoom();
               setIsOnlineGame(false);
-              setScreen(wasOnlineLobby ? "find" : "menu");
+              setScreen("menu");
             }}
             onNavigateToSettings={openSettings}
             onNavigateToAchievements={openAchievements}
@@ -1207,19 +1270,13 @@ function AppContent() {
             </View>
           </WebModalPortal>
         )}
-        {menuVisible && titlesOpen && (
-          <WebModalPortal style={appStyles.settingsOverlay}>
-            <FullscreenBlurScrim />
-            <View style={appStyles.settingsForeground}>
-              <Titles onBack={closeTitles} />
-            </View>
-          </WebModalPortal>
-        )}
         {menuVisible && achievementsOpen && (
           <WebModalPortal style={appStyles.settingsOverlay}>
             <FullscreenBlurScrim />
             <View style={appStyles.settingsForeground}>
               <Achievements
+                key={achievementsInitialTab}
+                initialTab={achievementsInitialTab}
                 onBack={closeAchievements}
                 onNavigateToSettings={() => {
                   closeAchievements();
