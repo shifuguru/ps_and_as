@@ -30,4 +30,4 @@ Do **not** bump the version or edit What's New for commits or PRs unless the use
 
 Do **not** use round placeholder times (e.g. 18:00) — timestamps must match the release commit time.
 
-The bump adds **0.0.1** to the patch segment (semver patch): `1.0.0` → `1.0.1`.
+The bump adds **0.0.1** to the patch segment (semver patch): `1.0.0` → `1.0.1`. Patch rolls at **99** into the next minor: `1.1.99` → `1.2.0`.

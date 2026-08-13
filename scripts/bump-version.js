@@ -1,5 +1,6 @@
 /**
  * Bump semver patch by 0.0.1 (e.g. 1.0.0 → 1.0.1).
+ * Patch rolls at 99: 1.1.99 → 1.2.0 (minor +1, patch reset to 0).
  * Updates package.json, app.json, package-lock.json, and assigns a release codename.
  */
 const fs = require("fs");
@@ -11,8 +12,13 @@ function bumpPatch(version) {
   if (!match) {
     throw new Error(`Invalid semver (expected major.minor.patch): ${version}`);
   }
-  const patch = Number(match[3]) + 1;
-  return `${match[1]}.${match[2]}.${patch}`;
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+  if (patch >= 99) {
+    return `${major}.${minor + 1}.0`;
+  }
+  return `${major}.${minor}.${patch + 1}`;
 }
 
 function writeJson(filePath, data) {
