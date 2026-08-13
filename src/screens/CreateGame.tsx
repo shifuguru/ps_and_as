@@ -34,6 +34,7 @@ import BlurPanel from "../components/BlurPanel";
 import MenuIcon from "../components/MenuIcon";
 import LobbyStatusBar, {
   LOBBY_STATUS_BAR_HEIGHT,
+  LOBBY_STACK_BAR_HEIGHT,
 } from "../components/LobbyStatusBar";
 import BottomBar, {
   BottomBarControls,
@@ -388,7 +389,7 @@ export default function CreateGame({
 
   const { width, height: windowHeight } = useWindowDimensions();
   const insets = useLayoutInsets();
-  const topBarHeight = insets.top + LOBBY_STATUS_BAR_HEIGHT;
+  const topBarHeight = insets.top + LOBBY_STACK_BAR_HEIGHT;
   const bottomBarHeight = lobbyBottomReserve(insets.bottom || 0);
 
   const usingMock = !adapter || !isSocketAdapter(adapter);
@@ -466,14 +467,16 @@ export default function CreateGame({
     return displayTextError(validateDisplayText(text, "Room name"));
   }, []);
 
-  const statusLabel = usingMock ? "Local" : isHost ? "You" : "Lobby";
-  const statusValue = usingMock
-    ? "Host"
-    : isHost
-      ? "Host"
-      : connectionStatus === "connected"
-        ? "Guest"
-        : "Connecting…";
+  const displayRoomName = useMemo(() => {
+    const trimmed = roomName.trim();
+    if (trimmed) return trimmed;
+    if (isHost || usingMock) {
+      return defaultRoomNameFromHost(playerName) || "Game Room";
+    }
+    return "Game Room";
+  }, [roomName, playerName, isHost, usingMock]);
+
+  const partyCount = Math.max(1, seatCount);
 
   const contentMaxWidth = Math.min(520, Math.max(320, width - 24));
   const estimatedTableHeight = Math.max(
@@ -942,6 +945,9 @@ export default function CreateGame({
       return `Waiting for all players to ready up (${guestsReadyCount}/${guestMembers.length})…`;
     }
     if (!isHost && !lobbyFullEnough) {
+      if (seatCount === 0 && connectionStatus !== "connected") {
+        return "Joining lobby…";
+      }
       return playersNeeded === 1
         ? "Waiting for 1 more player"
         : `Waiting for ${playersNeeded} more players`;
@@ -964,10 +970,12 @@ export default function CreateGame({
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
       <LobbyStatusBar
-        playerCount={seatCount}
-        roomName={roomName}
-        statusLabel={statusLabel}
-        statusValue={statusValue}
+        variant="lobby"
+        hideStatus
+        playerCount={partyCount}
+        roomName={displayRoomName}
+        statusLabel=""
+        statusValue=""
         topInset={insets.top}
       />
 
@@ -1045,14 +1053,11 @@ export default function CreateGame({
                           {codeCopied ? "Copied!" : actualRoomId}
                         </Text>
                       </TouchableOpacity>
-                      <Text style={local.inviteHint}>
-                        Share this code so friends can join
-                      </Text>
                     </>
                   ) : null}
                   {canEditRoom ? (
                     <RoomNameInput
-                      value={roomName}
+                      value={displayRoomName}
                       onCommit={handleRoomNameCommit}
                       validate={validateRoomName}
                       onEditingChange={(editing) => {
@@ -1375,7 +1380,6 @@ export default function CreateGame({
 
 function createLocalStyles(colors: AppThemeColors) {
   const isDark = colors.mode === "dark";
-  const frostLine = isDark ? colors.textPrimary : "#ffffff";
 
   return StyleSheet.create({
   lobbyNoticeBanner: {
@@ -1452,14 +1456,6 @@ function createLocalStyles(colors: AppThemeColors) {
     fontWeight: "800",
     letterSpacing: 1.4,
   }),
-  inviteHint: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-    marginTop: 8,
-    lineHeight: 16,
-  },
   supportNote: {
     color: colors.textSecondary,
     fontSize: 13,
