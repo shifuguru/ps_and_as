@@ -79,6 +79,7 @@ import {
 } from "../game/roundTransitionDiagnostics";
 import {
   resolveCeremonyLaunchMode,
+  resolveOnlineRoomSkipDealAnimations,
   resolveSkipDealAnimations,
 } from "../game/dealCeremonyAnimation";
 import {
@@ -584,6 +585,8 @@ function GameScreen({
   const { skipDealAnimations, loaded: preferencesLoaded } = useGamePreferences();
   const skipDealAnimationsRef = useRef(skipDealAnimations);
   skipDealAnimationsRef.current = skipDealAnimations;
+  /** Authoritative room skip flag from the latest gameStateSync (avoids startGame race). */
+  const syncRoomSkipDealRef = useRef<boolean | null>(null);
   const [tradePhase, setTradePhase] = useState<{
     baseState: GameState;
     players: GameState["players"];
@@ -857,12 +860,16 @@ function GameScreen({
     null;
 
   const shouldSkipDealAnimations = useCallback(() => {
-    return resolveSkipDealAnimations({
-      onlineMultiplayer,
-      roomSkipDealAnimations:
+    const roomSkip = resolveOnlineRoomSkipDealAnimations({
+      syncSkipDealAnimations: syncRoomSkipDealRef.current ?? undefined,
+      cachedRoomSkipDealAnimations:
         onlineMultiplayer && isSocketAdapter(networkAdapter)
           ? networkAdapter.getSkipDealAnimations()
           : false,
+    });
+    return resolveSkipDealAnimations({
+      onlineMultiplayer,
+      roomSkipDealAnimations: roomSkip,
       localSkipDealAnimations:
         skipDealAnimationsRef.current || getSkipDealAnimationsSync(),
     });
@@ -2391,7 +2398,14 @@ function GameScreen({
       };
     };
 
-    const applyServerSync = (raw: unknown, spectator?: boolean) => {
+    const applyServerSync = (
+      raw: unknown,
+      spectator?: boolean,
+      syncSkipDealAnimations?: boolean,
+    ) => {
+      if (typeof syncSkipDealAnimations === "boolean") {
+        syncRoomSkipDealRef.current = syncSkipDealAnimations;
+      }
       const parsed = parseServerGameState(raw) as ServerAugmentedState | null;
       if (!parsed) {
         console.warn("[GameScreen] Ignored invalid gameStateSync payload", raw);
@@ -2504,18 +2518,37 @@ function GameScreen({
 
       // While local deal/trade animation runs, stash server progress — do not apply live play state.
       if (onlineMultiplayer && localCeremonyUi) {
+        const tradesDone = serverPendingTradesComplete(parsed.pendingTrades);
+        const playStartedOnServer = tradesDone && !openingLeadNotYetTaken(parsed);
+        if (playStartedOnServer) {
+          if (parsed.playerHands) {
+            pendingTradesCompleteRef.current = parsed.playerHands;
+          }
+          ceremonyStartedForRoundRef.current = roundKey;
+          ceremonyDoneForRoundRef.current = roundKey;
+          awaitingDealCeremonyRef.current = false;
+          setCeremonyPrep(null);
+          setTradePhase(null);
+          setActiveTrade(null);
+          setTradeReturnPick([]);
+          setGameplayLocked(false);
+          clearLastHandReveal();
+          setRoundOver(false);
+          const syncedForPlay = reconcileSyncedOpeningPlayer(parsed);
+          setState(repairStuckTurnPointer(syncedForPlay));
+          finishSpectator();
+          return;
+        }
+
         if (
-          serverPendingTradesComplete(parsed.pendingTrades) &&
+          tradesDone &&
           parsed.currentPlayerIndex >= 0 &&
           parsed.currentPlayerIndex < parsed.players.length
         ) {
           const openerId = parsed.players[parsed.currentPlayerIndex]?.id;
           if (openerId) pendingOpeningPlayerIdRef.current = openerId;
         }
-        if (
-          serverPendingTradesComplete(parsed.pendingTrades) &&
-          parsed.playerHands
-        ) {
+        if (tradesDone && parsed.playerHands) {
           pendingTradesCompleteRef.current = parsed.playerHands;
         }
         const prep = ceremonyPrepRef.current;
@@ -2691,7 +2724,13 @@ function GameScreen({
           : null,
       );
       if (cachedOnConnect) {
-        applyServerSync(cachedOnConnect);
+        applyServerSync(
+          cachedOnConnect,
+          undefined,
+          isSocketAdapter(networkAdapter)
+            ? networkAdapter.getSkipDealAnimations()
+            : undefined,
+        );
       }
       if (onlineMultiplayer && !stateSyncedRef.current) {
         let attempts = 0;
@@ -2729,7 +2768,13 @@ function GameScreen({
         ev.type === "state" &&
         ev.state?.type === "gameStateSync"
       ) {
-        applyServerSync(ev.state.gameState, ev.state.spectator);
+        applyServerSync(
+          ev.state.gameState,
+          ev.state.spectator,
+          typeof ev.state.skipDealAnimations === "boolean"
+            ? ev.state.skipDealAnimations
+            : undefined,
+        );
         if (isBotOpenTable) {
           applyBotNextRoundDeadline(ev.state.botNextRoundAt);
         }

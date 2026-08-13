@@ -611,6 +611,28 @@ Work order: see **Priority order** in Workflow (top of this file).
 
 ---
 
+## Deal ceremony skip-flag desync (online)
+
+**Category:** Multiplayer
+
+**Intended behaviour:**  
+When the host disables deal animations (`skipDealAnimations`), every client in the room skips shuffle/deal flights together and converges on authoritative server play state at the same time.
+
+**Current behaviour (before fix):**  
+`gameStateSync` could arrive before the client's adapter learned the room `skipDealAnimations` flag from `startGame` / `lobbyUpdate`. One client could launch the full shuffle ceremony while another skipped straight to play. The lagging client then ignored live `gameStateSync` updates while `ceremonyPrep` was active, so opponent card plays were invisible.
+
+**Impact:**  
+Host stuck watching shuffle while guest plays; table appears broken until refresh.
+
+**Files involved:**  
+`server/gameStateView.js`, `src/game/socketAdapter.ts`, `src/game/dealCeremonyAnimation.ts`, `src/screens/GameScreen.tsx`
+
+**Priority:** P1
+
+**Status:** Resolved — `skipDealAnimations` included on every `gameStateSync`; ceremony launch reads sync flag; catch-up applies server play when ceremony lags.
+
+---
+
 ## Related docs
 
 - [GAME_ARCHITECTURE.md](./GAME_ARCHITECTURE.md) — UI, overlays, On Top, turn ownership intent, disconnect intent
