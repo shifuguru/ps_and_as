@@ -43,6 +43,7 @@ function connectClient(name, profileId) {
       roundEnded: null,
       gameAborted: null,
       playerDisconnected: null,
+      kicked: null,
     };
     socket.on("connect", () => resolve({ socket, state, name, profileId }));
     socket.on("connect_error", reject);
@@ -69,6 +70,9 @@ function connectClient(name, profileId) {
     });
     socket.on("playerDisconnected", (data) => {
       state.playerDisconnected = data;
+    });
+    socket.on("kicked", (data) => {
+      state.kicked = data;
     });
   });
 }
@@ -412,6 +416,9 @@ async function main() {
   await testPauseJoinIsSpectator();
   await testBotSeatClaimRejected();
   await testSkipBotTableRequiresMembership();
+  await testSameNameGuestReconnectDoesNotStealHost();
+  await testKickByIdLeavesNameTwinSeated();
+  await testKickByAmbiguousNameIsIgnored();
   console.log("All seat security checks passed.");
 }
 
@@ -457,4 +464,99 @@ async function testSkipBotTableRequiresMembership() {
   }
   outsider.socket.disconnect();
   console.log("  PASS skipBotTable requires room membership");
+}
+
+async function testSameNameGuestReconnectDoesNotStealHost() {
+  const roomId = roomCode("HN");
+  const host = await createHost("Player", `host-${roomId}`, roomId);
+  const hostId = host.state.id;
+  const guest = await join("Player", `guest-${roomId}`, roomId);
+  const guestId = guest.state.id;
+  const secret = guest.state.reconnectSecret;
+  if (host.state.lobby?.host !== hostId) {
+    throw new Error("expected original host before disconnect");
+  }
+
+  guest.socket.disconnect();
+  await wait(400);
+
+  const guestBack = await join("Player", `guest-${roomId}`, roomId, secret);
+  if (guestBack.state.id !== guestId) {
+    throw new Error("same-name guest failed to reclaim own seat");
+  }
+  await wait(300);
+  if (host.state.lobby?.host !== hostId) {
+    throw new Error(
+      `same-name guest stole host on reconnect (host=${host.state.lobby?.host} guest=${guestId})`,
+    );
+  }
+  if (guestBack.state.lobby?.host !== hostId) {
+    throw new Error("reconnected guest lobby reports stolen host");
+  }
+
+  guestBack.socket.emit("kickPlayer", {
+    roomId,
+    playerId: hostId,
+    playerName: "Player",
+  });
+  await wait(400);
+  if (host.state.kicked) {
+    throw new Error("non-host same-name guest was able to kick the host");
+  }
+  if ((host.state.lobby?.players || []).length < 2) {
+    throw new Error("same-name guest kick removed a seat");
+  }
+
+  for (const c of [host, guestBack]) c.socket.disconnect();
+  console.log("  PASS same-name guest reconnect does not steal host");
+}
+
+async function testKickByIdLeavesNameTwinSeated() {
+  const roomId = roomCode("KD");
+  const host = await createHost("Player", `host-${roomId}`, roomId);
+  const alex = await join("Alex", `alex-${roomId}`, roomId);
+  const twin = await join("Alex", `twin-${roomId}`, roomId);
+  const alexId = alex.state.id;
+  const twinId = twin.state.id;
+
+  host.socket.emit("kickPlayer", { roomId, playerId: alexId, playerName: "Alex" });
+  await wait(500);
+  if (!alex.state.kicked) {
+    throw new Error("targeted Alex was not kicked");
+  }
+  if (twin.state.kicked) {
+    throw new Error("name-twin Alex was kicked with the target");
+  }
+  const remaining = host.state.lobby?.players || [];
+  if (remaining.some((p) => p.id === alexId)) {
+    throw new Error("kicked seat still in lobby");
+  }
+  if (!remaining.some((p) => p.id === twinId)) {
+    throw new Error("name-twin was removed by id kick");
+  }
+
+  for (const c of [host, twin]) c.socket.disconnect();
+  console.log("  PASS kick by playerId leaves same-name twin seated");
+}
+
+async function testKickByAmbiguousNameIsIgnored() {
+  const roomId = roomCode("KN");
+  const host = await createHost("Host", `host-${roomId}`, roomId);
+  const alex = await join("Alex", `alex-${roomId}`, roomId);
+  const twin = await join("Alex", `twin-${roomId}`, roomId);
+
+  host.socket.emit("kickPlayer", { roomId, playerName: "Alex" });
+  await wait(500);
+  if (alex.state.kicked || twin.state.kicked) {
+    throw new Error("ambiguous name kick removed a same-named player");
+  }
+  const remaining = host.state.lobby?.players || [];
+  if (remaining.length !== 3) {
+    throw new Error(
+      `expected 3 lobby seats after ambiguous name kick, got ${remaining.length}`,
+    );
+  }
+
+  for (const c of [host, alex, twin]) c.socket.disconnect();
+  console.log("  PASS ambiguous name kick is ignored");
 }

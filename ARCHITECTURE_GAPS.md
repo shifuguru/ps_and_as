@@ -633,6 +633,50 @@ Host stuck watching shuffle while guest plays; table appears broken until refres
 
 ---
 
+## Same-name reconnect steals host
+
+**Category:** Multiplayer / Host authority
+
+**Intended behaviour:**  
+Host is a seat id (`room.host`). Reconnect restores that seat only when the reconnecting player **is** the host or room creator. Kick removes one seat.
+
+**Current behaviour (before fix):**  
+`joinRoom` restored host when `room.hostName === existingPlayer.name`. Two players with the same display name (allowed, including `"Player"`) let a guest steal host on reconnect. `kickPlayer` looked up and filtered by display name, so kicking one twin removed every matching seat and could abort the match.
+
+**Impact:**  
+Guest with the same name as the host briefly disconnects, reconnects, becomes host, and can kick the original host — ending a live private game.
+
+**Files involved:**  
+`server/index.js` (`joinRoom` host restore, `kickPlayer` / `resolveKickTarget`), `src/game/socketAdapter.ts`, `src/screens/CreateGame.tsx`
+
+**Priority:** P0
+
+**Status:** Resolved — host restore is id-only; kick targets `playerId` (name fallback only if unique)
+
+---
+
+## In-game join traps spectators in CreateGame
+
+**Category:** Multiplayer / Join routing
+
+**Intended behaviour:**  
+Joining a live 2-player table (dead-hand seat open) enters GameScreen as a spectator so the player can watch and Ready for the next-round seat claim. CreateGame Ready is lobby `toggleReady` only.
+
+**Current behaviour (before fix):**  
+Hub/Find Game listed "Join" between rounds (`showSpectate` required `roundInProgress`). `App.tsx` `startGame` returned early for every `spectator: true` while on the create screen, so live join-by-code and between-rounds listing never reached the table.
+
+**Impact:**  
+Players who join a live 2p match stay on the lobby Ready button and cannot watch or claim the dead-hand seat.
+
+**Files involved:**  
+`App.tsx`, `src/services/availableRooms.ts`, `src/components/HubOnlinePlayPanel.tsx`, `src/screens/FindGame.tsx`
+
+**Priority:** P0
+
+**Status:** Resolved — Spectate for any in-game dead-hand listing; hold lobby only for bot-open tables
+
+---
+
 ## Related docs
 
 - [GAME_ARCHITECTURE.md](./GAME_ARCHITECTURE.md) — UI, overlays, On Top, turn ownership intent, disconnect intent

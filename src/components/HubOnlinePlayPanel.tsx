@@ -14,7 +14,11 @@ import AppButton from "./ui/AppButton";
 import { BottomBarLeave } from "./BottomBar";
 import { useAppTheme } from "../context/ThemeContext";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
-import { formatRoomTimeAgo, type AvailableRoom } from "../services/availableRooms";
+import {
+  formatRoomTimeAgo,
+  listedRoomShowsSpectate,
+  type AvailableRoom,
+} from "../services/availableRooms";
 import { hexToRgba } from "../utils/colorTheory";
 import {
   isValidRoomCode,
@@ -125,11 +129,7 @@ export default function HubOnlinePlayPanel({
               const full =
                 !inPlay && !isBotTable && room.playerCount >= room.maxPlayers;
               const showSpectate =
-                !!onSpectateRoom &&
-                !!room.inGame &&
-                seatOpen &&
-                room.playerCount >= 2 &&
-                (isBotTable || inPlay);
+                !!onSpectateRoom && listedRoomShowsSpectate(room);
               const actionLabel = showSpectate
                 ? "Spectate"
                 : full
