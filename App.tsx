@@ -914,14 +914,76 @@ function AppContent() {
                   trackAnalyticsEvent("cta_quick_game", { playerCount });
                   void startPracticeGame(playerCount);
                 },
-                onPlayWithFriends: () => {
+                onHostOnlineGame: (name) => {
                   if (onboardingBlocking || !localPlayerName) return;
                   trackAnalyticsEvent("cta_online_game");
-                  disconnectRoom();
-                  setIsOnlineGame(false);
-                  setRoomAdapter(null);
-                  setJoinedRoomId(null);
-                  setScreen("find");
+                  void (async () => {
+                    if (
+                      isSocketAdapter(roomAdapter) &&
+                      activeRoomId &&
+                      roomAdapter.isConnected()
+                    ) {
+                      roomAdapter.dismissRoom(activeRoomId);
+                    }
+                    disconnectRoom();
+                    const profile = await getOrCreatePlayerId();
+                    setLocalPlayerName(name);
+                    setRoomAdapter(
+                      new SocketAdapter(undefined, "", name, profile.id, false, feltTint),
+                    );
+                    setJoinedRoomId(null);
+                    setActiveRoomId(null);
+                    setIsOnlineGame(true);
+                    setScreen("create");
+                  })();
+                },
+                onJoinOnlineRoom: (roomId, playerName) => {
+                  if (onboardingBlocking || !localPlayerName) return;
+                  trackAnalyticsEvent("cta_online_join", { roomId });
+                  void (async () => {
+                    const profile = await getOrCreatePlayerId();
+                    setLocalPlayerName(playerName);
+                    setIsSpectator(false);
+                    setRoomAdapter(
+                      new SocketAdapter(
+                        undefined,
+                        roomId,
+                        playerName,
+                        profile.id,
+                        true,
+                        feltTint,
+                      ),
+                    );
+                    setJoinedRoomId(roomId);
+                    setActiveRoomId(roomId);
+                    setIsOnlineGame(true);
+                    setScreen("create");
+                  })();
+                },
+                onSpectateOnlineRoom: (roomId, playerName) => {
+                  if (onboardingBlocking || !localPlayerName) return;
+                  void (async () => {
+                    const profile = await getOrCreatePlayerId();
+                    setLocalPlayerName(playerName);
+                    setLocalPlayerId(profile.id);
+                    setIsSpectator(true);
+                    setLobbyMembers([]);
+                    const adapter = new SocketAdapter(
+                      undefined,
+                      roomId,
+                      playerName,
+                      profile.id,
+                      true,
+                      feltTint,
+                    );
+                    setRoomAdapter(adapter);
+                    setJoinedRoomId(roomId);
+                    setActiveRoomId(roomId);
+                    setIsOnlineGame(true);
+                    setGameInstanceKey((k) => k + 1);
+                    setScreen("game");
+                    await adapter.connect();
+                  })();
                 },
                 onOpenAchievements: openAchievements,
                 onOpenTitles: openTitles,
@@ -987,7 +1049,7 @@ function AppContent() {
               const wasOnlineLobby = isSocketAdapter(roomAdapter);
               disconnectRoom();
               setIsOnlineGame(false);
-              setScreen(wasOnlineLobby ? "find" : "menu");
+              setScreen("menu");
             }}
             onNavigateToSettings={openSettings}
             onNavigateToAchievements={openAchievements}

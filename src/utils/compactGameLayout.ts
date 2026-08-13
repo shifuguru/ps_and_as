@@ -50,13 +50,13 @@ export function resolveHandHintSlot(tier: CompactHeightTier): number {
 export function resolveBottomContentMargin(tier: CompactHeightTier): number {
   switch (tier) {
     case "veryTight":
-      return 8;
-    case "tight":
-      return 10;
-    case "compact":
       return 14;
+    case "tight":
+      return 16;
+    case "compact":
+      return 20;
     default:
-      return 18;
+      return 26;
   }
 }
 
@@ -186,10 +186,10 @@ export function resolveActionTrackGap(tier: CompactHeightTier): number {
 
 /** Space above Pass / Play inside the bottom bar (tier-aware). */
 export function resolveControlsTopPad(tier: CompactHeightTier): number {
-  if (tier === "veryTight") return 1;
-  if (tier === "tight") return 2;
-  if (tier === "compact") return 3;
-  return 4;
+  if (tier === "veryTight") return 2;
+  if (tier === "tight") return 4;
+  if (tier === "compact") return 6;
+  return 8;
 }
 
 /** Top padding inside the opponent ring play area. */
