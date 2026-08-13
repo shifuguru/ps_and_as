@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import BlurPanel from "./BlurPanel";
 import AppButton from "./ui/AppButton";
+import { BottomBarLeave } from "./BottomBar";
 import { useAppTheme } from "../context/ThemeContext";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import { formatRoomTimeAgo, type AvailableRoom } from "../services/availableRooms";
@@ -70,18 +71,7 @@ export default function HubOnlinePlayPanel({
 
   return (
     <View style={styles.root}>
-      <View style={styles.headerRow}>
-        <TouchableOpacity
-          onPress={onBack}
-          style={styles.backBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Back to home"
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Text style={styles.backBtnText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.statusHint}>{statusLabel}</Text>
-      </View>
+      <Text style={styles.statusHint}>{statusLabel}</Text>
 
       {error ? (
         <View style={styles.errorPanel}>
@@ -263,6 +253,12 @@ export default function HubOnlinePlayPanel({
           </Text>
         </TouchableOpacity>
       </BlurPanel>
+
+      <BottomBarLeave
+        onPress={onBack}
+        label="Back"
+        accessibilityLabel="Back to home"
+      />
     </View>
   );
 }
@@ -275,27 +271,12 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       gap: 12,
       width: "100%",
     },
-    headerRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-      marginBottom: 2,
-    },
-    backBtn: {
-      minHeight: 36,
-      justifyContent: "center",
-      paddingHorizontal: 4,
-    },
-    backBtnText: {
-      color: colors.accent,
-      fontSize: 15,
-      fontWeight: "700",
-    },
     statusHint: {
+      alignSelf: "flex-end",
       color: colors.textSecondary,
       fontSize: 12,
       fontWeight: "600",
+      marginBottom: -4,
     },
     errorPanel: {
       borderRadius: 14,

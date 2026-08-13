@@ -2,11 +2,9 @@
  * Player Hub home — presentation layer over canonical PlayerStats.
  *
  * Panel order (player interest):
- * Brand → Pitch → Play → Identity → Rules → (A2HS) → Daily → Next Achievement →
- * Recent Unlock → Journey → Friends → Stats → What's New → Support
- *
- * Day-0 (roundsPlayed === 0): Brand → Pitch → Play (+ helper) → Rules →
- * Identity → (A2HS) → XP nudge → What's New → Support
+ * Brand → Pitch → Identity → Rules → (slide: Play local | Online friends) →
+ * (A2HS) → Daily → Next Achievement → Recent Unlock → Journey → Friends →
+ * Stats → What's New → Support
  * Play: primary "Play" vs AI; inline online panel for friends play.
  *
  * Deferred (need telemetry or session handoff — not built here):
@@ -700,6 +698,17 @@ export default function PlayerHub({
             Race to empty your hand. Finish first and become President.
           </Text>
 
+          {statsReady ? identityPanel : null}
+
+          <AppButton
+            label="Game Rules"
+            icon="list"
+            variant="secondary"
+            onPress={() => run(actions.onOpenReadMe)}
+            accessibilityLabel="Game Rules"
+            style={styles.rulesEntryButton}
+          />
+
           <View
             style={[
               styles.slideStage,
@@ -781,20 +790,6 @@ export default function PlayerHub({
               </TouchableOpacity>
             ) : null}
           </View>
-
-          {/* Returning / loading: identity after play. Day-0: play first. */}
-          {!isDay0 ? identityPanel : null}
-
-          <AppButton
-            label="Game Rules"
-            icon="list"
-            variant="secondary"
-            onPress={() => run(actions.onOpenReadMe)}
-            accessibilityLabel="Game Rules"
-            style={styles.rulesEntryButton}
-          />
-
-          {isDay0 ? identityPanel : null}
 
           <AddToHomeScreenBanner />
 
