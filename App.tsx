@@ -29,7 +29,6 @@ import type { LobbyMember } from "./src/game/network";
 import { MockAdapter } from "./src/game/network";
 import { isSocketAdapter } from "./src/game/socketAdapter";
 import { getOrCreatePlayerId } from "./src/services/gameCenter";
-import { shouldHoldSpectatorStartGameInLobby } from "./src/services/availableRooms";
 import { resolveDisplayNameSetupState } from "./src/services/playerDisplayName";
 import {
   markWebInstallDeclined,
@@ -123,6 +122,9 @@ function AppContent() {
   const [achievementsOpen, setAchievementsOpen] = useState(false);
   const [achievementsInitialTab, setAchievementsInitialTab] =
     useState<ProfileTab>("achievements");
+  const [achievementsScrollToId, setAchievementsScrollToId] = useState<
+    string | null
+  >(null);
   const [updateLogOpen, setUpdateLogOpen] = useState(false);
   const [readmeOpen, setReadmeOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -518,13 +520,15 @@ function AppContent() {
     setSettingsOpen(false);
   };
 
-  const openAchievements = () => {
+  const openAchievements = (achievementId?: string) => {
     setAchievementsInitialTab("achievements");
+    setAchievementsScrollToId(achievementId ?? null);
     setAchievementsOpen(true);
   };
 
   const closeAchievements = () => {
     setAchievementsOpen(false);
+    setAchievementsScrollToId(null);
     setHubRefreshKey((k) => k + 1);
   };
 
@@ -666,9 +670,7 @@ function AppContent() {
 
       const roomId = activeRoomIdRef.current ?? joinedRoomIdRef.current;
 
-      // Bot-open tables keep spectators in the lobby Ready UI.
-      // Standard in-game joins must enter GameScreen — CreateGame Ready is
-      // lobby-only and cannot claim the dead-hand seat or show the table.
+      // In-progress bot-table join replays startGame — spectators stay in lobby to Ready.
       if (screenRef.current === "create") {
         if (typeof ev.state.spectator === "boolean") {
           setIsSpectator(ev.state.spectator);
@@ -676,10 +678,7 @@ function AppContent() {
         if (typeof ev.state.dealSeed === "number") {
           setDealSeed(ev.state.dealSeed);
         }
-        if (
-          ev.state.spectator &&
-          shouldHoldSpectatorStartGameInLobby(roomId)
-        ) {
+        if (ev.state.spectator) {
           return;
         }
       }
@@ -860,18 +859,60 @@ function AppContent() {
               !onboardingReady || onboardingBlocking ? "none" : "auto"
             }
           >
+            {pendingRejoin ? (
+              <View
+                style={[
+                  appStyles.rejoinBanner,
+                  {
+                    backgroundColor: colors.btnAccentBg,
+                    borderColor: colors.btnAccentBorder,
+                  },
+                ]}
+              >
+                <Text style={[appStyles.rejoinTitle, { color: colors.onFelt.textPrimary }]}>
+                  Resume your lobby?
+                </Text>
+                <Text style={[appStyles.rejoinBody, { color: colors.onFelt.textSecondary }]} numberOfLines={2}>
+                  {pendingRejoin.isHost ? "Host" : "Guest"} · room{" "}
+                  {pendingRejoin.roomName || pendingRejoin.roomId}
+                </Text>
+                <View style={appStyles.rejoinActions}>
+                  <TouchableOpacity
+                    style={[appStyles.rejoinPrimary, { backgroundColor: colors.accent }]}
+                    onPress={() => void rejoinLobby()}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[appStyles.rejoinPrimaryText, { color: colors.textOnAccent }]}>
+                      Rejoin
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      appStyles.rejoinSecondary,
+                      {
+                        backgroundColor: colors.btnSecondaryBg,
+                        borderColor: colors.btnSecondaryBorder,
+                      },
+                    ]}
+                    onPress={() => {
+                      void clearLobbySession();
+                      setPendingRejoin(null);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[appStyles.rejoinSecondaryText, { color: colors.btnSecondaryText }]}>
+                      Dismiss
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
             <PlayerHub
               displayName={localPlayerName ?? "Player"}
               whatsNewUnread={updateLogUnreadCount}
               onlinePlayerCount={onlinePresence.count}
               onlinePlayers={onlinePresence.players}
               refreshKey={hubRefreshKey}
-              pendingLobby={pendingRejoin}
-              onRejoinLobby={() => void rejoinLobby()}
-              onDismissLobby={() => {
-                void clearLobbySession();
-                setPendingRejoin(null);
-              }}
               onNavigateSound={() => playEffect("click")}
               actions={{
                 onPlay: (playerCount) => {
@@ -1239,8 +1280,9 @@ function AppContent() {
             <FullscreenBlurScrim />
             <View style={appStyles.settingsForeground}>
               <Achievements
-                key={achievementsInitialTab}
+                key={`${achievementsInitialTab}:${achievementsScrollToId ?? ""}`}
                 initialTab={achievementsInitialTab}
+                scrollToAchievementId={achievementsScrollToId}
                 onBack={closeAchievements}
                 onNavigateToSettings={() => {
                   closeAchievements();
@@ -1341,5 +1383,49 @@ const appStyles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 1,
     elevation: 1,
+  },
+  rejoinBanner: {
+    position: "absolute",
+    top: 12,
+    left: 16,
+    right: 16,
+    zIndex: 20,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  rejoinTitle: {
+    fontWeight: "800",
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  rejoinBody: {
+    fontSize: 12,
+    marginBottom: 10,
+  },
+  rejoinActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  rejoinPrimary: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  rejoinPrimaryText: {
+    fontWeight: "800",
+    fontSize: 13,
+  },
+  rejoinSecondary: {
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  rejoinSecondaryText: {
+    fontWeight: "700",
+    fontSize: 13,
   },
 });

@@ -38,6 +38,11 @@ import MenuIcon from "../components/MenuIcon";
 import HubProgressRing from "../components/HubProgressRing";
 import NextAchievementCard from "../components/NextAchievementCard";
 import RewardClaimBurst from "../components/RewardClaimBurst";
+import BottomBar, {
+  BottomBarControls,
+  BottomBarLeave,
+  menuBottomReserve,
+} from "../components/BottomBar";
 import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
@@ -128,7 +133,7 @@ export type PlayerHubActions = {
   onHostOnlineGame: (playerName: string) => void;
   onJoinOnlineRoom: (roomId: string, playerName: string) => void;
   onSpectateOnlineRoom?: (roomId: string, playerName: string) => void;
-  onOpenAchievements: () => void;
+  onOpenAchievements: (achievementId?: string) => void;
   onOpenTitles: () => void;
   onOpenWhatsNew: () => void;
   onOpenSettings: () => void;
@@ -172,7 +177,11 @@ export default function PlayerHub({
   const insets = useLayoutInsets();
   const { width, height } = useVisualViewportSize();
   const contentMaxWidth = Math.min(520, Math.max(300, width - 40));
+  const onlineBottomReserve = menuBottomReserve(insets.bottom || 0);
   const showFriendsPlaceholder = width >= FRIENDS_WIDE_MIN;
+  const slideStageMinHeight = onlinePlayOpen
+    ? onlineSlideHeight
+    : localSlideHeight;
   const versionLabel = useClientBuildLabel();
 
   const [stats, setStats] = useState<PlayerStats | null>(null);
@@ -192,7 +201,8 @@ export default function PlayerHub({
   const [onlinePlayersOpen, setOnlinePlayersOpen] = useState(false);
   const [practiceSetupOpen, setPracticeSetupOpen] = useState(false);
   const [onlinePlayOpen, setOnlinePlayOpen] = useState(false);
-  const [slideStageHeight, setSlideStageHeight] = useState(0);
+  const [localSlideHeight, setLocalSlideHeight] = useState(0);
+  const [onlineSlideHeight, setOnlineSlideHeight] = useState(0);
   const slideProgress = useRef(new Animated.Value(0)).current;
   const [practicePlayerCount, setPracticePlayerCount] = useState(
     PRACTICE_DEFAULT_PLAYERS,
@@ -531,16 +541,6 @@ export default function PlayerHub({
             <View style={styles.identityActions}>
               <TouchableOpacity
                 activeOpacity={0.8}
-                onPress={() => run(actions.onOpenTitles)}
-                accessibilityRole="button"
-                accessibilityLabel="Open titles"
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                style={styles.identityActionBtn}
-              >
-                <MenuIcon name="list" size={18} color={colors.accent} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                activeOpacity={0.8}
                 onPress={() => run(actions.onOpenAchievements)}
                 accessibilityRole="button"
                 accessibilityLabel="Open achievements"
@@ -721,12 +721,8 @@ export default function PlayerHub({
           <View
             style={[
               styles.slideStage,
-              slideStageHeight > 0 ? { minHeight: slideStageHeight } : null,
+              slideStageMinHeight > 0 ? { minHeight: slideStageMinHeight } : null,
             ]}
-            onLayout={(e) => {
-              const h = e.nativeEvent.layout.height;
-              if (h > slideStageHeight) setSlideStageHeight(h);
-            }}
           >
             <Animated.View
               style={[
@@ -734,6 +730,10 @@ export default function PlayerHub({
                 { transform: [{ translateX: localSlideX }] },
               ]}
               pointerEvents={onlinePlayOpen ? "none" : "auto"}
+              onLayout={(e) => {
+                const h = e.nativeEvent.layout.height;
+                if (h > localSlideHeight) setLocalSlideHeight(h);
+              }}
             >
               <View style={styles.contentSlideInner}>
           {/* Play — primary actions sit high, right under the pitch */}
@@ -831,7 +831,9 @@ export default function PlayerHub({
           {hasPlayed && nextAch ? (
             <NextAchievementCard
               next={nextAch}
-              onPress={() => run(actions.onOpenAchievements)}
+              onPress={() =>
+                run(() => actions.onOpenAchievements(nextAch.def.id))
+              }
             />
           ) : null}
 
@@ -891,9 +893,10 @@ export default function PlayerHub({
             <BlurPanel intensity={44} style={[styles.card, styles.utilityCard]}>
               <Text style={styles.sectionTitle}>Continue Your Journey</Text>
               <View style={styles.goalStack}>
-                {goals.map((g, idx) => (
-                  <View key={g.id}>
-                    {idx > 0 ? <View style={styles.goalDivider} /> : null}
+                {goals.map((g, idx) => {
+                  const tappable =
+                    g.kind === "achievement" && g.achievementId != null;
+                  const row = (
                     <View style={styles.goalRow}>
                       <View style={styles.goalTextCol}>
                         <Text style={styles.goalTitle}>{g.title}</Text>
@@ -901,8 +904,29 @@ export default function PlayerHub({
                       </View>
                       <ProgressMeter progress={g.fraction} height={7} />
                     </View>
-                  </View>
-                ))}
+                  );
+                  return (
+                    <View key={g.id}>
+                      {idx > 0 ? <View style={styles.goalDivider} /> : null}
+                      {tappable ? (
+                        <TouchableOpacity
+                          onPress={() =>
+                            run(() =>
+                              actions.onOpenAchievements(g.achievementId!),
+                            )
+                          }
+                          activeOpacity={0.85}
+                          accessibilityRole="button"
+                          accessibilityLabel={`View ${g.title} in achievements`}
+                        >
+                          {row}
+                        </TouchableOpacity>
+                      ) : (
+                        row
+                      )}
+                    </View>
+                  );
+                })}
               </View>
             </BlurPanel>
           ) : null}
@@ -1018,7 +1042,7 @@ export default function PlayerHub({
                 pointerEvents="auto"
                 onLayout={(e) => {
                   const h = e.nativeEvent.layout.height;
-                  if (h > slideStageHeight) setSlideStageHeight(h);
+                  if (h > onlineSlideHeight) setOnlineSlideHeight(h);
                 }}
               >
                 <HubOnlinePlayPanel
@@ -1028,7 +1052,7 @@ export default function PlayerHub({
                   isSearching={isSearching}
                   connectionStatus={connectionStatus}
                   error={onlineError}
-                  onBack={closeOnlinePlay}
+                  contentBottomPadding={onlineBottomReserve}
                   onRefresh={() => void refreshRooms()}
                   onHost={handleHostOnlineGame}
                   onJoinRoom={handleJoinOnlineRoom}
@@ -1044,6 +1068,18 @@ export default function PlayerHub({
           </View>
         </View>
       </ScrollView>
+
+      {onlinePlayOpen ? (
+        <BottomBar>
+          <BottomBarControls style={styles.onlineBackControls}>
+            <BottomBarLeave
+              onPress={closeOnlinePlay}
+              label="Back"
+              accessibilityLabel="Back to home"
+            />
+          </BottomBarControls>
+        </BottomBar>
+      ) : null}
 
       <OnlinePlayersModal
         visible={onlinePlayersOpen}
@@ -1112,6 +1148,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       top: 0,
       left: 0,
       right: 0,
+      bottom: 0,
     },
     contentSlideInner: {
       width: "100%",
@@ -1164,6 +1201,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     rulesEntryButton: {
       width: "100%",
+    },
+    onlineBackControls: {
+      paddingTop: 18,
     },
     card: {
       borderRadius: 16,

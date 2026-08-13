@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   useWindowDimensions,
+  Platform,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from "react-native";
@@ -58,14 +59,22 @@ const PROFILE_TABS: { id: ProfileTab; label: string }[] = [
   { id: "titles", label: "Titles" },
 ];
 
+const ACHIEVEMENT_SCROLL_PADDING = 16;
+
+function achievementScrollNativeId(achievementId: string): string {
+  return `achievement-row-${achievementId}`;
+}
+
 export default function Achievements({
   onBack,
   onNavigateToSettings,
   initialTab = "achievements",
+  scrollToAchievementId,
 }: {
   onBack: () => void;
   onNavigateToSettings?: () => void;
   initialTab?: ProfileTab;
+  scrollToAchievementId?: string | null;
 }) {
   const { colors, ui } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -77,6 +86,9 @@ export default function Achievements({
   const initialTabIndex = initialTab === "titles" ? 1 : 0;
 
   const pagerRef = useRef<ScrollView>(null);
+  const achievementsScrollRef = useRef<ScrollView>(null);
+  const achievementsContentRef = useRef<View>(null);
+  const achievementRowRefs = useRef<Record<string, View | null>>({});
   const [tabIndex, setTabIndex] = useState(initialTabIndex);
 
   const [savedName, setSavedName] = useState("");
@@ -119,21 +131,81 @@ export default function Achievements({
     [pageWidth],
   );
 
-  const handlePagerScrollEnd = useCallback(
+  const handlePagerScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const index = Math.round(event.nativeEvent.contentOffset.x / pageWidth);
-      setTabIndex(index);
+      const offsetX = event.nativeEvent.contentOffset.x;
+      const index = Math.min(
+        PROFILE_TABS.length - 1,
+        Math.max(0, Math.round(offsetX / pageWidth)),
+      );
+      setTabIndex((prev) => (prev === index ? prev : index));
     },
     [pageWidth],
   );
 
-  const syncTabFromPagerOffset = useCallback(
-    (offsetX: number) => {
-      const index = Math.round(offsetX / pageWidth);
-      setTabIndex(index);
+  const handlePagerScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      handlePagerScroll(event);
     },
-    [pageWidth],
+    [handlePagerScroll],
   );
+
+  const scrollToAchievement = useCallback((achievementId: string) => {
+    const row = achievementRowRefs.current[achievementId];
+    const content = achievementsContentRef.current;
+    const scroll = achievementsScrollRef.current;
+    if (!row || !content || !scroll) return false;
+
+    const scrollWebFallback = () => {
+      if (Platform.OS !== "web" || typeof document === "undefined") return;
+      const el = document.getElementById(achievementScrollNativeId(achievementId));
+      const scrollNode = (
+        scroll as ScrollView & { getScrollableNode?: () => HTMLElement }
+      ).getScrollableNode?.();
+      if (!el || !scrollNode) return;
+      const top =
+        el.getBoundingClientRect().top -
+        scrollNode.getBoundingClientRect().top +
+        scrollNode.scrollTop;
+      scrollNode.scrollTo({
+        top: Math.max(0, top - ACHIEVEMENT_SCROLL_PADDING),
+        behavior: "smooth",
+      });
+    };
+
+    row.measureLayout(
+      content,
+      (_x, y) => {
+        scroll.scrollTo({
+          y: Math.max(0, y - ACHIEVEMENT_SCROLL_PADDING),
+          animated: true,
+        });
+      },
+      scrollWebFallback,
+    );
+
+    return true;
+  }, []);
+
+  useEffect(() => {
+    if (!scrollToAchievementId || isLoading) return;
+
+    scrollToTab(0);
+
+    let cancelled = false;
+    const id = scrollToAchievementId;
+    const delays = [0, 50, 150, 320];
+
+    delays.forEach((delay) => {
+      setTimeout(() => {
+        if (!cancelled) scrollToAchievement(id);
+      }, delay);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [scrollToAchievementId, isLoading, scrollToAchievement, scrollToTab]);
 
   const unlocked = stats ? unlockedAchievements(stats) : [];
   const achievementsByExclusivity = useMemo(
@@ -194,14 +266,15 @@ export default function Achievements({
           decelerationRate="fast"
           showsHorizontalScrollIndicator={false}
           style={styles.pager}
+          scrollEventThrottle={16}
+          onScroll={handlePagerScroll}
           onMomentumScrollEnd={handlePagerScrollEnd}
-          onScrollEndDrag={(event) =>
-            syncTabFromPagerOffset(event.nativeEvent.contentOffset.x)
-          }
+          onScrollEndDrag={handlePagerScrollEnd}
           keyboardShouldPersistTaps="handled"
         >
           <View style={{ width: pageWidth, flex: 1 }}>
             <ScrollView
+              ref={achievementsScrollRef}
               style={styles.scroll}
               contentContainerStyle={[
                 styles.pageScrollContent,
@@ -210,7 +283,11 @@ export default function Achievements({
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              <View style={[styles.content, { maxWidth: contentMax }]}>
+              <View
+                ref={achievementsContentRef}
+                style={[styles.content, { maxWidth: contentMax }]}
+                collapsable={false}
+              >
           <BlurPanel style={ui.panel} intensity={52}>
             <Text style={ui.panelEyebrow}>Player Profile</Text>
 
@@ -319,59 +396,69 @@ export default function Achievements({
                 const rarity = rarityForAchievementId(achievement.id);
                 const accent = RARITY_COLOR[rarity];
                 return (
-                  <AchievementPrestigeFrame
+                  <View
                     key={achievement.id}
-                    progress={progress?.fraction ?? 0}
-                    rarityColor={accent}
-                    borderRadius={14}
-                    style={[
-                      styles.achievementRow,
-                      earned && styles.achievementRowEarned,
-                    ]}
-                    contentStyle={styles.achievementRowInner}
+                    ref={(node) => {
+                      achievementRowRefs.current[achievement.id] = node;
+                    }}
+                    nativeID={achievementScrollNativeId(achievement.id)}
+                    collapsable={false}
                   >
-                    <Text style={styles.achievementEmoji}>
-                      {achievement.emoji}
-                    </Text>
-                    <View style={styles.achievementBody}>
-                      <Text
-                        style={[
-                          styles.achievementTitle,
-                          !earned && styles.achievementTitleLocked,
-                        ]}
-                      >
-                        {achievement.title}
+                    <AchievementPrestigeFrame
+                      progress={progress?.fraction ?? 0}
+                      rarityColor={accent}
+                      borderRadius={14}
+                      style={[
+                        styles.achievementRow,
+                        earned && styles.achievementRowEarned,
+                        scrollToAchievementId === achievement.id &&
+                          styles.achievementRowHighlighted,
+                      ]}
+                      contentStyle={styles.achievementRowInner}
+                    >
+                      <Text style={styles.achievementEmoji}>
+                        {achievement.emoji}
                       </Text>
-                      <Text style={styles.achievementDesc}>
-                        {achievement.description}
-                      </Text>
-                      {progress ? (
+                      <View style={styles.achievementBody}>
                         <Text
                           style={[
-                            styles.achievementProgress,
-                            { color: accent },
+                            styles.achievementTitle,
+                            !earned && styles.achievementTitleLocked,
                           ]}
                         >
-                          {earned
-                            ? `Next Prestige ${formatAchievementPrestige(progress.nextPrestige)} · ${progress.current}/${progress.target}`
-                            : `${progress.current}/${progress.target}`}
+                          {achievement.title}
                         </Text>
-                      ) : null}
-                      {stats ? (
-                        <Text style={styles.achievementTotal}>
-                          {formatAchievementCareerTotal(stats, achievement)}
+                        <Text style={styles.achievementDesc}>
+                          {achievement.description}
                         </Text>
-                      ) : null}
-                    </View>
-                    <Text
-                      style={[
-                        styles.achievementStatus,
-                        { color: earned ? accent : colors.textTertiary },
-                      ]}
-                    >
-                      {formatAchievementPrestige(prestige)}
-                    </Text>
-                  </AchievementPrestigeFrame>
+                        {progress ? (
+                          <Text
+                            style={[
+                              styles.achievementProgress,
+                              { color: accent },
+                            ]}
+                          >
+                            {earned
+                              ? `Next Prestige ${formatAchievementPrestige(progress.nextPrestige)} · ${progress.current}/${progress.target}`
+                              : `${progress.current}/${progress.target}`}
+                          </Text>
+                        ) : null}
+                        {stats ? (
+                          <Text style={styles.achievementTotal}>
+                            {formatAchievementCareerTotal(stats, achievement)}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Text
+                        style={[
+                          styles.achievementStatus,
+                          { color: earned ? accent : colors.textTertiary },
+                        ]}
+                      >
+                        {formatAchievementPrestige(prestige)}
+                      </Text>
+                    </AchievementPrestigeFrame>
+                  </View>
                 );
               })}
             </View>
@@ -743,6 +830,10 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     achievementRowEarned: {
       opacity: 1,
+    },
+    achievementRowHighlighted: {
+      opacity: 1,
+      transform: [{ scale: 1.01 }],
     },
     achievementRowInner: {
       paddingVertical: 10,

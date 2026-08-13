@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import BlurPanel from "./BlurPanel";
 import AppButton from "./ui/AppButton";
-import { BottomBarLeave } from "./BottomBar";
 import { useAppTheme } from "../context/ThemeContext";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import {
@@ -36,12 +35,13 @@ type Props = {
   isSearching: boolean;
   connectionStatus: HubConnectionStatus;
   error: string | null;
-  onBack: () => void;
   onRefresh: () => void;
   onHost: () => void;
   onJoinRoom: (roomId: string) => void;
   onJoinWithCode: (code: string) => void;
   onSpectateRoom?: (roomId: string) => void;
+  /** Reserve space for a pinned bottom bar (Back) on the hub shell. */
+  contentBottomPadding?: number;
 };
 
 export default function HubOnlinePlayPanel({
@@ -51,12 +51,12 @@ export default function HubOnlinePlayPanel({
   isSearching,
   connectionStatus,
   error,
-  onBack,
   onRefresh,
   onHost,
   onJoinRoom,
   onJoinWithCode,
   onSpectateRoom,
+  contentBottomPadding = 0,
 }: Props) {
   const { colors, ui } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -74,7 +74,12 @@ export default function HubOnlinePlayPanel({
         : "Server offline";
 
   return (
-    <View style={styles.root}>
+    <View
+      style={[
+        styles.root,
+        contentBottomPadding > 0 && { paddingBottom: contentBottomPadding },
+      ]}
+    >
       <Text style={styles.statusHint}>{statusLabel}</Text>
 
       {error ? (
@@ -253,12 +258,6 @@ export default function HubOnlinePlayPanel({
           </Text>
         </TouchableOpacity>
       </BlurPanel>
-
-      <BottomBarLeave
-        onPress={onBack}
-        label="Back"
-        accessibilityLabel="Back to home"
-      />
     </View>
   );
 }
