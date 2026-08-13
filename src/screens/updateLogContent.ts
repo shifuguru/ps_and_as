@@ -32,6 +32,14 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-08-14T08:49"),
+    title: "Rollback — game loads again",
+    items: [
+      "Reverted a large batch of recent changes that could stop the game from opening or crash at round end",
+      "You are back on the last known-good build while we re-land fixes one at a time",
+    ],
+  },
+  {
     publishedAt: nzst("2026-08-04T22:16"),
     title: "Settings, achievements & rules easier to reach",
     items: [
