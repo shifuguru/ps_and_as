@@ -74,11 +74,11 @@ function shouldUseDeadHandForDeal(room) {
   const seated = room.players.filter(
     (p) => !p.disconnectedAt && !p.isSpectator,
   );
-  const humanCount = seated.filter((p) => !isCpuLobbyId(p.id)).length;
-  const botCount = seated.filter((p) => isCpuLobbyId(p.id)).length;
-  if (room.isBotHosted) {
-    return botCount === 2 && humanCount === 0;
-  }
+  // Two living seats (2 bots, or 2 humans after bots are purged) always need
+  // the dead-hand chair. Do not special-case bot tables: after
+  // promoteReadySpectators removes CPUs for 2+ humans, isBotHosted stays true
+  // and the old `botCount === 2 && humanCount === 0` check skipped dead hand,
+  // dealing 27 cards each instead of 18 + sidelined dead hand.
   return seated.length === 2;
 }
 

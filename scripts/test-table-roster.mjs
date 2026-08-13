@@ -58,8 +58,125 @@ assert(
       p.id === "spec-1" ? { ...p, isSpectator: false } : p,
     ),
   }),
-  "no dead hand when human seated",
+  "no dead hand when human seated with bots (3 seats)",
 );
+
+assert(
+  tableRoster.shouldUseDeadHandForDeal({
+    isBotHosted: true,
+    players: [
+      { id: "cpu-1", isSpectator: false, disconnectedAt: null },
+      { id: "cpu-2", isSpectator: false, disconnectedAt: null },
+    ],
+  }),
+  "dead hand for bot-only autopilot (2 seats)",
+);
+
+assert(
+  tableRoster.shouldUseDeadHandForDeal({
+    isBotHosted: true,
+    players: [
+      { id: "h1", isSpectator: false, disconnectedAt: null },
+      { id: "h2", isSpectator: false, disconnectedAt: null },
+    ],
+  }),
+  "dead hand after 2 humans purge bots on bot-hosted room",
+);
+
+// After 2-human purge, demoting one human must restore CPUs before next deal.
+{
+  const botHosted = require("../server/botHostedRooms.js");
+  const {
+    createGameFromLobby,
+    syncFinishedFromEmptyHands,
+  } = require("../server/gameBridge.js");
+
+  const understaffed = {
+    isBotHosted: true,
+    deadHand: true,
+    host: "h1",
+    hostName: "Alice",
+    players: [
+      { id: "h1", name: "Alice", isSpectator: false, disconnectedAt: null },
+      { id: "h2", name: "Bob", isSpectator: true, disconnectedAt: null },
+    ],
+    gameState: createGameFromLobby(
+      [
+        { id: "h1", name: "Alice" },
+        { id: "h2", name: "Bob" },
+      ],
+      4242,
+      { deadHand: true, hostId: "h1" },
+    ),
+  };
+  // Simulate mid-round demote of h2 already applied to gameState.
+  understaffed.gameState.players = understaffed.gameState.players.filter(
+    (p) => p.id !== "h2",
+  );
+  syncFinishedFromEmptyHands(understaffed.gameState);
+
+  assert(
+    botHosted.countHumansSeated(understaffed) === 1,
+    "one human seated after demote",
+  );
+  assert(
+    botHosted.seatedBotCount(understaffed) === 0,
+    "bots were purged before demote",
+  );
+
+  const restored = botHosted.restoreBotsWhenUnderstaffed(understaffed);
+  assert(restored === true, "restoreBotsWhenUnderstaffed adds missing CPUs");
+  assert(
+    botHosted.seatedBotCount(understaffed) === 2,
+    "two CPU seats restored",
+  );
+  assert(
+    botHosted.countHumansSeated(understaffed) === 1,
+    "remaining human stays seated",
+  );
+
+  const lobby =
+    tableRoster.buildLobbyPlayersForAuthoritativeRound(understaffed);
+  assert(lobby.length >= 2, `lobby has 2+ after restore (${lobby.length})`);
+  assert(
+    !tableRoster.shouldUseDeadHandForDeal(understaffed),
+    "1 human + 2 bots = 3 seats, no dead hand",
+  );
+  const next = createGameFromLobby(lobby, 7777, {
+    deadHand: tableRoster.shouldUseDeadHandForDeal(understaffed),
+    hostId: understaffed.host,
+  });
+  const livingHands = next.players
+    .filter((p) => !p.isDeadHand && p.id !== "__dead_hand__")
+    .map((p) => p.hand.length);
+  assert(
+    livingHands.length >= 2,
+    `next deal has 2+ living players (${livingHands.length})`,
+  );
+  assert(
+    livingHands.every((n) => n < 54),
+    `no 54-card solo deal: ${livingHands.join(",")}`,
+  );
+
+  // Idempotent when already staffed.
+  assert(
+    botHosted.restoreBotsWhenUnderstaffed(understaffed) === false,
+    "second restore is a no-op when bots present",
+  );
+
+  // Still at MAX_SEATED humans → do not re-add bots.
+  const twoHumans = {
+    isBotHosted: true,
+    players: [
+      { id: "h1", isSpectator: false, disconnectedAt: null },
+      { id: "h2", isSpectator: false, disconnectedAt: null },
+    ],
+  };
+  assert(
+    botHosted.restoreBotsWhenUnderstaffed(twoHumans) === false,
+    "do not restore bots while 2 humans seated",
+  );
+}
 
 const r2 = mkRoom({ deadHand: false, gameState: { players: [{ id: "cpu-1" }, { id: "cpu-2" }, { id: "human-old" }], readyForNextRound: { "spec-1": true } } });
 require("../server/botHostedRooms.js").promoteReadySpectators(r2);

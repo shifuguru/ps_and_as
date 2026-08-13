@@ -33,6 +33,7 @@ const {
   resolveCompletedAcknowledgmentTrick,
   isTrickOpeningLead,
   resolveTrickLeaderIndex,
+  abandonOrphanedAcknowledgmentTrick,
 } = require('./gameBridge');
 const {
   viewForPlayer,
@@ -51,6 +52,7 @@ const {
   adjustSeatIndexAfterRemoval,
   lastPlayIndexAfterRemoval,
 } = require('./seatIndex');
+const { removeCardsFromHandConsume } = require('./cardConsume');
 const {
   validateDisplayText,
   normalizeRoomCode,
@@ -225,12 +227,34 @@ function startNextRound(roomId) {
   if (!room) return;
   if (room.isBotHosted) {
     botHosted.clearBotNextRoundSchedule(room, roomId, io);
+    // Defense in depth: never deal a 1-player bot table after demote/purge.
+    botHosted.restoreBotsWhenUnderstaffed(room);
   }
   const prevState = room.gameState;
   const promoted = room.isBotHosted
     ? botHosted.promoteReadySpectators(room)
     : [promoteReadySpectator(room)].filter(Boolean);
   const rosterChanged = promoted.length > 0;
+  let lobbyPlayers = tableRoster.buildLobbyPlayersForAuthoritativeRound(room);
+  if (lobbyPlayers.length < 2) {
+    if (room.isBotHosted) {
+      botHosted.restoreBotsWhenUnderstaffed(room);
+      lobbyPlayers = tableRoster.buildLobbyPlayersForAuthoritativeRound(room);
+    }
+    if (lobbyPlayers.length < 2) {
+      console.warn(
+        `[Server] startNextRound aborted — need 2+ seated players (have ${lobbyPlayers.length}) in ${roomId}`,
+      );
+      if (room.isBotHosted) {
+        botHosted.resetBotHostedRoom(
+          roomId,
+          getBotContext(),
+          'Restarting bot table — not enough players for a round.',
+        );
+      }
+      return;
+    }
+  }
   const dealSeed = Math.floor(Math.random() * 2147483647);
   const lastOrder = finishOrderForNextRound(room, promoted, prevState);
 
@@ -651,14 +675,13 @@ function prepareCardTrades(gameState, playerHands, options = {}) {
       // Asshole gives 2 best, President must choose 2 to give back
       const fromHand = playerHands[assholeId] || [];
       const taken = pickHighestCards(fromHand, 2);
-      // remove taken from asshole hand
-      playerHands[assholeId] = (fromHand || []).filter(c => !taken.find(t => t.suit === c.suit && t.value === c.value));
+      playerHands[assholeId] = removeCardsFromHandConsume(fromHand, taken);
       pending.president = { fromId: assholeId, count: 2, incoming: taken, selected: null };
     } else {
       // 3-4 players: Asshole gives 1 best, President chooses 1 to return
       const fromHand = playerHands[assholeId] || [];
       const taken = pickHighestCards(fromHand, 1);
-      playerHands[assholeId] = (fromHand || []).filter(c => !taken.find(t => t.suit === c.suit && t.value === c.value));
+      playerHands[assholeId] = removeCardsFromHandConsume(fromHand, taken);
       pending.president = { fromId: assholeId, count: 1, incoming: taken, selected: null };
     }
   }
@@ -674,7 +697,7 @@ function prepareCardTrades(gameState, playerHands, options = {}) {
     // Vice Asshole gives 1 best, Vice President chooses 1 to return
     const fromHand = playerHands[viceAssId] || [];
     const taken = pickHighestCards(fromHand, 1);
-    playerHands[viceAssId] = (fromHand || []).filter(c => !taken.find(t => t.suit === c.suit && t.value === c.value));
+    playerHands[viceAssId] = removeCardsFromHandConsume(fromHand, taken);
     pending.vicePresident = { fromId: viceAssId, count: 1, incoming: taken, selected: null };
   }
 
@@ -938,6 +961,9 @@ function demoteBotTablePlayerToSpectator(room, roomId, player) {
     reason: player.awayReason || 'disconnected',
   });
   removePlayerFromActiveGame(room, player.id);
+  // 2-human purge removes CPUs; demoting back under MAX_SEATED must restore
+  // bots before the next deal or the lone human gets a 54-card hand.
+  botHosted.restoreBotsWhenUnderstaffed(room);
   advancePastInactiveSeats(room, cloneGameState);
   gameSync.bumpStateVersion(room);
   broadcastGameState(io, room);
@@ -1116,6 +1142,8 @@ function removePlayerFromActiveGame(room, playerId) {
   const wasLeader = gs.lastPlayPlayerIndex === idx;
   const wasRunOnTop =
     !!gs.runOnTop?.active && gs.runOnTop.playerIndex === idx;
+  // Capture before splice — lastClear / pile joker still mark ack after removal.
+  const wasAckPhase = isTrickAcknowledgmentPassPhase(gs);
 
   gs.players = gs.players.filter((p) => p.id !== playerId);
   gs.finishedOrder = (gs.finishedOrder || []).filter((id) => id !== playerId);
@@ -1144,6 +1172,17 @@ function removePlayerFromActiveGame(room, playerId) {
         gs.runOnTop.playerIndex = remappedOnTop;
       }
     }
+  }
+
+  // Clear-leader demoted mid-joker / rank-close ack: remapped lastPlay is either
+  // null (soft-lock — resolve never finishes) or a prior living seat (wrong
+  // clear winner). Abandon the clear and force the next living seat to lead.
+  if (wasLeader && wasAckPhase && isTrickAcknowledgmentPassPhase(gs)) {
+    const anchor = Math.max(0, Math.min(idx, gs.players.length) - 1);
+    const abandoned = abandonOrphanedAcknowledgmentTrick(gs, anchor);
+    room.gameState = abandoned;
+    reconcileCurrentPlayerIndex(room);
+    return;
   }
 
   if (wasCurrent) {
@@ -1950,6 +1989,9 @@ io.on('connection', (socket) => {
         playerName: joined.name,
       });
       broadcastGameState(io, room);
+      // Ready votes may have completed while this seat was away (start was
+      // blocked by pause). Re-check now that the table is unpaused.
+      tryStartNextRoundIfReady(code);
     }
     if (joined) {
       socket.emit('connected', connectedPayload(joined, socket));
