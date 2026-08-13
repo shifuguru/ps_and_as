@@ -82,7 +82,7 @@ export class SocketAdapter implements NetworkAdapter {
   /** Room the client belongs to — used to rejoin after socket reconnect. */
   private activeRoomId: string | null = null;
   private cachedHostId: string | null = null;
-  private cachedSkipDealAnimations = false;
+  private cachedSkipDealAnimations = true;
   private feltTint: string = DEFAULT_FELT_COLOR;
   /** Per-seat secret issued by the server; required to reclaim a seat. */
   private reconnectSecret: string | null = null;
@@ -669,6 +669,9 @@ export class SocketAdapter implements NetworkAdapter {
     });
 
     this.socket.on("gameStateSync", (data: any) => {
+      if (typeof data?.skipDealAnimations === "boolean") {
+        this.cachedSkipDealAnimations = data.skipDealAnimations;
+      }
       if (data?.gameState) {
         this.cachedGameState = data.gameState;
       }
@@ -790,6 +793,9 @@ export class SocketAdapter implements NetworkAdapter {
       if (typeof data?.dealSeed === "number") {
         this.cachedDealSeed = data.dealSeed;
       }
+      if (typeof data?.skipDealAnimations === "boolean") {
+        this.cachedSkipDealAnimations = data.skipDealAnimations;
+      }
       this.handlers.forEach((h) =>
         h({
           type: "state",
@@ -833,7 +839,12 @@ export class SocketAdapter implements NetworkAdapter {
     }
   }
 
-  createRoom(roomId: string, name: string, roomName?: string) {
+  createRoom(
+    roomId: string,
+    name: string,
+    roomName?: string,
+    skipDealAnimations?: boolean,
+  ) {
     if (!this.socket?.connected) {
       console.warn("[SocketAdapter] createRoom: socket not connected");
       return;
@@ -857,6 +868,8 @@ export class SocketAdapter implements NetworkAdapter {
       isPublic: true,
       roomName: roomName || "Game Room",
       feltTint: this.feltTint,
+      skipDealAnimations:
+        typeof skipDealAnimations === "boolean" ? skipDealAnimations : true,
     });
   }
 
