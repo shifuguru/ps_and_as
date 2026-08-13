@@ -33,7 +33,6 @@ import ScreenContainer from "../components/ScreenContainer";
 import BlurPanel from "../components/BlurPanel";
 import MenuIcon from "../components/MenuIcon";
 import LobbyStatusBar, {
-  LOBBY_STATUS_BAR_HEIGHT,
   LOBBY_STACK_BAR_HEIGHT,
 } from "../components/LobbyStatusBar";
 import BottomBar, {

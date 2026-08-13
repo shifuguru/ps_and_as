@@ -17,7 +17,7 @@ type Props = {
   countLabel?: string;
   /** Hide the right-side status column (e.g. lobby uses util icons there). */
   hideStatus?: boolean;
-  /** Stack room name + party count centered — used on the in-room lobby. */
+  /** Stack room name + party count — used on the in-room lobby. */
   variant?: "default" | "lobby";
 };
 
@@ -52,7 +52,11 @@ export default function LobbyStatusBar({
           hideStatus && styles.containerWithUtilPad,
         ]}
       >
-        <View style={styles.centerSection}>
+        <View
+          style={[
+            variant === "lobby" ? styles.lobbySection : styles.centerSection,
+          ]}
+        >
           {variant === "lobby" ? (
             <View style={styles.lobbyStack}>
               <Text style={styles.lobbyRoomName} numberOfLines={1}>
@@ -122,18 +126,24 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       justifyContent: "center",
       minWidth: 0,
     },
+    lobbySection: {
+      flex: 1,
+      alignItems: "flex-start",
+      justifyContent: "center",
+      minWidth: 0,
+    },
     lobbyStack: {
-      alignItems: "center",
+      alignItems: "flex-start",
       justifyContent: "center",
       gap: 2,
       maxWidth: "100%",
-      paddingHorizontal: 8,
+      width: "100%",
     },
     lobbyRoomName: {
       color: colors.textPrimary,
       fontSize: 16,
       fontWeight: "800",
-      textAlign: "center",
+      textAlign: "left",
       textShadowColor: "rgba(0,0,0,0.55)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 3,
@@ -141,7 +151,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     lobbyPartyRow: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "center",
+      justifyContent: "flex-start",
       gap: 6,
     },
     lobbyPartyLabel: {
@@ -149,7 +159,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontSize: 11,
       fontWeight: "700",
       letterSpacing: 0.4,
-      textAlign: "center",
+      textAlign: "left",
       textShadowColor: "rgba(0,0,0,0.55)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 3,
