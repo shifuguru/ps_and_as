@@ -26,6 +26,7 @@ import {
   hasPassedInCurrentTrick,
   canAcknowledgmentPass,
   isTrickAcknowledgmentPassPhase,
+  isJokerAcknowledgmentPassPhase,
   isAdjacentToPileTop,
   nextActivePlayerIndex,
   advanceOffPriorPasser,
@@ -155,6 +156,7 @@ import GameplayVignette from "../gameplayPresentation/GameplayVignette";
 import { GAMEPLAY_PRESENTATION } from "../gameplayPresentation/featureFlags";
 import { pushGameplayToast } from "../gameplayPresentation/progressionToastBus";
 import { playCardsSfxId, type PlaySoundFn } from "../audio/gameSfx";
+import { collectNewPassKeys } from "../audio/sfxPlayback";
 import { useTurnStartCue } from "../hooks/useTurnStartCue";
 import { triggerHaptic } from "../utils/haptics";
 import RoundCompleteModal from "../components/RoundCompleteModal";
@@ -162,6 +164,8 @@ import HandOutWaitingPanel from "../components/HandOutWaitingPanel";
 import LastHandRevealOverlay from "../components/LastHandRevealOverlay";
 import LeaveGameConfirmModal from "../components/LeaveGameConfirmModal";
 import TenRuleModal from "../components/TenRuleModal";
+import TableChatModal from "../components/TableChatModal";
+import { resolveTableChatText } from "../chat/tableChatMessages";
 import GameTable from "../components/GameTable";
 import GamePlayArea, {
   PLAY_CARD_FLIGHT_MS,
@@ -789,6 +793,7 @@ function GameScreen({
   const trickCollectTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const jokerAckDeadlineRef = useRef<number | null>(null);
   const lastHandRevealTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -1892,6 +1897,8 @@ function GameScreen({
 
   // UX pacing: centralized CPU turn delay for a more relaxed feel
   const CPU_DELAY_MS = 1100;
+  /** After a joker, non-leaders auto-pass if they do not press Pass within this window. */
+  const JOKER_ACK_AUTO_PASS_MS = 3000;
 
   function snapshotState(s: GameState | null) {
     if (!s) return null;
@@ -3512,6 +3519,93 @@ function GameScreen({
     onlineMultiplayer,
   ]);
 
+  // Joker acknowledgment: auto-pass seated humans who do not press Pass in time.
+  useEffect(() => {
+    if (
+      !state ||
+      trickPauseActive ||
+      gameplayLocked ||
+      roundOver ||
+      roundEndLastPlayHold ||
+      readOnlyGame
+    ) {
+      jokerAckDeadlineRef.current = null;
+      return;
+    }
+
+    if (!isJokerAcknowledgmentPassPhase(state)) {
+      jokerAckDeadlineRef.current = null;
+      return;
+    }
+
+    const playerId = myPlayerId;
+    if (!playerId || !canAcknowledgmentPass(state, playerId)) {
+      return;
+    }
+
+    if (jokerAckDeadlineRef.current == null) {
+      jokerAckDeadlineRef.current = Date.now() + JOKER_ACK_AUTO_PASS_MS;
+    }
+
+    const fireAutoPass = () => {
+      const live = stateRef.current;
+      if (!live || !playerId) return;
+      if (
+        trickPauseActiveRef.current ||
+        gameplayLockedRef.current ||
+        roundOverRef.current ||
+        roundEndHoldScheduledRef.current
+      ) {
+        return;
+      }
+      if (
+        !isJokerAcknowledgmentPassPhase(live) ||
+        !canAcknowledgmentPass(live, playerId)
+      ) {
+        return;
+      }
+      jokerAckDeadlineRef.current = null;
+      setSelected([]);
+      emitDebug("action:pass:human:auto-joker-ack", { playerId });
+      // Pass SFX: trick-action observer (all seats).
+      if (onlineMultiplayer) {
+        const optimistic = passTurn(live, playerId);
+        if (optimistic !== live) {
+          setState(optimistic);
+        }
+        setActionPending(true);
+        broadcastGameAction({
+          type: "pass",
+          playerId,
+        });
+        return;
+      }
+      const next = passTurn(live, playerId);
+      if (next !== live) {
+        setState(next);
+      }
+    };
+
+    const remaining = (jokerAckDeadlineRef.current ?? Date.now()) - Date.now();
+    if (remaining <= 0) {
+      fireAutoPass();
+      return;
+    }
+
+    const timer = setTimeout(fireAutoPass, remaining);
+    return () => clearTimeout(timer);
+  }, [
+    state,
+    myPlayerId,
+    trickPauseActive,
+    gameplayLocked,
+    roundOver,
+    roundEndLastPlayHold,
+    readOnlyGame,
+    onlineMultiplayer,
+    onPlaySound,
+  ]);
+
   useEffect(() => {
     if (!state) return;
     if (!tradeReturnRevealActive || tradeReturnFlight) return;
@@ -4056,6 +4150,73 @@ function GameScreenBoard() {
     handPlayInFlightKeyRef: React.MutableRefObject<string | null>;
   };
 
+  const [tableChatModalVisible, setTableChatModalVisible] = useState(false);
+  const [tableChatByPlayerId, setTableChatByPlayerId] = useState<
+    Record<string, string>
+  >({});
+  const tableChatTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>(
+    {},
+  );
+
+  const showTableChatBubble = useCallback((playerId: string, text: string) => {
+    const trimmed = text.trim();
+    if (!playerId || !trimmed) return;
+    setTableChatByPlayerId((prev) => ({ ...prev, [playerId]: trimmed }));
+    const existing = tableChatTimersRef.current[playerId];
+    if (existing) clearTimeout(existing);
+    tableChatTimersRef.current[playerId] = setTimeout(() => {
+      setTableChatByPlayerId((prev) => {
+        if (!prev[playerId]) return prev;
+        const next = { ...prev };
+        delete next[playerId];
+        return next;
+      });
+      delete tableChatTimersRef.current[playerId];
+    }, 3200);
+  }, []);
+
+  const handleTableChatSelect = useCallback(
+    (emoteId: string) => {
+      const text = resolveTableChatText(emoteId);
+      if (!text || !myPlayerId) return;
+      setTableChatModalVisible(false);
+      showTableChatBubble(myPlayerId, text);
+      if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
+        networkAdapter.sendTableEmote(roomId, emoteId);
+      }
+    },
+    [
+      myPlayerId,
+      networkAdapter,
+      onlineMultiplayer,
+      roomId,
+      showTableChatBubble,
+    ],
+  );
+
+  useEffect(() => {
+    if (!networkAdapter) return;
+    const onMessage = (ev: NetworkEvent) => {
+      if (ev.type !== "state" || ev.state?.type !== "tableEmote") return;
+      const playerId = ev.state.playerId as string | undefined;
+      const text = resolveTableChatText(
+        ev.state.emoteId as string,
+        ev.state.text as string | undefined,
+      );
+      if (playerId && text) {
+        showTableChatBubble(playerId, text);
+      }
+    };
+    networkAdapter.on("message", onMessage);
+    return () => {
+      networkAdapter.off?.("message", onMessage);
+      for (const timer of Object.values(tableChatTimersRef.current)) {
+        clearTimeout(timer);
+      }
+      tableChatTimersRef.current = {};
+    };
+  }, [networkAdapter, showTableChatBubble]);
+
   const [ceremonyDealCounts, setCeremonyDealCounts] = useState<
     Record<string, number>
   >({});
@@ -4245,6 +4406,9 @@ function GameScreenBoard() {
   }, []);
   const handlePlayFlightStarted = useCallback(
     (playKey: string) => {
+      // Idempotent: GamePlayArea may notify before measure and again when the
+      // flight actually starts — only one throw cue per playKey.
+      if (flightPlaySfxStartedRef.current.has(playKey)) return;
       const startedAt = notePlayFlightStarted(playKey);
       logTurnRingVerifyEvent("FLIGHT_STARTED", {
         currentPlayerIndex: state.currentPlayerIndex,
@@ -4648,7 +4812,10 @@ function GameScreenBoard() {
   const actingPlayerId =
     isHumanTurn && myPlayerId ? myPlayerId : displayTurnPlayer.id;
 
+  // Authority owns the turn; presentable waits out flights/holds so the cue
+  // does not fire twice (once as the prior play resolves, again when unlocked).
   useTurnStartCue(
+    isHumanTurnServer && !roundOver && !gameplayLocked && !readOnlyGame,
     isHumanTurn && !roundOver && !gameplayLocked && !readOnlyGame,
     () => {
       void onPlaySound?.("turn_start");
@@ -4663,6 +4830,26 @@ function GameScreenBoard() {
     }
     prevStackCollectingRef.current = !!stackCollecting;
   }, [stackCollecting, onPlaySound]);
+
+  // Pass SFX for every seat (local / remote / CPU) from trick actions — not only
+  // local button presses — so the table stays audible while you're waiting.
+  const heardPassKeysRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const actions = state.currentTrick?.actions;
+    const wasEmpty = heardPassKeysRef.current.size === 0;
+    const { newKeys, nextHeard } = collectNewPassKeys(
+      actions,
+      heardPassKeysRef.current,
+    );
+    heardPassKeysRef.current = nextHeard;
+    if (newKeys.length === 0) return;
+    // Reconnect / late hydrate can land a trick that already has several passes —
+    // seed silently instead of blasting a chord of pass cues.
+    if (wasEmpty && newKeys.length > 1) return;
+    for (let i = 0; i < newKeys.length; i++) {
+      void onPlaySound?.("pass");
+    }
+  }, [state.currentTrick?.actions, onPlaySound]);
 
   const prevCeremonyPhaseRef = useRef(ceremonyDealProgress.phase);
   useEffect(() => {
@@ -5263,6 +5450,7 @@ function GameScreenBoard() {
     }
     if (pendingTenPlay) return;
     if (!isHumanPassEligible) return;
+    setSelected([]);
     const actor =
       (myPlayerId && state.players.find((p) => p.id === myPlayerId)) ?? current;
     if (!actor) return;
@@ -5276,7 +5464,7 @@ function GameScreenBoard() {
       playerName: actor.name,
       before: snapshotState(state),
     });
-    void onPlaySound?.("pass");
+    // Pass SFX: trick-action observer (all seats).
     if (onlineMultiplayer) {
       const optimistic = passTurn(state, actor.id);
       if (optimistic !== state) {
@@ -5834,6 +6022,12 @@ function GameScreenBoard() {
         onCancel={pendingTenPlay ? handleTenRuleCancel : undefined}
       />
 
+      <TableChatModal
+        visible={tableChatModalVisible}
+        onSelect={handleTableChatSelect}
+        onClose={() => setTableChatModalVisible(false)}
+      />
+
       {/*
         Edge-to-edge visual host. Safe-area / hand clearance is content padding
         only - it must not shrink the screen shell. Wallpaper continues under
@@ -5873,6 +6067,7 @@ function GameScreenBoard() {
           trickWinnerPlayerId={trickWinnerPlayerId}
           trickWinnerXpAmount={trickWinnerXpAmount}
           trickWinnerShout={trickWinnerShout}
+          tableChatByPlayerId={tableChatByPlayerId}
           avatarBordersByPlayerId={avatarBordersByPlayerId}
           playCountLabel={playCountLabel}
           playModifierLabel={playModifierLabel}
@@ -5942,6 +6137,9 @@ function GameScreenBoard() {
         onOpenAchievements={onNavigateToAchievements}
         onOpenReadMe={onNavigateToReadMe}
         onOpenSettings={onNavigateToSettings}
+        onOpenTableChat={
+          myPlayerId ? () => setTableChatModalVisible(true) : undefined
+        }
         onLeave={requestLeaveGame}
         statsRefreshKey={roundCompleteSignal + (state.trickHistory?.length ?? 0)}
         hideFeedback={

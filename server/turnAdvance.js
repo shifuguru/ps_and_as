@@ -8,13 +8,90 @@ const {
   isPlayerStillIn,
   hasPassedInCurrentTrick,
   isTrickAcknowledgmentPassPhase,
+  isJokerAcknowledgmentPassPhase,
+  canAcknowledgmentPass,
   isTrickOpeningLead,
   nextActivePlayerIndex,
   nextAcknowledgmentPlayerIndex,
   resolveCompletedAcknowledgmentTrick,
   advanceOffPriorPasser,
+  repairStuckTurnPointer,
 } = require("./gameBridge");
 const { isCpuLobbyId } = require("./tableRoster");
+
+const JOKER_ACK_AUTO_PASS_MS = 3000;
+
+function clearJokerAckAutoPassTimer(room) {
+  if (room?._jokerAckAutoPassTimer) {
+    clearTimeout(room._jokerAckAutoPassTimer);
+    room._jokerAckAutoPassTimer = null;
+  }
+}
+
+function applyPendingJokerAckAutoPasses(room, cloneGameState) {
+  const gs = room?.gameState;
+  if (!gs || !isJokerAcknowledgmentPassPhase(gs)) return false;
+
+  let working = cloneGameState(gs);
+  let changed = false;
+  let safety = gs.players.length + 2;
+
+  while (safety-- > 0) {
+    let progressed = false;
+    for (const p of working.players) {
+      if (!canAcknowledgmentPass(working, p.id)) continue;
+      const next = passTurn(working, p.id);
+      if (next === working) continue;
+      working = next;
+      changed = true;
+      progressed = true;
+      break;
+    }
+    if (!progressed) break;
+    if (!isJokerAcknowledgmentPassPhase(working)) break;
+  }
+
+  if (!changed) return false;
+  room.gameState = cloneGameState(working);
+  advancePastInactiveSeats(room, cloneGameState);
+  room.gameState = cloneGameState(repairStuckTurnPointer(room.gameState));
+  return true;
+}
+
+/**
+ * Start or maintain the joker-ack auto-pass deadline for seated humans who
+ * have not pressed Pass. Clears when the acknowledgment phase ends.
+ */
+function syncJokerAckAutoPassTimer(room, onAutoPassApplied) {
+  if (!room?.gameState || !isJokerAcknowledgmentPassPhase(room.gameState)) {
+    clearJokerAckAutoPassTimer(room);
+    room._jokerAckDeadline = null;
+    return;
+  }
+
+  const now = Date.now();
+  if (room._jokerAckDeadline == null) {
+    room._jokerAckDeadline = now + JOKER_ACK_AUTO_PASS_MS;
+  }
+
+  clearJokerAckAutoPassTimer(room);
+  const remaining = room._jokerAckDeadline - now;
+  const fire = () => {
+    room._jokerAckAutoPassTimer = null;
+    room._jokerAckDeadline = null;
+    if (!room.gameState || !isJokerAcknowledgmentPassPhase(room.gameState)) return;
+    if (applyPendingJokerAckAutoPasses(room, onAutoPassApplied.cloneGameState)) {
+      onAutoPassApplied.afterStateChange(room);
+    }
+  };
+
+  if (remaining <= 0) {
+    fire();
+    return;
+  }
+
+  room._jokerAckAutoPassTimer = setTimeout(fire, remaining);
+}
 
 function advancePastInactiveSeats(room, cloneGameState) {
   const gs = room?.gameState;
@@ -115,4 +192,7 @@ function advancePastInactiveSeats(room, cloneGameState) {
 
 module.exports = {
   advancePastInactiveSeats,
+  syncJokerAckAutoPassTimer,
+  clearJokerAckAutoPassTimer,
+  JOKER_ACK_AUTO_PASS_MS,
 };

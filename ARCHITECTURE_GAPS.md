@@ -482,6 +482,55 @@ Investigation: [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.
 
 ---
 
+## Round-complete ad error clips footer actions
+
+**Category:** UI / ads
+
+**Intended behaviour:**  
+When a rewarded ad fails on the round-complete rankings modal, the failure message appears under “Watch ad” without clipping Quit Game / Next Round.
+
+**Current behaviour:**  
+`RoundCompleteModal` reserves only ~68px for the ad button + error, but the multi-line failure copy needs ~117px. With `BlurPanel` `overflow: hidden` and a fixed card `maxHeight`, the extra lines push the footer actions out of the card and they are clipped.
+
+**Impact:**  
+Players cannot reliably tap Quit Game or Next Round after an ad load failure.
+
+**Files likely involved:**  
+`src/components/RoundCompleteModal.tsx`, `src/services/ads/AdsService.ts` (failure copy)
+
+**Priority:** P2 (player-visible; fix with layout reserve / footer chrome)
+
+**Status:** Resolved — rankings scroll height reserve accounts for multi-line ad error; footer chrome (`Quit` / `Next Round`) stays unclipped
+
+**Notes:** Related to Ad monetization rewarded path; not a server/authority issue.
+
+---
+
+## Game SFX silence while waiting + playback latency
+
+**Category:** UI / Audio
+
+**Intended behaviour:**  
+Gameplay SFX (play, land, pass, pile clear, turn start, etc.) fire promptly for **all seats** throughout a round — including while the local player has already passed and is waiting. Audio should not depend on the local seat’s turn or a fresh user gesture for each cue.
+
+**Current behaviour:**  
+`useMenuAudio.playEffect` calls `Audio.Sound.createAsync` on every cue (load + new media element each time). After the local player passes and stops interacting, browsers tighten autoplay and new elements fail silently; cues return once the player taps again on their turn. Creating/decoding on each play also adds a noticeable delay between the action and the sound. Remote/CPU passes never triggered pass SFX (only local pass paths did).
+
+**Impact:**  
+Table feels muted after passing; when audio does play it lags the animation.
+
+**Files likely involved:**  
+`src/hooks/useMenuAudio.ts`, `src/audio/gameSfx.ts`, `src/screens/GameScreen.tsx`, `src/services/ads/adsAudioBridge.ts`
+
+**Priority:** P2 (player-visible audio)
+
+**Status:** Resolved — pooled/reused SFX + resume-before-play; pass cues from trick actions (all seats); sync play fast-path; card_play before flight measure; turn_start once per authority period
+
+**Notes:**  
+Fix: preload/reuse a small sound pool, resume audio subsystem before play, fire pass SFX from trick action observation (all seats). Follow-ups: sync pool playback (click latency), early flight throw cue (not after measure), turn-start gated on authority+presentable to stop double chime. Regression: `npm run test-sfx-playback`, `npm run test-turn-start-cue`.
+
+---
+
 ## Android Play Store release
 
 **Category:** Product / distribution

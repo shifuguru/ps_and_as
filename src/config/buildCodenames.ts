@@ -138,6 +138,15 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.72": "Shuffle Or Scramble",
   "1.1.73": "Ten High Drama",
   "1.1.74": "Trick Question",
+  "1.1.75": "Wild Draw Four Energy",
+  "1.1.76": "Bottom Deck Energy",
+  "1.1.77": "Grand Slam Gamble",
+  "1.1.78": "Fold Em And Hold Em",
+  "1.1.79": "Quad Squad Goals",
+  "1.1.80": "Dealer's Remorse",
+  "1.1.81": "Your Turn, Apparently",
+  "1.1.82": "Ten High Drama",
+  "1.1.83": "Shuffle Or Scramble",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {

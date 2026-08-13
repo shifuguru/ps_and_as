@@ -46,7 +46,7 @@ const { computeRoundXpByPlayerId } = require('./roundXp');
 const tableRoster = require('./tableRoster');
 const gameSync = require('./gameSync');
 const analytics = require('./analyticsStore');
-const { advancePastInactiveSeats } = require('./turnAdvance');
+const { advancePastInactiveSeats, syncJokerAckAutoPassTimer } = require('./turnAdvance');
 const {
   adjustSeatIndexAfterRemoval,
   lastPlayIndexAfterRemoval,
@@ -56,6 +56,10 @@ const {
   normalizeRoomCode,
   isValidRoomCode,
 } = require('./profanityFilter');
+const {
+  TABLE_CHAT_BY_ID,
+  TABLE_EMOTE_COOLDOWN_MS,
+} = require('./tableChatMessages');
 
 const DEFAULT_FELT_TINT = '#0f5132';
 
@@ -1971,6 +1975,27 @@ io.on('connection', (socket) => {
     if (room.isPublic) broadcastAvailableRooms();
   });
 
+  socket.on('tableEmote', ({ roomId, emoteId }) => {
+    const code = normalizeRoomCode(roomId);
+    const room = rooms[code];
+    if (!room) return;
+    const player = getPlayerBySocket(room, socket.id);
+    if (!player) return;
+    const text = TABLE_CHAT_BY_ID[emoteId];
+    if (!text) return;
+
+    if (!room.tableEmoteCooldown) room.tableEmoteCooldown = {};
+    const lastAt = room.tableEmoteCooldown[player.id] || 0;
+    if (Date.now() - lastAt < TABLE_EMOTE_COOLDOWN_MS) return;
+    room.tableEmoteCooldown[player.id] = Date.now();
+
+    io.to(code).emit('tableEmote', {
+      playerId: player.id,
+      emoteId,
+      text,
+    });
+  });
+
   socket.on('leaveRoom', ({ roomId }) => {
     if (!rooms[roomId]) return;
     const room = rooms[roomId];
@@ -2296,16 +2321,35 @@ io.on('connection', (socket) => {
     gameSync.bumpStateVersion(room);
     broadcastGameState(io, room);
 
-    if (isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
-      const finishOrder = room.gameState.finishedOrder.slice();
-      const handSnapshot = {};
-      for (const p of room.gameState.players) {
-        handSnapshot[p.id] = p.hand;
+    const afterGameActionSideEffects = (liveRoom) => {
+      if (isRoundComplete(liveRoom.gameState) && !liveRoom.gameState.tenRulePending) {
+        const finishOrder = liveRoom.gameState.finishedOrder.slice();
+        const handSnapshot = {};
+        for (const p of liveRoom.gameState.players) {
+          handSnapshot[p.id] = p.hand;
+        }
+        handleRoundFinished(roomId, finishOrder, handSnapshot);
+      } else if (liveRoom.isBotHosted) {
+        botHosted.kickBotTurnLoop(roomId, getBotContext());
       }
-      handleRoundFinished(roomId, finishOrder, handSnapshot);
-    } else if (room.isBotHosted) {
-      botHosted.kickBotTurnLoop(roomId, getBotContext());
-    }
+    };
+
+    afterGameActionSideEffects(room);
+
+    syncJokerAckAutoPassTimer(room, {
+      cloneGameState,
+      afterStateChange: (updatedRoom) => {
+        reconcileCurrentPlayerIndex(updatedRoom);
+        advancePastInactiveSeats(updatedRoom, cloneGameState);
+        updatedRoom.gameState = cloneGameState(
+          repairStuckTurnPointer(updatedRoom.gameState),
+        );
+        reconcileCurrentPlayerIndex(updatedRoom);
+        gameSync.bumpStateVersion(updatedRoom);
+        broadcastGameState(io, updatedRoom);
+        afterGameActionSideEffects(updatedRoom);
+      },
+    });
   });
 
   socket.on('skipBotTable', ({ roomId }) => {

@@ -16,7 +16,8 @@ type IconName =
   | "calendar"
   | "pencil"
   | "bulb"
-  | "leave";
+  | "leave"
+  | "chat";
 
 type Props = {
   name: IconName;
@@ -199,6 +200,20 @@ export default function MenuIcon({ name, size = 20, color = "#9ed6bb" }: Props) 
             strokeWidth={sw}
             strokeLinejoin="round"
           />
+        </Svg>
+      );
+    case "chat":
+      return (
+        <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M5 6.5h14a2 2 0 012 2v6.5a2 2 0 01-2 2H9l-4.5 3.5V8.5a2 2 0 012-2z"
+            stroke={c}
+            strokeWidth={sw}
+            strokeLinejoin="round"
+          />
+          <Circle cx="9" cy="12" r="0.9" fill={c} />
+          <Circle cx="12" cy="12" r="0.9" fill={c} />
+          <Circle cx="15" cy="12" r="0.9" fill={c} />
         </Svg>
       );
     case "leave":

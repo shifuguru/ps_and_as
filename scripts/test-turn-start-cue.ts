@@ -1,58 +1,61 @@
 /**
- * Regression: turn-start cue fires once per false→true transition.
+ * Regression: turn-start cue + flight SFX timing helpers.
  * Run: npx tsx ./scripts/test-turn-start-cue.ts
  */
 import assert from "assert";
+import {
+  nextTurnStartCue,
+  type TurnStartCueState,
+} from "../src/audio/sfxPlayback";
+import { playCardsSfxId } from "../src/audio/gameSfx";
 
-/** Pure transition helper mirroring useTurnStartCue (no React). */
 function createTurnStartGate() {
-  let wasMyTurn = false;
+  let state: TurnStartCueState = { firedForAuthorityTurn: false };
   let fires = 0;
   return {
     get fires() {
       return fires;
     },
-    update(isMyTurn: boolean, enabled = true) {
-      if (!enabled) {
-        wasMyTurn = false;
-        return;
-      }
-      if (isMyTurn && !wasMyTurn) {
-        wasMyTurn = true;
-        fires += 1;
-        return;
-      }
-      if (!isMyTurn) {
-        wasMyTurn = false;
-      }
+    update(authority: boolean, presentable: boolean, enabled = true) {
+      const next = nextTurnStartCue(state, {
+        enabled,
+        authority,
+        presentable,
+      });
+      state = next.state;
+      if (next.fire) fires += 1;
     },
   };
 }
 
 const gate = createTurnStartGate();
-gate.update(false);
+gate.update(false, false);
 assert.strictEqual(gate.fires, 0);
 
-gate.update(true);
-assert.strictEqual(gate.fires, 1, "first rise fires once");
+// Opponent play resolves → authority flips to you while flights still hold.
+gate.update(true, false);
+assert.strictEqual(gate.fires, 0, "authority alone does not fire");
 
-gate.update(true);
-gate.update(true);
-assert.strictEqual(gate.fires, 1, "re-renders while active do not re-fire");
+gate.update(true, true);
+assert.strictEqual(gate.fires, 1, "fires when presentable");
 
-gate.update(false);
+// Presentation flicker mid-ownership (flight hold → unlock) must not re-fire.
+gate.update(true, false);
+gate.update(true, true);
+assert.strictEqual(gate.fires, 1, "no double-fire on presentable flicker");
+
+gate.update(false, false);
 assert.strictEqual(gate.fires, 1);
 
-gate.update(true);
+gate.update(true, true);
 assert.strictEqual(gate.fires, 2, "next turn fires again");
 
 const disabled = createTurnStartGate();
-disabled.update(true, false);
+disabled.update(true, true, false);
 assert.strictEqual(disabled.fires, 0, "disabled skips fire");
-disabled.update(true, true);
+disabled.update(true, true, true);
 assert.strictEqual(disabled.fires, 1, "enable then active fires");
 
-import { playCardsSfxId } from "../src/audio/gameSfx";
 assert.strictEqual(playCardsSfxId(1), "card_play");
 assert.strictEqual(playCardsSfxId(2), "card_play_multi");
 assert.strictEqual(playCardsSfxId(4), "card_play_multi");
@@ -64,6 +67,7 @@ function resolveFlightSfxEvents(
   phase: "started" | "landed",
 ): string[] {
   if (phase === "started") {
+    if (startedKeys.has(playKey)) return []; // idempotent early+late notify
     startedKeys.add(playKey);
     return ["card_play"];
   }
@@ -78,6 +82,11 @@ const flightKeys = new Set<string>();
 assert.deepStrictEqual(
   resolveFlightSfxEvents(flightKeys, "p1", "started"),
   ["card_play"],
+);
+assert.deepStrictEqual(
+  resolveFlightSfxEvents(flightKeys, "p1", "started"),
+  [],
+  "second started notify is silent",
 );
 assert.deepStrictEqual(
   resolveFlightSfxEvents(flightKeys, "p1", "landed"),

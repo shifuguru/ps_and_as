@@ -837,9 +837,10 @@ export default function PlayerHub({
             intensity={44}
             style={[styles.card, styles.utilityCard, styles.supportCard]}
           >
+            <Text style={styles.sectionTitle}>Support</Text>
             <Text style={styles.supportBody}>
-              If you&apos;re a proud supporter of this game&apos;s development and
-              would like to contribute, donate using our Ko-fi link.
+              Help fund ongoing development. Contributions are optional and never
+              unlock advantages.
             </Text>
             <KofiButton style={styles.supportCta} />
           </BlurPanel>
@@ -1258,18 +1259,19 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "800",
     },
     supportCard: {
-      gap: 12,
+      gap: 10,
       paddingVertical: 16,
       paddingHorizontal: 16,
     },
     supportBody: {
-      color: colors.textSecondary,
       fontSize: 13,
       fontWeight: "600",
-      lineHeight: 19,
+      lineHeight: 18,
+      ...onFeltTextStyle(colors.onFelt, "secondary"),
     },
     supportCta: {
       width: "100%",
+      marginTop: 4,
     },
     versionLabel: {
       fontSize: 11,

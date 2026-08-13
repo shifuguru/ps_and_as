@@ -138,6 +138,7 @@ export default function GamePlayArea({
   trickWinnerPlayerId = null,
   trickWinnerXpAmount,
   trickWinnerShout = null,
+  tableChatByPlayerId = {},
   avatarBordersByPlayerId = {},
   tableSeatCount,
   deadHandId = null,
@@ -442,6 +443,9 @@ export default function GamePlayArea({
     const playKeys = newPlays.map((p) => playDisplayKey(p));
     for (const key of playKeys) {
       flightsInProgressRef.current.add(key);
+      // Fire throw SFX immediately — do not wait on measureViewInWindow, or the
+      // cue lands near card_land and feels like only the land sound plays.
+      onPlayFlightStarted?.(key);
     }
     let cancelled = false;
 
@@ -901,6 +905,7 @@ export default function GamePlayArea({
             trickWinnerPlayerId={trickWinnerPlayerId}
             trickWinnerXpAmount={trickWinnerXpAmount}
             trickWinnerShout={trickWinnerShout}
+            tableChatByPlayerId={tableChatByPlayerId}
             avatarBordersByPlayerId={avatarBordersByPlayerId}
             layoutSeatIds={seatIds}
             deadHandId={deadHandId}

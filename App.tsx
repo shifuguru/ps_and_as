@@ -90,13 +90,32 @@ function AppContent() {
   // menuVisible: whether the main menu should be shown (after splash fully hidden)
   const [splashVisible, setSplashVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
-  const { playEffect, toggleMute, muted } = useMenuAudio();
+  const { playEffect, toggleMute, muted, unlockAudio } = useMenuAudio();
   const playGameSound = useCallback(
     (effect: string) => {
-      void playEffect(effect);
+      playEffect(effect);
     },
     [playEffect],
   );
+
+  // Warm the SFX pool on the first user gesture so menu clicks are not waiting
+  // on createAsync the first time each effect is used.
+  useEffect(() => {
+    const warm = () => {
+      void unlockAudio();
+    };
+    const opts = { capture: true, once: true } as AddEventListenerOptions;
+    const doc = typeof document !== "undefined" ? document : null;
+    doc?.addEventListener("pointerdown", warm, opts);
+    doc?.addEventListener("touchstart", warm, opts);
+    doc?.addEventListener("keydown", warm, opts);
+    return () => {
+      doc?.removeEventListener("pointerdown", warm, true);
+      doc?.removeEventListener("touchstart", warm, true);
+      doc?.removeEventListener("keydown", warm, true);
+    };
+  }, [unlockAudio]);
+
   const [screen, setScreen] = useState<
     "menu" | "create" | "find" | "game"
   >("menu");
