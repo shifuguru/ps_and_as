@@ -12,6 +12,9 @@ export const REWARDED_AD_XP = 75;
 /** Max successful rewarded claims per UTC calendar day. */
 export const REWARDED_AD_DAILY_CAP = 3;
 
+/** Hide Stripe Remove Ads checkout until billing link is fixed. Ko-fi stays on Player Hub. */
+export const SHOW_REMOVE_ADS_PURCHASE = false;
+
 /** Remove Ads one-time price shown in UI (NZD). */
 export const REMOVE_ADS_PRICE_NZD = 19;
 
