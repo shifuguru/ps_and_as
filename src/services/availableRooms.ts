@@ -29,3 +29,25 @@ export function filterPublicRooms(rooms: AvailableRoom[]): AvailableRoom[] {
     (room) => !room.isBotHosted && !isBotPublicRoomCode(room.roomId),
   );
 }
+
+/**
+ * Live 2-player tables keep a dead-hand seat. Listing "Join" sent players to
+ * CreateGame, whose Ready is lobby-only and cannot claim that seat.
+ * Offer Spectate whenever the match is in progress (including between rounds).
+ */
+export function listedRoomShowsSpectate(
+  room: Pick<AvailableRoom, "inGame" | "deadHandSeatOpen" | "playerCount">,
+): boolean {
+  return !!room.inGame && !!room.deadHandSeatOpen && room.playerCount >= 2;
+}
+
+/**
+ * Bot-open tables keep spectators in the lobby Ready UI.
+ * Standard in-game joins must enter GameScreen — CreateGame Ready cannot
+ * emit playerReadyForNextRound or show the table.
+ */
+export function shouldHoldSpectatorStartGameInLobby(
+  roomId: string | null | undefined,
+): boolean {
+  return isBotPublicRoomCode(roomId ?? "");
+}
