@@ -126,7 +126,7 @@ export type PlayerHubActions = {
   onHostOnlineGame: (playerName: string) => void;
   onJoinOnlineRoom: (roomId: string, playerName: string) => void;
   onSpectateOnlineRoom?: (roomId: string, playerName: string) => void;
-  onOpenAchievements: () => void;
+  onOpenAchievements: (achievementId?: string) => void;
   onOpenTitles: () => void;
   onOpenWhatsNew: () => void;
   onOpenSettings: () => void;
@@ -809,7 +809,9 @@ export default function PlayerHub({
           {hasPlayed && nextAch ? (
             <NextAchievementCard
               next={nextAch}
-              onPress={() => run(actions.onOpenAchievements)}
+              onPress={() =>
+                run(() => actions.onOpenAchievements(nextAch.def.id))
+              }
             />
           ) : null}
 
@@ -869,9 +871,10 @@ export default function PlayerHub({
             <BlurPanel intensity={44} style={[styles.card, styles.utilityCard]}>
               <Text style={styles.sectionTitle}>Continue Your Journey</Text>
               <View style={styles.goalStack}>
-                {goals.map((g, idx) => (
-                  <View key={g.id}>
-                    {idx > 0 ? <View style={styles.goalDivider} /> : null}
+                {goals.map((g, idx) => {
+                  const tappable =
+                    g.kind === "achievement" && g.achievementId != null;
+                  const row = (
                     <View style={styles.goalRow}>
                       <View style={styles.goalTextCol}>
                         <Text style={styles.goalTitle}>{g.title}</Text>
@@ -879,8 +882,29 @@ export default function PlayerHub({
                       </View>
                       <ProgressMeter progress={g.fraction} height={7} />
                     </View>
-                  </View>
-                ))}
+                  );
+                  return (
+                    <View key={g.id}>
+                      {idx > 0 ? <View style={styles.goalDivider} /> : null}
+                      {tappable ? (
+                        <TouchableOpacity
+                          onPress={() =>
+                            run(() =>
+                              actions.onOpenAchievements(g.achievementId!),
+                            )
+                          }
+                          activeOpacity={0.85}
+                          accessibilityRole="button"
+                          accessibilityLabel={`View ${g.title} in achievements`}
+                        >
+                          {row}
+                        </TouchableOpacity>
+                      ) : (
+                        row
+                      )}
+                    </View>
+                  );
+                })}
               </View>
             </BlurPanel>
           ) : null}

@@ -122,6 +122,9 @@ function AppContent() {
   const [achievementsOpen, setAchievementsOpen] = useState(false);
   const [achievementsInitialTab, setAchievementsInitialTab] =
     useState<ProfileTab>("achievements");
+  const [achievementsScrollToId, setAchievementsScrollToId] = useState<
+    string | null
+  >(null);
   const [updateLogOpen, setUpdateLogOpen] = useState(false);
   const [readmeOpen, setReadmeOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -517,13 +520,15 @@ function AppContent() {
     setSettingsOpen(false);
   };
 
-  const openAchievements = () => {
+  const openAchievements = (achievementId?: string) => {
     setAchievementsInitialTab("achievements");
+    setAchievementsScrollToId(achievementId ?? null);
     setAchievementsOpen(true);
   };
 
   const closeAchievements = () => {
     setAchievementsOpen(false);
+    setAchievementsScrollToId(null);
     setHubRefreshKey((k) => k + 1);
   };
 
@@ -1275,8 +1280,9 @@ function AppContent() {
             <FullscreenBlurScrim />
             <View style={appStyles.settingsForeground}>
               <Achievements
-                key={achievementsInitialTab}
+                key={`${achievementsInitialTab}:${achievementsScrollToId ?? ""}`}
                 initialTab={achievementsInitialTab}
+                scrollToAchievementId={achievementsScrollToId}
                 onBack={closeAchievements}
                 onNavigateToSettings={() => {
                   closeAchievements();
