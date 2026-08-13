@@ -839,8 +839,8 @@ export default function PlayerHub({
           >
             <Text style={styles.sectionTitle}>Support</Text>
             <Text style={styles.supportBody}>
-              If you&apos;re a proud supporter of this game&apos;s development and
-              would like to contribute, donate using our Ko-fi link.
+              Help fund ongoing development. Contributions are optional and never
+              unlock advantages.
             </Text>
             <KofiButton style={styles.supportCta} />
           </BlurPanel>
