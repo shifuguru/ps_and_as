@@ -2,10 +2,10 @@
  * Player Hub home — presentation layer over canonical PlayerStats.
  *
  * Panel order (player interest):
- * Brand → Pitch → Identity → Rules → Play → (A2HS) → Daily → Next Achievement →
+ * Brand → Pitch → Play → Identity → Rules → (A2HS) → Daily → Next Achievement →
  * Recent Unlock → Journey → Friends → Stats → What's New → Support
  *
- * Day-0 (roundsPlayed === 0): Brand → Pitch → Rules → Play (+ helper) →
+ * Day-0 (roundsPlayed === 0): Brand → Pitch → Play (+ helper) → Rules →
  * Identity → (A2HS) → XP nudge → What's New → Support
  * Play: primary "Play" vs AI; "Play with friends" for online; practice count
  * lives in PracticeSetupModal.
@@ -577,19 +577,11 @@ export default function PlayerHub({
             Race to empty your hand. Finish first and become President.
           </Text>
 
-          {/* Returning / loading: identity before play. Day-0: play first. */}
-          {!isDay0 ? identityPanel : null}
+          <Text style={styles.brandPitch}>
+            Race to empty your hand. Finish first and become President.
+          </Text>
 
-          <AppButton
-            label="Game Rules"
-            icon="list"
-            variant="secondary"
-            onPress={() => run(actions.onOpenReadMe)}
-            accessibilityLabel="Game Rules"
-            style={styles.rulesEntryButton}
-          />
-
-          {/* Play — one primary path vs AI; friends online is secondary */}
+          {/* Play — primary actions sit high, right under the pitch */}
           <View style={styles.playHero}>
             <AppButton
               label="Play"
@@ -652,6 +644,18 @@ export default function PlayerHub({
               </TouchableOpacity>
             ) : null}
           </View>
+
+          {/* Returning / loading: identity after play. Day-0: play first. */}
+          {!isDay0 ? identityPanel : null}
+
+          <AppButton
+            label="Game Rules"
+            icon="list"
+            variant="secondary"
+            onPress={() => run(actions.onOpenReadMe)}
+            accessibilityLabel="Game Rules"
+            style={styles.rulesEntryButton}
+          />
 
           {isDay0 ? identityPanel : null}
 
@@ -930,8 +934,8 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     playHero: {
       gap: 10,
-      marginTop: 4,
-      marginBottom: 4,
+      marginTop: 2,
+      marginBottom: 8,
     },
     playHelper: {
       fontSize: 13,
