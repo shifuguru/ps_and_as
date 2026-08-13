@@ -213,6 +213,7 @@ import {
   logIosBottomGapMetrics,
 } from "../debug/iosBottomGapDebug";
 import {
+  getPlayFlightTimings,
   logTurnRingVerifyEvent,
   notePlayFlightLanded,
   notePlayFlightStarted,
@@ -253,16 +254,17 @@ const TRADE_RETURN_HOLD_MS = 650;
 /**
  * Trick-pause pacing (ms).
  * Pass-out wins already show the pile — short spread hold is enough.
- * Closing plays (On Top) finalize in the same tick as the card appears, so they
- * need flight/measure slack plus a longer post-land dwell before collect.
+ * Closing plays (On Top) finalize in the same tick as the card appears, so the
+ * post-land dwell starts when the closing flight reports landed (not from pause
+ * start). A fallback arrive timeout prevents a stalled pause if land never fires.
  */
 const TRICK_SPREAD_HOLD_MS = 380;
 const TRICK_STACK_COLLECT_MS = 520;
 const TRICK_WINNER_SHOW_MS = 800;
-/** Async seat measure + card flight before a closing play can sit on the pile. */
-const TRICK_CLOSING_PLAY_ARRIVE_MS = PLAY_CARD_FLIGHT_MS + 220;
+/** Fallback if closing-play flight-landed never fires (measure skip / missed cue). */
+const TRICK_CLOSING_PLAY_ARRIVE_FALLBACK_MS = PLAY_CARD_FLIGHT_MS + 500;
 /** Keep the landed On Top / closing play readable before stack collect. */
-const TRICK_CLOSING_PLAY_DWELL_MS = 1100;
+const TRICK_CLOSING_PLAY_DWELL_MS = 2000;
 /** Stable empty plays — avoid new `[]` each render during round-end table clear. */
 const EMPTY_TRICK_PLAYS: TrickPlayDisplay[] = [];
 
@@ -824,10 +826,18 @@ function GameScreen({
   /** Board mirrors handPlayInFlight.playKey so trick-pause can keep On Top capture. */
   const handPlayInFlightKeyRef = useRef<string | null>(null);
   /**
-   * Full spread-hold ms before stack collect for the active trick pause.
-   * Closing plays (On Top) replace the short pass-out hold with arrive + dwell.
+   * Full spread-hold ms before stack collect for pass-out wins.
+   * Closing plays (On Top) ignore this and use land-gated dwell instead.
    */
   const trickPauseSpreadHoldMsRef = useRef(TRICK_SPREAD_HOLD_MS);
+  /** Closing On Top play key — dwell starts when this flight lands. */
+  const trickPauseClosingPlayKeyRef = useRef<string | null>(null);
+  /** True while trick pause waits for the closing play to land before dwell. */
+  const trickPauseAwaitClosingLandRef = useRef(false);
+  /** Armed by the trick-pause timer effect; cleared when dwell starts or pause ends. */
+  const trickPauseOnClosingLandRef = useRef<((playKey: string) => void) | null>(
+    null,
+  );
   const startNextRoundRef = useRef<(seed?: number) => void>(() => {});
   const finalizeCeremonyRoundRef = useRef<
     (
@@ -2064,13 +2074,25 @@ function GameScreen({
     const keepClosingHandFlight =
       !!pendingKey &&
       pausePlays.some((p) => playDisplayKey(p) === pendingKey);
-    // Instant close on a play (On Top) needs arrive slack + dwell; pass-outs already landed.
+    // Instant close on a play (On Top): dwell after the closing card lands.
     const closedByPlay =
       last.actions[last.actions.length - 1]?.type === "play";
-    trickPauseSpreadHoldMsRef.current =
-      keepClosingHandFlight || closedByPlay
-        ? TRICK_CLOSING_PLAY_ARRIVE_MS + TRICK_CLOSING_PLAY_DWELL_MS
-        : TRICK_SPREAD_HOLD_MS;
+    const useClosingHold = keepClosingHandFlight || closedByPlay;
+    if (useClosingHold) {
+      const closingKey =
+        (keepClosingHandFlight && pendingKey) ||
+        (pausePlays.length > 0
+          ? playDisplayKey(pausePlays[pausePlays.length - 1])
+          : null);
+      trickPauseClosingPlayKeyRef.current = closingKey;
+      trickPauseAwaitClosingLandRef.current = true;
+      // Dwell duration only; the timer effect starts this clock on land.
+      trickPauseSpreadHoldMsRef.current = TRICK_CLOSING_PLAY_DWELL_MS;
+    } else {
+      trickPauseClosingPlayKeyRef.current = null;
+      trickPauseAwaitClosingLandRef.current = false;
+      trickPauseSpreadHoldMsRef.current = TRICK_SPREAD_HOLD_MS;
+    }
     if (!keepClosingHandFlight) {
       clearHandPlayFlightRef.current?.();
     }
@@ -2080,44 +2102,31 @@ function GameScreen({
   }, [state, onlineMultiplayer, isBotOpenTable]);
 
   // Trick-end animation timers (collect → banner → resume).
+  // Closing plays (On Top): start the face-up dwell when the card lands.
   useEffect(() => {
-    if (!trickPauseActive) return;
+    if (!trickPauseActive) {
+      trickPauseOnClosingLandRef.current = null;
+      return;
+    }
 
     if (trickBannerTimerRef.current) {
       clearTimeout(trickBannerTimerRef.current);
+      trickBannerTimerRef.current = null;
     }
     if (trickPauseTimerRef.current) {
       clearTimeout(trickPauseTimerRef.current);
+      trickPauseTimerRef.current = null;
     }
     if (trickCollectTimerRef.current) {
       clearTimeout(trickCollectTimerRef.current);
+      trickCollectTimerRef.current = null;
     }
 
-    const spreadHoldMs = trickPauseSpreadHoldMsRef.current;
-    const pauseTotalMs =
-      spreadHoldMs + TRICK_STACK_COLLECT_MS + TRICK_WINNER_SHOW_MS;
+    let cancelled = false;
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    let dwellStarted = false;
 
-    trickCollectTimerRef.current = setTimeout(() => {
-      setStackCollecting(true);
-      trickCollectTimerRef.current = null;
-    }, spreadHoldMs);
-
-    trickBannerTimerRef.current = setTimeout(() => {
-      setShowWinnerBanner(true);
-      trickBannerTimerRef.current = null;
-    }, spreadHoldMs + TRICK_STACK_COLLECT_MS);
-
-    trickPauseTimerRef.current = setTimeout(() => {
-      setShowWinnerBanner(false);
-      setStackCollecting(false);
-      setTrickPauseActive(false);
-      setTrickPauseSnapshot(null);
-      setLastTrickWinner(null);
-      trickPauseSpreadHoldMsRef.current = TRICK_SPREAD_HOLD_MS;
-      trickPauseTimerRef.current = null;
-    }, pauseTotalMs);
-
-    return () => {
+    const clearPhaseTimers = () => {
       if (trickCollectTimerRef.current) {
         clearTimeout(trickCollectTimerRef.current);
         trickCollectTimerRef.current = null;
@@ -2130,6 +2139,86 @@ function GameScreen({
         clearTimeout(trickPauseTimerRef.current);
         trickPauseTimerRef.current = null;
       }
+    };
+
+    const scheduleAfterHold = (spreadHoldMs: number) => {
+      if (cancelled) return;
+      clearPhaseTimers();
+      const pauseTotalMs =
+        spreadHoldMs + TRICK_STACK_COLLECT_MS + TRICK_WINNER_SHOW_MS;
+
+      trickCollectTimerRef.current = setTimeout(() => {
+        setStackCollecting(true);
+        trickCollectTimerRef.current = null;
+      }, spreadHoldMs);
+
+      trickBannerTimerRef.current = setTimeout(() => {
+        setShowWinnerBanner(true);
+        trickBannerTimerRef.current = null;
+      }, spreadHoldMs + TRICK_STACK_COLLECT_MS);
+
+      trickPauseTimerRef.current = setTimeout(() => {
+        setShowWinnerBanner(false);
+        setStackCollecting(false);
+        setTrickPauseActive(false);
+        setTrickPauseSnapshot(null);
+        setLastTrickWinner(null);
+        trickPauseSpreadHoldMsRef.current = TRICK_SPREAD_HOLD_MS;
+        trickPauseClosingPlayKeyRef.current = null;
+        trickPauseAwaitClosingLandRef.current = false;
+        trickPauseOnClosingLandRef.current = null;
+        trickPauseTimerRef.current = null;
+      }, pauseTotalMs);
+    };
+
+    const awaitClosingLand = trickPauseAwaitClosingLandRef.current;
+    if (!awaitClosingLand) {
+      scheduleAfterHold(trickPauseSpreadHoldMsRef.current);
+      return () => {
+        cancelled = true;
+        clearPhaseTimers();
+      };
+    }
+
+    const beginPostLandDwell = () => {
+      if (cancelled || dwellStarted) return;
+      dwellStarted = true;
+      trickPauseOnClosingLandRef.current = null;
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+      scheduleAfterHold(TRICK_CLOSING_PLAY_DWELL_MS);
+    };
+
+    const closingKey = trickPauseClosingPlayKeyRef.current;
+    trickPauseOnClosingLandRef.current = (playKey: string) => {
+      if (!closingKey || playKey === closingKey) {
+        beginPostLandDwell();
+      }
+    };
+
+    // Already landed before the pause timer armed (instant / early land).
+    if (
+      closingKey &&
+      getPlayFlightTimings(closingKey).landedAt != null
+    ) {
+      beginPostLandDwell();
+    } else {
+      fallbackTimer = setTimeout(
+        beginPostLandDwell,
+        TRICK_CLOSING_PLAY_ARRIVE_FALLBACK_MS,
+      );
+    }
+
+    return () => {
+      cancelled = true;
+      trickPauseOnClosingLandRef.current = null;
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+      clearPhaseTimers();
     };
   }, [trickPauseActive]);
 
@@ -4526,6 +4615,8 @@ function GameScreenBoard() {
       if (handPlayInFlightRef.current?.playKey === playKey) {
         completeHandPlayFlight(playKey);
       }
+      // On Top closing play: start face-up dwell once this card has landed.
+      trickPauseOnClosingLandRef.current?.(playKey);
     },
     [
       completeHandPlayFlight,
