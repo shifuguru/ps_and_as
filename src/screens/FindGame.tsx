@@ -20,10 +20,10 @@ import ScreenContainer from "../components/ScreenContainer";
 import LobbyStatusBar, {
   LOBBY_STATUS_BAR_HEIGHT,
 } from "../components/LobbyStatusBar";
-import BlurPanel from "../components/BlurPanel";
 import MenuIcon from "../components/MenuIcon";
-import ShimmerText from "../components/ShimmerText";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
+import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
+import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 
 const KeyboardShell =
   Platform.OS === "web" ? View : KeyboardAvoidingView;
@@ -38,7 +38,6 @@ const keyboardShellProps =
 import { NetworkAdapter } from "../game/network";
 import { SocketAdapter } from "../game/socketAdapter";
 import { getOrCreatePlayerId } from "../services/gameCenter";
-import { triggerHaptic } from "../utils/haptics";
 import { playerInitials } from "../utils/playerDisplay";
 import { validateDisplayText, displayTextError } from "../utils/profanityFilter";
 import {
@@ -49,6 +48,9 @@ import {
 import { contentMaxWidth } from "../styles/uiStandards";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
+import { triggerHaptic } from "../utils/haptics";
+
+const CAPSULE_RADIUS = 999;
 
 interface AvailableRoom {
   roomId: string;
@@ -120,10 +122,16 @@ export default function FindGame({
 
   const insets = useLayoutInsets();
   const { width } = useWindowDimensions();
+  const { height: viewportHeight } = useVisualViewportSize();
   const topBarHeight = insets.top + LOBBY_STATUS_BAR_HEIGHT;
-  const bottomBarHeight = menuBottomReserve(insets.bottom || 0);
-  const contentMax = contentMaxWidth(width, 520, 320, 24);
+  const bottomBarHeight = menuBottomReserve(insets.bottom || 0, viewportHeight, {
+    codeInput: true,
+  });
+  const contentMax = contentMaxWidth(width, 440, 320, 24);
   const socket = adapter as SocketAdapter;
+  const hasCode = !!normalizeRoomCodeInput(roomCode);
+  const joinDisabled = !hasCode;
+  const inviteDisabled = connectionStatus !== "connected";
 
   useEffect(() => {
     let mounted = true;
@@ -289,6 +297,38 @@ export default function FindGame({
         topInset={insets.top}
       />
 
+      {(onNavigateToAchievements || onNavigateToSettings) ? (
+        <View
+          style={[styles.utilHost, { top: insets.top + 8 }]}
+          pointerEvents="box-none"
+        >
+          <View style={styles.utilRow}>
+            {onNavigateToAchievements ? (
+              <TouchableOpacity
+                style={styles.utilBtn}
+                onPress={onNavigateToAchievements}
+                accessibilityRole="button"
+                accessibilityLabel="Stats"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MenuIcon name="trophy" size={16} color={colors.accent} />
+              </TouchableOpacity>
+            ) : null}
+            {onNavigateToSettings ? (
+              <TouchableOpacity
+                style={styles.utilBtn}
+                onPress={onNavigateToSettings}
+                accessibilityRole="button"
+                accessibilityLabel="Settings"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MenuIcon name="gear" size={16} color={colors.accent} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
       <KeyboardShell {...keyboardShellProps}>
         <ScrollView
           style={{ flex: 1 }}
@@ -302,40 +342,15 @@ export default function FindGame({
           showsVerticalScrollIndicator={false}
         >
           <View style={{ width: contentMax }}>
-            {/* Utility identity strip — no glass panel */}
-            <View style={styles.profileRow}>
+            <View style={styles.playerChip}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
                   {playerInitials(playerName || "?")}
                 </Text>
               </View>
-              <View style={styles.profileCopy}>
-                <Text style={styles.playerName} numberOfLines={1}>
-                  {playerName || "…"}
-                </Text>
-              </View>
-              <View style={styles.profileActions}>
-                {onNavigateToAchievements ? (
-                  <TouchableOpacity
-                    style={styles.tertiaryBtn}
-                    onPress={onNavigateToAchievements}
-                    accessibilityRole="button"
-                    accessibilityLabel="Stats"
-                  >
-                    <ShimmerText style={styles.tertiaryBtnText}>Stats</ShimmerText>
-                  </TouchableOpacity>
-                ) : null}
-                {onNavigateToSettings ? (
-                  <TouchableOpacity
-                    style={styles.iconOnlyBtn}
-                    onPress={onNavigateToSettings}
-                    accessibilityRole="button"
-                    accessibilityLabel="Settings"
-                  >
-                    <MenuIcon name="gear" size={18} color={colors.accent} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
+              <Text style={styles.playerName} numberOfLines={1}>
+                {playerName || "…"}
+              </Text>
             </View>
 
             {error ? (
@@ -346,7 +361,7 @@ export default function FindGame({
 
             <View style={styles.listHeader}>
               <View style={styles.listHeaderLeft}>
-                <Text style={styles.sectionTitle}>Open Games</Text>
+                <Text style={styles.sectionTitle}>Open Tables</Text>
                 <View style={styles.listHeaderSpinnerSlot}>
                   {isSearching ? (
                     <ActivityIndicator size="small" color={colors.accent} />
@@ -376,7 +391,7 @@ export default function FindGame({
               <View style={styles.emptyState}>
                 <Text style={ui.emptyTitle}>No Open Tables</Text>
                 <Text style={ui.emptyBody}>
-                  Invite friends below or join with a room code.
+                  Enter a room code below or invite friends to start one.
                 </Text>
               </View>
             ) : (
@@ -458,91 +473,101 @@ export default function FindGame({
                 );
               })
             )}
-
-            <BlurPanel style={styles.joinHero} intensity={52}>
-              <Text style={styles.joinHeroTitle}>Join With Code</Text>
-              <View
-                style={[
-                  styles.codeInputWrap,
-                  codeFocused && styles.codeInputWrapFocused,
-                ]}
-              >
-                <TextInput
-                  placeholder="Enter room code"
-                  placeholderTextColor={colors.textQuaternary}
-                  value={roomCode}
-                  onChangeText={(text) =>
-                    setRoomCode(normalizeRoomCodeInput(text))
-                  }
-                  onFocus={() => setCodeFocused(true)}
-                  onBlur={() => setCodeFocused(false)}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  spellCheck={false}
-                  textContentType={
-                    Platform.OS === "ios" ? "oneTimeCode" : "none"
-                  }
-                  autoComplete={
-                    Platform.OS === "web" ? "one-time-code" : "off"
-                  }
-                  importantForAutofill="no"
-                  passwordRules={Platform.OS === "ios" ? "" : undefined}
-                  keyboardType={
-                    Platform.OS === "ios" ? "ascii-capable" : "default"
-                  }
-                  {...(Platform.OS === "web"
-                    ? ({
-                        name: "ps-and-as-room-join-code",
-                        id: "ps-and-as-room-join-code",
-                        autoComplete: "one-time-code",
-                        "data-1p-ignore": true,
-                        "data-lpignore": "true",
-                        "data-bwignore": "true",
-                        "data-form-type": "other",
-                      } as object)
-                    : null)}
-                  style={styles.codeInput}
-                />
-              </View>
-              <TouchableOpacity
-                style={[
-                  ui.btnGoldFill,
-                  styles.codeJoinBtn,
-                  !normalizeRoomCodeInput(roomCode) && styles.codeJoinBtnDisabled,
-                ]}
-                onPress={handleJoinWithCode}
-                disabled={!normalizeRoomCodeInput(roomCode)}
-              >
-                <Text style={ui.btnGoldFillText}>Join</Text>
-              </TouchableOpacity>
-            </BlurPanel>
-
-            <TouchableOpacity
-              style={[
-                styles.hostSecondary,
-                connectionStatus !== "connected" && styles.hostSecondaryDisabled,
-              ]}
-              activeOpacity={0.85}
-              onPress={handleHost}
-              disabled={connectionStatus !== "connected"}
-              accessibilityRole="button"
-              accessibilityLabel="Invite friends"
-            >
-              <MenuIcon name="plus" size={18} color={colors.accent} />
-              <View style={styles.hostSecondaryCopy}>
-                <Text style={styles.hostSecondaryTitle}>Invite Friends</Text>
-                <Text style={styles.hostSecondaryHint}>
-                  Start a table and share your room code
-                </Text>
-              </View>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardShell>
 
       <BottomBar>
-        <BottomBarControls style={styles.bottomControls}>
+        <BottomBarControls>
           <View style={{ width: contentMax, alignSelf: "center" }}>
+            <View
+              style={[
+                styles.codeInputWrap,
+                codeFocused && styles.codeInputWrapFocused,
+              ]}
+            >
+              <TextInput
+                placeholder="Room code"
+                placeholderTextColor={colors.textQuaternary}
+                value={roomCode}
+                onChangeText={(text) =>
+                  setRoomCode(normalizeRoomCodeInput(text))
+                }
+                onFocus={() => setCodeFocused(true)}
+                onBlur={() => setCodeFocused(false)}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                spellCheck={false}
+                textContentType={
+                  Platform.OS === "ios" ? "oneTimeCode" : "none"
+                }
+                autoComplete={Platform.OS === "web" ? "one-time-code" : "off"}
+                importantForAutofill="no"
+                passwordRules={Platform.OS === "ios" ? "" : undefined}
+                keyboardType={
+                  Platform.OS === "ios" ? "ascii-capable" : "default"
+                }
+                returnKeyType="go"
+                onSubmitEditing={handleJoinWithCode}
+                {...(Platform.OS === "web"
+                  ? ({
+                      name: "ps-and-as-room-join-code",
+                      id: "ps-and-as-room-join-code",
+                      autoComplete: "one-time-code",
+                      "data-1p-ignore": true,
+                      "data-lpignore": "true",
+                      "data-bwignore": "true",
+                      "data-form-type": "other",
+                    } as object)
+                  : null)}
+                style={styles.codeInput}
+              />
+            </View>
+
+            <View style={styles.actionTrack}>
+              <TouchableOpacity
+                style={[
+                  styles.joinButton,
+                  joinDisabled && styles.joinButtonDisabled,
+                ]}
+                onPress={handleJoinWithCode}
+                disabled={joinDisabled}
+                accessibilityRole="button"
+                accessibilityLabel="Join with room code"
+                accessibilityState={{ disabled: joinDisabled }}
+              >
+                <Text
+                  style={[
+                    styles.joinButtonText,
+                    joinDisabled && styles.joinButtonTextDisabled,
+                  ]}
+                >
+                  Join
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.inviteButton,
+                  inviteDisabled && styles.inviteButtonDisabled,
+                ]}
+                onPress={handleHost}
+                disabled={inviteDisabled}
+                accessibilityRole="button"
+                accessibilityLabel="Invite friends — start a table"
+                accessibilityState={{ disabled: inviteDisabled }}
+              >
+                <Text
+                  style={[
+                    styles.inviteButtonText,
+                    inviteDisabled && styles.inviteButtonTextDisabled,
+                  ]}
+                >
+                  Invite
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <BottomBarLeave onPress={onBack} />
           </View>
         </BottomBarControls>
@@ -553,23 +578,40 @@ export default function FindGame({
 
 function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   const isDark = colors.mode === "dark";
-  const accentRim = hexToRgba(colors.accent, isDark ? 0.28 : 0.22);
 
   return StyleSheet.create({
-    bottomControls: {
-      paddingTop: 18,
+    utilHost: {
+      position: "absolute",
+      right: 12,
+      zIndex: 45,
+      elevation: 45,
     },
-    profileRow: {
+    utilRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
-      marginBottom: 16,
+      gap: 6,
+    },
+    utilBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: hexToRgba(colors.textPrimary, isDark ? 0.1 : 0.08),
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hexToRgba(colors.accent, isDark ? 0.28 : 0.22),
+    },
+    playerChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 14,
       paddingHorizontal: 2,
     },
     avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
       backgroundColor: hexToRgba(colors.accent, isDark ? 0.14 : 0.12),
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: hexToRgba(colors.accent, isDark ? 0.4 : 0.3),
@@ -578,114 +620,87 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     avatarText: {
       color: colors.accent,
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: "800",
-    },
-    profileCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    profileActions: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      flexShrink: 0,
     },
     playerName: {
-      color: colors.textPrimary,
-      fontSize: 17,
-      fontWeight: "700",
-    },
-    tertiaryBtn: {
-      minHeight: 40,
-      paddingHorizontal: 10,
-      justifyContent: "center",
-    },
-    tertiaryBtnText: {
-      color: colors.textSecondary,
-      fontSize: 14,
-      fontWeight: "600",
-    },
-    iconOnlyBtn: {
-      width: 40,
-      height: 40,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    joinHero: {
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 12,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: accentRim,
-      overflow: "hidden",
-    },
-    joinHeroTitle: {
-      color: colors.textPrimary,
-      fontSize: 17,
-      fontWeight: "800",
-      textAlign: "center",
-      marginBottom: 4,
-    },
-    hostSecondary: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      paddingVertical: 12,
-      paddingHorizontal: 14,
-      marginBottom: 18,
-      borderRadius: 14,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.textPrimary, isDark ? 0.14 : 0.12),
-      backgroundColor: hexToRgba(
-        isDark ? colors.textPrimary : "#ffffff",
-        isDark ? 0.06 : 0.35,
-      ),
-    },
-    hostSecondaryDisabled: {
-      opacity: 0.45,
-    },
-    hostSecondaryCopy: {
       flex: 1,
       minWidth: 0,
-      gap: 2,
-    },
-    hostSecondaryTitle: {
       color: colors.textPrimary,
-      fontSize: 15,
+      fontSize: 16,
       fontWeight: "700",
-    },
-    hostSecondaryHint: {
-      color: colors.textSecondary,
-      fontSize: 12,
-      fontWeight: "600",
-      lineHeight: 16,
     },
     codeInputWrap: {
       width: "100%",
-      borderRadius: 12,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.accent, isDark ? 0.2 : 0.16),
-      backgroundColor: hexToRgba("#ffffff", isDark ? 0.08 : 0.55),
-      paddingHorizontal: 10,
-      paddingVertical: Platform.OS === "ios" ? 10 : 6,
-      marginTop: 12,
+      borderRadius: CAPSULE_RADIUS,
+      borderWidth: 1,
+      borderColor: colors.actionSecondaryBorder,
+      backgroundColor: colors.actionSecondaryBg,
+      paddingHorizontal: 16,
+      paddingVertical: Platform.OS === "ios" ? 12 : 8,
+      marginBottom: 10,
     },
     codeInputWrapFocused: {
-      borderColor: hexToRgba(colors.accent, isDark ? 0.45 : 0.36),
+      borderColor: hexToRgba(colors.accent, isDark ? 0.55 : 0.45),
     },
     codeInput: {
       color: colors.inputText,
       fontSize: 16,
+      fontWeight: "700",
       textAlign: "center",
+      letterSpacing: 1.2,
     },
-    codeJoinBtn: {
+    actionTrack: {
+      flexDirection: "row",
+      alignItems: "stretch",
+      gap: 10,
+      minHeight: 48,
       width: "100%",
-      paddingVertical: 11,
-      marginTop: 10,
+      marginBottom: 4,
     },
-    codeJoinBtnDisabled: {
-      opacity: 0.45,
+    joinButton: {
+      flex: 1,
+      borderRadius: CAPSULE_RADIUS,
+      borderWidth: 1,
+      borderColor: colors.actionSecondaryBorder,
+      backgroundColor: colors.actionSecondaryBg,
+      paddingHorizontal: 14,
+      minHeight: 48,
+      ...BUTTON_CENTER,
+    },
+    joinButtonDisabled: {
+      opacity: 0.58,
+    },
+    joinButtonText: buttonLabel(15, {
+      color: colors.actionSecondaryText,
+      fontWeight: "700",
+      letterSpacing: 0.3,
+    }),
+    joinButtonTextDisabled: {
+      opacity: 0.72,
+    },
+    inviteButton: {
+      flex: 1.45,
+      borderRadius: CAPSULE_RADIUS,
+      borderWidth: 1.5,
+      borderColor: colors.actionPrimaryBorder,
+      backgroundColor: colors.actionPrimaryBg,
+      paddingHorizontal: 16,
+      minHeight: 48,
+      ...BUTTON_CENTER,
+    },
+    inviteButtonDisabled: {
+      opacity: 0.68,
+      backgroundColor: colors.actionPrimaryDisabledBg,
+      borderColor: colors.actionPrimaryDisabledBorder,
+    },
+    inviteButtonText: buttonLabel(16, {
+      color: colors.actionPrimaryText,
+      fontWeight: "800",
+      letterSpacing: 0.3,
+    }),
+    inviteButtonTextDisabled: {
+      color: colors.actionPrimaryDisabledText,
     },
     listHeader: {
       flexDirection: "row",

@@ -15,6 +15,7 @@ import {
   setAdsConsent,
   subscribeAdsConsent,
 } from "../services/ads/adsConsent";
+import { SHOW_REMOVE_ADS_PURCHASE } from "../services/ads/adsConfig";
 
 type Props = {
   onOpenPrivacy?: () => void;
@@ -43,7 +44,8 @@ export default function AdsConsentBanner({ onOpenPrivacy }: Props) {
     <View style={styles.wrap} accessibilityRole="summary">
       <Text style={styles.body}>
         We use ads to keep servers running. Accept to enable ads (and optional
-        watch-for-XP). You can remove forced ads later in Settings.
+        watch-for-XP).
+        {SHOW_REMOVE_ADS_PURCHASE ? " You can remove forced ads later in Settings." : ""}
       </Text>
       <View style={styles.row}>
         {onOpenPrivacy ? (
