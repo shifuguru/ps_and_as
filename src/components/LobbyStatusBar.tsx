@@ -4,6 +4,8 @@ import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
 
 export const LOBBY_STATUS_BAR_HEIGHT = 58;
+/** Taller header when room name + party stack (in-room lobby). */
+export const LOBBY_STACK_BAR_HEIGHT = 68;
 
 type Props = {
   playerCount: number;
@@ -57,7 +59,7 @@ export default function LobbyStatusBar({
                 {displayRoom}
               </Text>
               <View style={styles.lobbyPartyRow}>
-                <Text style={styles.label}>{countLabel}</Text>
+                <Text style={styles.lobbyPartyLabel}>{countLabel}</Text>
                 <Text style={styles.lobbyPartyValue}>{partyCount}</Text>
               </View>
             </View>
@@ -141,6 +143,16 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       alignItems: "center",
       justifyContent: "center",
       gap: 6,
+    },
+    lobbyPartyLabel: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 0.4,
+      textAlign: "center",
+      textShadowColor: "rgba(0,0,0,0.55)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 3,
     },
     lobbyPartyValue: {
       color: colors.textPrimary,

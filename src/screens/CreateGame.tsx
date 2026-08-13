@@ -34,6 +34,7 @@ import BlurPanel from "../components/BlurPanel";
 import MenuIcon from "../components/MenuIcon";
 import LobbyStatusBar, {
   LOBBY_STATUS_BAR_HEIGHT,
+  LOBBY_STACK_BAR_HEIGHT,
 } from "../components/LobbyStatusBar";
 import BottomBar, {
   BottomBarControls,
@@ -388,7 +389,7 @@ export default function CreateGame({
 
   const { width, height: windowHeight } = useWindowDimensions();
   const insets = useLayoutInsets();
-  const topBarHeight = insets.top + LOBBY_STATUS_BAR_HEIGHT;
+  const topBarHeight = insets.top + LOBBY_STACK_BAR_HEIGHT;
   const bottomBarHeight = lobbyBottomReserve(insets.bottom || 0);
 
   const usingMock = !adapter || !isSocketAdapter(adapter);
@@ -469,9 +470,11 @@ export default function CreateGame({
   const displayRoomName = useMemo(() => {
     const trimmed = roomName.trim();
     if (trimmed) return trimmed;
-    const fromHost = defaultRoomNameFromHost(playerName);
-    return fromHost || "Game Room";
-  }, [roomName, playerName]);
+    if (isHost || usingMock) {
+      return defaultRoomNameFromHost(playerName) || "Game Room";
+    }
+    return "Game Room";
+  }, [roomName, playerName, isHost, usingMock]);
 
   const partyCount = Math.max(1, seatCount);
 
@@ -942,6 +945,9 @@ export default function CreateGame({
       return `Waiting for all players to ready up (${guestsReadyCount}/${guestMembers.length})…`;
     }
     if (!isHost && !lobbyFullEnough) {
+      if (seatCount === 0 && connectionStatus !== "connected") {
+        return "Joining lobby…";
+      }
       return playersNeeded === 1
         ? "Waiting for 1 more player"
         : `Waiting for ${playersNeeded} more players`;
