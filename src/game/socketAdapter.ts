@@ -966,9 +966,9 @@ export class SocketAdapter implements NetworkAdapter {
     this.socket.emit("updateRoomOptions", { roomId, ...options });
   }
 
-  kickPlayer(roomId: string, playerName: string) {
+  kickPlayer(roomId: string, playerId: string, playerName?: string) {
     if (!this.socket) return;
-    this.socket.emit("kickPlayer", { roomId, playerName });
+    this.socket.emit("kickPlayer", { roomId, playerId, playerName });
   }
 
   toggleReady(roomId: string, _playerId: string, ready: boolean) {

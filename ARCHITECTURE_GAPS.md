@@ -637,6 +637,28 @@ Host stuck watching shuffle while guest plays; table appears broken until refres
 
 ---
 
+## Same-name reconnect steals host
+
+**Category:** Multiplayer / Host authority
+
+**Intended behaviour:**  
+Host is a seat id (`room.host`). Reconnect restores that seat only when the reconnecting player **is** the host or room creator. Kick removes one seat.
+
+**Current behaviour (before fix):**  
+`joinRoom` restored host when `room.hostName === existingPlayer.name`. Two players with the same display name (allowed, including `"Player"`) let a guest steal host on reconnect. `kickPlayer` looked up and filtered by display name, so kicking one twin removed every matching seat and could abort the match.
+
+**Impact:**  
+Guest with the same name as the host briefly disconnects, reconnects, becomes host, and can kick the original host — ending a live private game.
+
+**Files involved:**  
+`server/index.js` (`joinRoom` host restore, `kickPlayer` / `resolveKickTarget`), `src/game/socketAdapter.ts`, `src/screens/CreateGame.tsx`
+
+**Priority:** P0
+
+**Status:** Resolved — host restore is id-only; kick targets `playerId` (name fallback only if unique)
+
+---
+
 ## Related docs
 
 - [GAME_ARCHITECTURE.md](./GAME_ARCHITECTURE.md) — UI, overlays, On Top, turn ownership intent, disconnect intent
