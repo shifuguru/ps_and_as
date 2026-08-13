@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Regression: GameScreenBoard must not reference parent-only bindings, and
- * module-level styles must be initialized before components (TDZ / HMR).
+ * Regression: parent GameScreen refs used in GameScreenBoard must be passed
+ * through GameScreenRuntimeContext (or declared locally on the board).
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -11,14 +11,12 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const src = readFileSync(join(root, "src/screens/GameScreen.tsx"), "utf8");
 
 const boardStart = src.indexOf("function GameScreenBoard()");
-const parentEnd = boardStart;
-const parent = src.slice(0, parentEnd);
+const parent = src.slice(0, boardStart);
 const board = src.slice(boardStart);
 
-const localIdx = src.indexOf("const local = StyleSheet.create");
-if (localIdx < 0 || localIdx > boardStart) {
+if (/\bconst local = StyleSheet\.create/.test(src)) {
   throw new Error(
-    "const local StyleSheet must be declared before GameScreenBoard (avoids TDZ / [ROUND-END-CRASH])",
+    "Rename module StyleSheet to gameScreenStyles — const local collides with player locals and risks TDZ",
   );
 }
 
@@ -47,7 +45,7 @@ if (!earlyBound.has("onTrickPauseClosingPlayLanded")) {
 
 if (/\btrickPauseOnClosingLandRef\b/.test(board)) {
   throw new Error(
-    "GameScreenBoard must not reference trickPauseOnClosingLandRef directly — use onTrickPauseClosingPlayLanded from context",
+    "GameScreenBoard must not reference trickPauseOnClosingLandRef directly",
   );
 }
 

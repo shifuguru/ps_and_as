@@ -540,374 +540,6 @@ const GameScreenRuntimeContext = createContext<Record<string, unknown> | null>(
   null,
 );
 
-const local = StyleSheet.create({
-  container: { flex: 1 },
-  topHeaderRow: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    zIndex: 90,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-    minHeight: 40,
-  },
-  topHeaderSpacer: {
-    flex: 1,
-  },
-  bottomFabRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexShrink: 0,
-  },
-  ceremonyStatusPill: {
-    flexShrink: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    maxWidth: "72%",
-  },
-  ceremonyStatusText: {
-    color: "#d4af37",
-    fontSize: 13,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-  },
-  ceremonyHandDeck: {
-    flex: 1,
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statsFab: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  roomNoticeBanner: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    zIndex: 70,
-    alignSelf: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: "rgba(0, 0, 0, 0.72)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(212, 175, 55, 0.45)",
-  },
-  roomNoticeText: {
-    color: "#f5e6b8",
-    fontSize: 13,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  playTypeOverlay: {
-    position: "absolute",
-    left: 12,
-    right: 12,
-    zIndex: 56,
-    alignItems: "center",
-  },
-  playTypeBadge: {
-    backgroundColor: "rgba(212, 175, 55, 0.12)",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.35)",
-  },
-  playTypeBadgeText: {
-    color: "#d4af37",
-    fontWeight: "800",
-    fontSize: 12,
-    textAlign: "center",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-  },
-  dealerReshuffleOverlay: {
-    position: "absolute",
-    zIndex: 58,
-    width: 72,
-    height: 72,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scrollableContent: { flex: 1, paddingHorizontal: 12, paddingTop: 0 },
-  header: { marginBottom: 6 },
-  gameId: { color: "#ddd", fontSize: 10 },
-  finished: { color: "#ddd", fontSize: 10 },
-  navBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-    marginTop: 48,
-  },
-  navBack: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-  },
-  navBackText: { color: "#d4af37", fontWeight: "800", fontSize: 14 },
-  navTitle: { color: "#d4af37", fontWeight: "800", fontSize: 16 },
-  pileArea: { marginTop: 6, marginBottom: 8 },
-  tableBorder: {
-    borderWidth: 2,
-    borderColor: "rgba(212,175,55,0.06)",
-    borderStyle: "dashed",
-    padding: 8,
-    borderRadius: 8,
-    minHeight: 100,
-    justifyContent: "center",
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    color: "#d4af37",
-    fontWeight: "700",
-    marginBottom: 4,
-    fontSize: 12,
-  },
-  pileCards: { flexDirection: "row", alignItems: "center" },
-  pileCardWrapper: { marginRight: 6 },
-  playersArea: { marginVertical: 6 },
-  playersGrid: { flexDirection: "row", flexWrap: "wrap" },
-  playerCell: { width: "50%", paddingHorizontal: 4, marginBottom: 6 },
-  playerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 6,
-    borderRadius: 4,
-    backgroundColor: "rgba(255,255,255,0.02)",
-    marginBottom: 3,
-  },
-  playerRowCurrent: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderColor: "rgba(212,175,55,0.12)",
-    borderWidth: 1,
-  },
-  playerName: { color: "#fff", fontWeight: "600", fontSize: 13 },
-  playerNameCurrent: { color: "#ffd" },
-  playerCount: { color: "#ccc", fontSize: 11 },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { color: "#fff", fontWeight: "700", fontSize: 12 },
-  turnBadge: {
-    backgroundColor: "#d4af37",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  turnBadgeText: { color: "#111", fontWeight: "700", fontSize: 11 },
-  actions: { flexDirection: "row", marginTop: 12, alignItems: "center" },
-  actionButton: {
-    backgroundColor: "#222",
-    paddingVertical: 16,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    flex: 1,
-    alignItems: "center",
-  },
-  actionButtonPrimary: { marginRight: 4 },
-  actionButtonSecondary: { marginHorizontal: 4 },
-  actionButtonTertiary: { marginLeft: 4, backgroundColor: "rgba(212, 175, 55, 0.15)" },
-  actionText: { color: "#fff", fontWeight: "800", fontSize: 16 },
-  turnIndicator: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: "rgba(212, 175, 55, 0.15)",
-    borderRadius: 6,
-    marginTop: 8,
-    marginHorizontal: 8,
-    alignItems: "center",
-  },
-  turnIndicatorText: {
-    color: "#d4af37",
-    fontSize: 14,
-    fontWeight: "600",
-    fontStyle: "italic",
-  },
-  tradeReturnFlightLayer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 5000,
-  },
-  waitingPill: {
-    position: "absolute",
-    top: 12,
-    alignSelf: "center",
-    zIndex: 2000,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.12)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255, 255, 255, 0.18)",
-  },
-  waitingPillCollapsed: {
-    position: "relative",
-    top: 0,
-    alignSelf: "center",
-    marginTop: 6,
-    marginBottom: 4,
-    zIndex: 0,
-  },
-  waitingPillText: {
-    color: "rgba(255, 255, 255, 0.85)",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  spectatorActionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    flexWrap: "wrap",
-    marginTop: 4,
-  },
-  spectatorSecondaryBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  debugRow: {
-    flexDirection: "row",
-    marginTop: 6,
-    gap: 8,
-  },
-  debugBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 8,
-  },
-  debugBtnText: {
-    color: "#d4af37",
-    fontWeight: "700",
-    fontSize: 11,
-  },
-  gameLogContainer: {
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    borderRadius: 8,
-    padding: 12,
-    marginHorizontal: 8,
-    marginBottom: 8,
-    maxHeight: 240,
-    borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.3)",
-  },
-  gameLogTitle: {
-    color: "#d4af37",
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 8,
-    textTransform: "uppercase",
-  },
-  gameLogScroll: {
-    maxHeight: 100,
-  },
-  gameLogText: {
-    color: "#f0f0f0",
-    fontSize: 13,
-    marginBottom: 4,
-    lineHeight: 18,
-  },
-  actionsSecondary: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  debugOverlay: {
-    position: "absolute",
-    right: 12,
-    width: 320,
-    height: 220,
-    backgroundColor: "rgba(12,12,12,0.92)",
-    borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.25)",
-    borderRadius: 10,
-    padding: 8,
-    zIndex: 120,
-    elevation: 120,
-  },
-  debugHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  debugScroll: {
-    maxHeight: 180,
-  },
-  gameLogControls: {
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    alignItems: "flex-start",
-  },
-  logToggleButton: {
-    backgroundColor: "transparent",
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-  },
-  logToggleText: {
-    color: "#d4af37",
-    fontWeight: "700",
-  },
-  smallToggle: {
-    backgroundColor: "transparent",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-  },
-  smallToggleText: {
-    color: "#d4af37",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  passedBadge: {
-    marginLeft: 8,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginTop: 2,
-  },
-  passedBadgeText: {
-    color: "#ddd",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  placementBadge: {
-    marginLeft: 8,
-    backgroundColor: "rgba(212,175,55,0.18)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginTop: 2,
-  },
-  placementBadgeText: {
-    color: "#d4af37",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-});
-
 function GameScreen({
   initialPlayers,
   initialLobbyPlayers,
@@ -1139,9 +771,9 @@ function GameScreen({
       const roundKey = roundCeremonyKey(prep.baseState as GameStateWithDealSeed);
       if (titleDealJokersRoundKeyRef.current === roundKey) return;
       titleDealJokersRoundKeyRef.current = roundKey;
-      const local = dealtPlayers.find((p) => p.id === localId);
-      if (local?.hand?.length) {
-        recordDealJokersForHand(local.hand);
+      const localPlayer = dealtPlayers.find((p) => p.id === localId);
+      if (localPlayer?.hand?.length) {
+        recordDealJokersForHand(localPlayer.hand);
       }
     },
     [],
@@ -6504,18 +6136,18 @@ function GameScreenBoard() {
       {bannerNotice ? (
         <View
           style={[
-            local.roomNoticeBanner,
+            gameScreenStyles.roomNoticeBanner,
             { top: contentTopPadding + 4 },
           ]}
           pointerEvents="none"
         >
-          <Text style={local.roomNoticeText}>{bannerNotice}</Text>
+          <Text style={gameScreenStyles.roomNoticeText}>{bannerNotice}</Text>
         </View>
       ) : null}
       {/* Toggleable structured debug overlay (doesn't block bottom hand) */}
       {showDebugOverlay && (
-        <View style={[local.debugOverlay, { top: contentTopPadding + 4 }]}>
-          <View style={local.debugHeader}>
+        <View style={[gameScreenStyles.debugOverlay, { top: contentTopPadding + 4 }]}>
+          <View style={gameScreenStyles.debugHeader}>
             <Text style={{ color: "#d4af37", fontWeight: "800" }}>
               Full Game Log
             </Text>
@@ -6526,7 +6158,7 @@ function GameScreenBoard() {
               <Text style={{ color: "#fff" }}>Close</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView style={local.debugScroll}>
+          <ScrollView style={gameScreenStyles.debugScroll}>
             {recentFullLog && recentFullLog.length > 0 ? (
               recentFullLog
                 .slice()
@@ -6654,7 +6286,7 @@ function GameScreenBoard() {
         playCenterLayout.playAnchorY > 0 ? (
           <View
             style={[
-              local.dealerReshuffleOverlay,
+              gameScreenStyles.dealerReshuffleOverlay,
               {
                 left: playCenterLayout.playAnchorX - 36,
                 top: playCenterLayout.playAnchorY - 36,
@@ -6730,7 +6362,7 @@ function GameScreenBoard() {
             controlsGap={handMetrics.handControlsGap}
             bottomPad={handMetrics.handZoneBottomPad}
           >
-            <View style={local.ceremonyHandDeck} pointerEvents="none">
+            <View style={gameScreenStyles.ceremonyHandDeck} pointerEvents="none">
               {ceremonyDealProgress.phase === "shuffle" ? (
                 <DealShuffleAnimation
                   embedded
@@ -6784,8 +6416,8 @@ function GameScreenBoard() {
                 onReceiveSlotMeasure={onReceiveSlotMeasure}
               />
               {activeTrade.winnerId !== myPlayerId && !activeTrade.completed ? (
-                <View style={[local.waitingPill, local.waitingPillCollapsed]}>
-                  <Text style={local.waitingPillText}>
+                <View style={[gameScreenStyles.waitingPill, gameScreenStyles.waitingPillCollapsed]}>
+                  <Text style={gameScreenStyles.waitingPillText}>
                     Waiting for {activeTrade.winnerName} to pick return cards…
                   </Text>
                 </View>
@@ -6794,15 +6426,15 @@ function GameScreenBoard() {
               activeTrade.completed &&
               tradeReturnRevealActive &&
               !tradeReturnReceiveLanded ? (
-                <View style={[local.waitingPill, local.waitingPillCollapsed]}>
-                  <Text style={local.waitingPillText}>Receiving return card…</Text>
+                <View style={[gameScreenStyles.waitingPill, gameScreenStyles.waitingPillCollapsed]}>
+                  <Text style={gameScreenStyles.waitingPillText}>Receiving return card…</Text>
                 </View>
               ) : null}
             </>
           ) : readOnlyOnline ? (
             <>
-              <View style={[local.waitingPill, local.waitingPillCollapsed]}>
-                <Text style={local.waitingPillText}>
+              <View style={[gameScreenStyles.waitingPill, gameScreenStyles.waitingPillCollapsed]}>
+                <Text style={gameScreenStyles.waitingPillText}>
                   Spectating — you can play the next round
                 </Text>
               </View>
@@ -6820,8 +6452,8 @@ function GameScreenBoard() {
               />
             </>
           ) : awaitingDealerReshuffle ? (
-            <View style={[local.waitingPill, local.waitingPillCollapsed]}>
-              <Text style={local.waitingPillText}>
+            <View style={[gameScreenStyles.waitingPill, gameScreenStyles.waitingPillCollapsed]}>
+              <Text style={gameScreenStyles.waitingPillText}>
                 {isCeremonyDealer
                   ? "All four 3s on the dead hand — tap Reshuffle in the center"
                   : "All four 3s on the dead hand — waiting for dealer to reshuffle…"}
@@ -6864,8 +6496,8 @@ function GameScreenBoard() {
         {/* Game Log (toggleable) */}
         {showGameLog && (
           <BottomBarControls>
-            <Text style={local.gameLogTitle}>Current Trick Log</Text>
-            <ScrollView style={local.gameLogScroll} nestedScrollEnabled>
+            <Text style={gameScreenStyles.gameLogTitle}>Current Trick Log</Text>
+            <ScrollView style={gameScreenStyles.gameLogScroll} nestedScrollEnabled>
               {currentTrickLog && currentTrickLog.length > 0 ? (
                 currentTrickLog
                   .slice()
@@ -6878,13 +6510,13 @@ function GameScreenBoard() {
                           ? "#8B4513"
                           : "#f0f0f0";
                     return (
-                      <Text key={idx} style={[local.gameLogText, { color }]}>
+                      <Text key={idx} style={[gameScreenStyles.gameLogText, { color }]}>
                         {log.text}
                       </Text>
                     );
                   })
               ) : (
-                <Text style={[local.gameLogText, { color: "#aaa" }]}>
+                <Text style={[gameScreenStyles.gameLogText, { color: "#aaa" }]}>
                   No game log entries yet.
                 </Text>
               )}
@@ -6972,7 +6604,7 @@ function GameScreenBoard() {
       ) : null}
 
       {tradeReturnFlight ? (
-        <View style={local.tradeReturnFlightLayer} pointerEvents="none">
+        <View style={gameScreenStyles.tradeReturnFlightLayer} pointerEvents="none">
           <TableCardFlight
             flight={tradeReturnFlight}
             durationMs={TRADE_RETURN_FLIGHT_MS}
@@ -7059,3 +6691,371 @@ function GameScreenBoard() {
 }
 
 export default GameScreen;
+
+const gameScreenStyles = StyleSheet.create({
+  container: { flex: 1 },
+  topHeaderRow: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    zIndex: 90,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    minHeight: 40,
+  },
+  topHeaderSpacer: {
+    flex: 1,
+  },
+  bottomFabRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
+  },
+  ceremonyStatusPill: {
+    flexShrink: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    maxWidth: "72%",
+  },
+  ceremonyStatusText: {
+    color: "#d4af37",
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  ceremonyHandDeck: {
+    flex: 1,
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statsFab: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  roomNoticeBanner: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    zIndex: 70,
+    alignSelf: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "rgba(0, 0, 0, 0.72)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(212, 175, 55, 0.45)",
+  },
+  roomNoticeText: {
+    color: "#f5e6b8",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  playTypeOverlay: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    zIndex: 56,
+    alignItems: "center",
+  },
+  playTypeBadge: {
+    backgroundColor: "rgba(212, 175, 55, 0.12)",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.35)",
+  },
+  playTypeBadgeText: {
+    color: "#d4af37",
+    fontWeight: "800",
+    fontSize: 12,
+    textAlign: "center",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  dealerReshuffleOverlay: {
+    position: "absolute",
+    zIndex: 58,
+    width: 72,
+    height: 72,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scrollableContent: { flex: 1, paddingHorizontal: 12, paddingTop: 0 },
+  header: { marginBottom: 6 },
+  gameId: { color: "#ddd", fontSize: 10 },
+  finished: { color: "#ddd", fontSize: 10 },
+  navBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+    marginTop: 48,
+  },
+  navBack: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  navBackText: { color: "#d4af37", fontWeight: "800", fontSize: 14 },
+  navTitle: { color: "#d4af37", fontWeight: "800", fontSize: 16 },
+  pileArea: { marginTop: 6, marginBottom: 8 },
+  tableBorder: {
+    borderWidth: 2,
+    borderColor: "rgba(212,175,55,0.06)",
+    borderStyle: "dashed",
+    padding: 8,
+    borderRadius: 8,
+    minHeight: 100,
+    justifyContent: "center",
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    color: "#d4af37",
+    fontWeight: "700",
+    marginBottom: 4,
+    fontSize: 12,
+  },
+  pileCards: { flexDirection: "row", alignItems: "center" },
+  pileCardWrapper: { marginRight: 6 },
+  playersArea: { marginVertical: 6 },
+  playersGrid: { flexDirection: "row", flexWrap: "wrap" },
+  playerCell: { width: "50%", paddingHorizontal: 4, marginBottom: 6 },
+  playerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 6,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.02)",
+    marginBottom: 3,
+  },
+  playerRowCurrent: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(212,175,55,0.12)",
+    borderWidth: 1,
+  },
+  playerName: { color: "#fff", fontWeight: "600", fontSize: 13 },
+  playerNameCurrent: { color: "#ffd" },
+  playerCount: { color: "#ccc", fontSize: 11 },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: { color: "#fff", fontWeight: "700", fontSize: 12 },
+  turnBadge: {
+    backgroundColor: "#d4af37",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  turnBadgeText: { color: "#111", fontWeight: "700", fontSize: 11 },
+  actions: { flexDirection: "row", marginTop: 12, alignItems: "center" },
+  actionButton: {
+    backgroundColor: "#222",
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    flex: 1,
+    alignItems: "center",
+  },
+  actionButtonPrimary: { marginRight: 4 },
+  actionButtonSecondary: { marginHorizontal: 4 },
+  actionButtonTertiary: { marginLeft: 4, backgroundColor: "rgba(212, 175, 55, 0.15)" },
+  actionText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  turnIndicator: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(212, 175, 55, 0.15)",
+    borderRadius: 6,
+    marginTop: 8,
+    marginHorizontal: 8,
+    alignItems: "center",
+  },
+  turnIndicatorText: {
+    color: "#d4af37",
+    fontSize: 14,
+    fontWeight: "600",
+    fontStyle: "italic",
+  },
+  tradeReturnFlightLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 5000,
+  },
+  waitingPill: {
+    position: "absolute",
+    top: 12,
+    alignSelf: "center",
+    zIndex: 2000,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255, 255, 255, 0.18)",
+  },
+  waitingPillCollapsed: {
+    position: "relative",
+    top: 0,
+    alignSelf: "center",
+    marginTop: 6,
+    marginBottom: 4,
+    zIndex: 0,
+  },
+  waitingPillText: {
+    color: "rgba(255, 255, 255, 0.85)",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  spectatorActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    flexWrap: "wrap",
+    marginTop: 4,
+  },
+  spectatorSecondaryBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  debugRow: {
+    flexDirection: "row",
+    marginTop: 6,
+    gap: 8,
+  },
+  debugBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 8,
+  },
+  debugBtnText: {
+    color: "#d4af37",
+    fontWeight: "700",
+    fontSize: 11,
+  },
+  gameLogContainer: {
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    borderRadius: 8,
+    padding: 12,
+    marginHorizontal: 8,
+    marginBottom: 8,
+    maxHeight: 240,
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.3)",
+  },
+  gameLogTitle: {
+    color: "#d4af37",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  gameLogScroll: {
+    maxHeight: 100,
+  },
+  gameLogText: {
+    color: "#f0f0f0",
+    fontSize: 13,
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  actionsSecondary: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  debugOverlay: {
+    position: "absolute",
+    right: 12,
+    width: 320,
+    height: 220,
+    backgroundColor: "rgba(12,12,12,0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(212,175,55,0.25)",
+    borderRadius: 10,
+    padding: 8,
+    zIndex: 120,
+    elevation: 120,
+  },
+  debugHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  debugScroll: {
+    maxHeight: 180,
+  },
+  gameLogControls: {
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    alignItems: "flex-start",
+  },
+  logToggleButton: {
+    backgroundColor: "transparent",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  logToggleText: {
+    color: "#d4af37",
+    fontWeight: "700",
+  },
+  smallToggle: {
+    backgroundColor: "transparent",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  smallToggleText: {
+    color: "#d4af37",
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  passedBadge: {
+    marginLeft: 8,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 2,
+  },
+  passedBadgeText: {
+    color: "#ddd",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  placementBadge: {
+    marginLeft: 8,
+    backgroundColor: "rgba(212,175,55,0.18)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 2,
+  },
+  placementBadgeText: {
+    color: "#d4af37",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+});
