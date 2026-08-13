@@ -401,7 +401,15 @@ function injectBootGuard(html) {
     var n=getAttempts();
     if(n>=maxReloads){toFallback();return;}
     setAttempts(n+1);
-    setTimeout(function(){location.reload();},700*(n+1));
+    setTimeout(function(){
+      try{
+        var url=new URL(location.href);
+        url.searchParams.set("_",String(Date.now()));
+        location.replace(url.toString());
+      }catch(e){
+        location.reload();
+      }
+    },700*(n+1));
   }
   function onError(ev){
     if(!armed) return;
@@ -458,6 +466,18 @@ function injectBuildMeta(html, meta) {
   return html.replace("<head>", `<head>\n    ${script}`);
 }
 
+/** Cache-bust the main Expo bundle so stale index.html cannot pin an old hashed chunk. */
+function cacheBustMainBundle(html, buildMeta) {
+  const token = buildMeta?.buildId || buildMeta?.version;
+  if (!token) return html;
+  const query = `?v=${encodeURIComponent(String(token))}`;
+  return html.replace(
+    /(<script\s+src=(['"])([^'"]*\/_expo\/static\/js\/web\/index-[^'"]+\.js)\2)(\s+defer)?>/,
+    (match, prefix, _quote, src, defer) =>
+      `${prefix.replace(src, `${src}${query}`)}${defer ?? ""}>`,
+  );
+}
+
 let html = fs.readFileSync(buildIndex, "utf8");
 const buildMeta = resolveBuildMeta();
 html = injectServerUrl(html);
@@ -465,6 +485,7 @@ html = injectGoogleWebClientId(html);
 html = injectAdSenseClient(html);
 html = injectEarlyShellHeight(html);
 html = injectBuildMeta(html, buildMeta);
+html = cacheBustMainBundle(html, buildMeta);
 html = injectBootGuard(html);
 html = rewriteHtmlPaths(html);
 html = patchViewport(html);

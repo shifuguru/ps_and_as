@@ -32,6 +32,15 @@ export function nzdt(local: string): string {
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
+    publishedAt: nzst("2026-08-14T09:01"),
+    title: "Startup crash fix",
+    items: [
+      "Fixed a first-load crash that could send you to the Read Me page before the hub opened",
+      "The game now retries once automatically and fetches a fresh build instead of a stale cached one",
+      "Heavy screens load only when you need them so the home hub starts faster",
+    ],
+  },
+  {
     publishedAt: nzst("2026-08-14T08:49"),
     title: "Rollback — game loads again",
     items: [

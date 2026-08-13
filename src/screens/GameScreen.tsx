@@ -769,9 +769,9 @@ function GameScreen({
       const roundKey = roundCeremonyKey(prep.baseState as GameStateWithDealSeed);
       if (titleDealJokersRoundKeyRef.current === roundKey) return;
       titleDealJokersRoundKeyRef.current = roundKey;
-      const local = dealtPlayers.find((p) => p.id === localId);
-      if (local?.hand?.length) {
-        recordDealJokersForHand(local.hand);
+      const localPlayer = dealtPlayers.find((p) => p.id === localId);
+      if (localPlayer?.hand?.length) {
+        recordDealJokersForHand(localPlayer.hand);
       }
     },
     [],
@@ -6003,18 +6003,18 @@ function GameScreenBoard() {
       {bannerNotice ? (
         <View
           style={[
-            local.roomNoticeBanner,
+            gameScreenStyles.roomNoticeBanner,
             { top: contentTopPadding + 4 },
           ]}
           pointerEvents="none"
         >
-          <Text style={local.roomNoticeText}>{bannerNotice}</Text>
+          <Text style={gameScreenStyles.roomNoticeText}>{bannerNotice}</Text>
         </View>
       ) : null}
       {/* Toggleable structured debug overlay (doesn't block bottom hand) */}
       {showDebugOverlay && (
-        <View style={[local.debugOverlay, { top: contentTopPadding + 4 }]}>
-          <View style={local.debugHeader}>
+        <View style={[gameScreenStyles.debugOverlay, { top: contentTopPadding + 4 }]}>
+          <View style={gameScreenStyles.debugHeader}>
             <Text style={{ color: "#d4af37", fontWeight: "800" }}>
               Full Game Log
             </Text>
@@ -6025,7 +6025,7 @@ function GameScreenBoard() {
               <Text style={{ color: "#fff" }}>Close</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView style={local.debugScroll}>
+          <ScrollView style={gameScreenStyles.debugScroll}>
             {recentFullLog && recentFullLog.length > 0 ? (
               recentFullLog
                 .slice()
@@ -6153,7 +6153,7 @@ function GameScreenBoard() {
         playCenterLayout.playAnchorY > 0 ? (
           <View
             style={[
-              local.dealerReshuffleOverlay,
+              gameScreenStyles.dealerReshuffleOverlay,
               {
                 left: playCenterLayout.playAnchorX - 36,
                 top: playCenterLayout.playAnchorY - 36,
@@ -6229,7 +6229,7 @@ function GameScreenBoard() {
             controlsGap={handMetrics.handControlsGap}
             bottomPad={handMetrics.handZoneBottomPad}
           >
-            <View style={local.ceremonyHandDeck} pointerEvents="none">
+            <View style={gameScreenStyles.ceremonyHandDeck} pointerEvents="none">
               {ceremonyDealProgress.phase === "shuffle" ? (
                 <DealShuffleAnimation
                   embedded
@@ -6283,8 +6283,8 @@ function GameScreenBoard() {
                 onReceiveSlotMeasure={onReceiveSlotMeasure}
               />
               {activeTrade.winnerId !== myPlayerId && !activeTrade.completed ? (
-                <View style={[local.waitingPill, local.waitingPillCollapsed]}>
-                  <Text style={local.waitingPillText}>
+                <View style={[gameScreenStyles.waitingPill, gameScreenStyles.waitingPillCollapsed]}>
+                  <Text style={gameScreenStyles.waitingPillText}>
                     Waiting for {activeTrade.winnerName} to pick return cards…
                   </Text>
                 </View>
@@ -6293,15 +6293,15 @@ function GameScreenBoard() {
               activeTrade.completed &&
               tradeReturnRevealActive &&
               !tradeReturnReceiveLanded ? (
-                <View style={[local.waitingPill, local.waitingPillCollapsed]}>
-                  <Text style={local.waitingPillText}>Receiving return card…</Text>
+                <View style={[gameScreenStyles.waitingPill, gameScreenStyles.waitingPillCollapsed]}>
+                  <Text style={gameScreenStyles.waitingPillText}>Receiving return card…</Text>
                 </View>
               ) : null}
             </>
           ) : readOnlyOnline ? (
             <>
-              <View style={[local.waitingPill, local.waitingPillCollapsed]}>
-                <Text style={local.waitingPillText}>
+              <View style={[gameScreenStyles.waitingPill, gameScreenStyles.waitingPillCollapsed]}>
+                <Text style={gameScreenStyles.waitingPillText}>
                   Spectating — you can play the next round
                 </Text>
               </View>
@@ -6319,8 +6319,8 @@ function GameScreenBoard() {
               />
             </>
           ) : awaitingDealerReshuffle ? (
-            <View style={[local.waitingPill, local.waitingPillCollapsed]}>
-              <Text style={local.waitingPillText}>
+            <View style={[gameScreenStyles.waitingPill, gameScreenStyles.waitingPillCollapsed]}>
+              <Text style={gameScreenStyles.waitingPillText}>
                 {isCeremonyDealer
                   ? "All four 3s on the dead hand — tap Reshuffle in the center"
                   : "All four 3s on the dead hand — waiting for dealer to reshuffle…"}
@@ -6363,8 +6363,8 @@ function GameScreenBoard() {
         {/* Game Log (toggleable) */}
         {showGameLog && (
           <BottomBarControls>
-            <Text style={local.gameLogTitle}>Current Trick Log</Text>
-            <ScrollView style={local.gameLogScroll} nestedScrollEnabled>
+            <Text style={gameScreenStyles.gameLogTitle}>Current Trick Log</Text>
+            <ScrollView style={gameScreenStyles.gameLogScroll} nestedScrollEnabled>
               {currentTrickLog && currentTrickLog.length > 0 ? (
                 currentTrickLog
                   .slice()
@@ -6377,13 +6377,13 @@ function GameScreenBoard() {
                           ? "#8B4513"
                           : "#f0f0f0";
                     return (
-                      <Text key={idx} style={[local.gameLogText, { color }]}>
+                      <Text key={idx} style={[gameScreenStyles.gameLogText, { color }]}>
                         {log.text}
                       </Text>
                     );
                   })
               ) : (
-                <Text style={[local.gameLogText, { color: "#aaa" }]}>
+                <Text style={[gameScreenStyles.gameLogText, { color: "#aaa" }]}>
                   No game log entries yet.
                 </Text>
               )}
@@ -6471,7 +6471,7 @@ function GameScreenBoard() {
       ) : null}
 
       {tradeReturnFlight ? (
-        <View style={local.tradeReturnFlightLayer} pointerEvents="none">
+        <View style={gameScreenStyles.tradeReturnFlightLayer} pointerEvents="none">
           <TableCardFlight
             flight={tradeReturnFlight}
             durationMs={TRADE_RETURN_FLIGHT_MS}
@@ -6557,9 +6557,7 @@ function GameScreenBoard() {
   );
 }
 
-export default GameScreen;
-
-const local = StyleSheet.create({
+const gameScreenStyles = StyleSheet.create({
   container: { flex: 1 },
   topHeaderRow: {
     position: "absolute",
@@ -6926,3 +6924,5 @@ const local = StyleSheet.create({
     fontWeight: "800",
   },
 });
+
+export default GameScreen;

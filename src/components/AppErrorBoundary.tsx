@@ -15,9 +15,11 @@ type State = {
 };
 
 const isDev = typeof __DEV__ !== "undefined" && __DEV__;
+const WEB_AUTO_RETRIES = 1;
 
 export default class AppErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false, error: null, report: null };
+  private webRetryCount = 0;
 
   static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
@@ -48,6 +50,17 @@ export default class AppErrorBoundary extends Component<Props, State> {
       };
     }
     this.setState({ report });
+
+    if (
+      Platform.OS === "web" &&
+      !isDev &&
+      this.webRetryCount < WEB_AUTO_RETRIES
+    ) {
+      this.webRetryCount += 1;
+      window.setTimeout(() => {
+        this.handleRefresh();
+      }, 0);
+    }
   }
 
   private handleRefresh = () => {
@@ -102,6 +115,9 @@ export default class AppErrorBoundary extends Component<Props, State> {
       }
 
       if (Platform.OS === "web") {
+        if (this.webRetryCount < WEB_AUTO_RETRIES) {
+          return null;
+        }
         return <ReadmeFallbackRedirect />;
       }
       return (

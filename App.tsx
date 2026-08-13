@@ -1,10 +1,20 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+  lazy,
+  Suspense,
+} from "react";
 import { View, Animated, StyleSheet, Text, TouchableOpacity, Platform, Alert } from "react-native";
 import SplashScreen from "./src/screens/SplashScreen";
 import CreateGame from "./src/screens/CreateGame";
 import FindGame from "./src/screens/FindGame";
-import GameScreen from "./src/screens/GameScreen";
-import Achievements, { type ProfileTab } from "./src/screens/Achievements";
+import type { ProfileTab } from "./src/screens/Achievements";
+
+const GameScreen = lazy(() => import("./src/screens/GameScreen"));
+const Achievements = lazy(() => import("./src/screens/Achievements"));
 import Settings from "./src/screens/Settings";
 import UpdateLog from "./src/screens/UpdateLog";
 import ReadMeScreen from "./src/screens/ReadMeScreen";
@@ -1185,6 +1195,7 @@ function AppContent() {
           )
         )}
         {menuVisible && screen === "game" && (
+          <Suspense fallback={<View style={appStyles.lazyScreenFallback} />}>
           <GameScreen 
             key={gameInstanceKey}
             initialLobbyPlayers={lobbyMembers ?? undefined}
@@ -1213,6 +1224,7 @@ function AppContent() {
               setScreen("menu");
             }}
           />
+          </Suspense>
         )}
         {menuVisible && settingsOpen && (
           <WebModalPortal style={appStyles.settingsOverlay}>
@@ -1274,15 +1286,17 @@ function AppContent() {
           <WebModalPortal style={appStyles.settingsOverlay}>
             <FullscreenBlurScrim />
             <View style={appStyles.settingsForeground}>
-              <Achievements
-                key={achievementsInitialTab}
-                initialTab={achievementsInitialTab}
-                onBack={closeAchievements}
-                onNavigateToSettings={() => {
-                  closeAchievements();
-                  openSettings();
-                }}
-              />
+              <Suspense fallback={<View style={appStyles.lazyScreenFallback} />}>
+                <Achievements
+                  key={achievementsInitialTab}
+                  initialTab={achievementsInitialTab}
+                  onBack={closeAchievements}
+                  onNavigateToSettings={() => {
+                    closeAchievements();
+                    openSettings();
+                  }}
+                />
+              </Suspense>
             </View>
           </WebModalPortal>
         )}
@@ -1353,6 +1367,10 @@ export default function App() {
 }
 
 const appStyles = StyleSheet.create({
+  lazyScreenFallback: {
+    flex: 1,
+    backgroundColor: DEFAULT_FELT_COLOR,
+  },
   fontBoot: {
     flex: 1,
     backgroundColor: DEFAULT_FELT_COLOR,
