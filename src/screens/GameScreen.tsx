@@ -4031,6 +4031,7 @@ function GameScreen({
         xpAnimationReady,
         maybeStartNextOfflineRound,
         lastTrickLenRef,
+        trickPauseOnClosingLandRef,
         localAvatarBorder,
         openSeatAvailable,
         isBotOpenTable,
@@ -4059,6 +4060,10 @@ function GameScreenBoard() {
       plays: TrickPlayDisplay[];
       passedPlayerIds: string[];
     } | null | undefined) ?? null;
+  const trickPauseOnClosingLandRef =
+    (runtimeCtx?.trickPauseOnClosingLandRef as React.MutableRefObject<
+      ((playKey: string) => void) | null
+    > | null) ?? { current: null };
 
   const {
     state,

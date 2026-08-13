@@ -27,7 +27,7 @@
     "test-action-bar-leave": "npx tsx ./scripts/test-action-bar-leave.ts",
     "bump-version": "node ./scripts/bump-version.js",
     "test-multiplayer": "node ./scripts/test-multiplayer.mjs",
-    "test-table-chat": "node ./scripts/test-table-chat-context.mjs && node ./scripts/test-table-chat-emote.mjs",
+    "test-table-chat": "node ./scripts/test-game-screen-context-refs.mjs && node ./scripts/test-table-chat-context.mjs && node ./scripts/test-table-chat-emote.mjs",
     "test-hand-confidentiality": "node ./scripts/test-hand-confidentiality.mjs",
     "test-hand-browse-vs-play": "npx tsx ./scripts/test-hand-browse-vs-play.ts",
     "test-hand-guidance": "npx tsx ./scripts/test-hand-guidance.ts",
