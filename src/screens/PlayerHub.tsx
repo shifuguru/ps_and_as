@@ -7,8 +7,7 @@
  *
  * Day-0 (roundsPlayed === 0): Brand → Pitch → Play (+ helper) → Rules →
  * Identity → (A2HS) → XP nudge → What's New → Support
- * Play: primary "Play" vs AI; "Play with friends" for online; practice count
- * lives in PracticeSetupModal.
+ * Play: primary "Play" vs AI; inline online panel for friends play.
  *
  * Deferred (need telemetry or session handoff — not built here):
  * - Last Match panel after round complete
@@ -101,19 +100,34 @@ import {
 } from "../services/titlePreferences";
 import { triggerHaptic } from "../utils/haptics";
 import type { OnlinePlayer } from "../services/onlinePresence";
+import HubOnlinePlayPanel from "../components/HubOnlinePlayPanel";
+import { useHubRoomDiscovery } from "../hooks/useHubRoomDiscovery";
+import {
+  displayTextError,
+  validateDisplayText,
+} from "../utils/profanityFilter";
+import {
+  isBotPublicRoomCode,
+  isValidRoomCode,
+  normalizeRoomCode,
+} from "../utils/roomCode";
+
 import {
   readPracticePlayerCount,
   writePracticePlayerCount,
   PRACTICE_DEFAULT_PLAYERS,
 } from "../services/practicePreferences";
 
+const SLIDE_MS = 300;
 const AVATAR_SIZE = 88;
 const RING_SIZE = 112;
 const FRIENDS_WIDE_MIN = 900;
 
 export type PlayerHubActions = {
   onPlay: (playerCount: number) => void;
-  onPlayWithFriends: () => void;
+  onHostOnlineGame: (playerName: string) => void;
+  onJoinOnlineRoom: (roomId: string, playerName: string) => void;
+  onSpectateOnlineRoom?: (roomId: string, playerName: string) => void;
   onOpenAchievements: () => void;
   onOpenTitles: () => void;
   onOpenWhatsNew: () => void;
@@ -170,6 +184,9 @@ export default function PlayerHub({
   const [displayedTitle, setDisplayedTitle] = useState<string | null>(null);
   const [onlinePlayersOpen, setOnlinePlayersOpen] = useState(false);
   const [practiceSetupOpen, setPracticeSetupOpen] = useState(false);
+  const [onlinePlayOpen, setOnlinePlayOpen] = useState(false);
+  const [slideStageHeight, setSlideStageHeight] = useState(0);
+  const slideProgress = useRef(new Animated.Value(0)).current;
   const [practicePlayerCount, setPracticePlayerCount] = useState(
     PRACTICE_DEFAULT_PLAYERS,
   );
@@ -249,6 +266,112 @@ export default function PlayerHub({
     triggerHaptic("light");
     fn();
   };
+
+  const {
+    publicRooms,
+    roomsLoaded,
+    isSearching,
+    error: onlineError,
+    connectionStatus,
+    refreshRooms,
+    setError: setOnlineError,
+  } = useHubRoomDiscovery({ enabled: onlinePlayOpen });
+
+  const openOnlinePlay = () => {
+    if (onlinePlayOpen) return;
+    onNavigateSound?.();
+    triggerHaptic("medium");
+    setOnlinePlayOpen(true);
+    Animated.timing(slideProgress, {
+      toValue: 1,
+      duration: SLIDE_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeOnlinePlay = () => {
+    if (!onlinePlayOpen) return;
+    onNavigateSound?.();
+    triggerHaptic("light");
+    Animated.timing(slideProgress, {
+      toValue: 0,
+      duration: SLIDE_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) setOnlinePlayOpen(false);
+    });
+  };
+
+  const requireOnlineName = (): boolean => {
+    const name = displayName.trim();
+    if (!name) {
+      setOnlineError("Set your name in Settings first.");
+      return false;
+    }
+    const check = validateDisplayText(name, "Player name");
+    const err = displayTextError(check);
+    if (err) {
+      setOnlineError(err);
+      return false;
+    }
+    return true;
+  };
+
+  const handleJoinOnlineRoom = (roomId: string) => {
+    if (!requireOnlineName()) return;
+    triggerHaptic("medium");
+    setOnlineError(null);
+    actions.onJoinOnlineRoom(roomId, displayName.trim());
+  };
+
+  const handleSpectateOnlineRoom = (roomId: string) => {
+    if (!requireOnlineName()) return;
+    if (!actions.onSpectateOnlineRoom) return;
+    triggerHaptic("medium");
+    setOnlineError(null);
+    actions.onSpectateOnlineRoom(roomId, displayName.trim());
+  };
+
+  const handleHostOnlineGame = () => {
+    if (!requireOnlineName()) return;
+    if (connectionStatus !== "connected") {
+      setOnlineError("Connect to the server before hosting.");
+      return;
+    }
+    triggerHaptic("medium");
+    setOnlineError(null);
+    actions.onHostOnlineGame(displayName.trim());
+  };
+
+  const handleJoinWithCode = (code: string) => {
+    const normalized = normalizeRoomCode(code);
+    if (!normalized) {
+      setOnlineError("Enter a room code from your host.");
+      return;
+    }
+    if (!isValidRoomCode(normalized)) {
+      setOnlineError("Room codes are 4–8 letters and numbers.");
+      return;
+    }
+    if (isBotPublicRoomCode(normalized)) {
+      setOnlineError(
+        "No public games available right now. Host a game or try again later.",
+      );
+      return;
+    }
+    handleJoinOnlineRoom(normalized);
+  };
+
+  const localSlideX = slideProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -contentMaxWidth],
+  });
+  const onlineSlideX = slideProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [contentMaxWidth, 0],
+  });
 
   const refreshStatsAfterXpGrant = useCallback(
     async (targetXp: number) => {
@@ -577,10 +700,24 @@ export default function PlayerHub({
             Race to empty your hand. Finish first and become President.
           </Text>
 
-          <Text style={styles.brandPitch}>
-            Race to empty your hand. Finish first and become President.
-          </Text>
-
+          <View
+            style={[
+              styles.slideStage,
+              slideStageHeight > 0 ? { minHeight: slideStageHeight } : null,
+            ]}
+            onLayout={(e) => {
+              const h = e.nativeEvent.layout.height;
+              if (h > slideStageHeight) setSlideStageHeight(h);
+            }}
+          >
+            <Animated.View
+              style={[
+                styles.slidePanel,
+                { transform: [{ translateX: localSlideX }] },
+              ]}
+              pointerEvents={onlinePlayOpen ? "none" : "auto"}
+            >
+              <View style={styles.contentSlideInner}>
           {/* Play — primary actions sit high, right under the pitch */}
           <View style={styles.playHero}>
             <AppButton
@@ -620,7 +757,7 @@ export default function PlayerHub({
               label="Play with friends"
               icon="globe"
               variant="secondary"
-              onPress={() => run(actions.onPlayWithFriends)}
+              onPress={() => run(openOnlinePlay)}
               accessibilityLabel="Play with friends — join or invite to an online table"
             />
             {onlinePlayerCount > 0 ? (
@@ -850,6 +987,43 @@ export default function PlayerHub({
           </BlurPanel>
 
           <Text style={styles.versionLabel}>{versionLabel}</Text>
+              </View>
+            </Animated.View>
+
+            {onlinePlayOpen ? (
+              <Animated.View
+                style={[
+                  styles.slidePanel,
+                  styles.slidePanelOverlay,
+                  { transform: [{ translateX: onlineSlideX }] },
+                ]}
+                pointerEvents="auto"
+                onLayout={(e) => {
+                  const h = e.nativeEvent.layout.height;
+                  if (h > slideStageHeight) setSlideStageHeight(h);
+                }}
+              >
+                <HubOnlinePlayPanel
+                  playerName={displayName}
+                  publicRooms={publicRooms}
+                  roomsLoaded={roomsLoaded}
+                  isSearching={isSearching}
+                  connectionStatus={connectionStatus}
+                  error={onlineError}
+                  onBack={closeOnlinePlay}
+                  onRefresh={() => void refreshRooms()}
+                  onHost={handleHostOnlineGame}
+                  onJoinRoom={handleJoinOnlineRoom}
+                  onJoinWithCode={handleJoinWithCode}
+                  onSpectateRoom={
+                    actions.onSpectateOnlineRoom
+                      ? handleSpectateOnlineRoom
+                      : undefined
+                  }
+                />
+              </Animated.View>
+            ) : null}
+          </View>
         </View>
       </ScrollView>
 
@@ -908,6 +1082,23 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       paddingHorizontal: 20,
     },
     content: { width: "100%", gap: 16 },
+    slideStage: {
+      width: "100%",
+      overflow: "hidden",
+    },
+    slidePanel: {
+      width: "100%",
+    },
+    slidePanelOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+    },
+    contentSlideInner: {
+      width: "100%",
+      gap: 16,
+    },
     brandTitle: {
       fontSize: 40,
       fontWeight: "700",
