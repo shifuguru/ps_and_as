@@ -5,6 +5,15 @@ import type { ClientPendingTrade } from "./roundPrep";
  * User / room preference: skip shuffle + deal *flights* in DealCeremonyOverlay only.
  * Does not skip executeCeremonyDeal, server dealing, role trades, or finalizeCeremonyRound.
  */
+export function resolveOnlineRoomSkipDealAnimations(options: {
+  syncSkipDealAnimations?: boolean;
+  cachedRoomSkipDealAnimations: boolean;
+}): boolean {
+  return typeof options.syncSkipDealAnimations === "boolean"
+    ? options.syncSkipDealAnimations
+    : options.cachedRoomSkipDealAnimations;
+}
+
 export function resolveSkipDealAnimations(options: {
   onlineMultiplayer: boolean;
   roomSkipDealAnimations: boolean;

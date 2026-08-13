@@ -672,6 +672,9 @@ export class SocketAdapter implements NetworkAdapter {
       if (data?.gameState) {
         this.cachedGameState = data.gameState;
       }
+      if (typeof data?.skipDealAnimations === "boolean") {
+        this.cachedSkipDealAnimations = data.skipDealAnimations;
+      }
       this.handlers.forEach((h) =>
         h({
           type: "state",
@@ -679,6 +682,9 @@ export class SocketAdapter implements NetworkAdapter {
             type: "gameStateSync",
             gameState: data.gameState,
             spectator: !!data?.spectator,
+            ...(typeof data?.skipDealAnimations === "boolean"
+              ? { skipDealAnimations: data.skipDealAnimations }
+              : {}),
             botNextRoundAt:
               typeof data?.botNextRoundAt === "number"
                 ? data.botNextRoundAt
@@ -932,6 +938,9 @@ export class SocketAdapter implements NetworkAdapter {
 
   startGame(roomId: string, skipDealAnimations?: boolean) {
     if (!this.socket) return;
+    if (typeof skipDealAnimations === "boolean") {
+      this.cachedSkipDealAnimations = skipDealAnimations;
+    }
     console.log("[SocketAdapter] Emitting startGame for roomId:", roomId);
     this.socket.emit("startGame", {
       roomId,
