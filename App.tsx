@@ -30,6 +30,7 @@ import type { LobbyMember } from "./src/game/network";
 import { MockAdapter } from "./src/game/network";
 import { isSocketAdapter } from "./src/game/socketAdapter";
 import { getOrCreatePlayerId } from "./src/services/gameCenter";
+import { shouldHoldSpectatorStartGameInLobby } from "./src/services/availableRooms";
 import { resolveDisplayNameSetupState } from "./src/services/playerDisplayName";
 import {
   markWebInstallDeclined,
@@ -664,7 +665,9 @@ function AppContent() {
 
       const roomId = activeRoomIdRef.current ?? joinedRoomIdRef.current;
 
-      // In-progress bot-table join replays startGame — spectators stay in lobby to Ready.
+      // Bot-open tables keep spectators in the lobby Ready UI.
+      // Standard in-game joins must enter GameScreen — CreateGame Ready is
+      // lobby-only and cannot claim the dead-hand seat or show the table.
       if (screenRef.current === "create") {
         if (typeof ev.state.spectator === "boolean") {
           setIsSpectator(ev.state.spectator);
@@ -672,7 +675,10 @@ function AppContent() {
         if (typeof ev.state.dealSeed === "number") {
           setDealSeed(ev.state.dealSeed);
         }
-        if (ev.state.spectator) {
+        if (
+          ev.state.spectator &&
+          shouldHoldSpectatorStartGameInLobby(roomId)
+        ) {
           return;
         }
       }

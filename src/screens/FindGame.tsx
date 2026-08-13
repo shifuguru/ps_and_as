@@ -45,6 +45,7 @@ import {
   isValidRoomCode,
   normalizeRoomCode,
 } from "../utils/roomCode";
+import { listedRoomShowsSpectate } from "../services/availableRooms";
 import { contentMaxWidth } from "../styles/uiStandards";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
@@ -404,11 +405,7 @@ export default function FindGame({
                 const full =
                   !inPlay && !isBotTable && room.playerCount >= room.maxPlayers;
                 const showSpectate =
-                  !!onSpectateRoom &&
-                  !!room.inGame &&
-                  seatOpen &&
-                  room.playerCount >= 2 &&
-                  (isBotTable || inPlay);
+                  !!onSpectateRoom && listedRoomShowsSpectate(room);
                 const actionLabel = showSpectate
                   ? "Spectate"
                   : full
