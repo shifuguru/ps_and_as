@@ -12,6 +12,7 @@ import { Player } from "../game/ruleset";
 import { playerInitials } from "../utils/playerDisplay";
 import TrickWinCelebration from "./TrickWinCelebration";
 import TrickWinShout from "./TrickWinShout";
+import TableChatBubble from "./TableChatBubble";
 import AvatarRewardBorder from "./AvatarRewardBorder";
 import type { AvatarBorderDesign } from "../rewards/avatarBorders";
 import Card from "./Card";
@@ -74,6 +75,8 @@ type Props = {
   celebrateTrickWin?: boolean;
   /** Shout bubble when winning a trick (+XP moment). */
   trickShout?: string | null;
+  /** Quick-chat bubble above the avatar ring. */
+  tableChatMessage?: string | null;
   /** Achievement-based border at bottom of avatar. */
   avatarBorder?: AvatarBorderDesign | null;
   /** Floating +XP with the checkered flag (includes run bonus when applicable). */
@@ -111,6 +114,7 @@ export default function OpponentSeat({
   isLastPlay = false,
   celebrateTrickWin = false,
   trickShout = null,
+  tableChatMessage = null,
   avatarBorder = null,
   showTrickXp = false,
   trickXpAmount,
@@ -334,6 +338,11 @@ export default function OpponentSeat({
       <TrickWinShout
         active={celebrateTrickWin}
         text={trickShout ?? ""}
+        avatarSize={avatarSize}
+      />
+      <TableChatBubble
+        active={!!tableChatMessage}
+        text={tableChatMessage ?? ""}
         avatarSize={avatarSize}
       />
       <TrickWinCelebration

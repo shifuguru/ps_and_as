@@ -42,6 +42,8 @@ type Props = {
   onOpenAchievements?: () => void;
   onOpenReadMe?: () => void;
   onOpenSettings?: () => void;
+  /** Open curated quick-chat picker. */
+  onOpenTableChat?: () => void;
   /** Secondary leave control — never in the Pass/Play ActionBar track. */
   onLeave?: () => void;
   /**
@@ -132,6 +134,7 @@ export default function GameplayHud({
   onOpenAchievements,
   onOpenReadMe,
   onOpenSettings,
+  onOpenTableChat,
   onLeave,
   hideFeedback = false,
   hideToasts = false,
@@ -244,6 +247,20 @@ export default function GameplayHud({
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <MenuIcon name="list" size={16} color={colors.accent} />
+              </TouchableOpacity>
+            ) : null}
+            {onOpenTableChat ? (
+              <TouchableOpacity
+                style={styles.utilBtn}
+                onPress={() => {
+                  triggerHaptic("light");
+                  onOpenTableChat();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Quick chat"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MenuIcon name="chat" size={16} color={colors.accent} />
               </TouchableOpacity>
             ) : null}
             {onOpenSettings ? (

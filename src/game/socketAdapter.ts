@@ -634,6 +634,20 @@ export class SocketAdapter implements NetworkAdapter {
       );
     });
 
+    this.socket.on("tableEmote", (data: any) => {
+      this.handlers.forEach((h) =>
+        h({
+          type: "state",
+          state: {
+            type: "tableEmote",
+            playerId: data.playerId,
+            emoteId: data.emoteId,
+            text: data.text,
+          },
+        }),
+      );
+    });
+
     this.socket.on("gameAction", (data: any) => {
       console.log(
         "[SocketAdapter] Game action from",
@@ -975,6 +989,13 @@ export class SocketAdapter implements NetworkAdapter {
   submitTradeSelection(roomId: string, selectedCardObjects: unknown[]) {
     if (!this.socket) return;
     this.socket.emit("playerTradeSelection", { roomId, selectedCardObjects });
+  }
+
+  sendTableEmote(roomId: string, emoteId: string) {
+    if (!this.socket) return;
+    const code = normalizeRoomCode(roomId);
+    if (!code || !emoteId) return;
+    this.socket.emit("tableEmote", { roomId: code, emoteId });
   }
 
   on(_ev: "message", cb: (ev: NetworkEvent) => void) {

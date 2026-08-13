@@ -138,6 +138,7 @@ export default function GamePlayArea({
   trickWinnerPlayerId = null,
   trickWinnerXpAmount,
   trickWinnerShout = null,
+  tableChatByPlayerId = {},
   avatarBordersByPlayerId = {},
   tableSeatCount,
   deadHandId = null,
@@ -904,6 +905,7 @@ export default function GamePlayArea({
             trickWinnerPlayerId={trickWinnerPlayerId}
             trickWinnerXpAmount={trickWinnerXpAmount}
             trickWinnerShout={trickWinnerShout}
+            tableChatByPlayerId={tableChatByPlayerId}
             avatarBordersByPlayerId={avatarBordersByPlayerId}
             layoutSeatIds={seatIds}
             deadHandId={deadHandId}
