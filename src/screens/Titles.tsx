@@ -1,26 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
   StyleSheet,
-  useWindowDimensions,
 } from "react-native";
-import ScreenContainer from "../components/ScreenContainer";
 import BlurPanel from "../components/BlurPanel";
-import ScreenTopBar from "../components/ScreenTopBar";
-import BottomBar, {
-  BottomBarControls,
-  BottomBarLeave,
-  menuBottomReserve,
-} from "../components/BottomBar";
 import ProgressMeter from "../components/ProgressMeter";
-import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { useAppTheme } from "../context/ThemeContext";
-import { contentMaxWidth } from "../styles/uiStandards";
-import { getPlayerStats, type PlayerStats } from "../services/playerStats";
+import type { PlayerStats } from "../services/playerStats";
 import {
   readDisplayTitleTrackId,
   setDisplayTitleTrackId,
@@ -35,50 +23,22 @@ import {
 import { hexToRgba } from "../utils/colorTheory";
 import { triggerHaptic } from "../utils/haptics";
 
-export default function Titles({
-  onBack,
-}: {
-  onBack: () => void;
-}) {
+export function TitlesScrollContent({ stats }: { stats: PlayerStats }) {
   const { colors, ui } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const insets = useLayoutInsets();
-  const { width } = useWindowDimensions();
-  const contentMax = contentMaxWidth(width);
-  const bottomBarHeight = menuBottomReserve(insets.bottom || 0);
 
-  const [stats, setStats] = useState<PlayerStats | null>(null);
   const [displayTrackId, setDisplayTrackId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [savingTrackId, setSavingTrackId] = useState<string | null>(null);
 
-  const loadAll = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const [playerStats, trackId] = await Promise.all([
-        getPlayerStats(),
-        readDisplayTitleTrackId(),
-      ]);
-      setStats(playerStats);
-      setDisplayTrackId(trackId);
-    } catch (error) {
-      console.error("[Titles] Failed to load:", error);
-    } finally {
-      setIsLoading(false);
-    }
+  useEffect(() => {
+    void readDisplayTitleTrackId().then(setDisplayTrackId).catch((error) => {
+      console.error("[Titles] Failed to load display title:", error);
+    });
   }, []);
 
-  useEffect(() => {
-    void loadAll();
-  }, [loadAll]);
-
-  const tracks = useMemo(
-    () => (stats ? listTitleTrackProgress(stats) : []),
-    [stats],
-  );
+  const tracks = useMemo(() => listTitleTrackProgress(stats), [stats]);
   const unlockedTracks = tracks.filter((t) => t.unlocked);
-  const activeTitle =
-    stats ? displayedTitleForStats(stats, displayTrackId) : null;
+  const activeTitle = displayedTitleForStats(stats, displayTrackId);
 
   const handleSelectDisplay = async (trackId: string) => {
     const row = tracks.find((t) => t.track.id === trackId);
@@ -98,79 +58,41 @@ export default function Titles({
     }
   };
 
-  if (isLoading) {
-    return (
-      <ScreenContainer ignoreHeaderOffset style={styles.loadingRoot}>
-        <View style={styles.loadingCenter}>
-          <ActivityIndicator size="large" color={colors.accent} />
-          <Text style={styles.loadingText}>Loading titles…</Text>
-        </View>
-        <BottomBar>
-          <BottomBarControls style={styles.bottomControls}>
-            <BottomBarLeave onPress={onBack} label="Back" />
-          </BottomBarControls>
-        </BottomBar>
-      </ScreenContainer>
-    );
-  }
-
   return (
-    <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          ui.scrollContent,
-          {
-            paddingTop: insets.top + 12,
-            paddingBottom: bottomBarHeight,
-          },
-        ]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={[styles.content, { maxWidth: contentMax }]}>
-          <ScreenTopBar title="Titles" />
+    <>
+      <BlurPanel style={ui.panel} intensity={52}>
+        <Text style={ui.panelEyebrow}>Displayed title</Text>
+        <Text style={styles.activeTitle}>
+          {activeTitle ?? "None selected"}
+        </Text>
+        <Text style={styles.hint}>
+          Selected title track will be displayed on your profile.
+        </Text>
+      </BlurPanel>
 
-          <BlurPanel style={ui.panel} intensity={52}>
-            <Text style={ui.panelEyebrow}>Displayed title</Text>
-            <Text style={styles.activeTitle}>
-              {activeTitle ?? "None selected"}
-            </Text>
-            <Text style={styles.hint}>
-              Selected title track will be displayed on your profile.
-            </Text>
-          </BlurPanel>
+      {unlockedTracks.length === 0 ? (
+        <BlurPanel style={[ui.panel, styles.emptyPanel]} intensity={44}>
+          <Text style={styles.emptyTitle}>No title tracks yet</Text>
+          <Text style={styles.hint}>
+            Win and lose rounds, trade jokers, and build your career — first
+            tiers take many games, not just your first session.
+          </Text>
+        </BlurPanel>
+      ) : null}
 
-          {unlockedTracks.length === 0 ? (
-            <BlurPanel style={[ui.panel, styles.emptyPanel]} intensity={44}>
-              <Text style={styles.emptyTitle}>No title tracks yet</Text>
-              <Text style={styles.hint}>
-                Win and lose rounds, trade jokers, and build your career — first
-                tiers take many games, not just your first session.
-              </Text>
-            </BlurPanel>
-          ) : null}
-
-          {tracks.map((row) => (
-            <TitleTrackRow
-              key={row.track.id}
-              row={row}
-              isDisplayed={displayTrackId === row.track.id}
-              saving={savingTrackId === row.track.id}
-              onToggleDisplay={() => handleSelectDisplay(row.track.id)}
-              styles={styles}
-              colors={colors}
-              ui={ui}
-            />
-          ))}
-        </View>
-      </ScrollView>
-      <BottomBar>
-        <BottomBarControls style={styles.bottomControls}>
-          <BottomBarLeave onPress={onBack} label="Back" />
-        </BottomBarControls>
-      </BottomBar>
-    </ScreenContainer>
+      {tracks.map((row) => (
+        <TitleTrackRow
+          key={row.track.id}
+          row={row}
+          isDisplayed={displayTrackId === row.track.id}
+          saving={savingTrackId === row.track.id}
+          onToggleDisplay={() => handleSelectDisplay(row.track.id)}
+          styles={styles}
+          colors={colors}
+          ui={ui}
+        />
+      ))}
+    </>
   );
 }
 
