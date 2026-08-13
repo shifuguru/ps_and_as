@@ -158,6 +158,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.92": "Felt Table Fever",
   "1.1.93": "Flush With Hubris",
   "1.1.94": "Flush With Hubris",
+  "1.1.95": "Table Stakes Tantrum",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
