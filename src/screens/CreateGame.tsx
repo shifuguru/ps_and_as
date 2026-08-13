@@ -466,14 +466,14 @@ export default function CreateGame({
     return displayTextError(validateDisplayText(text, "Room name"));
   }, []);
 
-  const statusLabel = usingMock ? "Local" : isHost ? "You" : "Lobby";
-  const statusValue = usingMock
-    ? "Host"
-    : isHost
-      ? "Host"
-      : connectionStatus === "connected"
-        ? "Guest"
-        : "Connecting…";
+  const displayRoomName = useMemo(() => {
+    const trimmed = roomName.trim();
+    if (trimmed) return trimmed;
+    const fromHost = defaultRoomNameFromHost(playerName);
+    return fromHost || "Game Room";
+  }, [roomName, playerName]);
+
+  const partyCount = Math.max(1, seatCount);
 
   const contentMaxWidth = Math.min(520, Math.max(320, width - 24));
   const estimatedTableHeight = Math.max(
@@ -964,10 +964,12 @@ export default function CreateGame({
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
       <LobbyStatusBar
-        playerCount={seatCount}
-        roomName={roomName}
-        statusLabel={statusLabel}
-        statusValue={statusValue}
+        variant="lobby"
+        hideStatus
+        playerCount={partyCount}
+        roomName={displayRoomName}
+        statusLabel=""
+        statusValue=""
         topInset={insets.top}
       />
 
@@ -1045,14 +1047,11 @@ export default function CreateGame({
                           {codeCopied ? "Copied!" : actualRoomId}
                         </Text>
                       </TouchableOpacity>
-                      <Text style={local.inviteHint}>
-                        Share this code so friends can join
-                      </Text>
                     </>
                   ) : null}
                   {canEditRoom ? (
                     <RoomNameInput
-                      value={roomName}
+                      value={displayRoomName}
                       onCommit={handleRoomNameCommit}
                       validate={validateRoomName}
                       onEditingChange={(editing) => {
@@ -1375,7 +1374,6 @@ export default function CreateGame({
 
 function createLocalStyles(colors: AppThemeColors) {
   const isDark = colors.mode === "dark";
-  const frostLine = isDark ? colors.textPrimary : "#ffffff";
 
   return StyleSheet.create({
   lobbyNoticeBanner: {
@@ -1452,14 +1450,6 @@ function createLocalStyles(colors: AppThemeColors) {
     fontWeight: "800",
     letterSpacing: 1.4,
   }),
-  inviteHint: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-    marginTop: 8,
-    lineHeight: 16,
-  },
   supportNote: {
     color: colors.textSecondary,
     fontSize: 13,
