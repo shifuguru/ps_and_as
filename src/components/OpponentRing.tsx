@@ -30,6 +30,8 @@ type Props = {
   trickWinnerXpAmount?: number;
   /** Shout bubble on the trick winner's seat. */
   trickWinnerShout?: string | null;
+  /** Quick-chat bubble text keyed by player id. */
+  tableChatByPlayerId?: Record<string, string>;
   /** Achievement borders keyed by player id. */
   avatarBordersByPlayerId?: Record<string, AvatarBorderDesign>;
   layoutSeatIds?: string[];
@@ -88,6 +90,7 @@ export default function OpponentRing({
   trickWinnerPlayerId,
   trickWinnerXpAmount,
   trickWinnerShout = null,
+  tableChatByPlayerId = {},
   avatarBordersByPlayerId = {},
   layoutSeatIds,
   deadHandGraveyard = false,
@@ -183,6 +186,7 @@ export default function OpponentRing({
               isLastPlay={isLastPlay}
               celebrateTrickWin={celebrateTrickWin}
               trickShout={celebrateTrickWin ? trickWinnerShout : null}
+              tableChatMessage={tableChatByPlayerId[player.id] ?? null}
               avatarBorder={avatarBordersByPlayerId[player.id] ?? null}
               showTrickXp={celebrateTrickWin}
               trickXpAmount={trickWinnerXpAmount}
