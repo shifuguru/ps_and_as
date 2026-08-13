@@ -13,6 +13,10 @@ type Props = {
   topInset?: number;
   /** Label for the left stat pill — defaults to "Party" in lobbies. */
   countLabel?: string;
+  /** Hide the right-side status column (e.g. lobby uses util icons there). */
+  hideStatus?: boolean;
+  /** Stack room name + party count centered — used on the in-room lobby. */
+  variant?: "default" | "lobby";
 };
 
 /**
@@ -26,38 +30,62 @@ export default function LobbyStatusBar({
   statusValue,
   topInset = 0,
   countLabel = "Party",
+  hideStatus = false,
+  variant = "default",
 }: Props) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const displayRoom = roomName.trim() || "—";
+  const partyCount =
+    variant === "lobby" ? Math.max(1, playerCount) : playerCount;
 
   return (
     <View
       style={[styles.host, { paddingTop: topInset + 6 }]}
       pointerEvents="box-none"
     >
-      <View style={styles.container}>
+      <View
+        style={[
+          styles.container,
+          hideStatus && styles.containerWithUtilPad,
+        ]}
+      >
         <View style={styles.centerSection}>
-          <View style={styles.statsRow}>
-            <View style={styles.statCol}>
-              <Text style={styles.label}>{countLabel}</Text>
-              <Text style={styles.value}>{playerCount}</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={[styles.statCol, styles.roomCol]}>
-              <Text style={styles.label}>Room</Text>
-              <Text style={styles.value} numberOfLines={1}>
-                {roomName || "—"}
+          {variant === "lobby" ? (
+            <View style={styles.lobbyStack}>
+              <Text style={styles.lobbyRoomName} numberOfLines={1}>
+                {displayRoom}
               </Text>
+              <View style={styles.lobbyPartyRow}>
+                <Text style={styles.label}>{countLabel}</Text>
+                <Text style={styles.lobbyPartyValue}>{partyCount}</Text>
+              </View>
             </View>
-          </View>
+          ) : (
+            <View style={styles.statsRow}>
+              <View style={styles.statCol}>
+                <Text style={styles.label}>{countLabel}</Text>
+                <Text style={styles.value}>{partyCount}</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={[styles.statCol, styles.roomCol]}>
+                <Text style={styles.label}>Room</Text>
+                <Text style={styles.value} numberOfLines={1}>
+                  {displayRoom}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
 
-        <View style={styles.statusSection}>
-          <Text style={styles.label}>{statusLabel}</Text>
-          <Text style={styles.value} numberOfLines={1}>
-            {statusValue}
-          </Text>
-        </View>
+        {!hideStatus ? (
+          <View style={styles.statusSection}>
+            <Text style={styles.label}>{statusLabel}</Text>
+            <Text style={styles.value} numberOfLines={1}>
+              {statusValue}
+            </Text>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -83,11 +111,44 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       paddingHorizontal: 14,
       backgroundColor: "transparent",
     },
+    containerWithUtilPad: {
+      paddingRight: 88,
+    },
     centerSection: {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
       minWidth: 0,
+    },
+    lobbyStack: {
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 2,
+      maxWidth: "100%",
+      paddingHorizontal: 8,
+    },
+    lobbyRoomName: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "800",
+      textAlign: "center",
+      textShadowColor: "rgba(0,0,0,0.55)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 3,
+    },
+    lobbyPartyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+    },
+    lobbyPartyValue: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "700",
+      textShadowColor: "rgba(0,0,0,0.55)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 3,
     },
     statusSection: {
       flexShrink: 0,
