@@ -33,7 +33,7 @@ const {
   resolveCompletedAcknowledgmentTrick,
   isTrickOpeningLead,
   resolveTrickLeaderIndex,
-  abandonOrphanedAcknowledgmentTrick,
+  abandonOrphanedClearTrick,
 } = require('./gameBridge');
 const {
   viewForPlayer,
@@ -46,9 +46,8 @@ const botHosted = require('./botHostedRooms');
 const { computeRoundXpByPlayerId } = require('./roundXp');
 const tableRoster = require('./tableRoster');
 const gameSync = require('./gameSync');
-const { isPrePlayDealWindow } = require('./dealWindow');
 const analytics = require('./analyticsStore');
-const { advancePastInactiveSeats, syncJokerAckAutoPassTimer } = require('./turnAdvance');
+const { advancePastInactiveSeats } = require('./turnAdvance');
 const {
   adjustSeatIndexAfterRemoval,
   lastPlayIndexAfterRemoval,
@@ -59,10 +58,6 @@ const {
   normalizeRoomCode,
   isValidRoomCode,
 } = require('./profanityFilter');
-const {
-  TABLE_CHAT_BY_ID,
-  TABLE_EMOTE_COOLDOWN_MS,
-} = require('./tableChatMessages');
 
 const DEFAULT_FELT_TINT = '#0f5132';
 
@@ -342,7 +337,6 @@ function startNextRound(roomId) {
     promotedPlayerId: promoted[0]?.id ?? null,
     promotedPlayerIds: promoted.map((p) => p.id),
     rosterChanged,
-    skipDealAnimations: !!room.skipDealAnimations,
   });
   emitTradesCompleteIfReady(io, roomId, room.gameState, room.host);
   if (room.isBotHosted) {
@@ -1143,8 +1137,14 @@ function removePlayerFromActiveGame(room, playerId) {
   const wasLeader = gs.lastPlayPlayerIndex === idx;
   const wasRunOnTop =
     !!gs.runOnTop?.active && gs.runOnTop.playerIndex === idx;
-  // Capture before splice — lastClear / pile joker still mark ack after removal.
-  const wasAckPhase = isTrickAcknowledgmentPassPhase(gs);
+  // Capture before splice — ack, single-play bomb, joker, and On Top are all
+  // owned by the removed seat; remapping lastPlay would soft-lock or mis-award.
+  const ownedClear =
+    wasLeader &&
+    (isTrickAcknowledgmentPassPhase(gs) ||
+      !!gs.fourOfAKindChallenge?.active ||
+      !!gs.lastClear ||
+      wasRunOnTop);
 
   gs.players = gs.players.filter((p) => p.id !== playerId);
   gs.finishedOrder = (gs.finishedOrder || []).filter((id) => id !== playerId);
@@ -1175,12 +1175,9 @@ function removePlayerFromActiveGame(room, playerId) {
     }
   }
 
-  // Clear-leader demoted mid-joker / rank-close ack: remapped lastPlay is either
-  // null (soft-lock — resolve never finishes) or a prior living seat (wrong
-  // clear winner). Abandon the clear and force the next living seat to lead.
-  if (wasLeader && wasAckPhase && isTrickAcknowledgmentPassPhase(gs)) {
+  if (ownedClear) {
     const anchor = Math.max(0, Math.min(idx, gs.players.length) - 1);
-    const abandoned = abandonOrphanedAcknowledgmentTrick(gs, anchor);
+    const abandoned = abandonOrphanedClearTrick(gs, anchor);
     room.gameState = abandoned;
     reconcileCurrentPlayerIndex(room);
     return;
@@ -1275,18 +1272,6 @@ function isRoomHost(room, socketId) {
     !player.disconnectedAt &&
     room.host === player.id
   );
-}
-
-/** Kick by seat id. Name is only used when it uniquely identifies one member. */
-function resolveKickTarget(room, playerId, playerName) {
-  if (typeof playerId === 'string' && playerId) {
-    return room.players.find((p) => p.id === playerId) || null;
-  }
-  if (typeof playerName === 'string' && playerName) {
-    const matches = room.players.filter((p) => p.name === playerName);
-    if (matches.length === 1) return matches[0];
-  }
-  return null;
 }
 
 function resolveProfileId(profileId, socket) {
@@ -1438,7 +1423,8 @@ function removeSocketFromOtherRooms(socket, profileId, keepRoomId) {
     if (room.inGame && !player.isSpectator) {
       player.socketId = null;
       socket.leave(roomId);
-      markPlayerAway(roomId, player, 'left');
+      // Pause with reconnect grace — not an intentional Leave (which aborts).
+      markPlayerAway(roomId, player, 'disconnected');
       listChanged = true;
       continue;
     }
@@ -1483,8 +1469,12 @@ function removeSocketFromOtherRooms(socket, profileId, keepRoomId) {
 function migrateHost(roomId) {
   const room = rooms[roomId];
   if (!room || room.players.length === 0) return null;
-  
-  const newHost = room.players.find(p => p.socketId && !p.disconnectedAt);
+
+  // Prefer a connected living seat; if everyone is away, still assign a
+  // pending host so the lobby is not permanently orphaned (no Start/Dismiss).
+  const newHost =
+    room.players.find((p) => p.socketId && !p.disconnectedAt) ||
+    room.players[0];
   if (newHost) {
     const oldHost = room.host;
     room.host = newHost.id;
@@ -1499,6 +1489,17 @@ function migrateHost(roomId) {
     return newHost;
   }
   return null;
+}
+
+/** Ensure the room has a host that is still a member (heal after away-only migrate). */
+function ensureLivingHost(roomId) {
+  const room = rooms[roomId];
+  if (!room || room.players.length === 0) return null;
+  const hostOk = room.players.some(
+    (p) => p.id === room.host && p.socketId && !p.disconnectedAt,
+  );
+  if (hostOk) return null;
+  return migrateHost(roomId);
 }
 
 /** End an in-progress online game for everyone — unfair to continue short-handed. */
@@ -1763,7 +1764,7 @@ io.on('connection', (socket) => {
     if (after !== before || displayName !== undefined) broadcastOnlinePlayerCount();
   });
 
-  socket.on('createRoom', ({ roomId, name, profileId, isPublic = true, roomName, feltTint, skipDealAnimations }) => {
+  socket.on('createRoom', ({ roomId, name, profileId, isPublic = true, roomName, feltTint }) => {
     const pid = resolveProfileId(profileId, socket);
     if (isCpuLobbyId(pid)) {
       socket.emit('error', { message: 'Invalid player id.' });
@@ -1811,8 +1812,7 @@ io.on('connection', (socket) => {
       createdAt: Date.now(),
       isPublic: isPublic,
       deadHand: false,
-      skipDealAnimations:
-        typeof skipDealAnimations === 'boolean' ? skipDealAnimations : true,
+      skipDealAnimations: false,
       gameState: null,
       inGame: false
     };
@@ -1922,11 +1922,12 @@ io.on('connection', (socket) => {
     const existingPlayer = findReconnectPlayer(room, reconnectSecret);
     let wasAway = false;
 
+    // Stale secret after seat removal must not hard-block a fresh join of the
+    // still-open room (lobby grace / BOTOPN grace / early purge). Ignore it.
     if (reconnectSecret && !existingPlayer) {
-      socket.emit('error', {
-        message: 'Reconnect failed. Rejoin from the same device session.',
-      });
-      return;
+      console.log(
+        `[Server] Ignoring stale reconnectSecret for room ${code} — allowing fresh join`,
+      );
     }
     
     if (existingPlayer) {
@@ -1948,13 +1949,10 @@ io.on('connection', (socket) => {
         existingPlayer.profileId = pid;
       }
       
-      // Restore host only by stable seat/creator id — never by display name.
-      // Matching hostName lets a same-named guest steal host on reconnect
-      // (and then kick / abort the match).
-      if (
-        room.host === existingPlayer.id ||
-        room.creatorId === existingPlayer.id
-      ) {
+      if (room.hostName === existingPlayer.name || room.host === existingPlayer.id) {
+        room.host = existingPlayer.id;
+        room.hostName = existingPlayer.name;
+      } else if (room.creatorId === existingPlayer.id) {
         room.host = existingPlayer.id;
         room.hostName = existingPlayer.name;
       }
@@ -1995,6 +1993,11 @@ io.on('connection', (socket) => {
 
     socket.join(code);
     const joined = room.players.find((p) => p.socketId === socket.id);
+    // Heal host if the previous host was removed or is still away while a
+    // connected member is present (covers migrateHost away-only assignment).
+    if (joined && !joined.disconnectedAt) {
+      ensureLivingHost(code);
+    }
     io.to(code).emit('lobbyUpdate', buildLobbyUpdate(room));
     if (wasAway && room.inGame && joined && !joined.isSpectator) {
       analytics.track('player_reconnected', {
@@ -2033,27 +2036,6 @@ io.on('connection', (socket) => {
     }
     
     if (room.isPublic) broadcastAvailableRooms();
-  });
-
-  socket.on('tableEmote', ({ roomId, emoteId }) => {
-    const code = normalizeRoomCode(roomId);
-    const room = rooms[code];
-    if (!room) return;
-    const player = getPlayerBySocket(room, socket.id);
-    if (!player) return;
-    const text = TABLE_CHAT_BY_ID[emoteId];
-    if (!text) return;
-
-    if (!room.tableEmoteCooldown) room.tableEmoteCooldown = {};
-    const lastAt = room.tableEmoteCooldown[player.id] || 0;
-    if (Date.now() - lastAt < TABLE_EMOTE_COOLDOWN_MS) return;
-    room.tableEmoteCooldown[player.id] = Date.now();
-
-    io.to(code).emit('tableEmote', {
-      playerId: player.id,
-      emoteId,
-      text,
-    });
   });
 
   socket.on('leaveRoom', ({ roomId }) => {
@@ -2222,21 +2204,11 @@ io.on('connection', (socket) => {
         socket.emit('error', { message: 'Reconnect to continue playing' });
         return;
       }
-      const gs = room.gameState;
-      // Round-1 dead-hand reshuffle is only valid before any play. After the
-      // opening 3 leaves living hands, needsRoundOneDealerReshuffle can flip
-      // true again and would otherwise wipe an in-progress match.
-      if (!isPrePlayDealWindow(gs)) {
-        socket.emit('error', {
-          message: 'Reshuffle not allowed after play has started',
-        });
-        return;
-      }
-      const dealerId = resolveDealerId(gs.players, {
+      const dealerId = resolveDealerId(room.gameState.players, {
         hostId: room.host,
-        lastRoundOrder: gs.lastRoundOrder,
-        finishedOrder: gs.finishedOrder,
-        roles: gs.roles,
+        lastRoundOrder: room.gameState.lastRoundOrder,
+        finishedOrder: room.gameState.finishedOrder,
+        roles: room.gameState.roles,
       });
       if (player.id !== dealerId) {
         socket.emit('error', { message: 'Only the dealer can reshuffle' });
@@ -2244,19 +2216,19 @@ io.on('connection', (socket) => {
       }
       const dealerContext = buildDealerContext({
         hostId: room.host,
-        finishOrder: gs.lastRoundOrder,
-        lastRoundOrder: gs.lastRoundOrder,
-        roles: gs.roles,
+        finishOrder: room.gameState.lastRoundOrder,
+        lastRoundOrder: room.gameState.lastRoundOrder,
+        roles: room.gameState.roles,
       });
-      if (!needsRoundOneDealerReshuffle(gs.players, dealerContext)) {
+      if (!needsRoundOneDealerReshuffle(room.gameState.players, dealerContext)) {
         socket.emit('error', { message: 'Reshuffle not needed right now' });
         return;
       }
       // Always server-authored — never trust client dealSeed (cherry-pick risk).
       const dealSeed = Math.floor(Math.random() * 2147483647);
       const lastOrder = livingFinishOrder(
-        gs,
-        gs.lastRoundOrder?.slice() ?? [],
+        room.gameState,
+        room.gameState.lastRoundOrder?.slice() ?? [],
       );
       beginAuthoritativeRound(room, dealSeed, {
         lastRoundOrder: lastOrder.length >= 2 ? lastOrder : undefined,
@@ -2391,35 +2363,16 @@ io.on('connection', (socket) => {
     gameSync.bumpStateVersion(room);
     broadcastGameState(io, room);
 
-    const afterGameActionSideEffects = (liveRoom) => {
-      if (isRoundComplete(liveRoom.gameState) && !liveRoom.gameState.tenRulePending) {
-        const finishOrder = liveRoom.gameState.finishedOrder.slice();
-        const handSnapshot = {};
-        for (const p of liveRoom.gameState.players) {
-          handSnapshot[p.id] = p.hand;
-        }
-        handleRoundFinished(roomId, finishOrder, handSnapshot);
-      } else if (liveRoom.isBotHosted) {
-        botHosted.kickBotTurnLoop(roomId, getBotContext());
+    if (isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
+      const finishOrder = room.gameState.finishedOrder.slice();
+      const handSnapshot = {};
+      for (const p of room.gameState.players) {
+        handSnapshot[p.id] = p.hand;
       }
-    };
-
-    afterGameActionSideEffects(room);
-
-    syncJokerAckAutoPassTimer(room, {
-      cloneGameState,
-      afterStateChange: (updatedRoom) => {
-        reconcileCurrentPlayerIndex(updatedRoom);
-        advancePastInactiveSeats(updatedRoom, cloneGameState);
-        updatedRoom.gameState = cloneGameState(
-          repairStuckTurnPointer(updatedRoom.gameState),
-        );
-        reconcileCurrentPlayerIndex(updatedRoom);
-        gameSync.bumpStateVersion(updatedRoom);
-        broadcastGameState(io, updatedRoom);
-        afterGameActionSideEffects(updatedRoom);
-      },
-    });
+      handleRoundFinished(roomId, finishOrder, handSnapshot);
+    } else if (room.isBotHosted) {
+      botHosted.kickBotTurnLoop(roomId, getBotContext());
+    }
   });
 
   socket.on('skipBotTable', ({ roomId }) => {
@@ -2562,15 +2515,15 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(rooms[roomId]));
   });
 
-  socket.on('kickPlayer', ({ roomId, playerId, playerName }) => {
+  socket.on('kickPlayer', ({ roomId, playerName }) => {
     if (!rooms[roomId]) return;
     const room = rooms[roomId];
     if (!isRoomHost(room, socket.id)) return;
 
-    const playerToKick = resolveKickTarget(room, playerId, playerName);
+    const playerToKick = room.players.find(p => p.name === playerName);
     if (!playerToKick) return;
 
-    console.log('Host kicking player:', playerToKick.name, playerToKick.id);
+    console.log('Host kicking player:', playerName);
 
     const wasHost = room.host === playerToKick.id;
     const kickedId = playerToKick.id;
@@ -2579,7 +2532,7 @@ io.on('connection', (socket) => {
     if (room.inGame && !playerToKick.isSpectator) {
       if (room.isBotHosted) {
         demoteBotTablePlayerToSpectator(room, roomId, playerToKick);
-        room.players = room.players.filter((p) => p.id !== kickedId);
+        room.players = room.players.filter((p) => p.name !== playerName);
         const kickedSocket = io.sockets.sockets.get(kickedSocketId);
         if (kickedSocket) {
           kickedSocket.leave(roomId);
@@ -2590,7 +2543,7 @@ io.on('connection', (socket) => {
         afterPlayerLeftRoom(roomId);
         return;
       }
-      room.players = room.players.filter((p) => p.id !== kickedId);
+      room.players = room.players.filter(p => p.name !== playerName);
       const kickedSocket = io.sockets.sockets.get(kickedSocketId);
       if (kickedSocket) {
         kickedSocket.leave(roomId);
@@ -2609,7 +2562,7 @@ io.on('connection', (socket) => {
       reason: 'kicked',
     });
 
-    room.players = room.players.filter((p) => p.id !== kickedId);
+    room.players = room.players.filter(p => p.name !== playerName);
 
     io.to(kickedSocketId).emit('kicked', { message: 'You have been removed from the game' });
 

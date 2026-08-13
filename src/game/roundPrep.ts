@@ -804,10 +804,12 @@ export function executeCeremonyDeal(
   }
 
   const openingPlayerIndex = resolveOpeningPlayerIndex(players, dealerContext);
-  const needsDealerReshuffle = needsRoundOneDealerReshuffle(
-    players,
-    dealerContext,
-  );
+  // Online sync hands are viewer-masked (opponents + dead hand are placeholders).
+  // Deriving reshuffle from those hands falsely soft-locks the non-3♣ seat.
+  // Server already validated the deal (buildInitialGameState loops / fallback).
+  const needsDealerReshuffle = options.onlineAuthoritative
+    ? false
+    : needsRoundOneDealerReshuffle(players, dealerContext);
 
   return {
     players,

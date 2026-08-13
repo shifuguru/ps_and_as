@@ -1422,6 +1422,12 @@ function GameScreen({
       setForfeitedXpPlayerIds(new Set());
       xpCommittedForRoundRef.current = false;
       ceremonyDoneForRoundRef.current = roundCeremonyKey(next);
+      if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
+        // Live plays may have been discarded during ceremony UI; re-pull authority.
+        queueMicrotask(() => {
+          networkAdapter.requestGameState(roomId);
+        });
+      }
       return true;
     },
     [
@@ -1429,6 +1435,8 @@ function GameScreen({
       resetBetweenRoundsUi,
       clearTradeReturnReveal,
       onlineMultiplayer,
+      networkAdapter,
+      roomId,
     ],
   );
 
@@ -2510,9 +2518,14 @@ function GameScreen({
       ) {
         return;
       }
-      if (incomingVersion != null) {
-        lastAppliedStateVersionRef.current = incomingVersion;
-      }
+      // Defer version commit until we actually apply (or intentionally stash).
+      // Bumping then early-returning on localCeremonyUi permanently dropped live
+      // play that finalized into an empty local board.
+      const commitAppliedVersion = () => {
+        if (incomingVersion != null) {
+          lastAppliedStateVersionRef.current = incomingVersion;
+        }
+      };
       const prevTrickLen = stateRef.current?.trickHistory?.length ?? 0;
       const nextTrickLen = parsed.trickHistory?.length ?? 0;
       if (nextTrickLen > prevTrickLen) {
@@ -2582,6 +2595,7 @@ function GameScreen({
           finalizeCeremonyRound(players, parsed, serverHands);
           ceremonyDoneForRoundRef.current = roundKey;
           ceremonyStartedForRoundRef.current = roundKey;
+          commitAppliedVersion();
           finishSpectator();
           return;
         }
@@ -2600,12 +2614,14 @@ function GameScreen({
           setRoundOver(false);
           setState(parsed);
           ceremonyStartedForRoundRef.current = roundKey;
+          commitAppliedVersion();
           finishSpectator();
           return;
         }
       }
 
       // While local deal/trade animation runs, stash server progress — do not apply live play state.
+      // Do NOT commitAppliedVersion: finalize must still be able to pull this snapshot.
       if (onlineMultiplayer && localCeremonyUi) {
         const tradesDone = serverPendingTradesComplete(parsed.pendingTrades);
         const playStartedOnServer = tradesDone && !openingLeadNotYetTaken(parsed);
@@ -2651,7 +2667,15 @@ function GameScreen({
             recordTitleTradesOnce(merged, myPlayerIdRef.current);
           }
         }
-        finishSpectator();
+        // Keep retrying sync after ceremony; do not mark synced yet.
+        if (typeof spectator === "boolean") {
+          setSpectatorMode(spectator);
+        } else if (
+          localPlayerId &&
+          parsed.players.some((p) => p.id === localPlayerId)
+        ) {
+          setSpectatorMode(false);
+        }
         return;
       }
 
@@ -2676,6 +2700,7 @@ function GameScreen({
         setRoundOver(false);
         setPlayerReadyStates({});
         setState(parsed);
+        commitAppliedVersion();
         finishSpectator();
         return;
       }
@@ -2741,6 +2766,7 @@ function GameScreen({
             deal.dealerContext,
             deal.openingPlayerIndex,
           );
+          commitAppliedVersion();
           finishSpectator();
           return;
         }
@@ -2789,6 +2815,7 @@ function GameScreen({
 
       const syncedForPlay = reconcileSyncedOpeningPlayer(parsed);
       setState(repairStuckTurnPointer(syncedForPlay));
+      commitAppliedVersion();
       logTurnRingVerifyEvent("SYNC_RECEIVED", {
         currentPlayerIndex: syncedForPlay.currentPlayerIndex,
         activeLastPlayId: lastPlayPlayerId(parsed),
@@ -5402,6 +5429,13 @@ function GameScreenBoard() {
     actor: (typeof state.players)[number],
     tenRuleDirection?: "higher" | "lower",
   ) => {
+    // Lock before any await so rapid double-taps cannot emit two gameActions.
+    if (actionPendingRef.current || handPlayInFlightRef.current) return;
+    if (onlineMultiplayer) {
+      actionPendingRef.current = true;
+      setActionPending(true);
+    }
+
     const playOpts: PlayCardsOptions | undefined = tenRuleDirection
       ? { tenRuleDirection }
       : undefined;
@@ -5451,7 +5485,6 @@ function GameScreenBoard() {
     }
 
     if (onlineMultiplayer) {
-      setActionPending(true);
       broadcastGameAction({
         type: "play",
         playerId: actor.id,
@@ -6426,7 +6459,7 @@ function GameScreenBoard() {
             onPass={handlePassPress}
             onNavigateToSettings={onNavigateToSettings}
             onNavigateToAchievements={onNavigateToAchievements}
-            playDisabled={gameplayLocked || !!handPlayInFlight || !isHumanTurn || roundOver || roundEndLastPlayHold || (!!localHumanId && hasPassedInCurrentTrick(state, localHumanId) && !humanRunOnTopTurn) || selected.length === 0 || !selectedCanPlay}
+            playDisabled={gameplayLocked || !!handPlayInFlight || actionPending || !isHumanTurn || roundOver || roundEndLastPlayHold || (!!localHumanId && hasPassedInCurrentTrick(state, localHumanId) && !humanRunOnTopTurn) || selected.length === 0 || !selectedCanPlay}
             passDisabled={
               gameplayLocked ||
               !isHumanPassEligible ||

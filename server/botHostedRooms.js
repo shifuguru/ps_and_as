@@ -1145,11 +1145,15 @@ function onBotRoomRoundFinished(room, roomId, ctx, hasLastHandReveal = false) {
 function afterBotRoomPlayerLeft(room, roomId, ctx) {
   if (!room?.isBotHosted) return false;
 
-  // Keep bots and every still-connected human (seated or spectator).
-  // Previously this also dropped all connected spectators whenever anyone
-  // left, which wiped remaining watchers / ready-to-promote state.
+  // Keep bots, connected humans, and demoted/disconnected humans still inside
+  // their reconnect grace. Purging grace-window spectators destroyed reclaim
+  // (and left stale reconnectSecret clients hard-blocked before the ignore fix).
+  const now = Date.now();
   room.players = room.players.filter(
-    (p) => isBotMember(p) || !p.disconnectedAt,
+    (p) =>
+      isBotMember(p) ||
+      !p.disconnectedAt ||
+      (typeof p.reconnectUntil === "number" && p.reconnectUntil > now),
   );
   restoreBotsWhenUnderstaffed(room);
   ensureHumanHost(room);
