@@ -62,6 +62,7 @@ import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import Card from "../components/Card";
 import type { Card as CardType } from "../game/ruleset";
 import { useWebAppInstall } from "../hooks/useWebAppInstall";
+import { SHOW_REMOVE_ADS_PURCHASE } from "../services/ads/adsConfig";
 
 const CARD_PREVIEW_W = 54;
 const CARD_PREVIEW_H = 78;
@@ -481,13 +482,16 @@ export default function Settings({
             <Text style={ui.panelEyebrow}>Support</Text>
             <Text style={styles.tintHint}>
               Ads help cover servers. Forced ads appear every few rounds; you can
-              optionally watch an ad for XP. Remove Ads skips forced ads only.
+              optionally watch an ad for XP.
+              {SHOW_REMOVE_ADS_PURCHASE
+                ? " Remove Ads skips forced ads only."
+                : " Optional Ko-fi contributions are on the home screen."}
             </Text>
             {adsRemoved ? (
               <Text style={styles.accountSyncHint}>
                 Forced ads removed — thanks for supporting the game.
               </Text>
-            ) : Platform.OS === "web" ? (
+            ) : SHOW_REMOVE_ADS_PURCHASE && Platform.OS === "web" ? (
               <>
                 <TouchableOpacity
                   style={[
@@ -546,11 +550,11 @@ export default function Settings({
                   available.
                 </Text>
               </>
-            ) : (
+            ) : SHOW_REMOVE_ADS_PURCHASE ? (
               <Text style={styles.accountSyncHint}>
                 Remove Ads is available on the web version.
               </Text>
-            )}
+            ) : null}
             <TouchableOpacity
               style={{ marginTop: 12 }}
               onPress={() => setPrivacyOpen(true)}
