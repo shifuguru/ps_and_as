@@ -724,10 +724,6 @@ function GameScreen({
   const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
   const [showGameLog, setShowGameLog] = useState<boolean>(false);
   const [leaveConfirmVisible, setLeaveConfirmVisible] = useState(false);
-  const [tableChatModalVisible, setTableChatModalVisible] = useState(false);
-  const [tableChatByPlayerId, setTableChatByPlayerId] = useState<
-    Record<string, string>
-  >({});
   const [selected, setSelected] = useState<number[]>([]); // indices in hand
   const [focused, setFocused] = useState<number | null>(null);
   const [revealedHands, setRevealedHands] = useState<{
@@ -781,9 +777,6 @@ function GameScreen({
   const explicitFeltThemesRef = useRef<Set<string>>(new Set());
   const roomNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nudgeHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tableChatTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>(
-    {},
-  );
   const handRef = useRef<PlayerHandHandle>(null);
   const fallbackAdapterRef = useRef<MockAdapter | null>(null);
   const lastTrickLenRef = React.useRef<number>(0);
@@ -1902,42 +1895,6 @@ function GameScreen({
     [canRingBell, myPlayerId, registerBellRing, triggerNudgeHighlight],
   );
 
-  const showTableChatBubble = useCallback((playerId: string, text: string) => {
-    const trimmed = text.trim();
-    if (!playerId || !trimmed) return;
-    setTableChatByPlayerId((prev) => ({ ...prev, [playerId]: trimmed }));
-    const existing = tableChatTimersRef.current[playerId];
-    if (existing) clearTimeout(existing);
-    tableChatTimersRef.current[playerId] = setTimeout(() => {
-      setTableChatByPlayerId((prev) => {
-        if (!prev[playerId]) return prev;
-        const next = { ...prev };
-        delete next[playerId];
-        return next;
-      });
-      delete tableChatTimersRef.current[playerId];
-    }, 3200);
-  }, []);
-
-  const handleTableChatSelect = useCallback(
-    (emoteId: string) => {
-      const text = resolveTableChatText(emoteId);
-      if (!text || !myPlayerId) return;
-      setTableChatModalVisible(false);
-      showTableChatBubble(myPlayerId, text);
-      if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
-        networkAdapter.sendTableEmote(roomId, emoteId);
-      }
-    },
-    [
-      myPlayerId,
-      networkAdapter,
-      onlineMultiplayer,
-      roomId,
-      showTableChatBubble,
-    ],
-  );
-
   // UX pacing: centralized CPU turn delay for a more relaxed feel
   const CPU_DELAY_MS = 1100;
   /** After a joker, non-leaders auto-pass if they do not press Pass within this window. */
@@ -2327,10 +2284,6 @@ function GameScreen({
       if (nudgeHighlightTimerRef.current) {
         clearTimeout(nudgeHighlightTimerRef.current);
       }
-      for (const timer of Object.values(tableChatTimersRef.current)) {
-        clearTimeout(timer);
-      }
-      tableChatTimersRef.current = {};
       if (lastHandRevealTimerRef.current) {
         clearTimeout(lastHandRevealTimerRef.current);
       }
@@ -2902,12 +2855,6 @@ function GameScreen({
         if (targetId) {
           triggerNudgeHighlight(targetId);
         }
-      } else if (ev.type === "state" && ev.state?.type === "tableEmote") {
-        const playerId = ev.state.playerId;
-        const text = resolveTableChatText(ev.state.emoteId, ev.state.text);
-        if (playerId && text) {
-          showTableChatBubble(playerId, text);
-        }
       } else if (ev.type === "state" && ev.state?.type === "error") {
         setActionPending(false);
         setSyncError(ev.state.message ?? "Could not sync with server");
@@ -3226,7 +3173,6 @@ function GameScreen({
     resetForBotTableRefresh,
     forfeitPlayerXp,
     triggerNudgeHighlight,
-    showTableChatBubble,
     resolvedHostId,
     launchCeremonyFromDeal,
     seedFromProps,
@@ -3918,10 +3864,6 @@ function GameScreen({
         turnBellPlayerId,
         handleTurnBellPress,
         nudgeHighlightPlayerId,
-        tableChatModalVisible,
-        setTableChatModalVisible,
-        tableChatByPlayerId,
-        handleTableChatSelect,
         resolveSeatFeltTint,
         scoreboardXpByPlayerId,
         roundXpByPlayerId,
@@ -4046,10 +3988,6 @@ function GameScreenBoard() {
     turnBellPlayerId,
     handleTurnBellPress,
     nudgeHighlightPlayerId,
-    tableChatModalVisible,
-    setTableChatModalVisible,
-    tableChatByPlayerId,
-    handleTableChatSelect,
     resolveSeatFeltTint,
     scoreboardXpByPlayerId,
     scoreboardRoundXpByPlayerId,
@@ -4195,10 +4133,6 @@ function GameScreenBoard() {
     turnBellPlayerId: string | null;
     handleTurnBellPress: (playerId: string) => void;
     nudgeHighlightPlayerId: string | null;
-    tableChatModalVisible: boolean;
-    setTableChatModalVisible: React.Dispatch<React.SetStateAction<boolean>>;
-    tableChatByPlayerId: Record<string, string>;
-    handleTableChatSelect: (emoteId: string) => void;
     resolveSeatFeltTint: (player: { id: string; name: string }) => string | undefined;
     scoreboardXpByPlayerId: Record<string, number>;
     scoreboardRoundXpByPlayerId: Record<string, number>;
@@ -4215,6 +4149,73 @@ function GameScreenBoard() {
     clearHandPlayFlightRef: React.MutableRefObject<(() => void) | null>;
     handPlayInFlightKeyRef: React.MutableRefObject<string | null>;
   };
+
+  const [tableChatModalVisible, setTableChatModalVisible] = useState(false);
+  const [tableChatByPlayerId, setTableChatByPlayerId] = useState<
+    Record<string, string>
+  >({});
+  const tableChatTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>(
+    {},
+  );
+
+  const showTableChatBubble = useCallback((playerId: string, text: string) => {
+    const trimmed = text.trim();
+    if (!playerId || !trimmed) return;
+    setTableChatByPlayerId((prev) => ({ ...prev, [playerId]: trimmed }));
+    const existing = tableChatTimersRef.current[playerId];
+    if (existing) clearTimeout(existing);
+    tableChatTimersRef.current[playerId] = setTimeout(() => {
+      setTableChatByPlayerId((prev) => {
+        if (!prev[playerId]) return prev;
+        const next = { ...prev };
+        delete next[playerId];
+        return next;
+      });
+      delete tableChatTimersRef.current[playerId];
+    }, 3200);
+  }, []);
+
+  const handleTableChatSelect = useCallback(
+    (emoteId: string) => {
+      const text = resolveTableChatText(emoteId);
+      if (!text || !myPlayerId) return;
+      setTableChatModalVisible(false);
+      showTableChatBubble(myPlayerId, text);
+      if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
+        networkAdapter.sendTableEmote(roomId, emoteId);
+      }
+    },
+    [
+      myPlayerId,
+      networkAdapter,
+      onlineMultiplayer,
+      roomId,
+      showTableChatBubble,
+    ],
+  );
+
+  useEffect(() => {
+    if (!networkAdapter) return;
+    const onMessage = (ev: NetworkEvent) => {
+      if (ev.type !== "state" || ev.state?.type !== "tableEmote") return;
+      const playerId = ev.state.playerId as string | undefined;
+      const text = resolveTableChatText(
+        ev.state.emoteId as string,
+        ev.state.text as string | undefined,
+      );
+      if (playerId && text) {
+        showTableChatBubble(playerId, text);
+      }
+    };
+    networkAdapter.on("message", onMessage);
+    return () => {
+      networkAdapter.off?.("message", onMessage);
+      for (const timer of Object.values(tableChatTimersRef.current)) {
+        clearTimeout(timer);
+      }
+      tableChatTimersRef.current = {};
+    };
+  }, [networkAdapter, showTableChatBubble]);
 
   const [ceremonyDealCounts, setCeremonyDealCounts] = useState<
     Record<string, number>

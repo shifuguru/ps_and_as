@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Regression: table-chat state must be passed through GameScreenRuntimeContext
- * because GameScreenBoard renders the modal (not GameScreen).
+ * Regression: table-chat state must live in GameScreenBoard (where the modal
+ * renders), not only in GameScreen parent / runtime context.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -10,24 +10,25 @@ import { dirname, join } from "node:path";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const src = readFileSync(join(root, "src/screens/GameScreen.tsx"), "utf8");
 
-const required = [
-  "tableChatModalVisible",
-  "setTableChatModalVisible",
-  "tableChatByPlayerId",
-  "handleTableChatSelect",
-];
+const boardStart = src.indexOf("function GameScreenBoard()");
+const parentEnd = src.indexOf("function GameScreenBoard()");
+const parent = src.slice(0, boardStart);
+const board = src.slice(boardStart);
 
-for (const key of required) {
-  const inProvider = new RegExp(`\\b${key}\\s*,`).test(src);
-  const inBoardDestructure = new RegExp(
-    `\\n\\s+${key}\\s*,`,
-  ).test(src.slice(src.indexOf("function GameScreenBoard")));
-  if (!inProvider) {
-    throw new Error(`GameScreen context provider missing: ${key}`);
-  }
-  if (!inBoardDestructure) {
-    throw new Error(`GameScreenBoard destructure missing: ${key}`);
-  }
+if (!board.includes("const [tableChatModalVisible, setTableChatModalVisible]")) {
+  throw new Error("GameScreenBoard missing tableChatModalVisible state");
+}
+if (!board.includes("handleTableChatSelect")) {
+  throw new Error("GameScreenBoard missing handleTableChatSelect");
+}
+if (!board.includes('<TableChatModal')) {
+  throw new Error("GameScreenBoard missing TableChatModal render");
+}
+
+if (/tableChatModalVisible\s*,/.test(parent)) {
+  throw new Error(
+    "tableChatModalVisible must not be passed through GameScreenRuntimeContext",
+  );
 }
 
 console.log("test-table-chat-context: ok");
