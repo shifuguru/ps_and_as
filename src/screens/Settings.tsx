@@ -747,31 +747,6 @@ export default function Settings({
                 Dark card faces with white spades and clubs.
               </Text>
             </View>
-            {onToggleSoundMute ? (
-              <View style={[styles.settingBlock, styles.settingRowSpaced]}>
-                <View style={styles.settingHeaderRow}>
-                  <Text style={[styles.settingLabel, styles.settingLabelInline]}>
-                    Sound effects
-                  </Text>
-                  <View style={styles.settingHeaderSpacer} />
-                  <Switch
-                    value={!(soundMuted ?? false)}
-                    onValueChange={() => onToggleSoundMute()}
-                    trackColor={{
-                      false: colors.panelBorder,
-                      true: colors.accent,
-                    }}
-                    thumbColor={
-                      colors.mode === "light" ? "#ffffff" : colors.textPrimary
-                    }
-                    accessibilityLabel="Sound effects"
-                  />
-                </View>
-                <Text style={[styles.tintHint, styles.settingHint]}>
-                  Card taps, plays, passes, and your-turn cues.
-                </Text>
-              </View>
-            ) : null}
             <View
               style={[
                 styles.cardPreviewHost,
@@ -869,6 +844,31 @@ export default function Settings({
                   : "Shuffle and deal animations are experimental. Off by default."}
               </Text>
             </View>
+            {onToggleSoundMute ? (
+              <View style={[styles.settingBlock, styles.settingRowSpaced]}>
+                <View style={styles.settingHeaderRow}>
+                  <Text style={[styles.settingLabel, styles.settingLabelInline]}>
+                    Sound effects
+                  </Text>
+                  <View style={styles.settingHeaderSpacer} />
+                  <Switch
+                    value={!(soundMuted ?? false)}
+                    onValueChange={() => onToggleSoundMute()}
+                    trackColor={{
+                      false: colors.panelBorder,
+                      true: colors.accent,
+                    }}
+                    thumbColor={
+                      colors.mode === "light" ? "#ffffff" : colors.textPrimary
+                    }
+                    accessibilityLabel="Sound effects"
+                  />
+                </View>
+                <Text style={[styles.tintHint, styles.settingHint]}>
+                  Card taps, plays, passes, and your-turn cues.
+                </Text>
+              </View>
+            ) : null}
           </BlurPanel>
         </View>
       </ScrollView>
