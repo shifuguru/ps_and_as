@@ -127,6 +127,14 @@ export default function Achievements({
     [pageWidth],
   );
 
+  const syncTabFromPagerOffset = useCallback(
+    (offsetX: number) => {
+      const index = Math.round(offsetX / pageWidth);
+      setTabIndex(index);
+    },
+    [pageWidth],
+  );
+
   const unlocked = stats ? unlockedAchievements(stats) : [];
   const achievementsByExclusivity = useMemo(
     () => orderAchievementsByExclusivity(ACHIEVEMENTS),
@@ -187,6 +195,9 @@ export default function Achievements({
           showsHorizontalScrollIndicator={false}
           style={styles.pager}
           onMomentumScrollEnd={handlePagerScrollEnd}
+          onScrollEndDrag={(event) =>
+            syncTabFromPagerOffset(event.nativeEvent.contentOffset.x)
+          }
           keyboardShouldPersistTaps="handled"
         >
           <View style={{ width: pageWidth, flex: 1 }}>
