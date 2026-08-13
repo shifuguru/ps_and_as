@@ -827,7 +827,7 @@ export default function CreateGame({
       setNames((s) => s.filter((_, i) => i !== index));
       setCpuBotNames((s) => s.filter((n) => n !== member.name));
     } else if (adapter && isSocketAdapter(adapter) && actualRoomId) {
-      adapter.kickPlayer(actualRoomId, member.name);
+      adapter.kickPlayer(actualRoomId, member.id, member.name);
     } else {
       setNames((s) => s.filter((_, i) => i !== index));
     }

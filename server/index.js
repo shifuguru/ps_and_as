@@ -1236,6 +1236,18 @@ function isRoomHost(room, socketId) {
   );
 }
 
+/** Kick by seat id. Name is only used when it uniquely identifies one member. */
+function resolveKickTarget(room, playerId, playerName) {
+  if (typeof playerId === 'string' && playerId) {
+    return room.players.find((p) => p.id === playerId) || null;
+  }
+  if (typeof playerName === 'string' && playerName) {
+    const matches = room.players.filter((p) => p.name === playerName);
+    if (matches.length === 1) return matches[0];
+  }
+  return null;
+}
+
 function resolveProfileId(profileId, socket) {
   return profileId || socket.id;
 }
@@ -1894,10 +1906,13 @@ io.on('connection', (socket) => {
         existingPlayer.profileId = pid;
       }
       
-      if (room.hostName === existingPlayer.name || room.host === existingPlayer.id) {
-        room.host = existingPlayer.id;
-        room.hostName = existingPlayer.name;
-      } else if (room.creatorId === existingPlayer.id) {
+      // Restore host only by stable seat/creator id — never by display name.
+      // Matching hostName lets a same-named guest steal host on reconnect
+      // (and then kick / abort the match).
+      if (
+        room.host === existingPlayer.id ||
+        room.creatorId === existingPlayer.id
+      ) {
         room.host = existingPlayer.id;
         room.hostName = existingPlayer.name;
       }
@@ -2492,15 +2507,15 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(rooms[roomId]));
   });
 
-  socket.on('kickPlayer', ({ roomId, playerName }) => {
+  socket.on('kickPlayer', ({ roomId, playerId, playerName }) => {
     if (!rooms[roomId]) return;
     const room = rooms[roomId];
     if (!isRoomHost(room, socket.id)) return;
 
-    const playerToKick = room.players.find(p => p.name === playerName);
+    const playerToKick = resolveKickTarget(room, playerId, playerName);
     if (!playerToKick) return;
 
-    console.log('Host kicking player:', playerName);
+    console.log('Host kicking player:', playerToKick.name, playerToKick.id);
 
     const wasHost = room.host === playerToKick.id;
     const kickedId = playerToKick.id;
@@ -2509,7 +2524,7 @@ io.on('connection', (socket) => {
     if (room.inGame && !playerToKick.isSpectator) {
       if (room.isBotHosted) {
         demoteBotTablePlayerToSpectator(room, roomId, playerToKick);
-        room.players = room.players.filter((p) => p.name !== playerName);
+        room.players = room.players.filter((p) => p.id !== kickedId);
         const kickedSocket = io.sockets.sockets.get(kickedSocketId);
         if (kickedSocket) {
           kickedSocket.leave(roomId);
@@ -2520,7 +2535,7 @@ io.on('connection', (socket) => {
         afterPlayerLeftRoom(roomId);
         return;
       }
-      room.players = room.players.filter(p => p.name !== playerName);
+      room.players = room.players.filter((p) => p.id !== kickedId);
       const kickedSocket = io.sockets.sockets.get(kickedSocketId);
       if (kickedSocket) {
         kickedSocket.leave(roomId);
@@ -2539,7 +2554,7 @@ io.on('connection', (socket) => {
       reason: 'kicked',
     });
 
-    room.players = room.players.filter(p => p.name !== playerName);
+    room.players = room.players.filter((p) => p.id !== kickedId);
 
     io.to(kickedSocketId).emit('kicked', { message: 'You have been removed from the game' });
 
