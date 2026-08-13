@@ -145,6 +145,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.79": "Quad Squad Goals",
   "1.1.80": "Dealer's Remorse",
   "1.1.81": "Your Turn, Apparently",
+  "1.1.82": "Ten High Drama",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
