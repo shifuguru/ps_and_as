@@ -103,7 +103,7 @@ export default function UpdateLog({
             <>
               <Text style={styles.sectionLabel}>We're watching</Text>
               <Text style={styles.sectionHint}>
-                Minor quirks we're keeping an eye on — not game-breaking.
+                Minor quirks we're keeping an eye on:
               </Text>
               {KNOWN_ISSUES.map((issue) => (
                 <BlurPanel
