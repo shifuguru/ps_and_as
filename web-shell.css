@@ -72,6 +72,9 @@ html {
 /* No second wallpaper plane — html alone owns paint (avoids safe-area seams). */
 html::before {
   content: none !important;
+  display: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 body {
@@ -97,6 +100,9 @@ body {
 body::before,
 body::after {
   content: none !important;
+  display: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 /**
