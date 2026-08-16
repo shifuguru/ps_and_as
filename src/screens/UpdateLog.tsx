@@ -72,8 +72,7 @@ export default function UpdateLog({
             <Text style={ui.panelEyebrow}>Updates</Text>
             <Text style={styles.intro}>{UPDATE_LOG_TAGLINE}</Text>
             <Text style={styles.introHint}>
-              Times shown in NZ time. Hard-refresh if you don't see a fix you
-              were expecting.
+              Times shown in NZ time.
             </Text>
           </BlurPanel>
 
@@ -103,7 +102,7 @@ export default function UpdateLog({
             <>
               <Text style={styles.sectionLabel}>We're watching</Text>
               <Text style={styles.sectionHint}>
-                Minor quirks we're keeping an eye on — not game-breaking.
+                Minor quirks we're keeping an eye on:
               </Text>
               {KNOWN_ISSUES.map((issue) => (
                 <BlurPanel

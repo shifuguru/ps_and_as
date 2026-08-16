@@ -104,6 +104,7 @@ import BottomBar, {
   BottomBarLeave,
   menuBottomReserve,
 } from "../components/BottomBar";
+import HubResumeLobbyCard from "../components/HubResumeLobbyCard";
 import { useHubRoomDiscovery } from "../hooks/useHubRoomDiscovery";
 import {
   displayTextError,
@@ -120,6 +121,7 @@ import {
   writePracticePlayerCount,
   PRACTICE_DEFAULT_PLAYERS,
 } from "../services/practicePreferences";
+import type { LobbySession } from "../services/lobbySession";
 
 const SLIDE_MS = 300;
 const AVATAR_SIZE = 88;
@@ -150,6 +152,10 @@ type Props = {
   refreshKey?: number;
   /** Override displayed title — hub loads from title preferences when omitted. */
   playerTitle?: string | null;
+  /** Saved lobby session — inline resume card below Play with friends. */
+  pendingLobby?: LobbySession | null;
+  onRejoinLobby?: () => void;
+  onDismissLobby?: () => void;
 };
 
 export default function PlayerHub({
@@ -162,6 +168,9 @@ export default function PlayerHub({
   style,
   refreshKey = 0,
   playerTitle = null,
+  pendingLobby = null,
+  onRejoinLobby,
+  onDismissLobby,
 }: Props) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -776,6 +785,19 @@ export default function PlayerHub({
               onPress={() => run(openOnlinePlay)}
               accessibilityLabel="Play with friends — join or invite to an online table"
             />
+            {pendingLobby && onRejoinLobby && onDismissLobby ? (
+              <HubResumeLobbyCard
+                session={pendingLobby}
+                onRejoin={() => {
+                  triggerHaptic("medium");
+                  onRejoinLobby();
+                }}
+                onDismiss={() => {
+                  triggerHaptic("light");
+                  onDismissLobby();
+                }}
+              />
+            ) : null}
             {onlinePlayerCount > 0 ? (
               <TouchableOpacity
                 style={styles.onlineHintBtn}
