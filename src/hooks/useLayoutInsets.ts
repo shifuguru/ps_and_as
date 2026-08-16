@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isStandaloneWebApp } from "../utils/safariChrome";
-import { isMobileWeb, readWebSafeAreaInsets, resolveWebBottomInset } from "../utils/webViewport";
+import {
+  isMobileWeb,
+  readWebSafeAreaInsets,
+  resolveWebBottomInset,
+  resolveWebTopInset,
+} from "../utils/webViewport";
 
 type ChromeInsets = { top: number; bottom: number };
 type SafeAreaInsets = { top: number; bottom: number; left: number; right: number };
@@ -112,7 +117,7 @@ export function useLayoutInsets() {
     // interactive controls above the home indicator — never a visual footer.
     return {
       ...insets,
-      top: Math.max(insets.top, mergedCss.top),
+      top: resolveWebTopInset(Math.max(insets.top, mergedCss.top)),
       bottom: resolveWebBottomInset(Math.max(insets.bottom, mergedCss.bottom)),
       left: Math.max(insets.left, mergedCss.left),
       right: Math.max(insets.right, mergedCss.right),
@@ -123,7 +128,7 @@ export function useLayoutInsets() {
   // excluded. Merge top chrome (URL bar), CSS safe-area, and native insets.
   return {
     ...insets,
-    top: Math.max(insets.top, webChrome.top, mergedCss.top),
+    top: resolveWebTopInset(Math.max(insets.top, webChrome.top, mergedCss.top)),
     bottom: resolveWebBottomInset(Math.max(insets.bottom, mergedCss.bottom)),
     left: Math.max(insets.left, mergedCss.left),
     right: Math.max(insets.right, mergedCss.right),

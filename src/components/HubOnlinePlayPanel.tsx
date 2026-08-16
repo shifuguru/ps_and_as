@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import BlurPanel from "./BlurPanel";
 import AppButton from "./ui/AppButton";
-import { BottomBarLeave } from "./BottomBar";
 import { useAppTheme } from "../context/ThemeContext";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import { formatRoomTimeAgo, type AvailableRoom } from "../services/availableRooms";
@@ -32,7 +31,6 @@ type Props = {
   isSearching: boolean;
   connectionStatus: HubConnectionStatus;
   error: string | null;
-  onBack: () => void;
   onRefresh: () => void;
   onHost: () => void;
   onJoinRoom: (roomId: string) => void;
@@ -47,7 +45,6 @@ export default function HubOnlinePlayPanel({
   isSearching,
   connectionStatus,
   error,
-  onBack,
   onRefresh,
   onHost,
   onJoinRoom,
@@ -253,12 +250,6 @@ export default function HubOnlinePlayPanel({
           </Text>
         </TouchableOpacity>
       </BlurPanel>
-
-      <BottomBarLeave
-        onPress={onBack}
-        label="Back"
-        accessibilityLabel="Back to home"
-      />
     </View>
   );
 }
