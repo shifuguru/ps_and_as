@@ -7,9 +7,8 @@ type Props = {
 };
 
 /**
- * Mount splash on document.body so it stacks above the status veil
- * (body::before @ z-index 10002). z-index inside #root cannot escape that
- * stacking context.
+ * Mount splash on document.body so it stacks above #root.
+ * z-index inside #root cannot escape body-level stacking for boot chrome.
  */
 export default function WebSplashPortal({ children }: Props) {
   if (Platform.OS === "web") {

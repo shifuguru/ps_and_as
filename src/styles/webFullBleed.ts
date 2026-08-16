@@ -35,7 +35,7 @@ export const WEB_FULL_BLEED_FIXED =
     : null;
 
 /**
- * Splash must sit above the status veil (body::before @ 10002) and crash chrome.
+ * Splash must sit above #root and crash/update chrome (WEB_SPLASH_Z_INDEX).
  * On web, portal this node to document.body — z-index inside #root cannot win.
  */
 export const WEB_SPLASH_Z_INDEX = 10050;
