@@ -6,9 +6,9 @@ module.exports = {
     ...appJson.expo,
     web: {
       ...(appJson.expo.web ?? {}),
-      // Appearance chrome only — never felt green. Felt lives on html wallpaper;
-      // theme-color is stripped so nothing paints a toolbar/status plate.
-      themeColor: "#000000",
+      // Do NOT set themeColor — iOS Home Screen paints it as a frosted status
+      // plate over the full-bleed felt. syncWebAppearanceChrome strips any
+      // leftover meta tags; keep Expo from injecting one in the first place.
       // Match the black splash canvas so Expo does not flash casino green first paint.
       backgroundColor: "#000000",
     },

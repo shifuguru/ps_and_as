@@ -49,6 +49,9 @@ export function getWebShellCssText(feltTint: string): string {
     }
     html::before {
       content: none !important;
+      display: none !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
     }
     body {
       position: fixed !important;
@@ -71,6 +74,9 @@ export function getWebShellCssText(feltTint: string): string {
     body::before,
     body::after {
       content: none !important;
+      display: none !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
     }
     #ps-felt-layer,
     .ps-environment-layer {

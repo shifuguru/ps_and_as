@@ -39,6 +39,8 @@ export const WEB_FELT_FIXED_CLASS = "ps-felt-fixed";
 
 /** iOS home-indicator fallback when env(safe-area-inset-bottom) reads 0 in RN Web. */
 export const IOS_HOME_INDICATOR_FALLBACK = 34;
+/** iOS status-bar fallback when env(safe-area-inset-top) reads 0 in standalone PWA. */
+export const IOS_STATUS_BAR_FALLBACK = 47;
 
 type SafeAreaInsets = { top: number; bottom: number; left: number; right: number };
 
@@ -145,6 +147,16 @@ export function readWebSafeAreaInsets(): SafeAreaInsets {
   }
   attachViewportCacheListeners();
   return cachedSafeArea;
+}
+
+/** Top inset with iOS PWA fallback when CSS env probes report 0. */
+export function resolveWebTopInset(measured = 0): number {
+  if (Platform.OS !== "web") return Math.max(0, measured);
+  const n = Math.max(0, measured);
+  // Trust real probes — only fall back when env() is missing on Home Screen.
+  if (n >= 20) return n;
+  if (isStandaloneWebApp() && isMobileWeb()) return IOS_STATUS_BAR_FALLBACK;
+  return n;
 }
 
 /** Bottom inset with iOS PWA fallback when CSS env probes report 0. */

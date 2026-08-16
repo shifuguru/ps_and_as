@@ -99,6 +99,11 @@ import {
 import { triggerHaptic } from "../utils/haptics";
 import type { OnlinePlayer } from "../services/onlinePresence";
 import HubOnlinePlayPanel from "../components/HubOnlinePlayPanel";
+import BottomBar, {
+  BottomBarControls,
+  BottomBarLeave,
+  menuBottomReserve,
+} from "../components/BottomBar";
 import HubResumeLobbyCard from "../components/HubResumeLobbyCard";
 import { useHubRoomDiscovery } from "../hooks/useHubRoomDiscovery";
 import {
@@ -206,6 +211,9 @@ export default function PlayerHub({
   const { display: displayXp, animateTo: animateXpTo } = useAnimatedNumber(
     stats?.xp ?? 0,
   );
+  const onlineBottomReserve = onlinePlayOpen
+    ? menuBottomReserve(insets.bottom || 0, height)
+    : 0;
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -691,7 +699,7 @@ export default function PlayerHub({
             // Centered hub — top pad clears status bar; bottom is breathing room only.
             minHeight: height,
             paddingTop: insets.top + 12,
-            paddingBottom: 12,
+            paddingBottom: 12 + onlineBottomReserve,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -1027,7 +1035,6 @@ export default function PlayerHub({
                   isSearching={isSearching}
                   connectionStatus={connectionStatus}
                   error={onlineError}
-                  onBack={closeOnlinePlay}
                   onRefresh={() => void refreshRooms()}
                   onHost={handleHostOnlineGame}
                   onJoinRoom={handleJoinOnlineRoom}
@@ -1043,6 +1050,20 @@ export default function PlayerHub({
           </View>
         </View>
       </ScrollView>
+
+      {onlinePlayOpen ? (
+        <BottomBar>
+          <BottomBarControls>
+            <View style={{ width: contentMaxWidth, alignSelf: "center" }}>
+              <BottomBarLeave
+                onPress={closeOnlinePlay}
+                label="Back"
+                accessibilityLabel="Back to home"
+              />
+            </View>
+          </BottomBarControls>
+        </BottomBar>
+      ) : null}
 
       <OnlinePlayersModal
         visible={onlinePlayersOpen}
