@@ -160,6 +160,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.1.94": "Card Shark Week",
   "1.1.95": "Pass Parade",
   "1.1.96": "Run It Back",
+  "1.1.97": "High Card Hijinks",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
