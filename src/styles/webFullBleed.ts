@@ -89,7 +89,8 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
 
 /**
  * Remove <meta name="theme-color"> so iOS Home Screen does not paint a frosted
- * status-bar / safe-area chrome tint stuck on a felt colour.
+ * status-bar plate over the full-bleed felt. Felt wallpaper (html) runs edge
+ * to edge under black-translucent status icons — no paint plate, no app veil.
  */
 export function clearWebThemeColorMeta(doc: WebDocument): void {
   const head = (doc as { head?: any }).head;
@@ -215,7 +216,7 @@ export function ensureWebFeltBackdrop(
   rootStyle.setProperty("--ps-felt-texture", `url("${url}")`);
   rootStyle.setProperty("--ps-theme-mode", mode);
 
-  // Status-bar frost follows appearance (dark/light) only — never felt tint.
+  // Status icons float over document felt — never inject a theme-color plate.
   syncWebAppearanceChrome(mode, doc);
 
   const layer = getOrCreateEnvironmentLayer(doc);

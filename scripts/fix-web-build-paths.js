@@ -96,15 +96,11 @@ function patchViewport(html, buildId) {
   html = patchExpoReset(html);
   html = patchShellAssets(html, basePath, buildId);
 
-  // Default dark theme-color (appearance chrome). JS retints to white in light
-  // mode. Never inject felt green — that stuck as a casino status-bar band.
+  // Never ship theme-color — iOS Home Screen paints it as a frosted status
+  // plate over the full-bleed felt (black-translucent). Felt lives on html.
   html = html.replace(
     /\s*<meta[^>]*name=["']theme-color["'][^>]*>\s*/gi,
     "\n",
-  );
-  html = html.replace(
-    "<head>",
-    `<head>\n    <meta name="theme-color" content="#000000" />`,
   );
 
   const appleBar =

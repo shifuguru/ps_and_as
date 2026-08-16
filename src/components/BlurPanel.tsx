@@ -10,7 +10,6 @@ import {
 import { BlurView } from "expo-blur";
 import { useAppTheme } from "../context/ThemeContext";
 import type { BlurPreset } from "../styles/themeColors";
-import { shouldUseSolidWebGlass } from "../utils/webGlass";
 
 type Props = {
   children?: React.ReactNode;
@@ -93,7 +92,6 @@ export default function BlurPanel({
   const resolvedScrim = scrimOpacity ?? blur.scrimOpacity;
   const resolvedWebOpacity = webOpacity ?? blur.webOpacity;
   const webBlurPx = Math.round(Math.min(28, Math.max(16, resolvedIntensity * 0.46)));
-  const solidWebGlass = shouldUseSolidWebGlass();
   const scrimRgb = colors.frostRgb;
   const { surface, contentPad } = splitPadding(style);
   const overflowStyle = {
@@ -101,17 +99,6 @@ export default function BlurPanel({
   };
 
   if (Platform.OS === "web") {
-    const webFillOpacity = solidWebGlass
-      ? Math.min(0.72, resolvedWebOpacity + 0.22)
-      : resolvedWebOpacity;
-    const webGlassStyle = solidWebGlass
-      ? ({ backgroundColor: `rgba(${scrimRgb}, ${webFillOpacity})` } as ViewStyle)
-      : ({
-          backgroundColor: `rgba(${scrimRgb}, ${resolvedWebOpacity})`,
-          backdropFilter: `blur(${webBlurPx}px) saturate(1.35)`,
-          WebkitBackdropFilter: `blur(${webBlurPx}px) saturate(1.35)`,
-        } as ViewStyle);
-
     // Single painted surface. No nested tint View — that was the inset plate.
     return (
       <View
@@ -121,7 +108,11 @@ export default function BlurPanel({
         style={[
           styles.fallback,
           overflowStyle,
-          webGlassStyle,
+          {
+            backgroundColor: `rgba(${scrimRgb}, ${resolvedWebOpacity})`,
+            backdropFilter: `blur(${webBlurPx}px) saturate(1.35)`,
+            WebkitBackdropFilter: `blur(${webBlurPx}px) saturate(1.35)`,
+          } as ViewStyle,
           surface,
         ]}
       >
