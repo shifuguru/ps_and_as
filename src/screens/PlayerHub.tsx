@@ -683,7 +683,6 @@ export default function PlayerHub({
 
   return (
     <ScreenContainer ignoreHeaderOffset style={[{ flex: 1 }, style]}>
-      <View style={styles.vignette} pointerEvents="none" />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
@@ -1084,16 +1083,7 @@ function StatCell({
 function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   const env = colors.environment;
   return StyleSheet.create({
-    vignette: {
-      ...StyleSheet.absoluteFillObject,
-      // Soft environmental wash — light tables stay bright without opaque panels.
-      backgroundColor: hexToRgba(
-        "#000000",
-        (colors.mode === "dark" ? 0.16 : 0.03) * env.vignetteStrength,
-      ),
-      zIndex: 0,
-    },
-    scroll: { flex: 1, zIndex: 1 },
+    scroll: { flex: 1 },
     scrollContent: {
       flexGrow: 1,
       alignItems: "center",

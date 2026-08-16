@@ -59,21 +59,26 @@ function patchExpoReset(html) {
   return html.replace("</head>", `  ${reset}\n  </head>`);
 }
 
-function patchShellAssets(html, basePath) {
-  const cssHref = `${basePath}/web-shell.css`;
+function patchShellAssets(html, basePath, buildId) {
+  const cssHref = `${basePath}/web-shell.css?v=${encodeURIComponent(buildId)}`;
   const linkTag = `<link rel="stylesheet" href="${cssHref}" id="ps-web-shell-link" />`;
 
   html = html.replace(/\s*<style id="ps-web-shell-static">[\s\S]*?<\/style>/i, "");
-  html = html.replace(/\s*<link rel="stylesheet" href="[^"]*web-shell\.css"[^>]*>/i, "");
+  html = html.replace(/\s*<link rel="stylesheet" href="[^"]*web-shell\.css[^"]*"[^>]*>/i, "");
 
   if (!html.includes('id="ps-web-shell-link"')) {
     html = html.replace("</head>", `  ${linkTag}\n  </head>`);
+  } else {
+    html = html.replace(
+      /<link rel="stylesheet" href="[^"]*web-shell\.css[^"]*" id="ps-web-shell-link" \/>/i,
+      linkTag,
+    );
   }
 
   return html;
 }
 
-function patchViewport(html) {
+function patchViewport(html, buildId) {
   const viewport =
     "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, viewport-fit=cover, user-scalable=no, shrink-to-fit=no";
   if (/name="viewport"/i.test(html)) {
@@ -89,7 +94,7 @@ function patchViewport(html) {
   }
 
   html = patchExpoReset(html);
-  html = patchShellAssets(html, basePath);
+  html = patchShellAssets(html, basePath, buildId);
 
   // Default dark theme-color (appearance chrome). JS retints to white in light
   // mode. Never inject felt green — that stuck as a casino status-bar band.
@@ -313,7 +318,6 @@ function injectEarlyShellHeight(html) {
   }
   try{
     var html=document.documentElement;
-    html.classList.add("ps-splash-active");
     html.style.colorScheme="dark";
     html.setAttribute("data-ps-theme","dark");
     // No theme-color plate — document felt runs edge to edge under chrome.
@@ -467,7 +471,7 @@ html = injectEarlyShellHeight(html);
 html = injectBuildMeta(html, buildMeta);
 html = injectBootGuard(html);
 html = rewriteHtmlPaths(html);
-html = patchViewport(html);
+html = patchViewport(html, buildMeta.buildId);
 fs.writeFileSync(buildIndex, html, "utf8");
 
 const shellCssSrc = path.resolve(__dirname, "..", "web-shell.css");

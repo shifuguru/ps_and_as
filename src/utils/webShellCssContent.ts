@@ -68,12 +68,7 @@ export function getWebShellCssText(feltTint: string): string {
       background-color: transparent !important;
       background-image: none !important;
     }
-    body::before {
-      content: none !important;
-    }
-    html.ps-splash-active body::before {
-      opacity: 0 !important;
-    }
+    body::before,
     body::after {
       content: none !important;
     }

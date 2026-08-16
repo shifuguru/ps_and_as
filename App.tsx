@@ -328,17 +328,6 @@ function AppContent() {
     return () => clearTimeout(timeout);
   }, [splashVisible, beginSplashReveal, finishSplash]);
 
-  // Hide the status veil while splash is up (veil is body::before above #root).
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const root = (globalThis as { document?: Document }).document?.documentElement;
-    if (!root) return;
-    root.classList.toggle("ps-splash-active", splashVisible);
-    return () => {
-      root.classList.remove("ps-splash-active");
-    };
-  }, [splashVisible]);
-
   const startPracticeGame = async (playerCount: number) => {
     if (onboardingBlocking || !localPlayerName?.trim()) return;
     disconnectRoom();
@@ -824,7 +813,7 @@ function AppContent() {
           !settingsOpen &&
           !achievementsOpen && <AnimatedBackground />}
 
-        {/* Splash — portaled to body on web so it sits above the status veil */}
+        {/* Splash — portaled to body on web so it stacks above #root */}
         {splashVisible && (
           <WebSplashPortal>
             <View
