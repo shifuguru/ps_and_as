@@ -1004,9 +1004,7 @@ export default function PlayerHub({
           >
             <Text style={styles.sectionTitle}>Support</Text>
             <Text style={styles.supportBody}>
-              P&apos;s &amp; A&apos;s is developed by a small team in New Zealand. If
-              you&apos;d like to contribute to its ongoing development, consider
-              donating via our Ko-Fi link below:
+              P&apos;s &amp; A&apos;s is developed by a small team in New Zealand. Contribute to ongoing development via our Ko-Fi link below:
             </Text>
             <KofiButton style={styles.supportCta} />
           </BlurPanel>

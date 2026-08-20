@@ -86,6 +86,7 @@
     const mode = effectiveMode();
     const visualPreset = hoveredPreset || state.felt;
     const cards = state.darkCards ? theme.cards.dark : theme.cards.light;
+    const pageTint = `color-mix(in srgb, ${visualPreset.hex} 58%, transparent)`;
     root.dataset.previewMode = mode;
     root.style.setProperty("--preview-felt", visualPreset.hex);
     root.style.setProperty("--preview-surface", visualPreset.surface);
@@ -108,6 +109,9 @@
       table.style.backgroundBlendMode = "normal";
       table.style.boxShadow = `var(--shadow), 0 0 36px color-mix(in srgb, ${mode === "dark" ? visualPreset.accent : visualPreset.lightAccent}, transparent 88%)`;
     }
+    document.body.style.backgroundColor = visualPreset.hex;
+    document.body.style.backgroundImage = `linear-gradient(rgba(8,10,10,.52), rgba(8,10,10,.52)), linear-gradient(${pageTint}, ${pageTint}), url("/ps_and_as/assets/felt_grey.webp")`;
+    document.body.style.backgroundBlendMode = "normal";
     root.style.setProperty("--preview-card-bg", cards.faceBg);
     root.style.setProperty("--preview-card-black", cards.blackSuit);
     root.style.setProperty("--preview-card-red", cards.redSuit);
@@ -137,7 +141,6 @@
   feltButtons.forEach((button) => button.addEventListener("click", () => {
     state.felt = findPreset(button.dataset.feltOption);
     hoveredPreset = null;
-    storage.set(KEYS.felt, state.felt.hex);
     render();
   }));
   feltButtons.forEach((button) => {
@@ -156,13 +159,11 @@
   });
   cardButtons.forEach((button) => button.addEventListener("click", () => {
     state.darkCards = button.dataset.cardMode === "dark";
-    storage.set(KEYS.cards, state.darkCards ? "1" : "0");
     render();
   }));
   appearanceButton?.addEventListener("click", () => {
     const next = state.appearance === "system" ? "light" : state.appearance === "light" ? "dark" : "system";
     state.appearance = next;
-    storage.set(KEYS.appearance, next);
     render();
   });
   media?.addEventListener?.("change", render);
