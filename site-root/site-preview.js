@@ -23,6 +23,12 @@
   const hintText = previewHint?.querySelector("[data-hint-text]");
   const media = window.matchMedia?.("(prefers-color-scheme: light)");
   let hoveredPreset = null;
+  let hoveredDarkCards = null;
+  let hoveredAppearance = null;
+  let activeCard = null;
+  let idleTimer = null;
+  let carouselTimer = null;
+  let carouselIndex = 0;
 
   const storage = {
     get(key) {
@@ -59,6 +65,7 @@
     card.setAttribute("aria-label", `${title}. ${text}`.trim());
     return { card, title, text };
   });
+  activeCard = cardHints[0] || null;
 
   const showCardHint = ({ title, text }) => {
     if (hintTitle) hintTitle.textContent = title;
@@ -70,22 +77,44 @@
     if (first) showCardHint(first);
   };
 
-  const setHoveredCard = (activeHint) => {
+  const setHoveredCard = (activeHint, schedule = true) => {
+    activeCard = activeHint;
+    carouselIndex = cardHints.indexOf(activeHint);
     cardHints.forEach(({ card }) => {
       card.classList.toggle("is-hovered", card === activeHint.card);
     });
     showCardHint(activeHint);
+    if (schedule) scheduleIdleCarousel();
+  };
+
+  const nextAppearance = (appearance) =>
+    appearance === "system" ? "light" : appearance === "light" ? "dark" : "system";
+
+  const previewMode = () => hoveredAppearance || state.appearance;
+
+  const scheduleIdleCarousel = () => {
+    window.clearTimeout(idleTimer);
+    window.clearInterval(carouselTimer);
+    idleTimer = window.setTimeout(() => {
+      carouselTimer = window.setInterval(() => {
+        if (cardHints.length === 0) return;
+        carouselIndex = (carouselIndex + 1) % cardHints.length;
+        setHoveredCard(cardHints[carouselIndex], false);
+      }, 10000);
+    }, 15000);
   };
 
   const effectiveMode = () => {
-    if (state.appearance !== "system") return state.appearance;
+    const appearance = previewMode();
+    if (appearance !== "system") return appearance;
     return media?.matches ? "light" : "dark";
   };
 
   const render = () => {
     const mode = effectiveMode();
     const visualPreset = hoveredPreset || state.felt;
-    const cards = state.darkCards ? theme.cards.dark : theme.cards.light;
+    const darkCards = hoveredDarkCards ?? state.darkCards;
+    const cards = darkCards ? theme.cards.dark : theme.cards.light;
     const pageTint = `color-mix(in srgb, ${visualPreset.hex} 58%, transparent)`;
     root.dataset.previewMode = mode;
     root.style.setProperty("--preview-felt", visualPreset.hex);
@@ -122,7 +151,7 @@
     cardNodes.forEach((node, index) => {
       node.style.backgroundColor = cards.faceBg;
       node.style.color = index % 2 === 0 ? cards.redSuit : cards.blackSuit;
-      node.dataset.cards = state.darkCards ? "dark" : "light";
+      node.dataset.cards = darkCards ? "dark" : "light";
     });
     feltButtons.forEach((button) => {
       const selected = button.dataset.feltOption === state.felt.hex;
@@ -130,7 +159,7 @@
       button.classList.toggle("is-selected", selected);
     });
     cardButtons.forEach((button) => {
-      const selected = button.dataset.cardMode === (state.darkCards ? "dark" : "light");
+      const selected = button.dataset.cardMode === (darkCards ? "dark" : "light");
       button.setAttribute("aria-pressed", String(selected));
       button.classList.toggle("is-selected", selected);
     });
@@ -153,17 +182,46 @@
     button.addEventListener("focus", previewPreset);
     button.addEventListener("blur", () => { hoveredPreset = null; render(); });
   });
+  cardButtons.forEach((button) => {
+    const previewCards = () => {
+      hoveredDarkCards = button.dataset.cardMode === "dark";
+      render();
+    };
+    button.addEventListener("pointerenter", previewCards);
+    button.addEventListener("pointerleave", () => { hoveredDarkCards = null; render(); });
+    button.addEventListener("focus", previewCards);
+    button.addEventListener("blur", () => { hoveredDarkCards = null; render(); });
+  });
+  appearanceButton?.addEventListener("pointerenter", () => {
+    hoveredAppearance = nextAppearance(state.appearance);
+    render();
+  });
+  appearanceButton?.addEventListener("pointerleave", () => {
+    hoveredAppearance = null;
+    render();
+  });
+  appearanceButton?.addEventListener("focus", () => {
+    hoveredAppearance = nextAppearance(state.appearance);
+    render();
+  });
+  appearanceButton?.addEventListener("blur", () => {
+    hoveredAppearance = null;
+    render();
+  });
   cardHints.forEach((hint) => {
     hint.card.addEventListener("pointerenter", () => setHoveredCard(hint));
     hint.card.addEventListener("focus", () => setHoveredCard(hint));
   });
   cardButtons.forEach((button) => button.addEventListener("click", () => {
     state.darkCards = button.dataset.cardMode === "dark";
+    hoveredDarkCards = null;
+    scheduleIdleCarousel();
     render();
   }));
   appearanceButton?.addEventListener("click", () => {
-    const next = state.appearance === "system" ? "light" : state.appearance === "light" ? "dark" : "system";
-    state.appearance = next;
+    state.appearance = nextAppearance(state.appearance);
+    hoveredAppearance = null;
+    scheduleIdleCarousel();
     render();
   });
   media?.addEventListener?.("change", render);
@@ -172,5 +230,7 @@
     storage.set(KEYS.cards, state.darkCards ? "1" : "0");
     storage.set(KEYS.appearance, state.appearance);
   });
+  setHoveredCard(cardHints[0]);
+  scheduleIdleCarousel();
   render();
 })();
