@@ -1,7 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Text, StyleSheet } from 'react-native';
+import { useAppTheme } from '../context/ThemeContext';
 
 export default function ActionToast({ text, show = false, onDone }: any) {
+  const { colors } = useAppTheme();
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (show) {
@@ -14,12 +16,12 @@ export default function ActionToast({ text, show = false, onDone }: any) {
   if (!show) return null;
   return (
     <Animated.View style={[styles.toast, { transform: [{ translateY }], opacity }]} pointerEvents="none">
-      <Text style={styles.text}>{text}</Text>
+      <Text style={[styles.text, { color: colors.textPrimary }]}>{text}</Text>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  toast: { position: 'absolute', bottom: 120, left: '50%', marginLeft: -60, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(212,175,55,0.2)' },
-  text: { color: '#fff', fontWeight: '800' },
+  toast: { position: 'absolute', bottom: 120, left: '50%', marginLeft: -60, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
+  text: { fontWeight: '800' },
 });

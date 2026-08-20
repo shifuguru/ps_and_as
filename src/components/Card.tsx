@@ -76,7 +76,7 @@ export default function Card({
 }) {
   const darkModeCards = useDarkModeCards();
   const { colors } = useAppTheme();
-  const faceColors = getCardFaceColors(darkModeCards, disabled);
+  const faceColors = getCardFaceColors(darkModeCards, disabled, colors.accent);
   const cardBox = useMemo(() => readCardBox(style), [style]);
   const face = useMemo(
     () => resolveCardFaceMetrics(cardBox.width, cardBox.height),

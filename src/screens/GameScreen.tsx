@@ -4746,7 +4746,7 @@ function GameScreenBoard() {
                 paddingVertical: 12,
                 paddingHorizontal: 20,
                 borderRadius: 10,
-                backgroundColor: "rgba(212, 175, 55, 0.2)",
+                backgroundColor: "rgba(255, 255, 255, 0.08)",
               }}
             >
               <Text style={{ color: colors.onFelt.textPrimary, fontWeight: "700" }}>
@@ -6015,7 +6015,7 @@ function GameScreenBoard() {
       {showDebugOverlay && (
         <View style={[local.debugOverlay, { top: contentTopPadding + 4 }]}>
           <View style={local.debugHeader}>
-            <Text style={{ color: "#d4af37", fontWeight: "800" }}>
+            <Text style={{ color: colors.textPrimary, fontWeight: "800" }}>
               Full Game Log
             </Text>
             <TouchableOpacity
@@ -6590,7 +6590,7 @@ const local = StyleSheet.create({
     maxWidth: "72%",
   },
   ceremonyStatusText: {
-    color: "#d4af37",
+    color: "rgba(241, 238, 229, 0.78)",
     fontSize: 13,
     fontWeight: "800",
     letterSpacing: 0.5,
@@ -6621,7 +6621,7 @@ const local = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "rgba(0, 0, 0, 0.72)",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(212, 175, 55, 0.45)",
+    borderColor: "rgba(255, 255, 255, 0.16)",
   },
   roomNoticeText: {
     color: "#f5e6b8",
@@ -6637,15 +6637,15 @@ const local = StyleSheet.create({
     alignItems: "center",
   },
   playTypeBadge: {
-    backgroundColor: "rgba(212, 175, 55, 0.12)",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.35)",
+    borderColor: "rgba(255, 255, 255, 0.14)",
   },
   playTypeBadgeText: {
-    color: "#d4af37",
+    color: "rgba(241, 238, 229, 0.78)",
     fontWeight: "800",
     fontSize: 12,
     textAlign: "center",
@@ -6679,12 +6679,12 @@ const local = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
   },
-  navBackText: { color: "#d4af37", fontWeight: "800", fontSize: 14 },
-  navTitle: { color: "#d4af37", fontWeight: "800", fontSize: 16 },
+  navBackText: { color: "rgba(241, 238, 229, 0.78)", fontWeight: "800", fontSize: 14 },
+  navTitle: { color: "rgba(241, 238, 229, 0.78)", fontWeight: "800", fontSize: 16 },
   pileArea: { marginTop: 6, marginBottom: 8 },
   tableBorder: {
     borderWidth: 2,
-    borderColor: "rgba(212,175,55,0.06)",
+    borderColor: "rgba(255,255,255,0.06)",
     borderStyle: "dashed",
     padding: 8,
     borderRadius: 8,
@@ -6693,7 +6693,7 @@ const local = StyleSheet.create({
     alignItems: 'center',
   },
   sectionTitle: {
-    color: "#d4af37",
+    color: "rgba(241, 238, 229, 0.78)",
     fontWeight: "700",
     marginBottom: 4,
     fontSize: 12,
@@ -6713,7 +6713,7 @@ const local = StyleSheet.create({
   },
   playerRowCurrent: {
     backgroundColor: "rgba(255,255,255,0.06)",
-    borderColor: "rgba(212,175,55,0.12)",
+    borderColor: "rgba(255,255,255,0.10)",
     borderWidth: 1,
   },
   playerName: { color: "#fff", fontWeight: "600", fontSize: 13 },
@@ -6729,7 +6729,7 @@ const local = StyleSheet.create({
   },
   avatarText: { color: "#fff", fontWeight: "700", fontSize: 12 },
   turnBadge: {
-    backgroundColor: "#d4af37",
+    backgroundColor: "rgba(255,255,255,0.88)",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 10,
@@ -6746,19 +6746,19 @@ const local = StyleSheet.create({
   },
   actionButtonPrimary: { marginRight: 4 },
   actionButtonSecondary: { marginHorizontal: 4 },
-  actionButtonTertiary: { marginLeft: 4, backgroundColor: "rgba(212, 175, 55, 0.15)" },
+  actionButtonTertiary: { marginLeft: 4, backgroundColor: "rgba(255, 255, 255, 0.08)" },
   actionText: { color: "#fff", fontWeight: "800", fontSize: 16 },
   turnIndicator: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: "rgba(212, 175, 55, 0.15)",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
     borderRadius: 6,
     marginTop: 8,
     marginHorizontal: 8,
     alignItems: "center",
   },
   turnIndicatorText: {
-    color: "#d4af37",
+    color: "rgba(241, 238, 229, 0.78)",
     fontSize: 14,
     fontWeight: "600",
     fontStyle: "italic",
@@ -6816,7 +6816,7 @@ const local = StyleSheet.create({
     borderRadius: 8,
   },
   debugBtnText: {
-    color: "#d4af37",
+    color: "rgba(241, 238, 229, 0.78)",
     fontWeight: "700",
     fontSize: 11,
   },
@@ -6828,10 +6828,10 @@ const local = StyleSheet.create({
     marginBottom: 8,
     maxHeight: 240,
     borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.3)",
+    borderColor: "rgba(255, 255, 255, 0.12)",
   },
   gameLogTitle: {
-    color: "#d4af37",
+    color: "rgba(241, 238, 229, 0.78)",
     fontSize: 14,
     fontWeight: "700",
     marginBottom: 8,
@@ -6859,7 +6859,7 @@ const local = StyleSheet.create({
     height: 220,
     backgroundColor: "rgba(12,12,12,0.92)",
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.25)",
+    borderColor: "rgba(255,255,255,0.12)",
     borderRadius: 10,
     padding: 8,
     zIndex: 120,
@@ -6885,7 +6885,7 @@ const local = StyleSheet.create({
     paddingHorizontal: 8,
   },
   logToggleText: {
-    color: "#d4af37",
+    color: "rgba(241,238,229,0.78)",
     fontWeight: "700",
   },
   smallToggle: {
@@ -6895,7 +6895,7 @@ const local = StyleSheet.create({
     borderRadius: 6,
   },
   smallToggleText: {
-    color: "#d4af37",
+    color: "rgba(241,238,229,0.78)",
     fontWeight: "700",
     fontSize: 12,
   },
@@ -6914,14 +6914,14 @@ const local = StyleSheet.create({
   },
   placementBadge: {
     marginLeft: 8,
-    backgroundColor: "rgba(212,175,55,0.18)",
+    backgroundColor: "rgba(255,255,255,0.08)",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
     marginTop: 2,
   },
   placementBadgeText: {
-    color: "#d4af37",
+    color: "rgba(241,238,229,0.78)",
     fontSize: 11,
     fontWeight: "800",
   },

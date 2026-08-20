@@ -1,22 +1,23 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Platform, StatusBar } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import BackButton from "../components/BackButton";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { styles as theme, colors, fonts } from "../styles/theme";
+import { useAppTheme } from "../context/ThemeContext";
 
 export default function Header({ title, onBack, right, titleStyle }: { title?: string; onBack?: () => void; right?: React.ReactNode; titleStyle?: any }) {
+  const { colors } = useAppTheme();
   return (
-    <SafeAreaView edges={["top"]} style={[theme.headerContainer, local.container] as any}>
-      <View style={theme.headerRow}>
-        <View style={theme.headerLeft}>
+    <SafeAreaView edges={["top"]} style={local.container as any}>
+      <View style={local.headerRow}>
+        <View style={local.headerLeft}>
           {onBack ? (
             <BackButton onPress={onBack} label={"← Leave"} />
           ) : null}
         </View>
-        <View style={theme.headerCenter} pointerEvents="none">
-          {title ? <Text style={[theme.headerTitle, titleStyle]}>{title}</Text> : null}
+        <View style={local.headerCenter} pointerEvents="none">
+          {title ? <Text style={[local.headerTitle, { color: colors.textPrimary }, titleStyle]}>{title}</Text> : null}
         </View>
-        <View style={theme.headerRight}>
+        <View style={local.headerRight}>
           {right}
         </View>
       </View>
@@ -29,5 +30,20 @@ const local = StyleSheet.create({
     // ensure header content sits below system status/UI elements (Dynamic Island etc.)
     // paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 24) + 60 : 60,
     backgroundColor: "transparent",
+  },
+  headerRow: {
+    height: 100,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+  },
+  headerLeft: { width: 88, alignItems: "flex-start" },
+  headerCenter: { position: "absolute", left: 0, right: 0, alignItems: "center" },
+  headerRight: { width: 88, alignItems: "flex-end" },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    fontStyle: "italic",
   },
 });

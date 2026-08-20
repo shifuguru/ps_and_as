@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
-import { styles as theme, colors } from '../styles/theme';
+import { useAppTheme } from '../context/ThemeContext';
 
 export default function EndGamePanel({
   visible,
@@ -13,6 +13,7 @@ export default function EndGamePanel({
   players: any[];
   readyStates: { [playerId: string]: boolean };
 }) {
+  const { colors } = useAppTheme();
   // Always expand when visible; animate between 0 and EXPANDED_HEIGHT
   const EXPANDED_HEIGHT = 320;
   const PANEL_BG = '#1a1a1a';
@@ -61,21 +62,21 @@ export default function EndGamePanel({
       ]}
     >
       <View style={local.header}>
-        <Text style={local.title}>Round Over - Final Placements</Text>
+        <Text style={[local.title, { color: colors.textPrimary }]}>Round Over - Final Placements</Text>
       </View>
 
       <View style={local.placementsContainer}>
         {placements.map((p) => (
           <View key={p.playerId} style={local.placementRow}>
-            <Text style={local.placement}>{p.placement}</Text>
-            <Text style={local.playerName}>{p.name}</Text>
+            <Text style={[local.placement, { color: colors.accent }]}>{p.placement}</Text>
+            <Text style={[local.playerName, { color: colors.textPrimary }]}>{p.name}</Text>
             {p.ready && <Text style={local.readyBadge}>✓ Ready</Text>}
           </View>
         ))}
       </View>
 
       <View style={local.expandedInfo}>
-        <Text style={local.cardTradePrompt}>
+          <Text style={[local.cardTradePrompt, { color: colors.textSecondary }]}>
           Cards trade: Losers (bottom 2) give highest cards to Winners (top 2).
         </Text>
       </View>
@@ -96,12 +97,12 @@ const local = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    color: colors.accent,
+    color: 'transparent',
     fontSize: 16,
     fontWeight: '700',
   },
   expandToggle: {
-    color: colors.accent,
+    color: 'transparent',
     fontSize: 18,
     fontWeight: '700',
   },
@@ -115,13 +116,13 @@ const local = StyleSheet.create({
     paddingHorizontal: 8,
   },
   placement: {
-    color: colors.accent,
+    color: 'transparent',
     fontSize: 14,
     fontWeight: '700',
     minWidth: 40,
   },
   playerName: {
-    color: colors.secondary,
+    color: 'transparent',
     fontSize: 14,
     flex: 1,
     marginLeft: 8,
@@ -135,10 +136,9 @@ const local = StyleSheet.create({
     paddingHorizontal: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(212, 175, 55, 0.2)',
+    borderTopColor: 'rgba(255, 255, 255, 0.14)',
   },
   cardTradePrompt: {
-    color: colors.secondary,
     fontSize: 18,
     lineHeight: 16,
     opacity: 0.7,

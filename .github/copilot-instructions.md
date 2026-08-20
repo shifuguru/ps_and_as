@@ -43,8 +43,7 @@ This allows the app to run without socket.io-client or expo-av installed.
 - Selection state stored as array of hand indices, not card objects
 
 ### Styling Convention
-- **Theme**: `src/styles/theme.ts` exports centralized `styles`, `colors`, `fonts`
-- **Art Deco aesthetic**: Gold (#d4af37) accents, dark noir backgrounds, subtle shadows
+- **Theme**: `src/context/ThemeContext.tsx` and `src/styles/themeColors.ts` provide the active felt-derived palette, glass surfaces, and current UI tokens.
 - **Local styles**: Components define `local` StyleSheet const for component-specific styles
 
 ### Audio Management
@@ -129,9 +128,9 @@ node index.js          # Starts Socket.IO server on port 3000
 4. Add button handler in App.tsx or parent screen to transition
 
 ### Updating UI Theme
-- Modify `src/styles/theme.ts` colors object
-- Use existing style definitions where possible; avoid inline styles
-- Follow Art Deco aesthetic: gold accents, deep blacks, subtle glows
+- Modify the active theme tokens in `src/styles/themeColors.ts` when a shared colour needs to change.
+- Use existing style definitions where possible; avoid inline styles.
+- Follow the current felt-derived palette, glass surfaces, and contrast rules; do not reintroduce the obsolete legacy accent palette.
 
 ## Known Issues & Limitations
 - Sound effect playback is stubbed (audio files are .txt placeholders)

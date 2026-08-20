@@ -6,6 +6,7 @@ import {
   TURN_INTRO_SETTLE,
   useTurnIntroAnimation,
 } from "../hooks/useTurnIntroAnimation";
+import { useAppTheme } from "../context/ThemeContext";
 
 type Props = {
   active?: boolean;
@@ -16,6 +17,7 @@ const REST_OPACITY = 0.75;
 const PEAK_SCALE = 1.06;
 
 export default function TurnIndicator({ active = false }: Props) {
+  const { colors } = useAppTheme();
   const intro = useTurnIntroAnimation(active);
 
   const ringScale = intro.interpolate({
@@ -34,7 +36,7 @@ export default function TurnIndicator({ active = false }: Props) {
 
   return (
     <Animated.View
-      style={[styles.ring, { transform: [{ scale: ringScale }], opacity }]}
+      style={[styles.ring, { borderColor: colors.accent, transform: [{ scale: ringScale }], opacity }]}
       pointerEvents="none"
     />
   );
@@ -47,7 +49,6 @@ const styles = StyleSheet.create({
     height: 72,
     borderRadius: 36,
     borderWidth: 3,
-    borderColor: "rgba(212,175,55,0.9)",
     top: -16,
     left: -16,
     zIndex: -1,

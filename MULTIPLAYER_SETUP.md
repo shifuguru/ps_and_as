@@ -8,7 +8,7 @@ The Presidents & Assholes game now includes an **auto-search feature** that allo
 ### 1. **Find Game Screen**
 - Automatically searches for available games every 3 seconds
 - Shows real-time player counts and game age
-- Clean, Art Deco-themed UI
+- Clean, felt-derived glass UI
 - Manual refresh button for instant updates
 
 ### 2. **Server Discovery**

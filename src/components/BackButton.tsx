@@ -1,6 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text } from 'react-native';
-import { styles, colors } from '../styles/theme';
+import { useAppTheme } from '../context/ThemeContext';
 
 type Props = {
   onPress: () => void;
@@ -10,17 +10,18 @@ type Props = {
 };
 
 export default function BackButton({ onPress, menu = false, label }: Props) {
+  const { colors, ui } = useAppTheme();
   const text = label ?? 'Leave';
   if (menu) {
     return (
-      <TouchableOpacity style={styles.menuButton} onPress={onPress}>
-        <Text style={styles.menuButtonText}>Back</Text>
+      <TouchableOpacity style={ui.btnSecondary} onPress={onPress}>
+        <Text style={ui.btnSecondaryText}>Back</Text>
       </TouchableOpacity>
     );
   }
   return (
     <TouchableOpacity onPress={onPress} style={{ backgroundColor: 'transparent', paddingHorizontal: 8, paddingVertical: 6 }} accessibilityLabel="Leave">
-      <Text style={{ color: colors.accent, fontSize: 16, fontWeight: '700' }}>{text}</Text>
+      <Text style={{ color: colors.leaveText, fontSize: 16, fontWeight: '700' }}>{text}</Text>
     </TouchableOpacity>
   );
 }

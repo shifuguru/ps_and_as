@@ -47,5 +47,5 @@ const styles = StyleSheet.create({
   avatarText: { color: '#fff', fontWeight: '800' },
   name: { color: '#fff', fontWeight: '700' },
   count: { color: '#ccc', fontSize: 12 },
-  thinking: { color: '#d4af37', marginTop: 6, fontWeight: '800' },
+  thinking: { color: 'rgba(241,238,229,0.78)', marginTop: 6, fontWeight: '800' },
 });

@@ -19,6 +19,7 @@ export type CardFaceColors = {
 export function getCardFaceColors(
   darkMode: boolean,
   disabled = false,
+  accent = "rgba(255,255,255,0.72)",
 ): CardFaceColors {
   if (!darkMode) {
     return {
@@ -31,7 +32,7 @@ export function getCardFaceColors(
       flashBgFrom: "#f5f4ef",
       flashBgTo: "#ffffff",
       flashBorderFrom: "rgba(0,0,0,0.12)",
-      flashBorderTo: "rgba(212,175,55,0.85)",
+      flashBorderTo: accent,
       flashLabelFrom: "#1a1a1a",
       flashLabelTo: "#111111",
       flashRedSuitTo: "#8b0000",
@@ -50,7 +51,7 @@ export function getCardFaceColors(
     flashBgFrom: "#1c1c1e",
     flashBgTo: "#2a2a2e",
     flashBorderFrom: "rgba(255,255,255,0.12)",
-    flashBorderTo: "rgba(212,175,55,0.85)",
+    flashBorderTo: accent,
     flashLabelFrom: "#ececec",
     flashLabelTo: "#ffffff",
     flashRedSuitTo: "#ff8a80",

@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     width: "60%",
     height: 360,
     borderRadius: 180,
-    backgroundColor: "rgba(212,175,55,0.04)",
+    backgroundColor: "rgba(255,255,255,0.025)",
   },
   vignetteBottom: {
     position: "absolute",

@@ -871,12 +871,12 @@ const styles = StyleSheet.create({
     overflow: "visible",
   },
   playTypeBadgeBody: {
-    backgroundColor: "rgba(212, 175, 55, 0.14)",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.38)",
+    borderColor: "rgba(255, 255, 255, 0.14)",
     alignSelf: "center",
     flexShrink: 0,
     maxWidth: "100%",
@@ -916,7 +916,7 @@ const styles = StyleSheet.create({
     default: {},
   }),
   playTypeBadgeText: {
-    color: "#d4af37",
+    color: "rgba(241, 238, 229, 0.78)",
     fontWeight: "800",
     fontSize: 11,
     textAlign: "center",
