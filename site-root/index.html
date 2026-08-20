@@ -1,440 +1,1066 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+
+<head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>P's &amp; A's — Presidents &amp; Assholes Card Game</title>
-    <meta
-      name="description"
-      content="Play P's &amp; A's (Presidents &amp; Assholes) online or against AI. Free multiplayer card game with ranks, tricks, runs, and jokers. Rules, tips, and how to play."
-    />
+    <title>Presidents &amp; Assholes | A fast card game of rank and nerve</title>
+    <meta name="description"
+        content="Presidents &amp; Assholes is a fast shedding card game about finishing first, reading the table, and surviving the next round. Play free in your browser." />
+    <link rel="canonical" href="https://shifuguru.github.io/" />
+    <meta property="og:title" content="Presidents &amp; Assholes" />
+    <meta property="og:description"
+        content="A fast card game of rank, timing, and table politics. Play locally against AI or make an online room for friends." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://shifuguru.github.io/" />
     <meta name="google-adsense-account" content="ca-pub-5095796594648653" />
     <link rel="icon" href="/ps_and_as/favicon.ico" />
     <style>
-      :root {
-        color-scheme: dark;
-        --bg: #0a1210;
-        --bg-elevated: #121c18;
-        --fg: #e8f0ea;
-        --muted: #9fb0a6;
-        --accent: #7ec8a3;
-        --accent-strong: #5fb88a;
-        --rule: rgba(232, 240, 234, 0.12);
-        --card: rgba(255, 255, 255, 0.04);
-        --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
-      }
-      @media (prefers-color-scheme: light) {
         :root {
-          color-scheme: light;
-          --bg: #f4f7f5;
-          --bg-elevated: #ffffff;
-          --fg: #142018;
-          --muted: #4a5c52;
-          --accent: #1f6b4a;
-          --accent-strong: #155a3d;
-          --rule: rgba(20, 32, 24, 0.12);
-          --card: rgba(20, 32, 24, 0.04);
-          --shadow: 0 18px 50px rgba(20, 32, 24, 0.08);
+            --felt: #333;
+            --felt-deep: #101313;
+            --felt-ink: #171b1b;
+            --glass: rgba(18, 20, 20, .74);
+            --glass-soft: rgba(255, 255, 255, .07);
+            --glass-line: rgba(255, 255, 255, .15);
+            --text: #f1eee5;
+            --muted: rgba(241, 238, 229, .72);
+            --quiet: rgba(241, 238, 229, .52);
+            --paper: #e8e3d8;
+            --shadow: 0 16px 42px rgba(0, 0, 0, .34);
         }
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-        background:
-          radial-gradient(1200px 600px at 10% -10%, rgba(126, 200, 163, 0.16), transparent 55%),
-          radial-gradient(900px 500px at 100% 0%, rgba(60, 90, 70, 0.22), transparent 50%),
-          var(--bg);
-        color: var(--fg);
-        line-height: 1.6;
-      }
-      a {
-        color: var(--accent);
-      }
-      a:hover {
-        color: var(--accent-strong);
-      }
-      .wrap {
-        max-width: 46rem;
-        margin: 0 auto;
-        padding: 2rem 1.25rem 4rem;
-      }
-      header {
-        margin-bottom: 2.5rem;
-      }
-      .eyebrow {
-        font-size: 0.85rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--muted);
-        margin: 0 0 0.5rem;
-      }
-      h1 {
-        font-size: clamp(2rem, 6vw, 3rem);
-        line-height: 1.1;
-        letter-spacing: -0.03em;
-        margin: 0 0 0.75rem;
-      }
-      .lede {
-        font-size: 1.15rem;
-        color: var(--muted);
-        margin: 0 0 1.5rem;
-        max-width: 36rem;
-      }
-      .cta-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-        align-items: center;
-      }
-      .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0.85rem 1.35rem;
-        border-radius: 999px;
-        font-size: 1rem;
-        font-weight: 600;
-        text-decoration: none;
-        border: 1px solid transparent;
-        transition: transform 0.15s ease, background 0.15s ease;
-      }
-      .btn-primary {
-        background: var(--accent);
-        color: #08120d;
-      }
-      .btn-primary:hover {
-        background: var(--accent-strong);
-        color: #08120d;
-        transform: translateY(-1px);
-      }
-      .btn-secondary {
-        background: transparent;
-        color: var(--fg);
-        border-color: var(--rule);
-      }
-      .btn-secondary:hover {
-        background: var(--card);
-      }
-      section {
-        margin: 2.5rem 0;
-        padding-top: 0.25rem;
-      }
-      h2 {
-        font-size: 1.45rem;
-        margin: 0 0 0.85rem;
-        letter-spacing: -0.02em;
-      }
-      h3 {
-        font-size: 1.05rem;
-        margin: 1.25rem 0 0.5rem;
-      }
-      p {
-        margin: 0 0 1rem;
-      }
-      ul {
-        margin: 0 0 1rem;
-        padding-left: 1.25rem;
-      }
-      li {
-        margin: 0.35rem 0;
-      }
-      .panel {
-        background: var(--card);
-        border: 1px solid var(--rule);
-        border-radius: 1rem;
-        padding: 1.15rem 1.25rem;
-        box-shadow: var(--shadow);
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 0.75rem 0 1rem;
-        font-size: 0.95rem;
-      }
-      th,
-      td {
-        border: 1px solid var(--rule);
-        padding: 0.55rem 0.65rem;
-        text-align: left;
-      }
-      th {
-        background: var(--bg-elevated);
-      }
-      .rank-table td:first-child {
-        font-weight: 600;
-        white-space: nowrap;
-      }
-      .cards {
-        font-variant-numeric: tabular-nums;
-        letter-spacing: 0.02em;
-      }
-      .faq dt {
-        font-weight: 700;
-        margin-top: 1rem;
-      }
-      .faq dd {
-        margin: 0.35rem 0 0;
-        color: var(--muted);
-      }
-      footer {
-        margin-top: 3rem;
-        padding-top: 1.5rem;
-        border-top: 1px solid var(--rule);
-        font-size: 0.92rem;
-        color: var(--muted);
-      }
-      footer nav {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem 1.25rem;
-        margin-bottom: 0.75rem;
-      }
-      .note {
-        font-size: 0.9rem;
-        color: var(--muted);
-      }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            background: var(--felt-deep);
+        }
+
+        body {
+            margin: 0;
+            color: var(--text);
+            background: var(--felt-deep) url("/ps_and_as/assets/felt_grey.webp") center top / cover fixed;
+            font-family: "Trebuchet MS", system-ui, sans-serif;
+            line-height: 1.6;
+        }
+
+        body:after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            background: radial-gradient(circle at 50% 12%, rgba(255, 255, 255, .04), transparent 34%), linear-gradient(180deg, rgba(8, 10, 10, .24), rgba(8, 10, 10, .7));
+        }
+
+        a {
+            color: inherit;
+        }
+
+        .shell {
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(9, 11, 11, .16), rgba(9, 11, 11, .48));
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            max-width: 76rem;
+            margin: 0 auto;
+            padding: 1.2rem 1.25rem;
+            border-bottom: 1px solid var(--glass-line);
+        }
+
+        .brand {
+            color: var(--preview-accent, var(--text));
+            font-family: Georgia, "Times New Roman", serif;
+            font-style: italic;
+            font-weight: 700;
+            text-decoration: none;
+            letter-spacing: .04em;
+            font-size: 1.12rem;
+            text-shadow: 0 1px 12px rgba(255, 255, 255, .12);
+        }
+
+        .nav {
+            display: flex;
+            gap: 1.1rem;
+            align-items: center;
+            font-size: .84rem;
+        }
+
+        .nav a {
+            color: var(--muted);
+            text-decoration: none;
+        }
+
+        .nav a:hover,
+        .nav a:focus-visible {
+            color: var(--preview-accent, var(--text));
+        }
+
+        .nav .nav-play {
+            color: var(--preview-accent, var(--text));
+            font-weight: 800;
+        }
+
+        .hero {
+            position: relative;
+            max-width: 76rem;
+            margin: 0 auto;
+            padding: 5.5rem 1.25rem 6rem;
+            display: grid;
+            grid-template-columns: minmax(0, 1.05fr) minmax(20rem, .95fr);
+            gap: 4rem;
+            align-items: center;
+        }
+
+        .hero:before {
+            content: "";
+            position: absolute;
+            width: 32rem;
+            height: 32rem;
+            right: -13rem;
+            top: -10rem;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, .04);
+            filter: blur(2px);
+        }
+
+        .kicker,
+        .section-label,
+        .mode .tag {
+            color: var(--preview-accent, var(--text));
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .15em;
+            text-transform: uppercase;
+        }
+
+        .kicker {
+            margin: 0 0 1rem;
+        }
+
+        h1,
+        h2,
+        h3 {
+            font-family: Georgia, "Times New Roman", serif;
+            font-weight: 700;
+            text-shadow: 0 1px 12px rgba(0, 0, 0, .3);
+        }
+
+        h1 {
+            position: relative;
+            max-width: 41rem;
+            margin: 0;
+            color: var(--text);
+            font-size: clamp(3.4rem, 8vw, 7rem);
+            line-height: .91;
+            font-style: italic;
+            letter-spacing: -.04em;
+        }
+
+        .hero-copy {
+            max-width: 35rem;
+            margin: 1.5rem 0 2rem;
+            color: var(--muted);
+            font-size: 1.18rem;
+        }
+
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .8rem;
+            align-items: center;
+        }
+
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 3rem;
+            padding: .7rem 1.2rem;
+            border: 1px solid transparent;
+            border-radius: 14px;
+            font-weight: 800;
+            text-decoration: none;
+            box-shadow: 0 5px 24px rgba(0, 0, 0, .3), 0 1px 4px rgba(0, 0, 0, .14);
+            transition: transform .18s ease, background .18s ease, border-color .18s ease;
+        }
+
+        .button:hover,
+        .button:focus-visible {
+            transform: translateY(-2px);
+        }
+
+        .button-primary {
+            color: var(--preview-accent, var(--text));
+            background: color-mix(in srgb, var(--preview-accent, var(--text)), transparent 84%);
+            border-color: color-mix(in srgb, var(--preview-accent, var(--text)), transparent 68%);
+        }
+
+        .button-primary:hover,
+        .button-primary:focus-visible {
+            background: color-mix(in srgb, var(--preview-accent, var(--text)), transparent 76%);
+            border-color: var(--preview-accent, var(--text));
+        }
+
+        .button-quiet {
+            color: var(--text);
+            background: rgba(255, 255, 255, .07);
+            border-color: var(--glass-line);
+            backdrop-filter: blur(18px) saturate(1.35);
+        }
+
+        .button-quiet:hover,
+        .button-quiet:focus-visible {
+            background: rgba(255, 255, 255, .13);
+            border-color: rgba(255, 255, 255, .32);
+        }
+
+        .preview-stack {
+            display: flex;
+            flex-direction: column;
+            gap: .7rem;
+            align-items: stretch;
+        }
+
+        .tableau {
+            position: relative;
+            min-height: 20rem;
+            border: 1px solid rgba(255, 255, 255, .18);
+            border-radius: 16px;
+            background: var(--preview-felt, var(--felt-deep));
+            background-image: linear-gradient(135deg, rgba(255, 255, 255, .05), transparent 45%), url("/ps_and_as/assets/felt_grey.webp");
+            background-size: cover;
+            box-shadow: var(--shadow), 0 0 36px color-mix(in srgb, var(--preview-accent, var(--text)), transparent 88%);
+            transform: none;
+        }
+
+        .tableau:before {
+            content: "";
+            position: absolute;
+            inset: 1rem;
+            border: 1px solid color-mix(in srgb, var(--preview-accent, var(--text)), transparent 76%);
+            border-radius: 12px;
+            pointer-events: none;
+        }
+
+        .tableau:after {
+            content: none;
+            position: absolute;
+            right: 1.8rem;
+            bottom: 1.2rem;
+            color: rgba(255, 255, 255, .55);
+            font-size: .7rem;
+            letter-spacing: .14em;
+            font-weight: 800;
+            text-shadow: 0 1px 5px #000;
+        }
+
+        .card {
+            position: absolute;
+            width: 5.8rem;
+            height: 8.2rem;
+            padding: .55rem;
+
+            border: 1px solid rgba(0, 0, 0, .18);
+            border-radius: 14px;
+
+            background: var(--preview-card-bg, var(--paper));
+            color: var(--preview-card-black, #222);
+
+            box-shadow: 0 12px 20px rgba(0, 0, 0, .4);
+
+            font-family: Georgia, "Times New Roman", serif;
+
+            transition:
+                transform 180ms ease,
+                filter 180ms ease,
+                z-index 180ms ease,
+                box-shadow 180ms ease;
+        }
+
+        .preview-hint {
+            position: absolute;
+            left: 2rem;
+            right: 2rem;
+            bottom: 1.6rem;
+
+            min-height: 4.8rem;
+
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+
+            text-align: left;
+
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .preview-hint strong {
+            display: block;
+            margin-bottom: .2rem;
+
+            color: var(--preview-accent, var(--text));
+
+            font-family: "Trebuchet MS", system-ui, sans-serif;
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .08em;
+            text-shadow: 0 1px 10px rgba(0, 0, 0, .35);
+            text-transform: uppercase;
+            line-height: 1.2;
+        }
+
+        .preview-hint span {
+            display: block;
+
+            max-width: 25rem;
+
+            color: var(--muted);
+            font-family: "Trebuchet MS", system-ui, sans-serif;
+            font-size: .78rem;
+            line-height: 1.4;
+        }
+
+        .card:hover,
+        .card:focus-visible,
+        .card.is-hovered {
+            z-index: 20;
+
+            filter: brightness(1.04);
+
+            box-shadow:
+                0 22px 38px rgba(0, 0, 0, 0.38),
+                0 0 0 1px var(--preview-accent, var(--text)),
+                0 0 24px color-mix(
+                    in srgb,
+                    var(--preview-accent, var(--text)),
+                    transparent 82%
+                );
+
+            transform:
+                translateY(-2rem)
+                rotate(var(--rotation))
+                scale(1.03);
+        }
+
+        .card small {
+            display: block;
+            font-family: "Trebuchet MS", system-ui, sans-serif;
+            font-size: .7rem;
+            font-weight: 800;
+        }
+
+        .card strong {
+            display: block;
+            margin-top: 1.6rem;
+            text-align: center;
+            font-size: 2.2rem;
+            line-height: 1;
+        }
+
+        .card.red {
+            color: var(--preview-card-red, #9d3030);
+        }
+
+        .card[data-card-index="0"] {
+            left: 9%;
+            top: 25%;
+            --rotation: -12deg;
+            transform: rotate(var(--rotation));
+        }
+
+        .card[data-card-index="1"] {
+            left: 29%;
+            top: 13%;
+            --rotation: -3deg;
+            transform: rotate(var(--rotation));
+        }
+
+        .card[data-card-index="2"] {
+            left: 51%;
+            top: 19%;
+            --rotation: 7deg;
+            transform: rotate(var(--rotation));
+        }
+
+        .card[data-card-index="3"] {
+            left: 69%;
+            top: 29%;
+            --rotation: 15deg;
+            transform: rotate(var(--rotation));
+        }
+
+        .table-setup {
+            padding: .55rem .7rem;
+            border: 1px solid var(--preview-glass-border, var(--glass-line));
+            border-radius: 12px;
+            background: var(--preview-glass-bg, rgba(10, 12, 12, .72));
+            color: var(--preview-glass-text, var(--muted));
+            backdrop-filter: blur(18px) saturate(1.35);
+        }
+
+        .table-setup-title {
+            display: inline;
+            margin: 0 .6rem 0 0;
+            color: var(--preview-accent, var(--text));
+            font-size: .68rem;
+            font-weight: 800;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+        }
+
+        .table-setup-status {
+            display: none;
+        }
+
+        .setup-controls {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: .35rem;
+            align-items: center;
+            vertical-align: middle;
+        }
+
+        .setup-button {
+            min-height: 1.8rem;
+            padding: .25rem .5rem;
+            border: 1px solid var(--preview-glass-border, var(--glass-line));
+            border-radius: 9px;
+            color: var(--preview-glass-text, var(--muted));
+            background: var(--preview-glass-control, rgba(255, 255, 255, .06));
+            font: inherit;
+            font-size: .72rem;
+            cursor: pointer;
+        }
+
+        .setup-button:hover,
+        .setup-button:focus-visible,
+        .setup-button.is-selected {
+            color: var(--text);
+            border-color: var(--preview-accent, var(--text));
+            background: color-mix(in srgb, var(--preview-accent, var(--text)), transparent 82%);
+        }
+
+        .felt-swatch {
+            width: 1.35rem;
+            height: 1.35rem;
+            padding: 0;
+            border-radius: 999px;
+            background: var(--swatch);
+            border-color: rgba(255, 255, 255, .34);
+        }
+
+        .preview-play {
+            width: 100%;
+            min-height: 2.7rem;
+        }
+
+        .section {
+            max-width: 76rem;
+            margin: 0 auto;
+            padding: 5rem 1.25rem;
+        }
+
+        .section-band {
+            background: rgba(8, 10, 10, .62);
+            border-top: 1px solid rgba(255, 255, 255, .08);
+            border-bottom: 1px solid rgba(255, 255, 255, .08);
+        }
+
+        .section-head {
+            max-width: 42rem;
+            margin-bottom: 2.2rem;
+        }
+
+        h2 {
+            margin: .45rem 0 .9rem;
+            color: var(--text);
+            font-size: clamp(2rem, 4vw, 3.35rem);
+            line-height: 1.02;
+            letter-spacing: -.03em;
+        }
+
+        h3 {
+            margin: 0 0 .55rem;
+            color: var(--text);
+            font-size: 1.35rem;
+            line-height: 1.15;
+        }
+
+        .section-head p,
+        .section p {
+            color: var(--muted);
+        }
+
+        .section-band p {
+            color: var(--muted);
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .tile {
+            padding: 1.5rem;
+            border: 1px solid var(--glass-line);
+            border-radius: 16px;
+            background: var(--glass);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px) saturate(1.35);
+        }
+
+        .tile p {
+            margin: 0;
+            font-size: .95rem;
+        }
+
+        .number {
+            color: var(--preview-accent, var(--text));
+            font: 700 2rem Georgia, serif;
+        }
+
+        .mode {
+            padding: 1.7rem;
+            border: 1px solid var(--glass-line);
+            border-radius: 16px;
+            background: var(--glass);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px) saturate(1.35);
+        }
+
+        .mode h3 {
+            color: var(--preview-accent, var(--text));
+        }
+
+        .mode .tag {
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+
+        .feature-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: .7rem 2rem;
+            padding: 0;
+            list-style: none;
+        }
+
+        .feature-list li {
+            position: relative;
+            padding: .9rem 1rem .9rem 1.7rem;
+            border: 1px solid var(--glass-line);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, .045);
+        }
+
+        .feature-list li:before {
+            content: "+";
+            position: absolute;
+            left: .7rem;
+            color: var(--preview-accent, var(--text));
+            font-weight: 800;
+        }
+
+        .rules-grid {
+            display: grid;
+            grid-template-columns: 1.1fr .9fr;
+            gap: 3rem;
+            align-items: start;
+        }
+
+        .rank-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .45rem;
+            margin: 1.5rem 0;
+        }
+
+        .rank {
+            padding: .55rem .7rem;
+            color: var(--preview-accent, var(--text));
+            background: color-mix(in srgb, var(--preview-accent, var(--text)), transparent 86%);
+            border: 1px solid color-mix(in srgb, var(--preview-accent, var(--text)), transparent 70%);
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: .85rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, .22);
+        }
+
+        .rank:last-child {
+            color: var(--text);
+            background: rgba(255, 255, 255, .09);
+            border-color: var(--glass-line);
+        }
+
+        .rule-note {
+            padding: 1.3rem 1.4rem;
+            border: 1px solid var(--glass-line);
+            border-radius: 16px;
+            background: var(--glass);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px) saturate(1.35);
+        }
+
+        .rule-note p {
+            margin: 0;
+            color: var(--text);
+        }
+
+        .guide {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 1rem;
+            align-items: start;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--glass-line);
+        }
+
+        .guide p {
+            margin: 0;
+        }
+
+        .faq {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .faq>div {
+            padding: 1.2rem 1.3rem;
+            border: 1px solid var(--glass-line);
+            border-radius: 16px;
+            background: var(--glass);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px) saturate(1.35);
+        }
+
+        .faq dt {
+            color: var(--preview-accent, var(--text));
+            font-weight: 800;
+        }
+
+        .faq dd {
+            margin: .25rem 0 0;
+            color: var(--muted);
+        }
+
+        .final {
+            padding: 5rem 1.25rem;
+            text-align: center;
+            background: rgba(18, 20, 20, .82);
+            color: var(--text);
+            border-top: 1px solid var(--glass-line);
+            border-bottom: 1px solid var(--glass-line);
+            box-shadow: inset 0 1px rgba(255, 255, 255, .08);
+        }
+
+        .final h2 {
+            margin-bottom: 1.3rem;
+            color: var(--text);
+        }
+
+        .final p {
+            color: var(--muted);
+        }
+
+        .final .button-primary {
+            color: var(--preview-accent, var(--text));
+            background: color-mix(in srgb, var(--preview-accent, var(--text)), transparent 84%);
+            border-color: color-mix(in srgb, var(--preview-accent, var(--text)), transparent 68%);
+        }
+
+        footer {
+            background: rgba(8, 10, 10, .86);
+            color: var(--quiet);
+            border-top: 1px solid var(--glass-line);
+        }
+
+        .footer-inner {
+            max-width: 76rem;
+            margin: 0 auto;
+            padding: 2rem 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            gap: 2rem;
+            flex-wrap: wrap;
+            font-size: .84rem;
+        }
+
+        footer nav {
+            display: flex;
+            gap: 1.2rem;
+            flex-wrap: wrap;
+        }
+
+        footer a {
+            color: var(--text);
+            text-decoration: none;
+        }
+
+        footer a:hover,
+        footer a:focus-visible {
+            color: var(--preview-accent, var(--text));
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--preview-accent, var(--text));
+            outline-offset: 3px;
+        }
+
+        @media (max-width:760px) {
+            .nav a:not(.nav-play) {
+                display: none;
+            }
+
+            .hero {
+                grid-template-columns: 1fr;
+                padding-top: 3.5rem;
+                gap: 2.5rem;
+            }
+
+            h1 {
+                font-size: clamp(3.4rem, 18vw, 5.5rem);
+            }
+
+            .tableau {
+                min-height: 17rem;
+            }
+
+            .card {
+                width: 4.25rem;
+                height: 6rem;
+            }
+
+            .card strong {
+                margin-top: 1rem;
+                font-size: 1.7rem;
+            }
+
+            .grid-3,
+            .grid-2,
+            .rules-grid,
+            .faq {
+                grid-template-columns: 1fr;
+            }
+
+            .feature-list {
+                grid-template-columns: 1fr;
+            }
+
+            .section {
+                padding: 3.75rem 1.25rem;
+            }
+
+            .table-setup-title {
+                display: block;
+                margin: 0 0 .35rem;
+            }
+
+            .setup-controls {
+                display: flex;
+            }
+        }
+
+        @media (prefers-reduced-motion:reduce) {
+            html {
+                scroll-behavior: auto;
+            }
+
+            *,
+            *:before,
+            *:after {
+                transition-duration: .01ms !important;
+                transform: none !important;
+            }
+        }
     </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <header>
-        <p class="eyebrow">Presidents &amp; Assholes</p>
-        <h1>P's &amp; A's</h1>
-        <p class="lede">
-          A fast trick-taking card game where finishing order matters. Empty your hand first to
-          become <strong>President</strong>. Finish last and you're the <strong>Asshole</strong> —
-          and you'll pay for it next round.
-        </p>
-        <div class="cta-row">
-          <a class="btn btn-primary" href="/ps_and_as/">Play free in your browser</a>
-          <a class="btn btn-secondary" href="/ps_and_as/readme-fallback.html">Full rules</a>
-        </div>
-      </header>
+    <script
+        type="application/ld+json">{"@context":"https://schema.org","@type":"VideoGame","name":"Presidents & Assholes","url":"https://shifuguru.github.io/","genre":["Card game","Party game"],"playMode":["SinglePlayer","MultiPlayer"],"applicationCategory":"Game","isAccessibleForFree":true}</script>
+</head>
 
-      <section id="about">
-        <h2>About the game</h2>
-        <p>
-          P's &amp; A's is a digital version of the classic climbing / shedding card game often
-          called Presidents, Asshole, or Scum. Play a quick match against AI, or create an online
-          room and invite friends with a room code. The web app works on phones, tablets, and
-          desktop — no install required.
-        </p>
-        <div class="panel">
-          <h3>What makes a round interesting</h3>
-          <ul>
-            <li><strong>Ranks carry over.</strong> President and Asshole trade cards before the next deal.</li>
-            <li><strong>Power cards matter.</strong> 2s, Jokers, and four-of-a-kind can dominate a trick — but the trick only ends when everyone else passes.</li>
-            <li><strong>Runs clear hands fast.</strong> Consecutive ranks played together are one of the strongest ways to shed cards.</li>
-            <li><strong>The 10 Rule.</strong> Playing a 10 lets you choose whether the next play must go higher or lower.</li>
-          </ul>
-        </div>
-      </section>
+<body>
+    <div class="shell">
+        <header class="topbar"><a class="brand" href="/">P's &amp; A's</a>
+            <nav class="nav" aria-label="Main navigation"><a href="#how-it-works">How it works</a><a
+                    href="#modes">Modes</a><a href="#rules">Rules</a><a href="#faq">FAQ</a><a class="nav-play"
+                    href="/ps_and_as/">Play now &rarr;</a></nav>
+        </header>
+        <main>
+            <section class="hero" aria-labelledby="page-title">
+                <div>
+                    <p class="kicker">A card game of rank and nerve</p>
+                    <h1 id="page-title">Presidents<br />&amp; Assholes</h1>
+                    <p class="hero-copy">Empty your hand, claim the top seat, and remember: trust no one.</p>
+                    <div class="button-row">
+                        <a class="button button-quiet" href="#how-it-works">See how it works</a>
+                    </div>
+                </div>
+                <div class="preview-stack">
+                    <div class="tableau" data-tableau aria-label="Interactive preview of a Ps &amp; As card table">
 
-      <section id="how-to-play">
-        <h2>How to play</h2>
-        <p>
-          Players take turns playing cards onto the table. Each play must beat what is currently
-          showing — a higher single, pair, triple, four-of-a-kind, or run of the same length.
-          If you cannot or do not want to beat it, press <strong>Pass</strong>. When every other
-          active player has passed, the trick ends and the last player leads the next one.
-        </p>
-        <table>
-          <thead>
-            <tr>
-              <th>Rule</th>
-              <th>Detail</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Goal</td>
-              <td>Be the first to empty your hand</td>
-            </tr>
-            <tr>
-              <td>Opening card</td>
-              <td>3♣ leads every round (3♠ in two-player if the dead hand holds 3♣)</td>
-            </tr>
-            <tr>
-              <td>Card order</td>
-              <td class="cards">3 4 5 6 7 8 9 10 J Q K A 2 Joker</td>
-            </tr>
-            <tr>
-              <td>Shortest run</td>
-              <td>Three consecutive ranks, same count at each rank</td>
-            </tr>
-            <tr>
-              <td>Trick ends</td>
-              <td>When every other active player passes — not automatically on a 2 or Joker</td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="panel">
-          <p><strong>Important:</strong> A powerful card does <em>not</em> automatically end the trick —
-          not a 2, not a Joker, not four of a kind. The trick only ends when every other active
-          player passes.</p>
-        </div>
-      </section>
+                        <div class="preview-hint" data-preview-hint aria-live="polite">
+                            <strong data-hint-title>Starting card</strong>
+                            <span data-hint-text>Every game begins with the 3♣.</span>
+                        </div>
 
-      <section id="special-cards">
-        <h2>Special cards</h2>
-        <h3>2</h3>
-        <p>
-          The strongest normal card. It can only be beaten by a Joker or four 2s (if fewer than
-          four are already on the table). Playing a 2 does not end the trick.
-        </p>
-        <h3>Joker</h3>
-        <p>
-          The strongest card in the game. It beats every normal play and stays on the table until
-          every other player passes. Jokers cannot be played while a run is active.
-        </p>
-        <h3>Four of a kind</h3>
-        <p>
-          Four matching cards played together are one of the strongest plays. They can only be
-          beaten by a higher four of a kind or a Joker. If four of a kind are built up across
-          turns in the same trick, that play becomes unbeatable — everyone else must pass.
-        </p>
-        <h3>The 10 Rule</h3>
-        <p>
-          Playing a 10 lets you choose the direction of the next play: higher than 10 or lower
-          than 10. The effect lasts for one turn. Runs ignore the 10 Rule.
-        </p>
-      </section>
+                        <div class="card" data-preview-card data-card-index="0" data-hint-title="Starting card" data-hint-text="Every game begins with the 3♣.">
+                            <small>3 &clubs;</small>
+                            <strong>3</strong>
+                        </div>
 
-      <section id="runs">
-        <h2>Runs</h2>
-        <p>
-          A run is one play made of consecutive ranks, all with the same count — for example
-          4-5-6, 8-9-10-J, or pair runs like 7-7 / 8-8 / 9-9. A valid run must include at least
-          three ranks, be consecutive (A-2-3 is illegal), and use the same number of cards at
-          each rank.
-        </p>
-        <p>
-          To beat a run, play a higher run of the same length and count, or extend it with the
-          next adjacent rank while the run is still active.
-        </p>
-      </section>
+                        <div class="card red" data-preview-card data-card-index="1" tabindex="0" data-hint-title="Power card"
+                        data-hint-text="Choose whether the next play must be higher or lower than 10.">
+                            <small>10 &diams;</small>
+                            <strong>10</strong>
+                        </div>
 
-      <section id="starting">
-        <h2>Starting a round</h2>
-        <p>
-          Every round opens with 3♣. Whoever holds it leads. In two-player games, a hidden
-          <strong>Dead Hand</strong> balances the deck; if it contains 3♣, play opens with 3♠
-          instead.
-        </p>
-      </section>
+                        <div class="card" data-preview-card data-card-index="2" tabindex="0"
+                        data-hint-title="Highest normal rank"
+                        data-hint-text="The 2 sits above Ace and King in the normal rank order.">
+                            <small>2 &spades;</small>
+                            <strong>2</strong>
+                        </div>
 
-      <section id="ranks">
-        <h2>Finishing order &amp; ranks</h2>
-        <p>Where you finish sets your title for the next round:</p>
-        <table class="rank-table">
-          <thead>
-            <tr>
-              <th>Finish</th>
-              <th>Rank</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>First</td>
-              <td>President</td>
-            </tr>
-            <tr>
-              <td>Second (5+ players)</td>
-              <td>Vice President</td>
-            </tr>
-            <tr>
-              <td>Middle</td>
-              <td>Citizen</td>
-            </tr>
-            <tr>
-              <td>Second-to-last (5+ players)</td>
-              <td>Vice Asshole</td>
-            </tr>
-            <tr>
-              <td>Last</td>
-              <td>Asshole</td>
-            </tr>
-          </tbody>
-        </table>
-        <p>
-          From round two onward, the Asshole gives their best card(s) to the President, who sends
-          weaker cards back. With five or more players, Vice President and Vice Asshole also
-          exchange one card each.
-        </p>
-      </section>
+                        <div class="card joker" data-preview-card data-card-index="3" tabindex="0" data-hint-title="Joker"
+                        data-hint-text="The Joker is the highest card and can beat *almost* any other card.">
+                            <small>Joker</small>
+                            <strong>&starf;</strong>
+                        </div>
 
-      <section id="modes">
-        <h2>Game modes</h2>
-        <div class="panel">
-          <h3>Quick Game</h3>
-          <p>
-            Jump into a match against AI opponents. Good for learning the rules or a short session.
-            Works offline once the page has loaded.
-          </p>
-          <h3>Online multiplayer</h3>
-          <p>
-            Create a room, share the code with friends, and play for the Presidency. If your
-            connection drops briefly, you can reconnect and rejoin the table.
-          </p>
-        </div>
-      </section>
+                    </div>
 
-      <section id="tips">
-        <h2>Beginner tips</h2>
-        <ul>
-          <li>Don't waste your 2s too early — they are your best normal cards.</li>
-          <li>Jokers are often worth saving for a decisive trick.</li>
-          <li>Passing can be the strongest move when you cannot beat the pile cleanly.</li>
-          <li>Runs clear a lot of cards quickly when the table is open.</li>
-          <li>Think about the next trick, not just the card you are playing now.</li>
-        </ul>
-      </section>
-
-      <section id="faq">
-        <h2>Frequently asked questions</h2>
-        <dl class="faq">
-          <dt>Can I play offline?</dt>
-          <dd>Yes. Quick Game works without an internet connection after the app has loaded once.</dd>
-
-          <dt>Can I play with friends?</dt>
-          <dd>Yes. Create an online room in the game and share the room code.</dd>
-
-          <dt>Does suit matter?</dt>
-          <dd>Normally no. Suits only decide who opens with 3♣ (or 3♠ in two-player).</dd>
-
-          <dt>Why can't I beat a Joker?</dt>
-          <dd>Nothing normally beats a Joker, and you cannot play a Joker into an active run.</dd>
-
-          <dt>Is the game free?</dt>
-          <dd>Yes. The browser version is free to play. Optional in-app purchases may be offered to support hosting costs.</dd>
-        </dl>
-      </section>
-
-      <section id="play">
-        <h2>Ready to play?</h2>
-        <p>Open the game in your browser — no download required.</p>
-        <div class="cta-row">
-          <a class="btn btn-primary" href="/ps_and_as/">Start playing</a>
-        </div>
-        <p class="note">
-          This page is the site home for P's &amp; A's. The playable game, full interactive rules,
-          and account features live at <a href="/ps_and_as/">/ps_and_as/</a>.
-        </p>
-      </section>
-
-      <footer>
-        <nav aria-label="Site links">
-          <a href="/ps_and_as/">Play</a>
-          <a href="/ps_and_as/readme-fallback.html">Rules</a>
-          <a href="/ps_and_as/privacy.html">Privacy policy</a>
-          <a href="https://github.com/shifuguru/ps_and_as">Source on GitHub</a>
-          <a href="mailto:shifuguru@outlook.com">Contact</a>
-        </nav>
-        <p>© shifuguru. P's &amp; A's — Presidents &amp; Assholes card game.</p>
-      </footer>
+                    <div class="table-setup" aria-label="Table setup">
+                        <p class="table-setup-title">Table setup</p>
+                        <div class="setup-controls" role="group" aria-label="Felt colour">
+                            <button class="setup-button felt-swatch" type="button" data-felt-option
+                                aria-label="Casino Green" title="Casino Green"></button>
+                            <button class="setup-button felt-swatch" type="button" data-felt-option
+                                aria-label="Baccarat Red" title="Baccarat Red"></button>
+                            <button class="setup-button felt-swatch" type="button" data-felt-option
+                                aria-label="Tournament Blue" title="Tournament Blue"></button>
+                            <button class="setup-button felt-swatch" type="button" data-felt-option
+                                aria-label="Charcoal" title="Charcoal"></button>
+                            <button class="setup-button felt-swatch" type="button" data-felt-option
+                                aria-label="Royal Purple" title="Royal Purple"></button>
+                            <button class="setup-button felt-swatch" type="button" data-felt-option
+                                aria-label="Olive Green" title="Olive Green"></button>
+                            <button class="setup-button" type="button" data-card-mode="light" aria-pressed="false">Light
+                                cards</button>
+                            <button class="setup-button" type="button" data-card-mode="dark" aria-pressed="false">Dark
+                                cards</button>
+                            <button class="setup-button" type="button" data-appearance-mode>Appearance: system</button>
+                        </div>
+                        <p class="table-setup-status" data-setup-status>Casino Green · Light cards · system table</p>
+                    </div>
+                    <a class="button button-primary preview-play" href="/ps_and_as/" data-play-with-look>Play with this
+                        look &rarr;</a>
+                </div>
+            </section>
+            <section class="section-band" id="about">
+                <div class="section">
+                    <div class="section-head"><span class="section-label">01 / The premise</span>
+                        <h2>One hand. One table.</h2>
+                        <p>Presidents &amp; Assholes is a shedding game with a social twist.
+                            Play sets of cards to beat the table,
+                            pass when you can't play, but race to finish your hand or end up as the Asshole. Your place becomes
+                            your title for the next round. Every deal gives you a new advantage to protect, or a new hell to escape.</p>
+                    </div>
+                    <div class="grid-3">
+                        <article class="tile">
+                            <h3>Read the Table</h3>
+                            <p>Watch carefully, decide when to play your strongest cards, or pass to leave yourself a way out for the end-game.</p>
+                        </article>
+                        <article class="tile">
+                            <h3>Become President</h3>
+                            <p>Finish first to become President, and gain an advantage in the next round by trading your worst card, for the Asshole's best.</p>
+                        </article>
+                        <article class="tile">
+                            <h3>Play Your Way</h3>
+                            <p>Read the table. Play aggressively, or hold onto your strongest cards by passing, waiting for the right moment...
+                            </p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+            <section class="section" id="how-it-works">
+                <div class="section-head"><span class="section-label">02 / At the table</span>
+                    <h2>Simple to start.</h2>
+                    <p>It's the same question: can you beat the current pile, and is it worth doing right now?</p>
+                </div>
+                <div class="grid-3">
+                    <article class="tile"><span class="number">1</span>
+                        <h3>Lead the Round</h3>
+                        <p>3&clubs; begins the game.</p>
+                        <br />
+                        <p>Play a single card, pairs, triples, or four-of-a-kind - if you've got them.</p>
+                    </article>
+                    <article class="tile"><span class="number">2</span>
+                        <h3>Play or Pass</h3>
+                        <p>Play ascends from the pile's current set of cards, matching the count. Pass, however, and you must wait for the pile to be cleared.</p>
+                    </article>
+                    <article class="tile"><span class="number">3</span>
+                        <h3>Finish First</h3>
+                        <p>Empty your hand before everyone else to become President for the next round. The rest of the table continues until every position is decided.</p>
+                    </article>
+                </div>
+                <p style="margin-top:2rem">
+                    <a class="button button-quiet" href="/ps_and_as/readme-fallback.html">Read the complete rules &rarr;</a>
+                </p>
+            </section>
+            <section class="section section-band" id="modes">
+                <div class="section-head"><span class="section-label">03 / Choose your table</span>
+                    <h2>Two ways in. Same pressure to finish first.</h2>
+                </div>
+                <div class="grid-2">
+                    <article class="mode"><span class="tag">Local / Quick Game</span>
+                        <h3>Practice the politics</h3>
+                        <p>Start a match against up to 7 CPU opponents for a short session or a rules refresher.</p><a class="button button-primary"
+                            href="/ps_and_as/">Start a quick game</a>
+                    </article>
+                    <article class="mode"><span class="tag">Online multiplayer</span>
+                        <h3>Invite your friends</h3>
+                        <p>Create a room, invite players with your unique code, or join an open table.</p><a class="button button-primary"
+                            href="/ps_and_as/">Find an online table</a>
+                    </article>
+                </div>
+            </section>
+            <section class="section" id="features">
+                <div class="section-head"><span class="section-label">04 / What is in the game</span>
+                    <h2>Built for another round.</h2>
+                    <p>The playable app is a browser-first game, meaning you can play on both desktop and mobile.</p>
+                </div>
+                <ul class="feature-list">
+                    <li><strong>Local CPU opponents</strong><br /><span>A complete quick-game path for solo
+                            practice.</span></li>
+                    <li><strong>Online rooms and live tables</strong><br /><span>Host, join by code, discover open
+                            games, and chat with other players.</span></li>
+                    <li><strong>Responsive browser play</strong><br /><span>Tap on mobile or click on desktop. No
+                            separate download is required.</span></li>
+                    <li><strong>Player progress</strong><br /><span>Achievements, titles, and career stats sync between platforms using Google, or Apple sign-in.</span></li>
+                </ul>
+            </section>
+            <section class="section-band" id="rules">
+                <div class="section rules-grid">
+                    <div><span class="section-label">05 / Rules desk</span>
+                        <h2>Know the ladder before you sit down.</h2>
+                        <p>Cards ascend beginning from 3, through King, Ace, 2, and finally Joker. Play the same number of cards to beat a set. Runs
+                            need at least three consecutive ranks with the same count. A trick clears when every other
+                            active player passes.</p>
+                        <div class="rank-strip" aria-label="Card rank order"><span class="rank">3</span><span
+                                class="rank">4</span><span class="rank">5</span><span class="rank">6</span><span
+                                class="rank">7</span><span class="rank">8</span><span class="rank">9</span><span
+                                class="rank">10</span><span class="rank">J</span><span class="rank">Q</span><span
+                                class="rank">K</span><span class="rank">A</span><span class="rank">2</span><span
+                                class="rank">Joker</span></div><a class="button button-quiet"
+                            href="/ps_and_as/readme-fallback.html">Open full rules</a>
+                    </div>
+                    <aside class="rule-note">
+                        <p><strong>The useful surprise:</strong> a 2, Joker, or four-of-a-kind does not automatically
+                            end the trick. Power is only useful if you can control what happens after it.</p>
+                    </aside>
+                </div>
+            </section>
+            <section class="section" id="strategy">
+                <div class="section-head"><span class="section-label">06 / First strategy notes</span>
+                    <h2>Small decisions that change a hand.</h2>
+                    <p>These are the fundamentals to carry into your first table. The full rules page covers the edge
+                        cases.</p>
+                </div>
+                <div class="grid-2">
+                    <div class="guide"><span class="number">01</span>
+                        <p><strong>Save your ceiling.</strong><br />A 2 or Joker can win a key exchange, but only if you
+                            still have a plan for the cards left behind.</p>
+                    </div>
+                    <div class="guide"><span class="number">02</span>
+                        <p><strong>Passing is information.</strong><br />A pass protects your future turn and tells the
+                            table that this rank may be safe to lead later.</p>
+                    </div>
+                    <div class="guide"><span class="number">03</span>
+                        <p><strong>Runs are an exit.</strong><br />When the table is open, consecutive cards can empty
+                            your hand faster than a string of singles.</p>
+                    </div>
+                    <div class="guide"><span class="number">04</span>
+                        <p><strong>Play for the next round.</strong><br />Finishing order determines the trade, so a
+                            narrow win can be better than a flashy trick.</p>
+                    </div>
+                </div>
+            </section>
+            <section class="section" id="faq">
+                <div class="section-head"><span class="section-label">07 / Questions before the deal</span>
+                    <h2>Good things to know.</h2>
+                </div>
+                <dl class="faq">
+                    <div>
+                        <dt>How many players can play?</dt>
+                        <dd>The game supports multiplayer tables, with a two-player dead hand used to balance a
+                            two-player game. Five or more players add Vice President and Vice Asshole trades.</dd>
+                    </div>
+                    <div>
+                        <dt>Can I play offline?</dt>
+                        <dd>Yes. The local quick-game path uses CPU opponents and does not need an online room after the
+                            app has loaded.</dd>
+                    </div>
+                    <div>
+                        <dt>Can I play on mobile?</dt>
+                        <dd>Yes. The browser game is responsive and uses tap controls on mobile, with an installable
+                            web-app flow available in supported browsers.</dd>
+                    </div>
+                    <div>
+                        <dt>Can I play online?</dt>
+                        <dd>Yes. Create or join an online room, then share the room code with friends.</dd>
+                    </div>
+                    <div>
+                        <dt>Is the game free?</dt>
+                        <dd>Yes. The browser game is free to play.</dd>
+                    </div>
+                    <div>
+                        <dt>Where do I begin?</dt>
+                        <dd>Open the game, choose a local quick game or online play, and follow the in-game setup.</dd>
+                    </div>
+                </dl>
+            </section>
+            <section class="final" aria-labelledby="final-title">
+                <h2 id="final-title">Play Presidents &amp; Assholes</h2>
+                <p>Take a seat. The first hand is waiting.</p><a class="button button-primary" href="/ps_and_as/">Play
+                    now &rarr;</a>
+            </section>
+        </main>
+        <footer>
+            <div class="footer-inner">
+                <nav aria-label="Footer navigation">
+                    <a href="/ps_and_as/">Play</a>
+                    <a href="#rules">Rules</a>
+                    <a href="#strategy">Strategy</a>
+                    <a href="#faq">FAQ</a>
+                    <a href="/ps_and_as/privacy.html">Privacy</a>
+                    <a href="https://github.com/shifuguru/ps_and_as">Source on GitHub</a>
+                    <!-- Mailto disabled until a contact email is set up
+                    <a href="mailto:shifuguru@outlook.com">Contact</a>
+                    -->
+                </nav>
+                <span>&copy; shifuguru. Presidents &amp; Assholes.</span>
+            </div>
+        </footer>
     </div>
-  </body>
+    <script src="/site-theme.generated.js"></script>
+    <script src="/site-preview.js"></script>
+</body>
+
 </html>

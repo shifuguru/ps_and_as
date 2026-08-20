@@ -7,6 +7,9 @@ on:
     paths:
       - "site-root/index.html"
       - "site-root/ads.txt"
+      - "site-root/site-preview.js"
+      - "site-root/site-theme.generated.js"
+      - "scripts/generate-site-theme.ts"
       - ".github/workflows/deploy-site-root.yml"
   workflow_dispatch: {}
 
@@ -23,10 +26,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Generate site theme adapter
+        run: npx tsx scripts/generate-site-theme.ts
+
       - name: Verify site root files
         run: |
           test -f site-root/index.html
           test -f site-root/ads.txt
+          test -f site-root/site-preview.js
+          test -f site-root/site-theme.generated.js
+          test "$(grep -o '"name":' site-root/site-theme.generated.js | wc -l)" -eq 6
           ! grep -q "pagead2.googlesyndication.com" site-root/index.html
           grep -q 'google-adsense-account' site-root/index.html
           echo "site-root bundle looks valid."
@@ -34,7 +43,7 @@ jobs:
       - name: Prepare publish directory
         run: |
           mkdir -p publish
-          cp site-root/index.html site-root/ads.txt publish/
+          cp site-root/index.html site-root/ads.txt site-root/site-preview.js site-root/site-theme.generated.js publish/
 
       - name: Deploy to shifuguru.github.io
         uses: peaceiris/actions-gh-pages@v4
