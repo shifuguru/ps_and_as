@@ -11,7 +11,8 @@
     "target": "esnext",
     "module": "esnext",
     "lib": [
-      "esnext"
+      "esnext",
+      "dom"
     ],
     "types": [
       "react",

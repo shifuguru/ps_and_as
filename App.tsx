@@ -641,6 +641,10 @@ function AppContent() {
   useEffect(() => {
     if (!roomAdapter || !isSocketAdapter(roomAdapter)) return;
 
+    let effectActive = true;
+    const fallbackTimers = new Set<ReturnType<typeof setTimeout>>();
+    const syncListenerCleanups = new Set<() => void>();
+
     const onMessage = (ev: {
       type: string;
       state?: {
@@ -732,17 +736,33 @@ function AppContent() {
         }
       };
       roomAdapter.on("message", onSync);
-      setTimeout(() => {
-        if (entered) return;
-        entered = true;
+      const removeSyncListener = () => {
         roomAdapter.off("message", onSync);
+        syncListenerCleanups.delete(removeSyncListener);
+      };
+      syncListenerCleanups.add(removeSyncListener);
+      const fallbackTimer = setTimeout(() => {
+        fallbackTimers.delete(fallbackTimer);
+        if (!effectActive || entered) return;
+        entered = true;
+        removeSyncListener();
         enter();
       }, 2000);
+      fallbackTimers.add(fallbackTimer);
     };
 
     roomAdapter.on("message", onMessage);
     return () => {
+      effectActive = false;
       roomAdapter.off("message", onMessage);
+      for (const timer of fallbackTimers) {
+        clearTimeout(timer);
+      }
+      fallbackTimers.clear();
+      for (const removeSyncListener of syncListenerCleanups) {
+        removeSyncListener();
+      }
+      syncListenerCleanups.clear();
     };
   }, [roomAdapter, enterOnlineGame]);
 

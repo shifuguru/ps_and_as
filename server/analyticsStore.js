@@ -22,6 +22,7 @@ const CLIENT_EVENTS = new Set([
   "cta_quick_game",
   "cta_local_game",
   "cta_online_game",
+  "cta_online_join",
   "quick_game_started",
   "name_setup_completed",
   "install_coach_continued",
