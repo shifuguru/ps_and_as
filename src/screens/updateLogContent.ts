@@ -14,7 +14,7 @@ export type KnownIssue = {
 };
 
 export const UPDATE_LOG_TAGLINE =
-  "New rules, fixes, and polish — the stuff that changes how you play.";
+  "What's changed since the last update.";
 
 export { formatUpdateTimestamp } from "../utils/formatLocalDateTime";
 
@@ -27,435 +27,129 @@ export function nzst(local: string): string {
 export function nzdt(local: string): string {
   const base = local.length === 16 ? `${local}:00` : local;
   return `${base}+13:00`;
-
 }
 
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
-    publishedAt: nzst("2026-08-14T08:49"),
-    title: "Rollback — game loads again",
+    publishedAt: nzst("2026-08-20T16:09"),
+    title: "Online games start more reliably",
     items: [
-      "Reverted a large batch of recent changes that could stop the game from opening or crash at round end",
-      "You are back on the last known-good build while we re-land fixes one at a time",
+      "Online startup and room entry are less likely to stall before play begins",
+      "Round transitions now recover more cleanly when online messages arrive out of order",
+    ],
+  },
+  {
+    publishedAt: nzst("2026-08-14T22:13"),
+    title: "Pick up an online game where you left it",
+    items: [
+      "A pending online lobby now appears on the Home Hub below Play with Friends",
+      "Rejoin the table without digging through the lobby again",
+    ],
+  },
+  {
+    publishedAt: nzst("2026-08-14T00:12"),
+    title: "Achievements and titles share a home",
+    items: [
+      "Achievements and title tracks now sit in swipeable profile tabs",
+      "Move between career progress and the title you want to wear without leaving the profile",
+    ],
+  },
+  {
+    publishedAt: nzst("2026-08-13T23:39"),
+    title: "Online tables are easier to join and talk in",
+    items: [
+      "Room names, party counts, and lobby actions are clearer",
+      "Quick chat emotes now appear beside the player who sent them",
+      "Play with Friends puts the table and its main actions first",
+      "Skipping deal animations is less likely to desync an online table",
+    ],
+  },
+  {
+    publishedAt: nzst("2026-08-13T23:04"),
+    title: "CPU opponents play more of the hand",
+    items: [
+      "CPU opponents can now lead doubles, triples, and four-of-a-kind when they hold them",
+      "CPU play no longer stalls after closing a 10-rank across turns",
+    ],
+  },
+  {
+    publishedAt: nzst("2026-08-13T00:30"),
+    title: "Cleaner passes and Joker turns",
+    items: [
+      "Passing clears stale card selections",
+      "Joker turns acknowledge and move on instead of leaving the table hanging",
+    ],
+  },
+  {
+    publishedAt: nzst("2026-08-12T10:31"),
+    title: "Titles, daily rewards, and more reasons to return",
+    items: [
+      "Titles can now be earned from your career and selected from your profile",
+      "Daily login rewards add XP when you claim them",
+      "Achievement progress and XP now have more visible places to go",
+    ],
+  },
+  {
+    publishedAt: nzst("2026-08-06T16:28"),
+    title: "The rules page catches up with the game",
+    items: [
+      "The in-game Rules page now reflects the house rules more accurately",
+      "Daily challenges became tap-to-claim, so XP is awarded when you choose to collect it",
+      "Quick Game and post-trade opening fixes cover CPU and online stalls players could actually hit",
     ],
   },
   {
     publishedAt: nzst("2026-08-04T22:16"),
-    title: "Settings, achievements & rules easier to reach",
+    title: "Rules and progress are easier to find",
     items: [
-      "Home — gear and trophy sit next to your name; the old Settings and Achievements buttons at the bottom are gone",
-      "Home — Game Rules sits under your profile, above Quick Game",
-      "In-game — a small Rules button in the top corner opens the rules any time",
-      "Fix — starting a game no longer crashes looking for the Rules button wiring",
+      "Game Rules now sits beside the main play choices on Home",
+      "Settings and Achievements are next to your player name",
+      "A Rules button is available from the table when you need a reminder",
     ],
   },
   {
     publishedAt: nzst("2026-08-03T15:51"),
-    title: "Clearer Google sync",
+    title: "Google sync shows what came across",
     items: [
-      "Settings shows Google linked (not Local profile) when your account is connected",
-      "Sync now tells you your Level and XP after syncing — and if cloud was empty, asks you to sync the Level 20 phone first",
+      "Settings now makes it clear when your profile is linked to Google",
+      "Sync reports your Level and XP after the transfer, including when cloud progress is empty",
     ],
   },
   {
-    publishedAt: nzst("2026-08-03T14:36"),
-    title: "Phone install & Google sync",
+    publishedAt: nzst("2026-07-21T23:59"),
+    title: "July — phones, profiles, and a busier table",
     items: [
-      "On a phone browser, you’ll be asked to add the game to your home screen before picking a name — fuller screen, cleaner play",
-      "If you stay in the browser, you can link Google so your name and game stats can follow you across devices",
-      "Display name no longer pops up a password save prompt",
+      "The finishing play now stays visible before the last cards and rankings appear",
+      "The Player Hub brings your profile, goals, achievements, and local/online play together",
+      "Achievements now have prestige ranks, career totals, rarity progress, and role counts",
+      "Runs and 10s received clearer in-game guidance, while the table and HUD became easier to read",
+      "Dark mode is the default for new visitors; Instagram browsers now point players to a proper browser session",
+      "Phone play gained clearer install guidance, portrait locking, safer private hands during online trades, and better small-screen spacing",
     ],
   },
   {
-    publishedAt: nzst("2026-07-31T17:10"),
-    title: "Roomier table on small phones",
+    publishedAt: nzst("2026-06-30T23:59"),
+    title: "June — On Top, online tables, and the rules getting teeth",
     items: [
-      "Round Streak — cleaner label (no extra “Rounds” or “Start a run”); rarer streaks still show their pips",
-      "Tricks — only players who’ve won a trick show up; on crowded tables it starts compact and you can tap to expand",
-      "Winning Play — shorter winner line, with readable size and padding again",
-      "Hand & seats — the glow behind your cards is gone; seats and table space scale better with 6–8 players on small phones",
+      "On Top turns work after 10s and after Runs, including the extra beat or Skip that closes the trick",
+      "Runs stay active through valid extensions and step-backs; 10s do not trigger Higher/Lower inside a Run",
+      "10 Lower now requires the same number of cards as the 10 pile",
+      "Quad Bombs, Quad Runs, K–A–2 runs, and Joker restrictions are in the game",
+      "Online play gained public table browsing, room codes, spectator mode, dead-hand handling for two players, rejoin support, and President/Asshole trades",
+      "Open Bot Table and Quick Game received fixes for stuck turns, late passes, Joker clears, and round transitions",
+      "Runs and tricks now award XP through the round scoreboard; profiles, achievements, avatar borders, and player shouts add longer-term progress",
+      "Mobile/PWA play gained home-screen install guidance, responsive hand layouts, card flights, and clearer turn controls",
     ],
   },
   {
-    publishedAt: nzst("2026-07-30T23:02"),
-    title: "Clearer menus, Find Game & lobby",
+    publishedAt: nzst("2026-05-31T23:59"),
+    title: "May — the first proper table",
     items: [
-      "Home — Quick Game stands out first; the other cards sit quieter in the background",
-      "Find Game — join with a code is the main action; hosting and the open-games list sit underneath",
-      "Lobby — the table and seats lead the screen; room setup text stays out of the way",
-      "Buttons & labels — primary actions are easier to spot, with less tiny uppercase clutter",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-30T20:55"),
-    title: "iPhone edges and online players cleanup",
-    items: [
-      "iPhone Home Screen — the extra top and bottom tint bands are gone, so the wallpaper runs edge to edge again",
-      "Opening the app — the splash screen now cleanly covers the status area while the app loads",
-      "Online players — stray generic Player entries from extra connections should no longer appear",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-30T17:00"),
-    title: "Name box above the keyboard",
-    items: [
-      "First open — the name box sits above the keyboard when you tap it",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-30T15:55"),
-    title: "Choose your name, clearer looks & private hands online",
-    items: [
-      "First open — pick the name other players will see before you hit the Home Hub",
-      "Look & feel — clearer light and dark text, stronger buttons, and a refreshed Customise Theme picker in Settings",
-      "Phones — the app stays in portrait so the table doesn’t tip sideways",
-      "Online — your hand stays private from opponents and spectators during trades",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-17T15:09"),
-    title: "See the last play before round end",
-    items: [
-      "In-game — after the finishing play, the table holds for a few seconds so you can see it before Asshole’s last cards and rankings",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-17T14:53"),
-    title: "Dark mode, Instagram browser & in-game unlocks",
-    items: [
-      "Appearance — dark mode is the default for new visitors (you can still pick System or Light in Settings)",
-      "Instagram — tap ⋯ top right, then Open in browser / Safari / Chrome for the best experience",
-      "In-game — new unlocks and prestige ranks show a short toast that fades away",
-      "Runs — the tip shows Play X or Y for the adjacent ranks (±1) while a run is live",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-17T14:11"),
-    title: "Deal chrome, hand polish & Instagram links",
-    items: [
-      "Instagram — opening the site from Instagram no longer refreshes in a loop",
-      "In-game — Round Streak, Settings, and Achievements stay visible while cards are dealt",
-      "In-game — selected cards use your felt accent; scroll arrows sit a touch lower on the hand",
-      "In-game — Play / Leave lifted a little more above the home indicator; tricks sit slightly higher",
-      "Round Streak — energy glow follows the streak rarity colour",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-16T23:41"),
-    title: "Home Hub, lobbies & table polish",
-    items: [
-      "Home — panels reordered so Play sits under your profile, then Daily, achievements, and the rest",
-      "Offline & Online lobbies — glass rims, gold labels, and cleaner status chrome to match Home",
-      "In-game — Round Streak top-left; Next Prestige hidden for now; table sits a bit lower",
-      "In-game — bigger Play button (no card count on the label); tricks panel more compact; hand lifted a little",
-      "Achievements — President Streak pills use cool platinum, not orange; flame rises from the bottom of the pill",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-16T14:21"),
-    title: "Achievements list polish",
-    items: [
-      "Achievements — listed from most exclusive to most common (Dynasty down to Bottom of the Deck)",
-      "Achievements — each card shows your career total in small faded text (for example, times as President)",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-16T14:18"),
-    title: "Felt wallpaper, prestige achievements & streak pills",
-    items: [
-      "Achievements — every achievement can prestige (Roman numerals); progress carries over from your existing stats",
-      "Achievements — rarity-tinted progress fills each card as you climb toward the next prestige",
-      "Profile — Current and Best President Streak pills glow hot while your streak is live, and calm to sparkles when it’s broken",
-      "Profile — role counts (President through Asshole) sit in clearer coloured pills",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-15T21:56"),
-    title: "New home screen, table UI & Runs/tens fixes",
-    items: [
-      "Home — a new Player Hub with your profile, progress, goals, and Offline / Online play",
-      "Table — refreshed felt, glass panels, ambient lighting, and clearer in-game HUD widgets",
-      "Runs! — when a run locks in, the pill gets a subtle warm energy effect around the glass",
-      "Runs — false activations from messy play order (like 9→10→9→J) should no longer light up Runs",
-      "Opening lead — hints no longer say open with a 3 when you’re just leading after winning a trick",
-      "On Top — cards should land cleanly when a trick closes on an On Top play",
-      "Winning play — last-trick info clears correctly between rounds so stale labels don’t linger",
-      "Theme — light and dark environments tune felt and frost together without changing glass strength",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-07-14T18:22"),
-    title: "Sticky Runs, tens & round-end stability",
-    items: [
-      "Runs — once three ascending ranks lock in, Runs stays on for the whole trick; stepping back (7→6→5) keeps Runs alive until the pile clears",
-      "Tens during Runs — a 10 in a Run is just another card; Higher/Lower never appears while Runs is active",
-      "On Top — during a Run, your one On Top play still has to sit next to the pile (±1); after it (or Skip) the trick ends and Runs ends",
-      "On Top on a 10 — beating a lone 10 still follows Higher/Lower (On Top is just the extra turn)",
-      "Round end — rankings should open cleanly without freezing the table or dumping you to the README",
-      "Quit Game on rankings — Leave game? confirm sits on top so you can cancel or leave",
-      "Your plays — cards from your hand shouldn't get stuck floating above the pile",
-      "Table & menus — glass overlays, clearer buttons, and smoother turn highlights",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-21T00:24:28"),
-    title: "On Top, opening lead & Find Game",
-    items: [
-      "On Top — after winning with a 10, your on-top turn should work again even if sync briefly lost your Higher/Lower choice",
-      "Online — after role trades, the player with 3♣ opens the round (not whoever received another three)",
-      "Find Game — when nobody is hosting publicly, you'll see No Public Games Available instead of a bot table listing",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-17T13:05:38"),
-    title: "Fresh round & online dealing",
-    items: [
-      "Online — after a fresh round (three Asshole streaks), the next deal no longer pops a phantom President trade or stalls before play",
-      "Online — when trades finish, your dealt hand shows up reliably instead of starting the round empty",
-      "Online — round transitions between rankings and the next deal are more stable when sync messages arrive out of order",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-08T21:24:32"),
-    title: "Playing a 10 & online resync",
-    items: [
-      "Playing a 10 — choose Higher or Lower before your tens go to the table, instead of waiting for them to land first",
-      "Quick Game — joining or refreshing mid-round resyncs more reliably on bot tables",
-      "General gameplay stability improvements",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-08T16:32:29"),
-    title: "Turn highlight during card plays",
-    items: [
-      "Turn ring — the gold highlight stays on whoever just played while their cards are still flying to the table, instead of jumping to the next player too soon",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-08T12:37:44"),
-    title: "Turn pill & late-round passes",
-    items: [
-      "Your play — the turn pill stays on you until your card lands and the table syncs; no more brief Waiting for… flicker on slow connections",
-      "Late round — when the trick leader is already out and everyone else has passed, the trick resolves instead of hanging",
-      "Settings and other overlays sit above card flights again",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-06T20:31:29"),
-    title: "Spectator seat claims",
-    items: [
-      "Open bot table — Ready to claim a seat only counts after the round ends, so you won't jump into a game from an old tap while watching",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-06T00:43"),
-    title: "10 Lower",
-    items: [
-      "10 Lower — you must play the same number of cards as the 10 pile (no triple beat on a single 10)",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-05T14:31:41"),
-    title: "Turn timing & table polish",
-    items: [
-      "Your hand — playable cards light up only after the last play lands on the table",
-      "Quick Game — opponents keep going after your first play; no more stuck turns",
-      "Your plays — cards stay in the fan until they fly; no empty gap when you hit Play",
-      "On top! — the table pill flashes like Pass so you spot your on-top beat",
-      "Bot table — bottom bar: Settings, Leave Game, and Achievements in one row; Skip game in the play area when spectating",
-      "Settings — clearer tip for full-screen play from your home screen",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-05T12:00:54"),
-    title: "Turn order & card flights",
-    items: [
-      "After role trades, the player with the 3♣ opens — including the middle player in a 3-player game",
-      "President↔Asshole trades — you choose which cards to send back; Asshole still gives their best card",
-      "Opponent plays — cards fly from their seat to the table again on web",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-05T11:32:36"),
-    title: "Online trades & hand cards",
-    items: [
-      "Online — President↔Asshole trades work again when two humans share a table",
-      "Selected cards — rank and suit stay the same size when you tap them",
-      "Skip deal animations — still only skips shuffle and deal; role trades always run",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-05T11:16:07"),
-    title: "Bot table & online play",
-    items: [
-      "On top! — winning the trick clears the table and you can lead the next one (including two-player with dead hand)",
-      "Bot table — bots keep playing when you pass on a run; no more stuck “waiting for bot”",
-      "Bot table — tap Ready when you’re seated to skip the rankings wait; everyone sees the same next-deal countdown",
-      "Cards fly from your hand to the table and stay visible over menus and pop-ups",
-      "Round rankings — trick XP matches what you earned that round",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-03T18:34"),
-    title: "Hand polish",
-    items: [
-      "Your hand — easier scrolling, steady card size, and cleaner dimming on cards you can’t play",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-02T23:27"),
-    title: "Trick finishes",
-    items: [
-      "Jokers and unbeatable four-of-a-kind — the trick ends cleanly when everyone else has passed",
-      "Bot table — no more frozen turns after a joker or when someone already passed",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-02T18:46"),
-    title: "Dealing & trades",
-    items: [
-      "Later rounds — deal animation matches a full deck; trades no longer flash cards you already hold",
-      "Online — President↔Asshole trades happen after the deal animation finishes",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-02T12:08"),
-    title: "Open Bot Table",
-    items: [
-      "Find Game — watch Amy and Ben anytime; tap Take Dead Hand Seat or Ready to join the next round",
-      "Up to eight players; bots make room as humans sit down",
-      "Skip or restart from Find Game if the table looks stuck; round end shows the last hand instead of hanging",
-      "Tricks finish after jokers, rank closes, and mid-run plays — including while you spectate",
-      "Quick Game no longer drops you on the readme page",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-02T10:39"),
-    title: "Runs, passes & trades",
-    items: [
-      "Run bonus XP — +5 per card in the run; see a live +XP hint while the trick is on",
-      "After a joker or rank close, everyone can pass to acknowledge; play continues smoothly",
-      "Skip deal animations still shows President↔Asshole trades; chevrons help you find playable cards off-screen",
-      "Deal shuffle no longer gets stuck on later rounds",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-06-01T22:27"),
-    title: "Dealing, hand hints & layout",
-    items: [
-      "Deal ceremony — shuffle and deal from your hand zone with smoother pacing",
-      "Chevrons when a playable card is off-screen — tap to jump there",
-      "Smaller phones — hand, buttons, and seats scale so the table stays readable",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-30T22:29"),
-    title: "Runs, trades & XP",
-    items: [
-      "Role trades — return cards fly to the right seat before the round opens",
-      "Trick and run XP tally during play and land on the scoreboard; leaving early forfeits that round’s XP",
-      "See other players’ trick-win shouts and avatar borders online",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-30T21:00"),
-    title: "Rewards & Quick Game",
-    items: [
-      "Trick-win shouts and avatar borders from achievements",
-      "Quick Game — seven named bot opponents with different styles and career XP",
-      "What's New badge on the menu until you’ve read the log",
-      "Multiplayer button shows how many players are online",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-30T18:00"),
-    title: "Table & round end",
-    items: [
-      "Turn hints on the table — Your turn, Waiting for…, and Dealing cards… sit below the play-type badge; Your turn pulses like Pass",
-      "Play-type pill highlights when a run or special rule is active; plain Singles stays gold",
-      "Run bonus XP pool above the play pile during 4+ card runs — trick winner takes the pool when the trick ends",
-      "At round end the table aims to show the last player's remaining hand before rankings",
-      "Brighter glow on the active player's avatar ring",
-      "Online lobbies accept up to 8 players before the game starts",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-30T16:20"),
-    title: "Table visibility",
-    items: [
-      "Card piles stay fully visible during a trick",
-      "On top! — everyone sees the winning play before the table clears",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-30T13:55"),
-    title: "Roles & trades",
-    items: [
-      "5+ players — Vice President and Vice Asshole roles with card trades; middle-ranked players have no trade",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-30T10:21"),
-    title: "Runs & profiles",
-    items: [
-      "Tap an opponent's avatar mid-game to open their player profile",
-      "Runs stay active through step-backs and bounce-backs (e.g. J-Q-J-K, 10-J-Q-J-Q)",
-      "Skip deal animations — role trades no longer duplicate cards when others are still watching the deal",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-29T21:35"),
-    title: "Rules & turn flow",
-    items: [
-      "Runs follow one direction; Runs! stays on through valid extensions",
-      "On top! — extra turn when a run ends and everyone passes; 10 rule works on top too",
-      "Fresh round — skips President↔Asshole trade if the same player is Asshole three rounds in a row",
-      "Everyone in the lobby must ready up before the host can start",
-      "Dead hand — dealer can reshuffle when the dead hand gets all four 3s and nobody can open",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-29T16:01"),
-    title: "Deal flow & hand layout",
-    items: [
-      "After trades, whoever holds the 3♣ leads",
-      "Hand fans in an arc; your centre card stays upright and opens on new deals",
-      "Skip deal animations in Settings; turn hints wait until deals and trades finish",
-      "Must pick higher or lower when a 10 is your last card before you're out",
-      "Rankings XP animates into career totals at round end",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-28T22:16"),
-    title: "New rules",
-    items: [
-      "Turn bell — tap 🔔 on someone's seat to nudge them after ~12 seconds",
-      "Quads across turns are unbeatable; quad bombs beat lower sets",
-      "Quad runs — four-of-a-kind on consecutive ranks (5555 → 6666 → 7777)",
-      "Jokers can't be played during any active run",
-      "K-A-2 counts as a valid run",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-28T20:28"),
-    title: "Online multiplayer",
-    items: [
-      "Browse open lobbies or join friends with a room code; host a public game",
-      "Ready up when the lobby is full; tap avatars for player profiles",
-      "Spectator mode — watch a game and claim the dead hand seat next round",
-      "Dead hand in 2-player games; opening rules when the dead hand holds 3♣",
-      "Rejoin mid-game without replaying the deal",
-      "President/Asshole trades and deal ceremony work every round online",
-    ],
-  },
-  {
-    publishedAt: nzst("2026-05-28T17:36"),
-    title: "Look & feel",
-    items: [
-      "Custom felt tint with a colour picker",
-      "Light, dark, or system appearance; dark mode cards in Settings",
-      "Riffle shuffle and faster dealing between rounds",
-      "Room codes copy in one tap",
+      "The core loop arrived: shed your hand, finish in order, take a role, trade cards, and deal again",
+      "President, Asshole, Vice President, and Vice Asshole roles now carry consequences into the next deal",
+      "Runs, 10 Higher/Lower, On Top, Jokers, four-of-a-kind, Quad Bombs, and Quad Runs establish the game's deeper identity",
+      "Online rooms, room codes, profiles, spectator seating, a two-player dead hand, CPU opponents, and up-to-eight-player tables were added",
+      "Felt themes, light/dark cards, achievements, XP, career stats, and the first Quick Game progression arrived with the table",
     ],
   },
 ];

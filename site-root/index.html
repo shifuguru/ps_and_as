@@ -715,26 +715,33 @@
 
             .hero {
                 grid-template-columns: 1fr;
-                padding-top: 3.5rem;
-                gap: 2.5rem;
+                padding: 3rem 1rem 4.5rem;
+                gap: 2rem;
             }
 
             h1 {
-                font-size: clamp(3.4rem, 18vw, 5.5rem);
+                font-size: clamp(3rem, 14vw, 5rem);
             }
 
             .tableau {
-                min-height: 17rem;
+                min-height: clamp(17rem, 82vw, 20rem);
             }
 
             .card {
-                width: 4.25rem;
-                height: 6rem;
+                width: clamp(4.2rem, 19vw, 5.2rem);
+                height: clamp(5.95rem, 26.8vw, 7.35rem);
             }
 
             .card strong {
-                margin-top: 1rem;
-                font-size: 1.7rem;
+                margin-top: clamp(1rem, 3.5vw, 1.35rem);
+                font-size: clamp(1.7rem, 7vw, 2rem);
+            }
+
+            .preview-hint {
+                left: 1.25rem;
+                right: 1.25rem;
+                bottom: 1.1rem;
+                min-height: 4.1rem;
             }
 
             .grid-3,
@@ -781,10 +788,14 @@
 
 <body>
     <div class="shell">
-        <header class="topbar"><a class="brand" href="/">P's &amp; A's</a>
-            <nav class="nav" aria-label="Main navigation"><a href="#how-it-works">How it works</a><a
-                    href="#modes">Modes</a><a href="#rules">Rules</a><a href="#faq">FAQ</a><a class="nav-play"
-                    href="/ps_and_as/">Play now &rarr;</a></nav>
+        <header class="topbar">
+            <a class="brand" href="/">P's &amp; A's</a>
+            <nav class="nav" aria-label="Main navigation">
+                <a href="#how-to-play">How to Play</a>
+                <a href="#rules">Rules</a>
+                <a href="#faq">FAQ</a>
+                <a class="nav-play" href="/ps_and_as/">Play now &rarr;</a>
+            </nav>
         </header>
         <main>
             <section class="hero" aria-labelledby="page-title">
@@ -800,30 +811,30 @@
                     <div class="tableau" data-tableau aria-label="Interactive preview of a Ps &amp; As card table">
 
                         <div class="preview-hint" data-preview-hint aria-live="polite">
-                            <strong data-hint-title>Starting card</strong>
-                            <span data-hint-text>The opening lead starts with the 3♣.</span>
+                            <strong data-hint-title>Starting Card</strong>
+                            <span data-hint-text>The opening play must contain the 3♣.</span>
                         </div>
 
-                        <div class="card" data-preview-card data-card-index="0" data-hint-title="Starting card" data-hint-text="The opening lead starts with the 3♣.">
+                        <div class="card" data-preview-card data-card-index="0" data-hint-title="Starting Card" data-hint-text="The opening play must contain the 3♣.">
                             <small>3 &clubs;</small>
                             <strong>3</strong>
                         </div>
 
                         <div class="card red" data-preview-card data-card-index="1" tabindex="0" data-hint-title="Power card"
-                        data-hint-text="A 10 can change the direction of play for the next exchange.">
+                        data-hint-text="10 forces the next card to be higher or lower, unless you're caught in a Run!">
                             <small>10 &diams;</small>
                             <strong>10</strong>
                         </div>
 
                         <div class="card" data-preview-card data-card-index="2" tabindex="0"
                         data-hint-title="Highest normal rank"
-                        data-hint-text="The 2 sits above Ace and King in the rank order.">
+                        data-hint-text="The 2 is the highest rank after King and Ace, beaten only by a Joker and on rare occasions by closing the rank.">
                             <small>2 &spades;</small>
                             <strong>2</strong>
                         </div>
 
                         <div class="card joker" data-preview-card data-card-index="3" tabindex="0" data-hint-title="Joker"
-                        data-hint-text="The Joker is the highest card, with its own limits during a run.">
+                        data-hint-text="The Joker is the highest card with its own limits. It cannot be played during a Run, against 10 - Lower, or when any Rank is closed.">
                             <small>Joker</small>
                             <strong>&starf;</strong>
                         </div>
@@ -875,8 +886,8 @@
                             <p>Finish first and you become President. Finish last and you're the Asshole. The next deal knows the difference.</p>
                         </article>
                         <article class="tile">
-                            <h3>Hold something back</h3>
-                            <p>Sometimes the best card in your hand is the one you don't play.</p>
+                            <h3>Hold Up</h3>
+                            <p>Sometimes your best move might be to pass.</p>
                         </article>
                     </div>
                 </div>
