@@ -103,6 +103,9 @@
     }
     if (table) {
       table.style.backgroundColor = visualPreset.hex;
+      const tint = `color-mix(in srgb, ${visualPreset.hex} 62%, transparent)`;
+      table.style.backgroundImage = `linear-gradient(${tint}, ${tint}), linear-gradient(135deg, rgba(255,255,255,.05), transparent 45%), url("/ps_and_as/assets/felt_grey.webp")`;
+      table.style.backgroundBlendMode = "normal";
       table.style.boxShadow = `var(--shadow), 0 0 36px color-mix(in srgb, ${mode === "dark" ? visualPreset.accent : visualPreset.lightAccent}, transparent 88%)`;
     }
     root.style.setProperty("--preview-card-bg", cards.faceBg);
