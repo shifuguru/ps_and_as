@@ -100,8 +100,8 @@
         if (cardHints.length === 0) return;
         carouselIndex = (carouselIndex + 1) % cardHints.length;
         setHoveredCard(cardHints[carouselIndex], false);
-      }, 10000);
-    }, 15000);
+      }, 8500);
+    }, 10000);
   };
 
   const effectiveMode = () => {
@@ -117,6 +117,7 @@
     const cards = darkCards ? theme.cards.dark : theme.cards.light;
     const pageTint = `color-mix(in srgb, ${visualPreset.hex} 58%, transparent)`;
     root.dataset.previewMode = mode;
+    root.dataset.previewCards = darkCards ? "dark" : "light";
     root.style.setProperty("--preview-felt", visualPreset.hex);
     root.style.setProperty("--preview-surface", visualPreset.surface);
     root.style.setProperty("--preview-accent", mode === "dark" ? visualPreset.accent : visualPreset.lightAccent);
@@ -144,12 +145,14 @@
     root.style.setProperty("--preview-card-bg", cards.faceBg);
     root.style.setProperty("--preview-card-black", cards.blackSuit);
     root.style.setProperty("--preview-card-red", cards.redSuit);
+    root.style.setProperty("--preview-card-border", cards.faceBorder);
     feltButtons.forEach((button, index) => {
       const preset = theme.presets[index];
       if (preset) button.style.setProperty("--swatch", preset.hex);
     });
     cardNodes.forEach((node, index) => {
       node.style.backgroundColor = cards.faceBg;
+      node.style.borderColor = cards.faceBorder;
       node.style.color = index % 2 === 0 ? cards.redSuit : cards.blackSuit;
       node.dataset.cards = darkCards ? "dark" : "light";
     });
@@ -188,9 +191,7 @@
       render();
     };
     button.addEventListener("pointerenter", previewCards);
-    button.addEventListener("pointerleave", () => { hoveredDarkCards = null; render(); });
     button.addEventListener("focus", previewCards);
-    button.addEventListener("blur", () => { hoveredDarkCards = null; render(); });
   });
   appearanceButton?.addEventListener("pointerenter", () => {
     hoveredAppearance = nextAppearance(state.appearance);

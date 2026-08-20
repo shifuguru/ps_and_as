@@ -169,7 +169,10 @@
             font-weight: 800;
             text-decoration: none;
             box-shadow: 0 5px 24px rgba(0, 0, 0, .3), 0 1px 4px rgba(0, 0, 0, .14);
-            transition: transform .18s ease, background .18s ease, border-color .18s ease;
+            transition:
+                transform .18s ease,
+                background .18s ease,
+                border-color .18s ease;
         }
 
         .button:hover,
@@ -254,16 +257,17 @@
 
             background: var(--preview-card-bg, var(--paper));
             color: var(--preview-card-black, #222);
+            border-color: var(--preview-card-border, rgba(0, 0, 0, .18));
 
             box-shadow: 0 12px 20px rgba(0, 0, 0, .4);
 
             font-family: Georgia, "Times New Roman", serif;
 
             transition:
-                transform 180ms ease,
-                filter 180ms ease,
-                z-index 180ms ease,
-                box-shadow 180ms ease;
+                transform 360ms ease,
+                filter 360ms ease,
+                z-index 360ms ease,
+                box-shadow 360ms ease;
         }
 
         .preview-hint {
@@ -327,7 +331,7 @@
                 );
 
             transform:
-                translateY(-2rem)
+                translateY(-4rem)
                 rotate(var(--rotation))
                 scale(1.03);
         }
@@ -789,7 +793,7 @@
                     <h1 id="page-title">Presidents<br />&amp; Assholes</h1>
                     <p class="hero-copy">Empty your hand. Finish first and you're President. Finish last and you're the Asshole.</p>
                     <div class="button-row">
-                        <a class="button button-quiet" href="#how-it-works">See how it works</a>
+                        <a class="button button-quiet" href="#how-to-play">Learn how to play</a>
                     </div>
                 </div>
                 <div class="preview-stack">
@@ -857,9 +861,9 @@
                 <div class="section">
                     <div class="section-head"><span class="section-label">01 / The premise</span>
                         <h2>Your finish follows you.</h2>
-                        <p>Presidents &amp; Assholes is a shedding game with a social hierarchy built into the deal.
-                            Empty your hand, then live with where you finished. The President gets the advantage in the next deal;
-                            the Asshole gets the punishment. A good position is worth protecting. A bad one is worth escaping.</p>
+                        <p>Presidents &amp; Assholes is a shedding game where the finishing order follows you into the next deal.
+                            Empty your hand, then live with where you finished. The President gets the best card in the Asshole's new hand.
+                            Then the President decides what the Asshole gets back. Generosity is optional.</p>
                     </div>
                     <div class="grid-3">
                         <article class="tile">
@@ -877,7 +881,7 @@
                     </div>
                 </div>
             </section>
-            <section class="section" id="how-it-works">
+            <section class="section" id="how-to-play">
                 <div class="section-head"><span class="section-label">02 / At the table</span>
                     <h2>Play cards. Get out.</h2>
                     <p>Lead a card or matching set, beat what is on the table, or pass. The aim is simple: shed your hand before the others do.</p>
@@ -885,15 +889,16 @@
                 <div class="grid-3">
                     <article class="tile"><span class="number">1</span>
                         <h3>Lead</h3>
-                        <p>The first lead is the 3♣. After that, play a card or a matching set.</p>
+                        <p>The first lead is the 3♣. After that, play a card or a matching set. Runs can help you shed more than one rank before the table catches up.</p>
                     </article>
                     <article class="tile"><span class="number">2</span>
                         <h3>Beat or pass</h3>
-                        <p>Match the number of cards and beat the rank, or pass. Passing is how you wait without giving away the hand you want to keep.</p>
+                        <p>Match the number of cards and beat the rank, or pass. Passing lets you keep a play back while everyone else shows what they have.</p>
                     </article>
                     <article class="tile"><span class="number">3</span>
                         <h3>Change the next deal</h3>
-                        <p>Empty your hand first to become President. Everyone else is still playing to avoid the bottom seat.</p>
+                        <p>Empty your hand first to become President. Then the President gets the advantage in the next deal;
+                            the player who finishes last has to hand over their best card.</p>
                     </article>
                 </div>
                 <p style="margin-top:2rem">
@@ -936,8 +941,9 @@
                 <div class="section rules-grid">
                     <div><span class="section-label">05 / Rules desk</span>
                         <h2>Know the ladder before you play.</h2>
-                        <p>Cards rise from 3 to 2, then Joker. Play singles or matching sets; after that, the rules start making obvious plays less obvious.
-                            The full rules explain the rest.</p>
+                        <p>Cards rise from 3 to 2, then Joker. Play singles or matching sets. Runs can let you shed ranks in sequence;
+                            10s can send play higher or lower. A 2, Joker, or four-of-a-kind can turn a plain exchange into something else.
+                            The full rules explain the less obvious parts.</p>
                         <div class="rank-strip" aria-label="Card rank order"><span class="rank">3</span><span
                                 class="rank">4</span><span class="rank">5</span><span class="rank">6</span><span
                                 class="rank">7</span><span class="rank">8</span><span class="rank">9</span><span
@@ -947,8 +953,8 @@
                             href="/ps_and_as/readme-fallback.html">Open full rules</a>
                     </div>
                     <aside class="rule-note">
-                        <p><strong>The useful surprise:</strong> 10s, 2s, Jokers, four-of-a-kind, and runs all come with conditions.
-                            You can learn those when you need them.</p>
+                        <p><strong>The useful surprise:</strong> The strongest cards are not a free pass. A Joker cannot join a run,
+                            a four-of-a-kind starts a challenge, and a 10 can change what “higher” means.</p>
                     </aside>
                 </div>
             </section>
@@ -962,13 +968,13 @@
                         <p><strong>Keep an exit.</strong><br />Sometimes the best card in your hand is the one you don't play.</p>
                     </div>
                     <div class="guide"><span class="number">02</span>
-                        <p><strong>Watch the passes.</strong><br />A player who keeps passing may be protecting a pair, a 2, or something worse for you.</p>
+                        <p><strong>Watch the passes.</strong><br />A player who keeps passing may be protecting a pair, a 2, or a run they are waiting to complete.</p>
                     </div>
                     <div class="guide"><span class="number">03</span>
                         <p><strong>Do not burn a 2 for nothing.</strong><br />It is the strongest normal rank, and you may need it when the table tightens.</p>
                     </div>
                     <div class="guide"><span class="number">04</span>
-                        <p><strong>Remember the next deal.</strong><br />The President gets the advantage. The Asshole pays for last place.</p>
+                        <p><strong>Remember the next deal.</strong><br />President takes the best card from Asshole. Someone has to be the Asshole; try not to make it you.</p>
                     </div>
                 </div>
             </section>
