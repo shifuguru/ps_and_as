@@ -515,7 +515,7 @@ export default function Settings({
                           "../services/ads/removeAdsPurchase"
                         );
                         const result = await createRemoveAdsCheckoutSession();
-                        if (!result.ok) {
+                        if (result.ok === false) {
                           const msg =
                             result.error === "billing_not_configured" ||
                             result.error === "http_503"

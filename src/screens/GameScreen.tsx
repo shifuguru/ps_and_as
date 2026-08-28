@@ -5232,7 +5232,7 @@ function GameScreenBoard() {
 
   const suppressLastTrickCard =
     roundOver ||
-    lastHandReveal ||
+    !!lastHandReveal ||
     !!ceremonyPrep ||
     !!tradePhase ||
     gameplayLocked ||
@@ -6194,7 +6194,7 @@ function GameScreenBoard() {
           rankingsModalVisible ||
           gameplayLocked ||
           roundOver ||
-          lastHandReveal ||
+          !!lastHandReveal ||
           roundEndLastPlayHold
         }
         hideToasts={
