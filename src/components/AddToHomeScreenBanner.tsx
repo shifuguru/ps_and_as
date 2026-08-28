@@ -76,7 +76,7 @@ export default function AddToHomeScreenBanner() {
         </Text>
         <View style={styles.actions}>
           <TouchableOpacity
-            style={[ui.btnPrimary, styles.primaryBtn]}
+            style={[ui.actionPrimary, styles.primaryBtn]}
             onPress={() => void handlePrimary()}
             disabled={working}
             activeOpacity={0.85}
@@ -84,7 +84,7 @@ export default function AddToHomeScreenBanner() {
             {working ? (
               <ActivityIndicator color={colors.textOnAccent} />
             ) : (
-              <Text style={ui.btnPrimaryText}>{installButtonLabel}</Text>
+              <Text style={ui.actionPrimaryText}>{installButtonLabel}</Text>
             )}
           </TouchableOpacity>
           <TouchableOpacity

@@ -32,7 +32,8 @@ export function gameHomeUrl(origin?: string): string {
 
 export function isGameHomeLink(href: string): boolean {
   try {
-    const loc = (globalThis as { location?: { href?: string } }).location;
+    const loc = (globalThis as { location?: { href?: string; origin?: string } })
+      .location;
     const resolved = new URL(href, loc?.href ?? gameHomeUrl());
     const home = new URL(gameHomeUrl(loc?.origin ?? resolved.origin));
     const resolvedPath = normalizePathname(resolved.pathname);

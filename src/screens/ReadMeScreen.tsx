@@ -234,7 +234,6 @@ export default function ReadMeScreen({ onBack }: Props) {
       {showHtml ? (
         <View style={styles.markdownWrap}>
           <article
-            // @ts-expect-error web article element
             ref={setMarkdownRoot}
             className="markdown-body"
             dangerouslySetInnerHTML={{ __html: html }}

@@ -65,14 +65,14 @@ export default function AddToHomeScreenModal({ visible, onClose }: Props) {
 
       {canInstall ? (
         <TouchableOpacity
-          style={[ui.btnPrimary, styles.primaryBtn]}
+          style={[ui.actionPrimary, styles.primaryBtn]}
           onPress={() => void handleInstall()}
           disabled={installing}
           activeOpacity={0.85}
           accessibilityRole="button"
           accessibilityLabel={installButtonLabel}
         >
-          <Text style={ui.btnPrimaryText}>
+          <Text style={ui.actionPrimaryText}>
             {installing ? "Opening install…" : installButtonLabel}
           </Text>
         </TouchableOpacity>

@@ -32,7 +32,7 @@ type WebWindow = {
 };
 
 function getWebWindow(): WebWindow | undefined {
-  return (globalThis as { window?: WebWindow }).window;
+  return (globalThis as unknown as { window?: WebWindow }).window;
 }
 
 /** iPadOS 13+ Safari reports as MacIntel with touch. */
