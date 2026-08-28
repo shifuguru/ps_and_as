@@ -125,6 +125,25 @@ export function handCardIdentity(card: CardType): string {
   return `${card.suit}-${card.value}`;
 }
 
+/**
+ * Per-slot identity for a card at `index` within an ordered hand.
+ * A standard deck has two identical Jokers (same suit/value), so plain
+ * `handCardIdentity` collides for them — React then reuses one Joker's
+ * rendered/animated node for the other, producing a card that renders
+ * behind/overlapping its neighbours. Disambiguate by occurrence order so
+ * each duplicate-valued card keeps a distinct, stable key across reindexes
+ * (stable because Array#sort preserves relative order of equal elements).
+ */
+export function handCardKeyAt(cards: CardType[], index: number): string {
+  const card = cards[index];
+  const base = handCardIdentity(card);
+  let occurrence = 0;
+  for (let i = 0; i < index; i++) {
+    if (handCardIdentity(cards[i]) === base) occurrence++;
+  }
+  return occurrence === 0 ? base : `${base}#${occurrence}`;
+}
+
 type Props = {
   cards: CardType[];
   selectedIndices: number[];
@@ -978,7 +997,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                 if (!slot) return null;
                 const card = cards[index];
                 const pinned =
-                  !!card && pinnedKeySet.has(handCardIdentity(card));
+                  !!card && pinnedKeySet.has(handCardKeyAt(cards, index));
                 return cardCenterFromHandLayout(
                   index,
                   slot,
@@ -1164,7 +1183,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
           const slot = slots[index];
           if (!slot) return null;
 
-          const identity = handCardIdentity(card);
+          const identity = handCardKeyAt(cards, index);
           const concealed = hiddenKeySet.has(identity);
           const inOutgoingPlay = pinnedKeySet.has(identity);
           const isSelected =
