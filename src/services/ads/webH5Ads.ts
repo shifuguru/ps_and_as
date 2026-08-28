@@ -36,7 +36,7 @@ type AdBreakPlacement = {
   adBreakDone?: (info: { breakStatus?: string }) => void;
 };
 
-type H5Window = Window & {
+type H5Window = {
   adBreak?: (placement: AdBreakPlacement) => void;
   adConfig?: (config: Record<string, unknown>) => void;
   __PS_AND_AS_ADSENSE_CLIENT__?: string;
@@ -135,7 +135,7 @@ async function simulateBreak(
   suppressAdsAudio();
   let viewed = false;
   if (isAdsPlaceholderMode()) {
-    viewed = await showWebAdPlaceholder(type);
+    viewed = await showWebAdPlaceholder(type === "browse" ? "next" : type);
   } else {
     await new Promise((r) => setTimeout(r, type === "reward" ? 900 : 600));
     viewed = true;

@@ -1,16 +1,19 @@
 import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { useForcedPortraitFrame } from "../utils/orientationLock";
-import { DEFAULT_FELT_COLOR } from "../services/wallpaper";
 
 /**
- * Keep phones on a portrait layout even when the browser reports landscape.
+ * Phones render at their real (physical) size in any orientation — we no
+ * longer fake/letterbox a portrait frame. That structural swap used to force
+ * React to unmount and remount the entire app whenever a phone rotated
+ * (different wrapper depth around `children` on each render), which looked
+ * like the whole app "reloading" and lost in-progress game state.
  *
- * Browsers cannot OS-lock orientation in a normal tab / DevTools. Instead we
- * keep rendering a portrait frame (short × long) and fit it upright in the
- * physical viewport — no "please rotate" message.
+ * `children` now always renders at the exact same tree position. When a
+ * phone is landscape we simply overlay a lightweight reminder asking the
+ * player to rotate back to portrait — no layout is forced or scaled.
  *
- * Tablets and desktop are unchanged.
+ * Tablets and desktop are unaffected.
  */
 export default function PhonePortraitLock({
   children,
@@ -18,39 +21,18 @@ export default function PhonePortraitLock({
   children: React.ReactNode;
 }) {
   const frame = useForcedPortraitFrame();
-
-  if (Platform.OS !== "web") {
-    return <>{children}</>;
-  }
-
-  if (!frame.forcePortrait) {
-    return <View style={styles.root}>{children}</View>;
-  }
-
-  const scale = Math.min(
-    frame.physicalWidth / frame.layoutWidth,
-    frame.physicalHeight / frame.layoutHeight,
-  );
+  const showReminder = Platform.OS === "web" && frame.forcePortrait;
 
   return (
-    <View
-      style={[
-        styles.host,
-        { backgroundColor: DEFAULT_FELT_COLOR } as object,
-      ]}
-    >
-      <View
-        style={[
-          styles.portraitFrame,
-          {
-            width: frame.layoutWidth,
-            height: frame.layoutHeight,
-            transform: [{ scale }],
-          },
-        ]}
-      >
-        {children}
-      </View>
+    <View style={styles.root}>
+      {children}
+      {showReminder ? (
+        <View style={styles.reminderBanner} pointerEvents="none">
+          <Text style={styles.reminderText}>
+            Rotate your device to portrait for the best experience
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -59,23 +41,22 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
-  host: {
-    ...(Platform.OS === "web"
-      ? ({
-          position: "fixed",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-        } as object)
-      : StyleSheet.absoluteFillObject),
+  reminderBanner: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
+    paddingTop: 10,
+    paddingBottom: 8,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(0,0,0,0.72)",
+    zIndex: 9999,
   },
-  portraitFrame: {
-    overflow: "hidden",
-    ...(Platform.OS === "web"
-      ? ({ transformOrigin: "center center" } as object)
-      : null),
+  reminderText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
   },
 });

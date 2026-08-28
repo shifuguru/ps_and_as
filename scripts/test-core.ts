@@ -1,5 +1,6 @@
 import * as assert from "assert";
 import { createDeck, shuffleDeck } from "../src/game/ruleset";
+import { handCardIdentity, handCardKeyAt } from "../src/game/handCardKeys";
 import type { Card, Player } from "../src/game/ruleset";
 import type { GameState } from "../src/game/core";
 import {
@@ -85,6 +86,25 @@ assert.strictEqual(deck.length, 54, "Deck should have 54 cards (includes 2 joker
 
 const shuffled = shuffleDeck(createDeck());
 assert.strictEqual(shuffled.length, 54, "Shuffled deck should have 54 cards (includes 2 jokers)");
+
+// handCardKeyAt: regression test for duplicate-Joker React key collision
+// (commit b7075b9 reintroduced this by keying hand cards on suit-value alone).
+{
+  const handWithTwoJokers: Card[] = [
+    { suit: "hearts", value: 10 },
+    { suit: "joker", value: 16 },
+    { suit: "spades", value: 3 },
+    { suit: "joker", value: 16 },
+  ];
+  const keys = handWithTwoJokers.map((_, i) => handCardKeyAt(handWithTwoJokers, i));
+  assert.strictEqual(
+    new Set(keys).size,
+    keys.length,
+    "handCardKeyAt must produce unique keys for a hand containing duplicate cards (e.g. two Jokers)",
+  );
+  assert.strictEqual(keys[1], handCardIdentity(handWithTwoJokers[1]), "first occurrence keeps base identity");
+  assert.notStrictEqual(keys[3], keys[1], "second occurrence of a duplicate card gets a distinct key");
+}
 
 // isValidPlay tests
 const single: Card[] = [{ suit: "hearts", value: 10 }];

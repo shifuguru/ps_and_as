@@ -140,21 +140,21 @@ export default function RunsPill({
                 backgroundImage: palette.chromeBackgroundGradient,
               } as object)
             : null),
-          ...Platform.select({
+          ...(Platform.select({
             web: palette.chromeBoxShadow
               ? ({ boxShadow: palette.chromeBoxShadow } as object)
               : {},
             ios: palette.chromeShadowColor
-              ? {
+              ? ({
                   shadowColor: palette.chromeShadowColor,
                   shadowOffset: { width: 0, height: 0 },
                   shadowOpacity: 0.55,
                   shadowRadius: 10,
-                }
+                } as object)
               : {},
             android: { elevation: 6 },
             default: {},
-          }),
+          }) as object),
         } as ViewStyle)
       : palette.chromeBackground
         ? ({

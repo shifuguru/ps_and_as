@@ -142,6 +142,7 @@ import BottomBar, {
 } from "../components/BottomBar";
 import PlayerHand, {
   handCardIdentity,
+  handCardKeyAt,
   type PlayerHandHandle,
 } from "../components/PlayerHand";
 import ActionBar from "../components/ActionBar";
@@ -5231,7 +5232,7 @@ function GameScreenBoard() {
 
   const suppressLastTrickCard =
     roundOver ||
-    lastHandReveal ||
+    !!lastHandReveal ||
     !!ceremonyPrep ||
     !!tradePhase ||
     gameplayLocked ||
@@ -5323,7 +5324,7 @@ function GameScreenBoard() {
     const handOrigin = handRef.current
       ? await handRef.current.measurePlayOrigin(playIndices)
       : null;
-    const cardKeys = cards.map((c) => handCardIdentity(c));
+    const cardKeys = playIndices.map((idx) => handCardKeyAt(hand, idx));
     setHandPlayInFlight({
       playKey: playFlightKey,
       cardKeys,
@@ -6193,7 +6194,7 @@ function GameScreenBoard() {
           rankingsModalVisible ||
           gameplayLocked ||
           roundOver ||
-          lastHandReveal ||
+          !!lastHandReveal ||
           roundEndLastPlayHold
         }
         hideToasts={

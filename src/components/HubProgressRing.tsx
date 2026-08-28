@@ -46,12 +46,13 @@ export default function HubProgressRing({
     }).start();
   }, [anim, animated, clamped]);
 
+  const staticOffset = c * (1 - clamped);
   const offset = animated
     ? anim.interpolate({
         inputRange: [0, 1],
         outputRange: [c, 0],
       })
-    : c * (1 - clamped);
+    : staticOffset;
 
   const styles = useMemo(
     () =>
@@ -104,7 +105,7 @@ export default function HubProgressRing({
               strokeWidth={strokeWidth}
               fill="none"
               strokeDasharray={`${c} ${c}`}
-              strokeDashoffset={offset}
+              strokeDashoffset={staticOffset}
               strokeLinecap="round"
             />
           )}

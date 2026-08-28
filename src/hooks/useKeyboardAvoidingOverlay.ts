@@ -43,6 +43,7 @@ export function useKeyboardAvoidingOverlay(
       window?: {
         innerHeight?: number;
         visualViewport?: {
+          width: number;
           height: number;
           offsetTop: number;
           addEventListener: (type: string, fn: () => void) => void;

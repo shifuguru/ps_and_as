@@ -55,10 +55,10 @@ function ensureMarkedParser(): void {
         tokens,
         depth,
       }: {
-        tokens: Parameters<typeof tokenPlainText>[0][];
+        tokens: unknown[];
         depth: number;
       }) {
-        const plain = tokens.map(tokenPlainText).join("");
+        const plain = tokens.map((t) => tokenPlainText(t as Parameters<typeof tokenPlainText>[0])).join("");
         const id = githubHeadingId(plain);
         const inner = this.parser.parseInline(tokens);
         return `<h${depth} id="${id}">${inner}</h${depth}>\n`;

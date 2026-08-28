@@ -24,6 +24,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import Card from "./Card";
 import BlurPanel from "./BlurPanel";
 import { Card as CardType } from "../game/ruleset";
+import { handCardIdentity, handCardKeyAt } from "../game/handCardKeys";
 import {
   HAND_SELECT_LIFT,
   HAND_SELECT_NEIGHBOR_SPREAD,
@@ -120,10 +121,10 @@ const BASE_FAN_HEADROOM = HAND_SELECT_LIFT + MAX_CENTER_LIFT + 24;
 export const HAND_FAN_HEIGHT =
   BASE_CARD_HEIGHT + BASE_FAN_HEADROOM + FAN_BOTTOM_PADDING;
 
-/** Stable identity for a hand card (matches play-flight concealment). */
-export function handCardIdentity(card: CardType): string {
-  return `${card.suit}-${card.value}`;
-}
+// Re-exported so existing importers (e.g. GameScreen.tsx) keep working —
+// the actual logic lives in a pure (non-React) module so it can be unit
+// tested without pulling in react-native.
+export { handCardIdentity, handCardKeyAt };
 
 type Props = {
   cards: CardType[];
@@ -978,7 +979,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                 if (!slot) return null;
                 const card = cards[index];
                 const pinned =
-                  !!card && pinnedKeySet.has(handCardIdentity(card));
+                  !!card && pinnedKeySet.has(handCardKeyAt(cards, index));
                 return cardCenterFromHandLayout(
                   index,
                   slot,
@@ -1164,7 +1165,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
           const slot = slots[index];
           if (!slot) return null;
 
-          const identity = handCardIdentity(card);
+          const identity = handCardKeyAt(cards, index);
           const concealed = hiddenKeySet.has(identity);
           const inOutgoingPlay = pinnedKeySet.has(identity);
           const isSelected =

@@ -32,7 +32,7 @@ type WebWindow = {
 };
 
 function getWebWindow(): WebWindow | undefined {
-  return (globalThis as { window?: WebWindow }).window;
+  return (globalThis as unknown as { window?: WebWindow }).window;
 }
 
 /** iPadOS 13+ Safari reports as MacIntel with touch. */
@@ -97,11 +97,16 @@ export function shouldLockPortraitOrientation(): boolean {
 }
 
 export type ForcedPortraitFrame = {
-  /** Phone is landscape — keep a portrait layout frame upright in the viewport. */
+  /**
+   * Phone is physically landscape — layout uses the real (landscape) size,
+   * but the UI should show a "rotate to portrait" reminder rather than
+   * faking/letterboxing a portrait frame (that used to force a remount of
+   * the whole app whenever this flipped).
+   */
   forcePortrait: boolean;
-  /** Layout width the app should use (portrait). */
+  /** Layout width the app should use — always the real physical size. */
   layoutWidth: number;
-  /** Layout height the app should use (portrait). */
+  /** Layout height the app should use — always the real physical size. */
   layoutHeight: number;
   /** Physical viewport width. */
   physicalWidth: number;
@@ -110,8 +115,10 @@ export type ForcedPortraitFrame = {
 };
 
 /**
- * When a phone is physically landscape, return swapped portrait layout sizes
- * so the UI stays portrait-locked (letterboxed upright in the viewport).
+ * Report the real physical layout size plus whether a phone is currently
+ * landscape (so callers can show a "please rotate" reminder). We no longer
+ * swap width/height into a fake portrait frame — the app renders at its
+ * actual size and adapts via existing responsive/landscape layout logic.
  */
 export function getForcedPortraitFrame(
   physicalWidth: number,
@@ -119,17 +126,8 @@ export function getForcedPortraitFrame(
 ): ForcedPortraitFrame {
   const landscape = physicalWidth > physicalHeight;
   const lock = shouldLockPortraitOrientation();
-  if (lock && landscape) {
-    return {
-      forcePortrait: true,
-      layoutWidth: physicalHeight,
-      layoutHeight: physicalWidth,
-      physicalWidth,
-      physicalHeight,
-    };
-  }
   return {
-    forcePortrait: false,
+    forcePortrait: lock && landscape,
     layoutWidth: physicalWidth,
     layoutHeight: physicalHeight,
     physicalWidth,
@@ -137,13 +135,12 @@ export function getForcedPortraitFrame(
   };
 }
 
-/** Swap viewport size into portrait when phone landscape lock is active. */
+/** No-op passthrough — kept so existing callers keep working; layout always uses real size. */
 export function applyPortraitLockToSize(size: {
   width: number;
   height: number;
 }): { width: number; height: number } {
-  const frame = getForcedPortraitFrame(size.width, size.height);
-  return { width: frame.layoutWidth, height: frame.layoutHeight };
+  return size;
 }
 
 export function useForcedPortraitFrame(): ForcedPortraitFrame {
