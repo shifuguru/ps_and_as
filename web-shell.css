@@ -20,8 +20,21 @@
  * What must be underneath: html’s felt stack (background-color + texture).
  * - html background-color MUST stay var(--ps-felt-tint) forever. Transparent
  *   here → iOS falls back to a dark frosted band (v1.1.17 regression).
- * - body MUST stay transparent so that felt is visible under the icons.
- * - Strip theme-color always — no separate toolbar/status paint plate.
+ * - Strip theme-color always — no separate toolbar/status paint plate. iOS 26
+ *   dropped support for <meta name="theme-color"> (and manifest theme_color)
+ *   entirely, so it can no longer be used to paint the status bar anyway.
+ *
+ * iOS 26 status-bar color source (post theme-color):
+ *   The status bar now paints from the background-color of the nearest
+ *   `position: fixed` element near the top of the page — falling back to
+ *   html's background-color only when no such fixed element exists. On
+ *   iOS 26.2.1 that fallback-to-html path additionally regresses once the
+ *   page has been scrolled: content is drawn under the status bar and the
+ *   fill becomes a gradient instead of a flat color. A transparent fixed
+ *   element does not count as "a background-color" for this purpose, so
+ *   body (already fixed + pinned to the top) must paint the *same* opaque
+ *   felt stack as html — not transparent — to be recognized as that anchor
+ *   and keep the status bar a flat, non-gradient fill in every state.
  *
  * Chin: paint shell at calc(100vh + 2px) and seal the bottom edge so a 1px UA
  * white line cannot show. Safe-area pads interactive chrome only.
@@ -92,9 +105,21 @@ body {
   overscroll-behavior: none !important;
   touch-action: manipulation !important;
   max-height: none !important;
-  /* Transparent so html felt shows under status icons (no solid band). */
-  background-color: transparent !important;
-  background-image: none !important;
+  /* Opaque and matching html's stack exactly — iOS 26+ reads the nearest
+     fixed element's background-color for the status bar; transparent does
+     not count and regresses to a scroll-triggered gradient on iOS 26.2.1.
+     Same visual result as before since this mirrors html underneath. */
+  background-color: var(--ps-felt-tint) !important;
+  background-image:
+    linear-gradient(
+      var(--ps-felt-tint-overlay),
+      var(--ps-felt-tint-overlay)
+    ),
+    var(--ps-felt-texture) !important;
+  background-size: 100% 100%, cover !important;
+  background-position: center center, center center !important;
+  background-repeat: no-repeat, no-repeat !important;
+  background-attachment: scroll, scroll !important;
 }
 
 body::before,

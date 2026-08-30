@@ -7,8 +7,14 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  * Chin-gap: height calc(100vh + 2px) on html/body/#root (not height:100%).
  * Document element alone owns wallpaper — do not duplicate onto html::before
  * (separate geometry creates a safe-area seam / tint band).
- * html background-color stays var(--ps-felt-tint); body stays transparent.
- * theme-color is stripped — no separate toolbar/status paint plate.
+ *
+ * iOS 26 dropped theme-color support; the status bar now paints from the
+ * nearest `position: fixed` element's background-color near the top of the
+ * page (falling back to html otherwise). A transparent fixed element does
+ * not count, and on iOS 26.2.1 the html fallback regresses to a scroll-
+ * triggered gradient. body is already fixed + pinned to the top, so it
+ * mirrors html's exact background stack (not transparent) to be recognized
+ * as that anchor and keep the status bar a flat fill.
  */
 export function getWebShellCssText(feltTint: string): string {
   return `
@@ -68,8 +74,17 @@ export function getWebShellCssText(feltTint: string): string {
       overscroll-behavior: none !important;
       touch-action: manipulation !important;
       max-height: none !important;
-      background-color: transparent !important;
-      background-image: none !important;
+      background-color: var(--ps-felt-tint) !important;
+      background-image:
+        linear-gradient(
+          var(--ps-felt-tint-overlay),
+          var(--ps-felt-tint-overlay)
+        ),
+        var(--ps-felt-texture) !important;
+      background-size: 100% 100%, cover !important;
+      background-position: center center, center center !important;
+      background-repeat: no-repeat, no-repeat !important;
+      background-attachment: scroll, scroll !important;
     }
     body::before,
     body::after {
