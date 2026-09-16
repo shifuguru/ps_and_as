@@ -2,14 +2,14 @@
   "name": "P's & A's",
   "short_name": "Ps & As",
   "description": "Presidents & Assholes",
-  "start_url": "/ps_and_as/",
-  "scope": "/ps_and_as/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#000000",
   "orientation": "any",
   "icons": [
     {
-      "src": "/ps_and_as/favicon.ico",
+      "src": "/favicon.ico",
       "sizes": "48x48",
       "type": "image/x-icon"
     }
