@@ -148,8 +148,12 @@ export function resolveClientBuildLabel(): string {
  */
 export const CLIENT_BUILD_ID = resolveClientBuildId();
 
+// `EXPO_PUBLIC_BASE_PATH` may be intentionally set to "" for a root deploy
+// (e.g. psandas.com) — only fall back to the default when it's unset.
 export const WEB_BASE_PATH = (
-  process.env.EXPO_PUBLIC_BASE_PATH?.trim() || "/ps_and_as"
+  process.env.EXPO_PUBLIC_BASE_PATH !== undefined
+    ? process.env.EXPO_PUBLIC_BASE_PATH.trim()
+    : "/ps_and_as"
 ).replace(/\/$/, "");
 
 export function isTrackableBuild(): boolean {

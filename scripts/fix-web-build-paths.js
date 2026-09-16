@@ -3,7 +3,13 @@ const path = require('path');
 
 const buildDir = path.resolve(__dirname, '..', 'web-build');
 const buildIndex = path.join(buildDir, 'index.html');
-const basePath = (process.env.GITHUB_PAGES_BASE || '/ps_and_as').replace(/\/$/, '');
+// `GITHUB_PAGES_BASE` may be intentionally set to "" for a root deploy
+// (e.g. psandas.com) — only fall back to the default when it's unset.
+const basePath = (
+  process.env.GITHUB_PAGES_BASE !== undefined
+    ? process.env.GITHUB_PAGES_BASE
+    : '/ps_and_as'
+).replace(/\/$/, '');
 
 if (!fs.existsSync(buildIndex)) {
   console.error('web-build/index.html not found; make sure the web build completed successfully.');
@@ -11,6 +17,11 @@ if (!fs.existsSync(buildIndex)) {
 }
 
 function rewriteHtmlPaths(html) {
+  // Root deploys (basePath === "") are already root-relative — nothing to
+  // prefix, and the doubled-prefix repair below would degenerate to
+  // replacing "/" with "/" (an infinite loop), so skip entirely.
+  if (!basePath) return html;
+
   const basePrefix = `${basePath}/`;
   const doubledPrefix = `${basePath}${basePath}/`;
 
@@ -195,6 +206,17 @@ function injectGoogleWebClientId(html) {
   const script = `<script>window.__PS_AND_AS_GOOGLE_WEB_CLIENT_ID__=${JSON.stringify(clientId)};</script>`;
   if (html.includes("__PS_AND_AS_GOOGLE_WEB_CLIENT_ID__")) return html;
   return html.replace("<head>", `<head>\n    ${script}`);
+}
+
+/** Canonical URL — only set for deploys that own a fixed production domain. */
+function injectCanonicalUrl(html) {
+  const url = process.env.EXPO_PUBLIC_CANONICAL_URL?.trim();
+  if (!url) return html;
+  const tag = `<link rel="canonical" href="${url}" />`;
+  if (/rel="canonical"/i.test(html)) {
+    return html.replace(/<link rel="canonical" href="[^"]*" \/>/i, tag);
+  }
+  return html.replace("<head>", `<head>\n    ${tag}`);
 }
 
 /**
@@ -462,6 +484,7 @@ let html = fs.readFileSync(buildIndex, "utf8");
 const buildMeta = resolveBuildMeta();
 html = injectServerUrl(html);
 html = injectGoogleWebClientId(html);
+html = injectCanonicalUrl(html);
 html = injectAdSenseClient(html);
 html = injectEarlyShellHeight(html);
 html = injectBuildMeta(html, buildMeta);
@@ -512,5 +535,13 @@ if (fs.existsSync(privacySrc)) {
 
 // Prevent Jekyll from stripping or ignoring Expo output folders.
 fs.writeFileSync(path.join(buildDir, '.nojekyll'), '', 'utf8');
+
+// Custom domain (e.g. psandas.com) — only written when explicitly requested,
+// so GitHub Pages default deploys (shifuguru.github.io/ps_and_as) never get one.
+const cnameHost = process.env.GITHUB_PAGES_CNAME?.trim();
+if (cnameHost) {
+  fs.writeFileSync(path.join(buildDir, "CNAME"), `${cnameHost}\n`, "utf8");
+  console.log(`Wrote CNAME (${cnameHost}) into web-build.`);
+}
 
 console.log(`Prepared web-build for GitHub Pages (base: ${basePath}).`);
