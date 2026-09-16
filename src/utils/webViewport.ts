@@ -41,6 +41,16 @@ export const WEB_FELT_FIXED_CLASS = "ps-felt-fixed";
 export const IOS_HOME_INDICATOR_FALLBACK = 34;
 /** iOS status-bar fallback when env(safe-area-inset-top) reads 0 in standalone PWA. */
 export const IOS_STATUS_BAR_FALLBACK = 47;
+/**
+ * Extra top clearance for standalone iOS PWAs, added on top of the safe-area
+ * inset. iOS (26/27 betas) unconditionally applies a system progressive blur
+ * over whatever is drawn behind the status bar in standalone web apps — this
+ * cannot be disabled via CSS/meta tags (theme-color has no effect here; see
+ * web-shell.css header). Nudging real content below env(safe-area-inset-top)
+ * by this much ensures only the plain felt background sits under the blurred
+ * strip, never text/icons/interactive controls.
+ */
+export const IOS_STATUS_BAR_BLUR_CLEARANCE = 16;
 
 type SafeAreaInsets = { top: number; bottom: number; left: number; right: number };
 
@@ -90,6 +100,18 @@ export function isMobileWeb(): boolean {
   if (win.matchMedia?.("(pointer: coarse) and (max-width: 900px)").matches) return true;
   if (win.matchMedia?.("(max-width: 768px)").matches) return true;
   return (win.innerWidth ?? 0) <= 768;
+}
+
+/**
+ * iOS/iPadOS UA check, local to this module to avoid a circular import with
+ * webAppInstall.ts (which itself imports isMobileWeb from here). Only iOS
+ * standalone PWAs get the extra status-bar-blur clearance below — Android
+ * standalone PWAs do not have this OS-level progressive blur behavior.
+ */
+function isIosUserAgent(): boolean {
+  if (Platform.OS !== "web") return false;
+  const nav = (globalThis as { navigator?: { userAgent?: string } }).navigator;
+  return /iPhone|iPad|iPod/i.test(nav?.userAgent ?? "");
 }
 
 function measureCssLength(
@@ -149,14 +171,21 @@ export function readWebSafeAreaInsets(): SafeAreaInsets {
   return cachedSafeArea;
 }
 
-/** Top inset with iOS PWA fallback when CSS env probes report 0. */
+/**
+ * Top inset with iOS PWA fallback when CSS env probes report 0, plus extra
+ * clearance under the OS-level progressive status-bar blur on standalone
+ * iOS PWAs (see IOS_STATUS_BAR_BLUR_CLEARANCE). Android standalone PWAs do
+ * not have this blur, so they only get the plain safe-area value.
+ */
 export function resolveWebTopInset(measured = 0): number {
   if (Platform.OS !== "web") return Math.max(0, measured);
   const n = Math.max(0, measured);
   // Trust real probes — only fall back when env() is missing on Home Screen.
-  if (n >= 20) return n;
-  if (isStandaloneWebApp() && isMobileWeb()) return IOS_STATUS_BAR_FALLBACK;
-  return n;
+  const base = n >= 20 ? n : isStandaloneWebApp() && isMobileWeb() ? IOS_STATUS_BAR_FALLBACK : n;
+  if (isStandaloneWebApp() && isMobileWeb() && isIosUserAgent()) {
+    return base + IOS_STATUS_BAR_BLUR_CLEARANCE;
+  }
+  return base;
 }
 
 /** Bottom inset with iOS PWA fallback when CSS env probes report 0. */
