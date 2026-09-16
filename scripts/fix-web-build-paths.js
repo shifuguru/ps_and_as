@@ -375,11 +375,8 @@ function injectEarlyShellHeight(html) {
 
 function injectReadmeFallbackBase(html) {
   const assignment = `window.__PS_AND_AS_BASE__=${JSON.stringify(basePath)};`;
-  if (html.includes("__PS_AND_AS_BASE__")) {
-    return html.replace(
-      /window\.__PS_AND_AS_BASE__=window\.__PS_AND_AS_BASE__\|\|"";/,
-      assignment,
-    );
+  if (/window\.__PS_AND_AS_BASE__\s*=/.test(html)) {
+    return html.replace(/window\.__PS_AND_AS_BASE__\s*=[^;]*;/, assignment);
   }
   const script = `<script>${assignment}</script>`;
   return html.replace("<head>", `<head>\n    ${script}`);
