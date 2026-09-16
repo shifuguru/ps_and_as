@@ -20,8 +20,17 @@
  * What must be underneath: html’s felt stack (background-color + texture).
  * - html background-color MUST stay var(--ps-felt-tint) forever. Transparent
  *   here → iOS falls back to a dark frosted band (v1.1.17 regression).
- * - body MUST stay transparent so that felt is visible under the icons.
- * - Strip theme-color always — no separate toolbar/status paint plate.
+ * - body MUST stay transparent so that felt is visible under the icons. This
+ *   is a deliberate choice: iOS 26+ dropped theme-color support and paints
+ *   the status bar from the nearest opaque `position: fixed` element instead
+ *   (falling back to html, with a scroll-triggered gradient bug on iOS
+ *   26.2.1 when no opaque fixed element exists). Painting body opaque would
+ *   "fix" that gradient bug but is intentionally NOT done here — keep body
+ *   transparent per product preference; accept the iOS 26.2.1 fallback
+ *   behavior instead of introducing a second opaque paint plate.
+ * - Strip theme-color always — no separate toolbar/status paint plate. iOS 26
+ *   dropped support for <meta name="theme-color"> (and manifest theme_color)
+ *   entirely, so it can no longer be used to paint the status bar anyway.
  *
  * Chin: paint shell at calc(100vh + 2px) and seal the bottom edge so a 1px UA
  * white line cannot show. Safe-area pads interactive chrome only.
@@ -92,7 +101,10 @@ body {
   overscroll-behavior: none !important;
   touch-action: manipulation !important;
   max-height: none !important;
-  /* Transparent so html felt shows under status icons (no solid band). */
+  /* Transparent so html felt shows under status icons (no solid band).
+     Deliberate: keeps body transparent even though iOS 26+ prefers an
+     opaque fixed element as the status-bar color anchor (see file header
+     for the iOS 26 / 26.2.1 tradeoff this accepts). */
   background-color: transparent !important;
   background-image: none !important;
 }

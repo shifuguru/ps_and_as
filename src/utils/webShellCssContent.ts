@@ -7,7 +7,9 @@ import { PS_SHIMMER_TEXT_CSS } from "./shimmerTextCss";
  * Chin-gap: height calc(100vh + 2px) on html/body/#root (not height:100%).
  * Document element alone owns wallpaper — do not duplicate onto html::before
  * (separate geometry creates a safe-area seam / tint band).
- * html background-color stays var(--ps-felt-tint); body stays transparent.
+ * html background-color stays var(--ps-felt-tint); body stays transparent
+ * (deliberate — see web-shell.css header for the iOS 26 / 26.2.1 status-bar
+ * color tradeoff this accepts).
  * theme-color is stripped — no separate toolbar/status paint plate.
  */
 export function getWebShellCssText(feltTint: string): string {

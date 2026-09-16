@@ -710,9 +710,11 @@ export default function PlayerHub({
             P&apos;s & A&apos;s
           </Text>
           <Text style={styles.brandSubtitle}>Presidents & Assholes</Text>
+          {/* Tagline hidden per request — keep available for future copy.
           <Text style={styles.brandPitch}>
             Race to empty your hand. Finish first and become President.
           </Text>
+          */}
 
           {statsReady ? identityPanel : null}
 
@@ -1004,7 +1006,8 @@ export default function PlayerHub({
           >
             <Text style={styles.sectionTitle}>Support</Text>
             <Text style={styles.supportBody}>
-              P&apos;s &amp; A&apos;s is developed in New Zealand by a one-man-army. Contribute to development costs to be an absolute legend! &fire;
+              P&apos;s &amp; A&apos;s was made by a small team in New Zealand.
+              Contributions help cover server and development costs.
             </Text>
             <KofiButton style={styles.supportCta} />
           </BlurPanel>

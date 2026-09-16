@@ -32,6 +32,7 @@ jobs:
               - 'src/**'
               - 'App.tsx'
               - 'app.json'
+              - 'app.config.js'
               - 'package.json'
               - 'package-lock.json'
               - 'assets/**'
@@ -81,14 +82,18 @@ jobs:
       - name: Build Expo web app
         run: npm run build:web
         env:
-          GITHUB_PAGES_BASE: /ps_and_as
+          APP_BASE_URL: ""
+          GITHUB_PAGES_BASE: ""
+          GITHUB_PAGES_CNAME: psandas.com
           EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
           EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
           EXPO_PUBLIC_ADSENSE_CLIENT: ${{ vars.EXPO_PUBLIC_ADSENSE_CLIENT }}
           EXPO_PUBLIC_ADSENSE_BANNER_SLOT: ${{ vars.EXPO_PUBLIC_ADSENSE_BANNER_SLOT }}
           EXPO_PUBLIC_BUILD_ID: ${{ github.sha }}
           EXPO_PUBLIC_APP_VERSION: ${{ steps.version.outputs.version }}
-          EXPO_PUBLIC_BASE_PATH: /ps_and_as
+          EXPO_PUBLIC_BASE_PATH: ""
+          EXPO_PUBLIC_PRIVACY_URL: https://psandas.com/privacy.html
+          EXPO_PUBLIC_CANONICAL_URL: https://psandas.com/
           DEPLOY_CHANNEL: production
 
       - name: Verify build output
@@ -101,10 +106,13 @@ jobs:
           test -f web-build/version.json
           test -f web-build/web-shell.css
           test -f web-build/.nojekyll
+          test -f web-build/CNAME
+          grep -qx 'psandas.com' web-build/CNAME
           grep -q '"channel": "production"' web-build/version.json
           grep -q 'id="root"' web-build/index.html
           grep -q 'viewport-fit=cover' web-build/index.html
           grep -q 'web-shell.css' web-build/index.html
+          grep -q 'rel="canonical" href="https://psandas.com/"' web-build/index.html
           grep -qE '(--app-shell-h:|--app-height:|100(l|d)vh)' web-build/web-shell.css
           ! grep -q 'height: 100vh' web-build/web-shell.css
           grep -qi 'Privacy' web-build/privacy.html
@@ -145,14 +153,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cp web-build/index.html web-build/version.json web-build/404.html \
             web-build/readme-fallback.html web-build/privacy.html web-build/web-shell.css \
-            web-build/favicon.ico \
+            web-build/favicon.ico web-build/CNAME \
             web-build/manifest.webmanifest web-build/metadata.json web-build/.nojekyll \
             web-build/README.md .
           rm -rf _expo
           cp -R web-build/_expo _expo
           cp -R web-build/assets/. assets/
           git add index.html version.json 404.html readme-fallback.html privacy.html \
-            web-shell.css favicon.ico manifest.webmanifest metadata.json .nojekyll \
+            web-shell.css favicon.ico CNAME manifest.webmanifest metadata.json .nojekyll \
             _expo assets README.md
           if git diff --staged --quiet; then
             echo "No web files to sync on main."

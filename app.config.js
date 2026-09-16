@@ -12,6 +12,17 @@ module.exports = {
       // Match the black splash canvas so Expo does not flash casino green first paint.
       backgroundColor: "#000000",
     },
+    experiments: {
+      ...(appJson.expo.experiments ?? {}),
+      // Override the default GitHub Pages subpath (/ps_and_as) for deploy
+      // targets served from a domain root (e.g. psandas.com). Local dev,
+      // staging, and any build without APP_BASE_URL set keep the app.json
+      // default so nothing else in the pipeline needs to change.
+      baseUrl:
+        process.env.APP_BASE_URL !== undefined
+          ? process.env.APP_BASE_URL
+          : appJson.expo.experiments?.baseUrl,
+    },
     extra: {
       ...(appJson.expo.extra ?? {}),
       serverUrl: process.env.EXPO_PUBLIC_SERVER_URL?.trim() || null,
