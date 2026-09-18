@@ -172,6 +172,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.2.6": "Ten High Drama",
   "1.2.7": "President's Day Off",
   "1.2.8": "Empty Hand Heroics",
+  "1.2.9": "Joker's Wild Ride",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
