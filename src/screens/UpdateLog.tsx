@@ -24,6 +24,7 @@ import {
   formatUpdateTimestamp,
   type KnownIssue,
 } from "./updateLogContent";
+import { strings } from "../strings";
 
 function statusColor(
   status: KnownIssue["status"],
@@ -66,17 +67,17 @@ export default function UpdateLog({
         ]}
       >
         <View style={[styles.content, { maxWidth: contentMax }]}>
-          <ScreenTopBar title="What's New" />
+          <ScreenTopBar title={strings.updateLog.screenTitle} />
 
           <BlurPanel style={ui.panel} intensity={48}>
-            <Text style={ui.panelEyebrow}>Updates</Text>
+            <Text style={ui.panelEyebrow}>{strings.updateLog.updatesEyebrow}</Text>
             <Text style={styles.intro}>{UPDATE_LOG_TAGLINE}</Text>
             <Text style={styles.introHint}>
-              Times shown in NZ time.
+              {strings.updateLog.timezoneHint}
             </Text>
           </BlurPanel>
 
-          <Text style={styles.sectionLabel}>Recent updates</Text>
+          <Text style={styles.sectionLabel}>{strings.updateLog.recentUpdatesHeading}</Text>
           {UPDATE_ENTRIES.map((entry) => (
             <BlurPanel
               key={`${entry.publishedAt}-${entry.title}`}
@@ -100,9 +101,9 @@ export default function UpdateLog({
 
           {KNOWN_ISSUES.length > 0 ? (
             <>
-              <Text style={styles.sectionLabel}>We're watching</Text>
+              <Text style={styles.sectionLabel}>{strings.updateLog.weAreWatchingHeading}</Text>
               <Text style={styles.sectionHint}>
-                Minor quirks we're keeping an eye on:
+                {strings.updateLog.weAreWatchingHint}
               </Text>
               {KNOWN_ISSUES.map((issue) => (
                 <BlurPanel
@@ -138,7 +139,7 @@ export default function UpdateLog({
 
       <BottomBar>
         <BottomBarControls style={styles.bottomControls}>
-          <BottomBarLeave onPress={onBack} label="Back" />
+          <BottomBarLeave onPress={onBack} label={strings.common.back} />
         </BottomBarControls>
       </BottomBar>
     </ScreenContainer>

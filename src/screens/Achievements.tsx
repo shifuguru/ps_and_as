@@ -50,13 +50,9 @@ import {
 } from "../gameplayPresentation/RunsEffect";
 import { TitlesScrollContent } from "./Titles";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
+import { strings } from "../strings";
 
 export type ProfileTab = "achievements" | "titles";
-
-const PROFILE_TABS: { id: ProfileTab; label: string }[] = [
-  { id: "achievements", label: "Achievements" },
-  { id: "titles", label: "Titles" },
-];
 
 export default function Achievements({
   onBack,
@@ -75,6 +71,10 @@ export default function Achievements({
   const bottomBarHeight = menuBottomReserve(insets.bottom || 0);
   const pageWidth = width;
   const initialTabIndex = initialTab === "titles" ? 1 : 0;
+  const profileTabs: { id: ProfileTab; label: string }[] = [
+    { id: "achievements", label: strings.achievements.tabAchievements },
+    { id: "titles", label: strings.achievements.tabTitles },
+  ];
 
   const pagerRef = useRef<ScrollView>(null);
   const [tabIndex, setTabIndex] = useState(initialTabIndex);
@@ -130,7 +130,9 @@ export default function Achievements({
   const syncTabFromPagerOffset = useCallback(
     (offsetX: number) => {
       const index = Math.round(offsetX / pageWidth);
-      setTabIndex(index);
+      setTabIndex((currentIndex) =>
+        currentIndex === index ? currentIndex : index,
+      );
     },
     [pageWidth],
   );
@@ -151,7 +153,7 @@ export default function Achievements({
       <ScreenContainer ignoreHeaderOffset style={styles.loadingRoot}>
         <View style={styles.loadingCenter}>
           <ActivityIndicator size="large" color={colors.accent} />
-          <Text style={styles.loadingText}>Loading Profile…</Text>
+          <Text style={styles.loadingText}>{strings.achievements.loadingProfile}</Text>
         </View>
         <BottomBar>
           <BottomBarControls style={styles.bottomControls}>
@@ -162,9 +164,11 @@ export default function Achievements({
     );
   }
 
-  const activeTab = PROFILE_TABS[tabIndex]?.id ?? "achievements";
+  const activeTab = profileTabs[tabIndex]?.id ?? "achievements";
   const screenTitle =
-    activeTab === "titles" ? "Titles" : "Achievements";
+    activeTab === "titles"
+      ? strings.achievements.tabTitles
+      : strings.achievements.tabAchievements;
 
   return (
     <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
@@ -180,7 +184,7 @@ export default function Achievements({
         >
           <ScreenTopBar title={screenTitle} />
           <ProfileTabBar
-            tabs={PROFILE_TABS}
+            tabs={profileTabs}
             activeIndex={tabIndex}
             onSelect={scrollToTab}
             colors={colors}
@@ -194,6 +198,10 @@ export default function Achievements({
           decelerationRate="fast"
           showsHorizontalScrollIndicator={false}
           style={styles.pager}
+          onScroll={(event) =>
+            syncTabFromPagerOffset(event.nativeEvent.contentOffset.x)
+          }
+          scrollEventThrottle={16}
           onMomentumScrollEnd={handlePagerScrollEnd}
           onScrollEndDrag={(event) =>
             syncTabFromPagerOffset(event.nativeEvent.contentOffset.x)
@@ -232,7 +240,7 @@ export default function Achievements({
             <Text style={styles.accountText}>
               {googleLinked
                 ? "Stats sync to your Google account across devices. Use Settings → Sync now if another phone is ahead."
-                : "Stats are saved on this device. Link Google in Settings to keep XP across phones."}
+                : "Stats are saved locally. Link Google in Settings to keep XP across phones."}
             </Text>
             {onNavigateToSettings ? (
               <TouchableOpacity

@@ -74,6 +74,7 @@ import {
   trackAnalyticsEvent,
   trackHubViewedOnce,
 } from "./src/services/analytics";
+import { strings } from "./src/strings";
 
 const ViewportDebugOverlay =
   Platform.OS === "web" &&
@@ -195,13 +196,13 @@ function AppContent() {
             const ok = await refreshAdsEntitlementFromCloud();
             if (ok) {
               Alert.alert(
-                "Thanks!",
-                "Forced ads are removed on this Google-linked account.",
+                strings.alerts.removeAdsThanksTitle,
+                strings.alerts.removeAdsThanksMessage,
               );
             } else {
               Alert.alert(
-                "Purchase received",
-                "If ads still appear, open Settings after a moment — sync may still be catching up.",
+                strings.alerts.removeAdsPendingTitle,
+                strings.alerts.removeAdsPendingMessage,
               );
             }
           }

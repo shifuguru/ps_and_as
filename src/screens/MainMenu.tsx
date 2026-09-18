@@ -18,6 +18,7 @@ import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import { gameTitleFaceStyle } from "../utils/gameTitleFont";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
 import { useAppTheme } from "../context/ThemeContext";
+import { strings } from "../strings";
 
 export type MainMenuButton = {
   label: string;
@@ -116,9 +117,9 @@ export default function MainMenu({ buttons, onButtonPress, style }: Props) {
       >
         <View style={[styles.content, { maxWidth: contentMaxWidth }]}>
           <Text style={[styles.title, gameTitleFaceStyle()]}>
-            P&apos;s & A&apos;s
+            {strings.menu.title}
           </Text>
-          <Text style={styles.subtitle}>Presidents & Assholes</Text>
+          <Text style={styles.subtitle}>{strings.menu.subtitle}</Text>
           <Text style={styles.versionLabel}>{versionLabel}</Text>
 
           <AddToHomeScreenBanner />

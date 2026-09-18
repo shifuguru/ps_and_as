@@ -2013,9 +2013,16 @@ function GameScreen({
     trickPauseSnapshot?.runBonusXp,
   ]);
 
-  // Detect trick wins (pause briefly) and round completion — layout effect
-  // commits the snapshot before paint so the table never freezes on stale plays.
-  useLayoutEffect(() => {
+  // Detect trick wins (pause briefly) and round completion. A regular (plain)
+  // effect — not a layout effect — so this pause/banner bookkeeping runs after
+  // GamePlayArea's own passive flight-start effect for the same commit. On Top
+  // closes the trick in the very same state update as the play itself; if this
+  // ran as a layout effect it would win the race and flip `trickPauseActive`
+  // (skipPlayFlights) before the child's flight could kick off, visibly
+  // delaying the On Top card's flight versus a regular play. The `displayPlays`
+  // trick-history bridge already covers the one-frame gap while this settles,
+  // so deferring to a passive effect is safe for the pass-driven trick-end path too.
+  useEffect(() => {
     if (!state) return;
     const len = state.trickHistory ? state.trickHistory.length : 0;
     if (len < lastTrickLenRef.current) {
