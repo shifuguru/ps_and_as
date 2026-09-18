@@ -13,6 +13,7 @@ type IconName =
   | "list"
   | "palette"
   | "bolt"
+  | "robot"
   | "calendar"
   | "pencil"
   | "bulb"
@@ -159,6 +160,26 @@ export default function MenuIcon({ name, size = 20, color = "#9ed6bb" }: Props) 
             fill={c}
             fillOpacity={0.22}
           />
+        </Svg>
+      );
+    case "robot":
+      return (
+        <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+          <Path d="M12 3v3" stroke={c} strokeWidth={sw} strokeLinecap="round" />
+          <Circle cx="12" cy="2.5" r="1" fill={c} />
+          <Rect
+            x="4"
+            y="6"
+            width="16"
+            height="13"
+            rx="3"
+            stroke={c}
+            strokeWidth={sw}
+          />
+          <Circle cx="9" cy="12" r="1.25" fill={c} />
+          <Circle cx="15" cy="12" r="1.25" fill={c} />
+          <Path d="M9 16h6" stroke={c} strokeWidth={sw} strokeLinecap="round" />
+          <Path d="M2.5 11v3M21.5 11v3" stroke={c} strokeWidth={sw} strokeLinecap="round" />
         </Svg>
       );
     case "calendar":

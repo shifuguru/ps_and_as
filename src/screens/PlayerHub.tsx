@@ -33,11 +33,15 @@ import AppButton from "../components/ui/AppButton";
 import KofiButton from "../components/ui/KofiButton";
 import AvatarRewardBorder from "../components/AvatarRewardBorder";
 import OnlinePlayersModal from "../components/OnlinePlayersModal";
-import PracticeSetupModal from "../components/PracticeSetupModal";
 import MenuIcon from "../components/MenuIcon";
 import HubProgressRing from "../components/HubProgressRing";
 import NextAchievementCard from "../components/NextAchievementCard";
 import RewardClaimBurst from "../components/RewardClaimBurst";
+import RunsPill from "../gameplayPresentation/RunsEffect/RunsPill";
+import {
+  flameSeedsFromPalette,
+  paletteFromAccent,
+} from "../gameplayPresentation/RunsEffect/constants";
 import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
@@ -47,6 +51,7 @@ import { onFeltTextStyle } from "../utils/onFeltTypography";
 import { useAppTheme } from "../context/ThemeContext";
 import { playerInitials } from "../utils/playerDisplay";
 import { hexToRgba } from "../utils/colorTheory";
+import { strings } from "../strings";
 import {
   getPlayerStats,
   winRate,
@@ -120,6 +125,8 @@ import {
   readPracticePlayerCount,
   writePracticePlayerCount,
   PRACTICE_DEFAULT_PLAYERS,
+  PRACTICE_MAX_PLAYERS,
+  PRACTICE_MIN_PLAYERS,
 } from "../services/practicePreferences";
 import type { LobbySession } from "../services/lobbySession";
 
@@ -127,6 +134,11 @@ const SLIDE_MS = 300;
 const AVATAR_SIZE = 88;
 const RING_SIZE = 112;
 const FRIENDS_WIDE_MIN = 900;
+const PRACTICE_PICKER_ITEM_WIDTH = 36;
+const PRACTICE_PLAYER_COUNTS = Array.from(
+  { length: PRACTICE_MAX_PLAYERS - PRACTICE_MIN_PLAYERS + 1 },
+  (_, index) => PRACTICE_MIN_PLAYERS + index,
+);
 
 export type PlayerHubActions = {
   onPlay: (playerCount: number) => void;
@@ -195,13 +207,15 @@ export default function PlayerHub({
   const [featured, setFeatured] = useState<FeaturedStat | null>(null);
   const [displayedTitle, setDisplayedTitle] = useState<string | null>(null);
   const [onlinePlayersOpen, setOnlinePlayersOpen] = useState(false);
-  const [practiceSetupOpen, setPracticeSetupOpen] = useState(false);
   const [onlinePlayOpen, setOnlinePlayOpen] = useState(false);
   const [slideStageHeight, setSlideStageHeight] = useState(0);
   const slideProgress = useRef(new Animated.Value(0)).current;
   const [practicePlayerCount, setPracticePlayerCount] = useState(
     PRACTICE_DEFAULT_PLAYERS,
   );
+  const practicePickerRef = useRef<ScrollView>(null);
+  const practicePlayerCountRef = useRef(practicePlayerCount);
+  const wheelDeltaRef = useRef(0);
   const ringPulse = useRef(new Animated.Value(1)).current;
   const xpPulse = useRef(new Animated.Value(1)).current;
   const pendingLoginClaimRef = useRef<{ state: DailyLoginState } | null>(null);
@@ -282,6 +296,85 @@ export default function PlayerHub({
     fn();
   };
 
+  const selectPracticePlayerCount = (count: number) => {
+    if (count === practicePlayerCountRef.current) return;
+    practicePlayerCountRef.current = count;
+    triggerHaptic("light");
+    setPracticePlayerCount(count);
+    void writePracticePlayerCount(count);
+  };
+
+  const selectPracticeCountAtOffset = (
+    offset: number,
+    animated = false,
+    forceScroll = false,
+  ) => {
+    const countIndex = Math.max(
+      0,
+      Math.min(
+        PRACTICE_PLAYER_COUNTS.length - 1,
+        Math.round(offset / PRACTICE_PICKER_ITEM_WIDTH),
+      ),
+    );
+    const count = PRACTICE_PLAYER_COUNTS[countIndex];
+    if (count == null) return;
+    selectPracticePlayerCount(count);
+    const snappedOffset = countIndex * PRACTICE_PICKER_ITEM_WIDTH;
+    if (animated && (forceScroll || Math.abs(offset - snappedOffset) > 0.5)) {
+      practicePickerRef.current?.scrollTo({
+        x: snappedOffset,
+        animated: true,
+      });
+    }
+  };
+
+  useEffect(() => {
+    practicePlayerCountRef.current = practicePlayerCount;
+    const countIndex = PRACTICE_PLAYER_COUNTS.indexOf(practicePlayerCount);
+    if (countIndex >= 0) {
+      practicePickerRef.current?.scrollTo({
+        x: countIndex * PRACTICE_PICKER_ITEM_WIDTH,
+        animated: true,
+      });
+    }
+  }, [practicePlayerCount]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = practicePickerRef.current?.getScrollableNode?.() as
+      | HTMLElement
+      | undefined;
+    if (!node) return;
+
+    const onWheel = (event: WheelEvent) => {
+      const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX)
+        ? event.deltaY
+        : event.deltaX;
+      if (delta === 0) return;
+      event.preventDefault();
+      wheelDeltaRef.current += delta;
+      if (Math.abs(wheelDeltaRef.current) < 24) return;
+
+      const direction = wheelDeltaRef.current > 0 ? 1 : -1;
+      wheelDeltaRef.current = 0;
+      const currentIndex = PRACTICE_PLAYER_COUNTS.indexOf(
+        practicePlayerCountRef.current,
+      );
+      const nextIndex = Math.max(
+        0,
+        Math.min(PRACTICE_PLAYER_COUNTS.length - 1, currentIndex + direction),
+      );
+      selectPracticeCountAtOffset(
+        nextIndex * PRACTICE_PICKER_ITEM_WIDTH,
+        true,
+        true,
+      );
+    };
+
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return () => node.removeEventListener("wheel", onWheel);
+  }, [selectPracticeCountAtOffset]);
+
   const {
     publicRooms,
     roomsLoaded,
@@ -290,7 +383,23 @@ export default function PlayerHub({
     connectionStatus,
     refreshRooms,
     setError: setOnlineError,
-  } = useHubRoomDiscovery({ enabled: onlinePlayOpen });
+  } = useHubRoomDiscovery({ enabled: true });
+  const serverHealthColor =
+    connectionStatus === "connected"
+      ? "#52D273"
+      : "#D66B6B";
+  const onlinePresenceColor =
+    onlinePlayerCount >= 20
+      ? "#E8704F"
+      : onlinePlayerCount >= 8
+        ? "#F0A94B"
+        : onlinePlayerCount >= 3
+          ? "#55BEE8"
+          : "#52D273";
+  const onlinePresencePalette = useMemo(
+    () => paletteFromAccent(onlinePresenceColor),
+    [onlinePresenceColor],
+  );
 
   const openOnlinePlay = () => {
     if (onlinePlayOpen) return;
@@ -532,43 +641,9 @@ export default function PlayerHub({
         </Animated.View>
 
         <View style={styles.identityBody}>
-          <View style={styles.nameRow}>
-            <Text style={styles.displayName} numberOfLines={1}>
-              {displayName || "Player"}
-            </Text>
-            <View style={styles.identityActions}>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => run(actions.onOpenTitles)}
-                accessibilityRole="button"
-                accessibilityLabel="Open titles"
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                style={styles.identityActionBtn}
-              >
-                <MenuIcon name="list" size={18} color={colors.accent} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => run(actions.onOpenAchievements)}
-                accessibilityRole="button"
-                accessibilityLabel="Open achievements"
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                style={styles.identityActionBtn}
-              >
-                <MenuIcon name="trophy" size={18} color={colors.accent} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => run(actions.onOpenSettings)}
-                accessibilityRole="button"
-                accessibilityLabel="Open settings"
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                style={styles.identityActionBtn}
-              >
-                <MenuIcon name="gear" size={18} color={colors.accent} />
-              </TouchableOpacity>
-            </View>
-          </View>
+          <Text style={styles.displayName} numberOfLines={1}>
+            {displayName || "Player"}
+          </Text>
           {(playerTitle ?? displayedTitle) ? (
             <Text style={styles.titleSlot} numberOfLines={1}>
               {playerTitle ?? displayedTitle}
@@ -590,6 +665,47 @@ export default function PlayerHub({
             style={{ marginTop: 8 }}
             prestige
           />
+        </View>
+      </View>
+      <View style={styles.identityActions}>
+        <View style={styles.identityActionItem}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => run(actions.onOpenReadMe)}
+            accessibilityRole="button"
+            accessibilityLabel="Open game rules"
+            style={styles.identityActionBtn}
+          >
+            <MenuIcon name="list" size={25} color={colors.accent} />
+          </TouchableOpacity>
+          <Text style={styles.identityActionLabel}>Rules</Text>
+        </View>
+        <View style={styles.identityActionItem}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => run(actions.onOpenTitles)}
+            accessibilityRole="button"
+            accessibilityLabel="Open titles and achievements"
+            style={styles.identityActionBtn}
+          >
+            <MenuIcon name="trophy" size={27} color={colors.accent} />
+            <View style={styles.titleEmblem}>
+              <Text style={[styles.titleActionText, gameTitleFaceStyle()]}>T</Text>
+            </View>
+          </TouchableOpacity>
+          <Text style={styles.identityActionLabel}>Titles</Text>
+        </View>
+        <View style={styles.identityActionItem}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => run(actions.onOpenSettings)}
+            accessibilityRole="button"
+            accessibilityLabel="Open settings"
+            style={styles.identityActionBtn}
+          >
+            <MenuIcon name="gear" size={25} color={colors.accent} />
+          </TouchableOpacity>
+          <Text style={styles.identityActionLabel}>Settings</Text>
         </View>
       </View>
     </BlurPanel>
@@ -718,15 +834,6 @@ export default function PlayerHub({
 
           {statsReady ? identityPanel : null}
 
-          <AppButton
-            label="Game Rules"
-            icon="list"
-            variant="secondary"
-            onPress={() => run(actions.onOpenReadMe)}
-            accessibilityLabel="Game Rules"
-            style={styles.rulesEntryButton}
-          />
-
           <View
             style={[
               styles.slideStage,
@@ -747,46 +854,166 @@ export default function PlayerHub({
               <View style={styles.contentSlideInner}>
           {/* Play — primary actions sit high, right under the pitch */}
           <View style={styles.playHero}>
-            <AppButton
-              label="Play"
-              icon="bolt"
-              variant="primary"
-              onPress={() => run(() => actions.onPlay(practicePlayerCount))}
-              accessibilityLabel={
-                isDay0
-                  ? "Play. Practice versus AI and learn in one round"
-                  : `Play versus AI with ${practicePlayerCount} players`
-              }
-              style={styles.primaryCta}
-            />
+            <View style={styles.playActionRow}>
+              <View style={styles.playActionColumn}>
+                <View style={styles.playButtonShell}>
+                  <AppButton
+                    label="Play"
+                    icon="robot"
+                    variant="primary"
+                    onPress={() => run(() => actions.onPlay(practicePlayerCount))}
+                    accessibilityLabel={
+                      isDay0
+                        ? "Play. Practice versus AI and learn in one round"
+                        : `Play versus AI with ${practicePlayerCount} players`
+                    }
+                    style={[
+                      styles.primaryPlayButton,
+                      styles.primaryPlayButtonInShell,
+                      styles.localPlayButton,
+                    ]}
+                    textStyle={[
+                      styles.primaryPlayButtonText,
+                      styles.localPlayButtonText,
+                    ]}
+                  />
+                  <Text style={styles.practiceVsText}>vs.</Text>
+                </View>
+                <View style={styles.practicePickerRow}>
+                  <View style={styles.practicePickerViewport}>
+                    <ScrollView
+                      ref={practicePickerRef}
+                      style={styles.practicePicker}
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      snapToOffsets={PRACTICE_PLAYER_COUNTS.map(
+                        (_, index) => index * PRACTICE_PICKER_ITEM_WIDTH,
+                      )}
+                      snapToAlignment="start"
+                      decelerationRate="fast"
+                      contentContainerStyle={styles.practicePickerContent}
+                      scrollEventThrottle={16}
+                      onScroll={(event) => {
+                        selectPracticeCountAtOffset(
+                          event.nativeEvent.contentOffset.x,
+                        );
+                      }}
+                      onScrollEndDrag={(event) => {
+                        selectPracticeCountAtOffset(
+                          event.nativeEvent.contentOffset.x,
+                          true,
+                        );
+                      }}
+                      onMomentumScrollEnd={(event) => {
+                        selectPracticeCountAtOffset(
+                          event.nativeEvent.contentOffset.x,
+                          true,
+                        );
+                      }}
+                      accessibilityRole="adjustable"
+                      accessibilityLabel={`AI player count: ${practicePlayerCount}. Swipe to change.`}
+                    >
+                      <View style={styles.practicePickerSpacer} />
+                      {PRACTICE_PLAYER_COUNTS.map((count) => (
+                        <TouchableOpacity
+                          key={count}
+                          style={styles.practicePickerItem}
+                          onPress={() =>
+                            selectPracticeCountAtOffset(
+                              PRACTICE_PLAYER_COUNTS.indexOf(count) *
+                                PRACTICE_PICKER_ITEM_WIDTH,
+                              true,
+                              true,
+                            )
+                          }
+                          activeOpacity={0.72}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: count === practicePlayerCount }}
+                          accessibilityLabel={`${count} players`}
+                        >
+                          <Text
+                            style={[
+                              styles.practiceCountText,
+                              count === practicePlayerCount &&
+                                styles.practiceCountTextSelected,
+                              Math.abs(count - practicePlayerCount) === 1 &&
+                                styles.practiceCountTextAdjacent,
+                            ]}
+                          >
+                            {count}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                      <View style={styles.practicePickerSpacer} />
+                    </ScrollView>
+                  </View>
+                </View>
+              </View>
+              <View style={styles.playActionColumn}>
+                <View style={styles.onlineButtonShell}>
+                  <TouchableOpacity
+                    onPress={() => run(openOnlinePlay)}
+                    accessibilityLabel="Play online — join or invite to an online table"
+                    style={[styles.primaryPlayButton, styles.onlinePlayButton]}
+                    activeOpacity={0.82}
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.onlineButtonContent}>
+                      <View
+                        style={[
+                          styles.serverHealthDot,
+                          { backgroundColor: serverHealthColor },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.primaryPlayButtonText,
+                          styles.onlinePlayButtonText,
+                        ]}
+                      >
+                        Online
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+                {onlinePlayerCount > 0 ? (
+                  <TouchableOpacity
+                    style={styles.onlineHintBtn}
+                    onPress={() => {
+                      triggerHaptic("light");
+                      setOnlinePlayersOpen(true);
+                    }}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${onlinePlayerCount} player${
+                      onlinePlayerCount === 1 ? "" : "s"
+                    } online`}
+                  >
+                    <RunsPill
+                      label={`${onlinePlayerCount} online`}
+                      active
+                      palette={onlinePresencePalette}
+                      flameSeeds={flameSeedsFromPalette(onlinePresencePalette)}
+                      showGlow={false}
+                      showFlames
+                      maxFlameHeight={14}
+                      emberSpread="around"
+                      containFlames
+                      pillStyle={styles.onlinePresencePill}
+                      textStyle={[
+                        styles.onlinePresencePillText,
+                        { color: onlinePresenceColor },
+                      ]}
+                    />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
             {isDay0 ? (
               <Text style={styles.playHelper}>
                 Practice versus AI. Learn in one round.
               </Text>
             ) : null}
-            <TouchableOpacity
-              style={styles.practiceCountBtn}
-              onPress={() => {
-                triggerHaptic("light");
-                setPracticeSetupOpen(true);
-              }}
-              activeOpacity={0.75}
-              accessibilityRole="button"
-              accessibilityLabel={`Practice setup. ${practicePlayerCount} players at the table`}
-              hitSlop={{ top: 6, bottom: 6, left: 12, right: 12 }}
-            >
-              <Text style={styles.practiceCountText}>
-                vs AI · {practicePlayerCount} player
-                {practicePlayerCount === 1 ? "" : "s"}
-              </Text>
-            </TouchableOpacity>
-            <AppButton
-              label="Play with friends"
-              icon="globe"
-              variant="secondary"
-              onPress={() => run(openOnlinePlay)}
-              accessibilityLabel="Play with friends — join or invite to an online table"
-            />
             {pendingLobby && onRejoinLobby && onDismissLobby ? (
               <HubResumeLobbyCard
                 session={pendingLobby}
@@ -799,26 +1026,6 @@ export default function PlayerHub({
                   onDismissLobby();
                 }}
               />
-            ) : null}
-            {onlinePlayerCount > 0 ? (
-              <TouchableOpacity
-                style={styles.onlineHintBtn}
-                onPress={() => {
-                  triggerHaptic("light");
-                  setOnlinePlayersOpen(true);
-                }}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-                accessibilityLabel={`${onlinePlayerCount} player${
-                  onlinePlayerCount === 1 ? "" : "s"
-                } online`}
-                hitSlop={{ top: 6, bottom: 6, left: 12, right: 12 }}
-              >
-                <Text style={styles.onlineHint}>
-                  {onlinePlayerCount} player{onlinePlayerCount === 1 ? "" : "s"}{" "}
-                  online
-                </Text>
-              </TouchableOpacity>
             ) : null}
           </View>
 
@@ -925,8 +1132,7 @@ export default function PlayerHub({
               <Text style={styles.sectionTitle}>Friends</Text>
               <Text style={styles.friendsTease}>Coming soon</Text>
               <Text style={styles.goalSub}>
-                See who&apos;s in lobbies, join or spectate, and open profiles —
-                without leaving Home.
+                Find and join other online players. Play or spectate games.
               </Text>
             </BlurPanel>
           ) : null}
@@ -1005,10 +1211,7 @@ export default function PlayerHub({
             style={[styles.card, styles.utilityCard, styles.supportCard]}
           >
             <Text style={styles.sectionTitle}>Support</Text>
-            <Text style={styles.supportBody}>
-              P&apos;s &amp; A&apos;s was made by a small team in New Zealand.
-              Contributions help cover server and development costs.
-            </Text>
+            <Text style={styles.supportBody}>{strings.support.playerHubMessage}</Text>
             <KofiButton style={styles.supportCta} />
           </BlurPanel>
 
@@ -1072,15 +1275,6 @@ export default function PlayerHub({
         players={onlinePlayers}
         onClose={() => setOnlinePlayersOpen(false)}
       />
-      <PracticeSetupModal
-        visible={practiceSetupOpen}
-        playerCount={practicePlayerCount}
-        onSelectPlayerCount={(count) => {
-          setPracticePlayerCount(count);
-          void writePracticePlayerCount(count);
-        }}
-        onClose={() => setPracticeSetupOpen(false)}
-      />
     </ScreenContainer>
   );
 }
@@ -1133,14 +1327,16 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontSize: 40,
       fontWeight: "700",
       textAlign: "center",
-      marginBottom: 2,
+      marginBottom: 0,
       ...onFeltTextStyle(colors.onFelt, "primary"),
     },
     brandSubtitle: {
       fontSize: 13,
+      lineHeight: 16,
       textAlign: "center",
       letterSpacing: 1.2,
-      marginBottom: 6,
+      marginTop: -25,
+      marginBottom: 8,
       fontWeight: "600",
       ...onFeltTextStyle(colors.onFelt, "accent"),
     },
@@ -1158,6 +1354,84 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginTop: 2,
       marginBottom: 8,
     },
+    playActionRow: {
+      flexDirection: "row",
+      gap: 10,
+      alignItems: "flex-start",
+    },
+    playActionColumn: {
+      flex: 1,
+      minWidth: 0,
+      gap: 0,
+    },
+    primaryPlayButton: {
+      width: "100%",
+      aspectRatio: 2,
+      minHeight: 0,
+      borderRadius: 100,
+      paddingHorizontal: 5,
+    },
+    playButtonShell: {
+      width: "95%",
+      aspectRatio: 2,
+    },
+    primaryPlayButtonInShell: {
+      width: "100%",
+    },
+    primaryPlayButtonText: {
+      fontSize: 25,
+      lineHeight: 22,
+      textAlign: "center",
+    },
+    localPlayButton: {
+      backgroundColor: hexToRgba(colors.accent, colors.mode === "dark" ? 0.34 : 0.92),
+      borderWidth: 1,
+      borderColor: hexToRgba(colors.accent, colors.mode === "dark" ? 0.72 : 1),
+      shadowColor: colors.accent,
+      shadowOpacity: colors.mode === "dark" ? 0.28 : 0.16,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 5,
+    },
+    localPlayButtonText: {
+      color: colors.textOnAccent,
+      textShadowColor: hexToRgba("#000000", 0.2),
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
+    },
+    onlineButtonShell: {
+      width: "95%",
+      aspectRatio: 2,
+      position: "relative",
+    },
+    onlinePlayButton: {
+      backgroundColor: hexToRgba(colors.textPrimary, colors.mode === "dark" ? 0.13 : 0.1),
+      borderWidth: 1,
+      borderColor: hexToRgba(colors.accent, colors.mode === "dark" ? 0.46 : 0.4),
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    onlinePlayButtonText: {
+      color: colors.textPrimary,
+      fontWeight: "800",
+      textShadowColor: hexToRgba("#000000", 0.2),
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
+    },
+    onlineButtonContent: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+    },
+    serverHealthDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      shadowOpacity: 0.5,
+      shadowRadius: 5,
+      shadowOffset: { width: 0, height: 0 },
+    },
     playHelper: {
       fontSize: 13,
       textAlign: "center",
@@ -1173,9 +1447,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "600",
       lineHeight: 18,
       ...onFeltTextStyle(colors.onFelt, "secondary"),
-    },
-    rulesEntryButton: {
-      width: "100%",
     },
     card: {
       borderRadius: 16,
@@ -1299,15 +1570,16 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "900",
     },
     identityBody: { flex: 1, minWidth: 0 },
-    nameRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
     identityActions: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
+      justifyContent: "space-between",
+      marginTop: 12,
+    },
+    identityActionItem: {
+      flex: 1,
+      alignItems: "center",
+      gap: 5,
     },
     displayName: {
       flex: 1,
@@ -1316,9 +1588,36 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontWeight: "800",
     },
     identityActionBtn: {
-      padding: 8,
-      borderRadius: 999,
+      width: 64,
+      height: 64,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 32,
       backgroundColor: hexToRgba(colors.accent, 0.14),
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hexToRgba(colors.accent, 0.3),
+    },
+    titleEmblem: {
+      position: "absolute",
+      top: 19,
+      left: 23,
+      width: 18,
+      height: 19,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 10,
+      backgroundColor: hexToRgba(colors.accent, 0.2),
+    },
+    titleActionText: {
+      color: colors.accent,
+      fontSize: 14,
+      lineHeight: 16,
+      fontWeight: "700",
+    },
+    identityActionLabel: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "700",
     },
     titleSlot: {
       color: colors.textTertiary,
@@ -1385,34 +1684,86 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       letterSpacing: 0.15,
       marginBottom: 4,
     },
-    primaryCta: { marginBottom: 4 },
-    practiceCountBtn: {
-      alignSelf: "center",
-      minHeight: 36,
+    practicePickerRow: {
+      width: "95%",
+      alignSelf: "flex-start",
+      height: 36,
+      marginTop: 14,
+      flexDirection: "row",
+      alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: 8,
-      marginTop: -2,
-      marginBottom: 2,
+      gap: 4,
+    },
+    practiceVsText: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 12,
+      textAlign: "center",
+      color: colors.textTertiary,
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    practicePickerViewport: {
+      width: PRACTICE_PICKER_ITEM_WIDTH * 3,
+      height: 36,
+      overflow: "hidden",
+      position: "relative",
+    },
+    practicePicker: {
+      flex: 1,
+      minWidth: 0,
+    },
+    practicePickerContent: {
+      alignItems: "center",
+      width:
+        PRACTICE_PICKER_ITEM_WIDTH * (PRACTICE_PLAYER_COUNTS.length + 2),
+    },
+    practicePickerSpacer: {
+      width: PRACTICE_PICKER_ITEM_WIDTH,
+    },
+    practicePickerItem: {
+      width: PRACTICE_PICKER_ITEM_WIDTH,
+      alignItems: "center",
+      justifyContent: "center",
     },
     practiceCountText: {
       textAlign: "center",
+      color: colors.textTertiary,
+      fontSize: 14,
+      fontWeight: "700",
+      opacity: 0.22,
+      fontVariant: ["tabular-nums"],
+    },
+    practiceCountTextAdjacent: {
+      color: colors.textSecondary,
+      fontSize: 16,
+      opacity: 0.58,
+    },
+    practiceCountTextSelected: {
       color: colors.accent,
-      fontSize: 13,
-      fontWeight: "600",
-      textDecorationLine: "underline",
+      fontSize: 22,
+      fontWeight: "900",
+      opacity: 1,
     },
     onlineHintBtn: {
-      marginTop: 10,
       alignSelf: "center",
-      minHeight: 44,
+      minHeight: 36,
+      marginTop: 14,
       justifyContent: "center",
       paddingHorizontal: 8,
     },
-    onlineHint: {
-      textAlign: "center",
-      color: colors.accent,
-      fontSize: 13,
-      fontWeight: "600",
+    onlinePresencePill: {
+      backgroundColor: "transparent",
+      borderWidth: 0,
+      paddingHorizontal: 0,
+      paddingVertical: 0,
+      borderRadius: 0,
+      overflow: "visible",
+    },
+    onlinePresencePillText: {
+      fontSize: 12,
+      fontWeight: "800",
     },
     unlockRow: {
       flexDirection: "row",
