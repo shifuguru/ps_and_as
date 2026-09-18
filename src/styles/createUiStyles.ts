@@ -42,6 +42,13 @@ export function createUiStyles(c: AppThemeColors) {
       backgroundColor: c.leaveButtonBg,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.leaveButtonBorder,
+      ...(Platform.OS === "web"
+        ? ({
+            backgroundImage: `linear-gradient(135deg, ${c.leaveButtonBg}, ${c.btnSecondaryBg})`,
+            backdropFilter: "blur(16px) saturate(1.25)",
+            WebkitBackdropFilter: "blur(16px) saturate(1.25)",
+          } as ViewStyle)
+        : {}),
       ...leaveButtonShadow,
       ...BUTTON_CENTER,
     },
@@ -59,6 +66,13 @@ export function createUiStyles(c: AppThemeColors) {
       backgroundColor: c.leaveButtonLiveBg,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.leaveButtonLiveBorder,
+      ...(Platform.OS === "web"
+        ? ({
+            backgroundImage: `linear-gradient(135deg, ${c.leaveButtonLiveBg}, ${c.btnAccentBg})`,
+            backdropFilter: "blur(16px) saturate(1.25)",
+            WebkitBackdropFilter: "blur(16px) saturate(1.25)",
+          } as ViewStyle)
+        : {}),
       ...leaveButtonShadow,
       ...BUTTON_CENTER,
     },

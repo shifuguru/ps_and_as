@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useAppTheme } from '../context/ThemeContext';
 import { strings } from '../strings';
 
@@ -27,12 +27,20 @@ export default function BackButton({ onPress, menu = false, label }: Props) {
   }
   return (
     <TouchableOpacity
-      style={{ backgroundColor: 'transparent' }}
+      style={[ui.leaveButton, styles.headerBackButton]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={text}
     >
-      <Text style={{ color: colors.leaveText }}>{text}</Text>
+      <Text style={ui.leaveButtonText}>{text}</Text>
     </TouchableOpacity>
   );
 }
+
+const styles = StyleSheet.create({
+  headerBackButton: {
+    marginTop: 0,
+    minHeight: 44,
+    paddingHorizontal: 18,
+  },
+});
