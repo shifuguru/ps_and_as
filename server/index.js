@@ -547,7 +547,29 @@ function sanitizePresenceDisplayName(name) {
   return trimmed || 'Player';
 }
 
-function trackPresence(socket, profileId, displayName) {
+function sanitizePresenceNumber(value, min, max) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.max(min, Math.min(max, Math.floor(value)));
+}
+
+function sanitizePresenceProfile({ level, title, presidents, roundsPlayed } = {}) {
+  return {
+    ...(sanitizePresenceNumber(level, 1, 9999) !== undefined
+      ? { level: sanitizePresenceNumber(level, 1, 9999) }
+      : {}),
+    ...(typeof title === 'string' && title.trim()
+      ? { title: title.trim().slice(0, 48) }
+      : {}),
+    ...(sanitizePresenceNumber(presidents, 0, 1000000) !== undefined
+      ? { presidents: sanitizePresenceNumber(presidents, 0, 1000000) }
+      : {}),
+    ...(sanitizePresenceNumber(roundsPlayed, 0, 1000000) !== undefined
+      ? { roundsPlayed: sanitizePresenceNumber(roundsPlayed, 0, 1000000) }
+      : {}),
+  };
+}
+
+function trackPresence(socket, profileId, displayName, profile) {
   const identity = presenceIdentity(profileId, socket.id);
   const previous = socketPresenceIdentity.get(socket.id);
   if (previous && previous !== identity) {
@@ -561,6 +583,7 @@ function trackPresence(socket, profileId, displayName) {
   if (displayName !== undefined) {
     presenceMetaByIdentity.set(identity, {
       displayName: sanitizePresenceDisplayName(displayName),
+      ...sanitizePresenceProfile(profile),
     });
   } else if (!presenceMetaByIdentity.has(identity)) {
     presenceMetaByIdentity.set(identity, { displayName: 'Player' });
@@ -588,10 +611,27 @@ function totalOnlineConnectedPlayers() {
   return presenceSocketsByIdentity.size;
 }
 
+function publicLobbyNameForIdentity(identity) {
+  for (const room of Object.values(rooms)) {
+    if (!room.isPublic || room.inGame) continue;
+    const seated = room.players?.some((player) =>
+      String(player.profileId || player.id) === identity && !player.disconnectedAt,
+    );
+    if (seated) return String(room.roomName || room.hostName || 'Lobby').slice(0, 32);
+  }
+  return undefined;
+}
+
 function onlinePresencePayload() {
   const players = [...presenceMetaByIdentity.entries()]
     .filter(([identity]) => presenceSocketsByIdentity.has(identity))
-    .map(([, meta]) => ({ displayName: meta.displayName }))
+    .map(([identity, meta]) => ({
+      id: identity,
+      ...meta,
+      ...(publicLobbyNameForIdentity(identity)
+        ? { lobbyName: publicLobbyNameForIdentity(identity) }
+        : {}),
+    }))
     .sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }));
   return {
     activePlayers: totalOnlineConnectedPlayers(),
@@ -1702,9 +1742,9 @@ io.on('connection', (socket) => {
     socket.emit('onlinePlayerCount', onlinePresencePayload());
   });
 
-  socket.on('registerPresence', ({ profileId, displayName } = {}) => {
+  socket.on('registerPresence', ({ profileId, displayName, level, title, presidents, roundsPlayed } = {}) => {
     const before = totalOnlineConnectedPlayers();
-    trackPresence(socket, profileId, displayName);
+    trackPresence(socket, profileId, displayName, { level, title, presidents, roundsPlayed });
     const after = totalOnlineConnectedPlayers();
     socket.emit('onlinePlayerCount', onlinePresencePayload());
     if (after !== before || displayName !== undefined) broadcastOnlinePlayerCount();
@@ -2097,6 +2137,7 @@ io.on('connection', (socket) => {
       io.to(roomId).emit('startGame', {
         players: room.players.map((p) => ({ id: p.id, name: p.name })),
         hostId: room.host,
+        dealSeed: room.gameState.dealSeed,
         skipDealAnimations: !!room.skipDealAnimations,
       });
       return;
@@ -2122,6 +2163,7 @@ io.on('connection', (socket) => {
           .filter((p) => !p.isSpectator)
           .map(p => ({ id: p.id, name: p.name })),
         hostId: room.host,
+        dealSeed,
         skipDealAnimations: !!room.skipDealAnimations,
       });
       emitTradesCompleteIfReady(io, roomId, room.gameState, room.host);
@@ -2592,17 +2634,14 @@ app.get('/api/online-players', (_req, res) => {
 server.listen(PORT, () => {
   console.log('Server listening on', PORT);
   try {
-    const { ensureServerDataDir } = require('./dataDir');
+    const { ensureServerDataDir, resolveServerDataDirSource } = require('./dataDir');
     const dataDir = ensureServerDataDir();
-    const onVolume = Boolean(
-      process.env.SERVER_DATA_DIR?.trim() ||
-        process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim(),
-    );
+    const source = resolveServerDataDirSource();
     console.log(
-      `[Server] data dir: ${dataDir}` +
-        (onVolume
-          ? ' (persistent volume / SERVER_DATA_DIR)'
-          : ' (ephemeral — attach a Railway volume or set SERVER_DATA_DIR)'),
+      `[Server] data dir: ${dataDir} (source: ${source})` +
+        (source === 'fallback'
+          ? ' — EPHEMERAL: attach a Railway Volume (mount path /data) or set SERVER_DATA_DIR, or player-stats.json will be lost on every redeploy'
+          : ' — persistent'),
     );
   } catch (err) {
     console.warn('[Server] data dir setup failed:', err?.message || err);

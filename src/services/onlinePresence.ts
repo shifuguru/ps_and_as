@@ -1,5 +1,11 @@
 export type OnlinePlayer = {
+  id: string;
   displayName: string;
+  level?: number;
+  title?: string;
+  presidents?: number;
+  roundsPlayed?: number;
+  lobbyName?: string;
 };
 
 export type OnlinePresenceSnapshot = {
@@ -30,11 +36,35 @@ export function parseOnlinePlayers(raw: unknown): OnlinePlayer[] {
   const names: OnlinePlayer[] = [];
   for (const item of raw) {
     if (!item || typeof item !== "object") continue;
+    const id = (item as { id?: unknown }).id;
     const displayName = (item as { displayName?: unknown }).displayName;
     if (typeof displayName !== "string") continue;
     const trimmed = displayName.trim();
     if (!trimmed) continue;
-    names.push({ displayName: trimmed });
+    const level = (item as { level?: unknown }).level;
+    const title = (item as { title?: unknown }).title;
+    const presidents = (item as { presidents?: unknown }).presidents;
+    const roundsPlayed = (item as { roundsPlayed?: unknown }).roundsPlayed;
+    const lobbyName = (item as { lobbyName?: unknown }).lobbyName;
+    names.push({
+      id: typeof id === "string" && id.trim() ? id.trim() : `name:${trimmed.toLowerCase()}`,
+      displayName: trimmed,
+      ...(typeof level === "number" && Number.isFinite(level)
+        ? { level: Math.max(1, Math.floor(level)) }
+        : {}),
+      ...(typeof title === "string" && title.trim()
+        ? { title: title.trim().slice(0, 48) }
+        : {}),
+      ...(typeof presidents === "number" && Number.isFinite(presidents)
+        ? { presidents: Math.max(0, Math.floor(presidents)) }
+        : {}),
+      ...(typeof roundsPlayed === "number" && Number.isFinite(roundsPlayed)
+        ? { roundsPlayed: Math.max(0, Math.floor(roundsPlayed)) }
+        : {}),
+      ...(typeof lobbyName === "string" && lobbyName.trim()
+        ? { lobbyName: lobbyName.trim().slice(0, 32) }
+        : {}),
+    });
   }
 
   return names.sort((a, b) =>
@@ -87,6 +117,6 @@ export function withLocalPresenceFallback(
   if (snapshot.players.length > 0) return snapshot;
   return {
     ...snapshot,
-    players: [{ displayName: trimmed }],
+    players: [{ id: "local", displayName: trimmed }],
   };
 }

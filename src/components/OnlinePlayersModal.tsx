@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -12,12 +13,17 @@ import AppButton from "./ui/AppButton";
 import { useAppTheme } from "../context/ThemeContext";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { triggerHaptic } from "../utils/haptics";
+import { playerInitials } from "../utils/playerDisplay";
+import MenuIcon from "./MenuIcon";
 import type { OnlinePlayer } from "../services/onlinePresence";
 
 type Props = {
   visible: boolean;
   playerCount: number;
   players: OnlinePlayer[];
+  currentPlayerId?: string | null;
+  friendIds?: string[];
+  onAddFriend?: (player: OnlinePlayer) => void;
   onClose: () => void;
 };
 
@@ -25,6 +31,9 @@ export default function OnlinePlayersModal({
   visible,
   playerCount,
   players,
+  currentPlayerId,
+  friendIds = [],
+  onAddFriend,
   onClose,
 }: Props) {
   const { ui, blur, colors } = useAppTheme();
@@ -74,7 +83,7 @@ export default function OnlinePlayersModal({
             >
               {players.map((player, index) => (
                 <View
-                  key={`${player.displayName}-${index}`}
+                  key={player.id}
                   style={[
                     styles.row,
                     index < players.length - 1 ? styles.rowDivider : null,
@@ -83,9 +92,38 @@ export default function OnlinePlayersModal({
                   accessibilityRole="text"
                   accessibilityLabel={player.displayName}
                 >
-                  <Text style={styles.rowName} numberOfLines={2}>
-                    {player.displayName}
-                  </Text>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>
+                      {playerInitials(player.displayName)}
+                    </Text>
+                  </View>
+                  <View style={styles.rowBody}>
+                    <Text style={styles.rowName} numberOfLines={1}>
+                      {player.displayName}
+                    </Text>
+                    {player.title ? (
+                      <Text style={styles.rowTitle} numberOfLines={1}>
+                        {player.title}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.rowMeta} numberOfLines={1}>
+                      {player.level != null ? `Level ${player.level}` : "Level unknown"}
+                      {player.presidents != null ? `  ·  ${player.presidents} Presidents` : ""}
+                      {player.roundsPlayed != null ? `  ·  ${player.roundsPlayed} rounds` : ""}
+                    </Text>
+                  </View>
+                  {onAddFriend &&
+                  player.id !== currentPlayerId &&
+                  !friendIds.includes(player.id) ? (
+                    <TouchableOpacity
+                      style={styles.addFriendButton}
+                      onPress={() => onAddFriend(player)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Add ${player.displayName} as a friend`}
+                    >
+                      <MenuIcon name="personPlus" size={19} color={colors.accent} />
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               ))}
             </ScrollView>
@@ -138,9 +176,11 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     row: {
       minHeight: 44,
-      justifyContent: "center",
+      flexDirection: "row",
+      alignItems: "center",
       paddingVertical: 10,
       paddingHorizontal: 4,
+      gap: 10,
     },
     rowDivider: {
       borderBottomWidth: StyleSheet.hairlineWidth,
@@ -150,7 +190,47 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       color: colors.textPrimary,
       fontSize: 16,
       fontWeight: "700",
-      textAlign: "center",
+    },
+    avatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.btnAccentBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.btnAccentBorder,
+    },
+    avatarText: {
+      color: colors.btnAccentText,
+      fontSize: 13,
+      fontWeight: "800",
+    },
+    rowBody: {
+      flex: 1,
+      minWidth: 0,
+      gap: 2,
+    },
+    rowTitle: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: "700",
+      fontStyle: "italic",
+    },
+    rowMeta: {
+      color: colors.textTertiary,
+      fontSize: 11,
+      fontWeight: "600",
+    },
+    addFriendButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.btnSecondaryBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.btnSecondaryBorder,
     },
     emptyState: {
       marginBottom: 16,

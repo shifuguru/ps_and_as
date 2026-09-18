@@ -10,6 +10,12 @@ import {
   type OnlinePresenceSnapshot,
 } from "../services/onlinePresence";
 import { getOrCreatePlayerId } from "../services/gameCenter";
+import { getPlayerStats } from "../services/playerStats";
+import { levelProgressFromXp } from "../services/playerLevel";
+import {
+  displayedTitleForStats,
+  readDisplayTitleTrackId,
+} from "../services/titlePreferences";
 
 const POLL_MS = 15 * 1000;
 const CONNECT_TIMEOUT_MS = 12_000;
@@ -128,12 +134,20 @@ async function registerProfilePresence(
 ): Promise<void> {
   const preferred = preferredDisplayName?.trim() || null;
   try {
-    const profile = await getOrCreatePlayerId();
+    const [profile, stats, titleTrackId] = await Promise.all([
+      getOrCreatePlayerId(),
+      getPlayerStats(),
+      readDisplayTitleTrackId(),
+    ]);
     const displayName = preferred || profile.displayName || "Player";
     lastRegisteredDisplayName = displayName;
     activeSocket.emit("registerPresence", {
       profileId: profile.id,
       displayName,
+      level: levelProgressFromXp(stats.xp).level,
+      title: displayedTitleForStats(stats, titleTrackId) ?? undefined,
+      presidents: stats.timesPresident,
+      roundsPlayed: stats.roundsPlayed,
     });
   } catch {
     const displayName = preferred || "Player";

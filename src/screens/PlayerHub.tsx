@@ -103,6 +103,7 @@ import {
 } from "../services/titlePreferences";
 import { triggerHaptic } from "../utils/haptics";
 import type { OnlinePlayer } from "../services/onlinePresence";
+import { addFriend, readFriends, type FriendProfile } from "../services/friends";
 import HubOnlinePlayPanel from "../components/HubOnlinePlayPanel";
 import BottomBar, {
   BottomBarControls,
@@ -154,6 +155,7 @@ export type PlayerHubActions = {
 
 type Props = {
   displayName: string;
+  currentPlayerId?: string | null;
   whatsNewUnread?: number;
   onlinePlayerCount?: number;
   onlinePlayers?: OnlinePlayer[];
@@ -174,6 +176,7 @@ type Props = {
 
 export default function PlayerHub({
   displayName,
+  currentPlayerId = null,
   whatsNewUnread = 0,
   onlinePlayerCount = 0,
   onlinePlayers = [],
@@ -211,6 +214,7 @@ export default function PlayerHub({
   const [featured, setFeatured] = useState<FeaturedStat | null>(null);
   const [displayedTitle, setDisplayedTitle] = useState<string | null>(null);
   const [onlinePlayersOpen, setOnlinePlayersOpen] = useState(false);
+  const [friends, setFriends] = useState<FriendProfile[]>([]);
   const [onlinePlayOpen, setOnlinePlayOpen] = useState(false);
   const [slideStageHeight, setSlideStageHeight] = useState(0);
   const slideProgress = useRef(new Animated.Value(0)).current;
@@ -293,6 +297,10 @@ export default function PlayerHub({
   useEffect(() => {
     void reload();
   }, [reload, refreshKey]);
+
+  useEffect(() => {
+    void readFriends().then(setFriends);
+  }, [refreshKey]);
 
   const run = (fn: () => void) => {
     onNavigateSound?.();
@@ -613,6 +621,14 @@ export default function PlayerHub({
   const recentAccent = recentRarity
     ? RARITY_COLOR[recentRarity]
     : colors.accent;
+  const onlineFriends = friends.map((friend) => {
+    const online = onlinePlayers.find((player) => player.id === friend.id);
+    return { ...friend, online };
+  });
+
+  const handleAddFriend = (player: OnlinePlayer) => {
+    void addFriend(player, currentPlayerId).then(setFriends);
+  };
 
   const identityPanel = (
     <BlurPanel intensity={54} style={[styles.card, styles.identityCard]}>
@@ -1143,17 +1159,29 @@ export default function PlayerHub({
             </BlurPanel>
           ) : null}
 
-          {/* Friends placeholder — wide layouts only (slot for Join / Spectate later) */}
-          {hasPlayed && showFriendsPlaceholder ? (
+          {friends.length > 0 ? (
             <BlurPanel
               intensity={40}
               style={[styles.card, styles.utilityCard, styles.friendsCard]}
             >
               <Text style={styles.sectionTitle}>Friends</Text>
-              <Text style={styles.friendsTease}>Coming soon</Text>
-              <Text style={styles.goalSub}>
-                Find and join other online players. Play or spectate games.
-              </Text>
+              <View style={styles.friendList}>
+                {onlineFriends.map((friend) => (
+                  <View key={friend.id} style={styles.friendRow}>
+                    <View style={styles.friendPresenceDot} />
+                    <Text style={styles.friendName} numberOfLines={1}>
+                      {friend.online?.displayName ?? friend.displayName}
+                    </Text>
+                    <Text style={styles.friendStatus} numberOfLines={1}>
+                      {friend.online?.lobbyName
+                        ? `In ${friend.online.lobbyName}`
+                        : friend.online
+                          ? "Online"
+                          : "Offline"}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             </BlurPanel>
           ) : null}
 
@@ -1293,6 +1321,9 @@ export default function PlayerHub({
         visible={onlinePlayersOpen}
         playerCount={onlinePlayerCount}
         players={onlinePlayers}
+        currentPlayerId={currentPlayerId}
+        friendIds={friends.map((friend) => friend.id)}
+        onAddFriend={handleAddFriend}
         onClose={() => setOnlinePlayersOpen(false)}
       />
     </ScreenContainer>
@@ -1543,8 +1574,31 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       borderColor: hexToRgba(colors.accent, 0.62),
     },
     friendsCard: {
-      opacity: 0.92,
-      borderStyle: "dashed" as const,
+      gap: 8,
+    },
+    friendList: { gap: 8 },
+    friendRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    friendPresenceDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: colors.accent,
+    },
+    friendName: {
+      flex: 1,
+      minWidth: 0,
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    friendStatus: {
+      color: colors.textTertiary,
+      fontSize: 12,
+      fontWeight: "600",
     },
     sectionTitle: {
       color: colors.textSecondary,

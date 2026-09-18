@@ -29,7 +29,10 @@ function run() {
       { displayName: 42 },
       null,
     ]),
-    [{ displayName: "Amy" }, { displayName: "Zed" }],
+    [
+      { id: "name:amy", displayName: "Amy" },
+      { id: "name:zed", displayName: "Zed" },
+    ],
   );
 
   assert.deepStrictEqual(parseOnlinePresencePayload({ activePlayers: 2 }), {
@@ -40,16 +43,51 @@ function run() {
   assert.deepStrictEqual(
     parseOnlinePresencePayload({
       activePlayers: 1,
-      players: [{ displayName: "Casey" }],
+      players: [{ id: "casey-1", displayName: "Casey" }],
     }),
-    { count: 1, players: [{ displayName: "Casey" }], playersProvided: true },
+    {
+      count: 1,
+      players: [{ id: "casey-1", displayName: "Casey" }],
+      playersProvided: true,
+    },
+  );
+  assert.deepStrictEqual(
+    parseOnlinePresencePayload({
+      activePlayers: 1,
+      players: [
+        {
+          id: "casey-1",
+          displayName: "Casey",
+          level: 12.8,
+          title: "  Table Royalty  ",
+          presidents: 7.4,
+          roundsPlayed: 31.9,
+          lobbyName: "  Friday Table ",
+        },
+      ],
+    }),
+    {
+      count: 1,
+      players: [
+        {
+          id: "casey-1",
+          displayName: "Casey",
+          level: 12,
+          title: "Table Royalty",
+          presidents: 7,
+          roundsPlayed: 31,
+          lobbyName: "Friday Table",
+        },
+      ],
+      playersProvided: true,
+    },
   );
   assert.strictEqual(parseOnlinePresencePayload({ activePlayers: NaN }), null);
 
   // Count-only production payloads must not wipe known names.
   const withNames = {
     count: 1,
-    players: [{ displayName: "Casey" }],
+    players: [{ id: "casey-1", displayName: "Casey" }],
     playersProvided: true,
   };
   assert.deepStrictEqual(
@@ -60,19 +98,19 @@ function run() {
     }),
     {
       count: 2,
-      players: [{ displayName: "Casey" }],
+      players: [{ id: "casey-1", displayName: "Casey" }],
       playersProvided: true,
     },
   );
   assert.deepStrictEqual(
     mergeOnlinePresence(withNames, {
       count: 1,
-      players: [{ displayName: "Drew" }],
+      players: [{ id: "drew-1", displayName: "Drew" }],
       playersProvided: true,
     }),
     {
       count: 1,
-      players: [{ displayName: "Drew" }],
+      players: [{ id: "drew-1", displayName: "Drew" }],
       playersProvided: true,
     },
   );
@@ -84,7 +122,7 @@ function run() {
     ),
     {
       count: 1,
-      players: [{ displayName: "Mike" }],
+      players: [{ id: "local", displayName: "Mike" }],
       playersProvided: false,
     },
   );
@@ -96,14 +134,14 @@ function run() {
     withLocalPresenceFallback(
       {
         count: 1,
-        players: [{ displayName: "Casey" }],
+        players: [{ id: "casey-1", displayName: "Casey" }],
         playersProvided: true,
       },
       "Mike",
     ),
     {
       count: 1,
-      players: [{ displayName: "Casey" }],
+        players: [{ id: "casey-1", displayName: "Casey" }],
       playersProvided: true,
     },
   );

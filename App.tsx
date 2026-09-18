@@ -868,6 +868,7 @@ function AppContent() {
           >
             <PlayerHub
               displayName={localPlayerName ?? "Player"}
+              currentPlayerId={localPlayerId}
               whatsNewUnread={updateLogUnreadCount}
               onlinePlayerCount={onlinePresence.count}
               onlinePlayers={onlinePresence.players}

@@ -7,6 +7,7 @@ type IconName =
   | "multiplayer"
   | "shuffle"
   | "person"
+  | "personPlus"
   | "trophy"
   | "gear"
   | "ellipsis"
@@ -91,6 +92,14 @@ export default function MenuIcon({ name, size = 20, color = "#9ed6bb" }: Props) 
         <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
           <Circle cx="12" cy="8" r="4" stroke={c} strokeWidth={sw} />
           <Path d="M4 21c0-4 4-7 8-7s8 3 8 7" stroke={c} strokeWidth={sw} strokeLinecap="round" />
+        </Svg>
+      );
+    case "personPlus":
+      return (
+        <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+          <Circle cx="9" cy="8" r="3.5" stroke={c} strokeWidth={sw} />
+          <Path d="M3.5 20c0-3.5 2.5-6 5.5-6s5.5 2.5 5.5 6" stroke={c} strokeWidth={sw} strokeLinecap="round" />
+          <Path d="M18 8v6M15 11h6" stroke={c} strokeWidth={sw} strokeLinecap="round" />
         </Svg>
       );
     case "trophy":
