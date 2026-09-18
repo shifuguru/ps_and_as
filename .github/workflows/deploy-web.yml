@@ -68,12 +68,12 @@ jobs:
       - name: Verify server URL for web build
         run: |
           if [ -z "$EXPO_PUBLIC_SERVER_URL" ]; then
-            echo "::error::Add repository variable EXPO_PUBLIC_SERVER_URL (your Railway https URL) under Settings → Secrets and variables → Actions → Variables"
-            exit 1
+            echo "::warning::EXPO_PUBLIC_SERVER_URL is unset; using the production Railway fallback."
+          else
+            echo "Web build will use server: $EXPO_PUBLIC_SERVER_URL"
           fi
-          echo "Web build will use server: $EXPO_PUBLIC_SERVER_URL"
         env:
-          EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
+          EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL || 'https://psandas-production.up.railway.app' }}
 
       - name: Read app version for this release
         id: version
@@ -85,7 +85,7 @@ jobs:
           APP_BASE_URL: ""
           GITHUB_PAGES_BASE: ""
           GITHUB_PAGES_CNAME: psandas.com
-          EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
+          EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL || 'https://psandas-production.up.railway.app' }}
           EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
           EXPO_PUBLIC_ADSENSE_CLIENT: ${{ vars.EXPO_PUBLIC_ADSENSE_CLIENT }}
           EXPO_PUBLIC_ADSENSE_BANNER_SLOT: ${{ vars.EXPO_PUBLIC_ADSENSE_BANNER_SLOT }}
