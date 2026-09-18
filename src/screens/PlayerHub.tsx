@@ -328,6 +328,16 @@ export default function PlayerHub({
     }
   };
 
+  const selectPracticeCountFromTap = (count: number) => {
+    const countIndex = PRACTICE_PLAYER_COUNTS.indexOf(count);
+    if (countIndex < 0) return;
+    selectPracticePlayerCount(count);
+    practicePickerRef.current?.scrollTo({
+      x: countIndex * PRACTICE_PICKER_ITEM_WIDTH,
+      animated: false,
+    });
+  };
+
   useEffect(() => {
     practicePlayerCountRef.current = practicePlayerCount;
     const countIndex = PRACTICE_PLAYER_COUNTS.indexOf(practicePlayerCount);
@@ -918,14 +928,7 @@ export default function PlayerHub({
                         <TouchableOpacity
                           key={count}
                           style={styles.practicePickerItem}
-                          onPress={() =>
-                            selectPracticeCountAtOffset(
-                              PRACTICE_PLAYER_COUNTS.indexOf(count) *
-                                PRACTICE_PICKER_ITEM_WIDTH,
-                              true,
-                              true,
-                            )
-                          }
+                          onPress={() => selectPracticeCountFromTap(count)}
                           activeOpacity={0.72}
                           accessibilityRole="button"
                           accessibilityState={{ selected: count === practicePlayerCount }}
@@ -1437,7 +1440,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       textAlign: "center",
       fontWeight: "600",
       lineHeight: 18,
-      marginTop: -4,
+      marginTop: 10,
       marginBottom: 2,
       ...onFeltTextStyle(colors.onFelt, "secondary"),
     },
