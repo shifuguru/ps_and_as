@@ -16,6 +16,7 @@ import { CardAppearanceProvider } from "./src/context/CardAppearanceContext";
 import { preloadGamePreferences } from "./src/services/gamePreferences";
 import {
   clampPracticePlayerCount,
+  writePracticePlayerCount,
 } from "./src/services/practicePreferences";
 import { ensurePlayerStatsRestored } from "./src/services/playerStats";
 import { preloadAdsConsent } from "./src/services/ads/adsConsent";
@@ -336,6 +337,7 @@ function AppContent() {
     const hostName = localPlayerName.trim();
     const savedTint = (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
     const totalPlayers = clampPracticePlayerCount(playerCount);
+    await writePracticePlayerCount(totalPlayers);
     const botCount = Math.max(0, totalPlayers - 1);
     console.log("[App] Practice game requested", {
       hostName,
