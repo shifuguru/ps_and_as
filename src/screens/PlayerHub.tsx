@@ -168,6 +168,8 @@ type Props = {
   pendingLobby?: LobbySession | null;
   onRejoinLobby?: () => void;
   onDismissLobby?: () => void;
+  updateAvailable?: boolean;
+  onOpenUpdate?: () => void;
 };
 
 export default function PlayerHub({
@@ -183,6 +185,8 @@ export default function PlayerHub({
   pendingLobby = null,
   onRejoinLobby,
   onDismissLobby,
+  updateAvailable = false,
+  onOpenUpdate,
 }: Props) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -844,6 +848,19 @@ export default function PlayerHub({
 
           {statsReady ? identityPanel : null}
 
+          {updateAvailable && onOpenUpdate ? (
+            <TouchableOpacity
+              style={styles.updateAvailableButton}
+              onPress={() => run(onOpenUpdate)}
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel="Update available"
+            >
+              <MenuIcon name="plus" size={16} color={colors.accent} />
+              <Text style={styles.updateAvailableText}>Update available</Text>
+            </TouchableOpacity>
+          ) : null}
+
           <View
             style={[
               styles.slideStage,
@@ -1356,6 +1373,23 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       gap: 10,
       marginTop: 2,
       marginBottom: 8,
+    },
+    updateAvailableButton: {
+      alignSelf: "center",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 7,
+      minHeight: 38,
+      paddingHorizontal: 14,
+      borderRadius: 999,
+      backgroundColor: hexToRgba(colors.accent, 0.14),
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hexToRgba(colors.accent, 0.34),
+    },
+    updateAvailableText: {
+      color: colors.accent,
+      fontSize: 13,
+      fontWeight: "800",
     },
     playActionRow: {
       flexDirection: "row",

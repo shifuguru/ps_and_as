@@ -55,15 +55,15 @@ export default function UpdateRequiredOverlay({ latestBuild, onDismiss }: Props)
               {Platform.OS === "web" ? "Refresh now" : "Restart app"}
             </Text>
           </TouchableOpacity>
-          {Platform.OS !== "web" && onDismiss ? (
+          {onDismiss ? (
             <TouchableOpacity
               style={[ui.btnSecondary, styles.dismissBtn]}
               onPress={onDismiss}
               activeOpacity={0.88}
               accessibilityRole="button"
-              accessibilityLabel="Continue with current version"
+              accessibilityLabel="Update later"
             >
-              <Text style={ui.btnSecondaryText}>Continue anyway</Text>
+              <Text style={ui.btnSecondaryText}>Later</Text>
             </TouchableOpacity>
           ) : null}
           <Text style={styles.hint}>

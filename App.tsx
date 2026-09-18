@@ -872,6 +872,8 @@ function AppContent() {
               onlinePlayerCount={onlinePresence.count}
               onlinePlayers={onlinePresence.players}
               refreshKey={hubRefreshKey}
+              updateAvailable={updateAvailable}
+              onOpenUpdate={() => setUpdateDismissedBuildId(null)}
               pendingLobby={pendingRejoin}
               onRejoinLobby={() => void rejoinLobby()}
               onDismissLobby={() => {
