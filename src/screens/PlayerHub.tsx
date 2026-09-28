@@ -227,6 +227,9 @@ export default function PlayerHub({
     Math.max(0, PRACTICE_PLAYER_COUNTS.indexOf(practicePlayerCount)),
   );
   const practiceMomentumActiveRef = useRef(false);
+  const practicePersistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const wheelDeltaRef = useRef(0);
   const ringPulse = useRef(new Animated.Value(1)).current;
   const xpPulse = useRef(new Animated.Value(1)).current;
@@ -369,6 +372,17 @@ export default function PlayerHub({
     selectPracticePlayerCount(count, true);
   };
 
+  const queuePersistPracticeCount = (countIndex: number | null) => {
+    if (practicePersistTimeoutRef.current) {
+      clearTimeout(practicePersistTimeoutRef.current);
+    }
+    practicePersistTimeoutRef.current = setTimeout(() => {
+      practicePersistTimeoutRef.current = null;
+      if (practiceMomentumActiveRef.current) return;
+      persistPracticeCountAtIndex(countIndex);
+    }, 0);
+  };
+
   useEffect(() => {
     practicePlayerCountRef.current = practicePlayerCount;
     const countIndex = PRACTICE_PLAYER_COUNTS.indexOf(practicePlayerCount);
@@ -380,6 +394,15 @@ export default function PlayerHub({
       });
     }
   }, [practicePlayerCount]);
+
+  useEffect(
+    () => () => {
+      if (practicePersistTimeoutRef.current) {
+        clearTimeout(practicePersistTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -966,12 +989,13 @@ export default function PlayerHub({
                           event.nativeEvent.contentOffset.x,
                           true,
                         );
-                        setTimeout(() => {
-                          if (practiceMomentumActiveRef.current) return;
-                          persistPracticeCountAtIndex(countIndex);
-                        }, 0);
+                        queuePersistPracticeCount(countIndex);
                       }}
                       onMomentumScrollBegin={() => {
+                        if (practicePersistTimeoutRef.current) {
+                          clearTimeout(practicePersistTimeoutRef.current);
+                          practicePersistTimeoutRef.current = null;
+                        }
                         practiceMomentumActiveRef.current = true;
                       }}
                       onMomentumScrollEnd={(event) => {
@@ -980,6 +1004,10 @@ export default function PlayerHub({
                           true,
                         );
                         practiceMomentumActiveRef.current = false;
+                        if (practicePersistTimeoutRef.current) {
+                          clearTimeout(practicePersistTimeoutRef.current);
+                          practicePersistTimeoutRef.current = null;
+                        }
                         persistPracticeCountAtIndex(countIndex);
                       }}
                       accessibilityRole="adjustable"
