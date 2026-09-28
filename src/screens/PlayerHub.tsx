@@ -223,12 +223,10 @@ export default function PlayerHub({
   );
   const practicePickerRef = useRef<ScrollView>(null);
   const practicePlayerCountRef = useRef(practicePlayerCount);
+  const practicePersistedCountRef = useRef<number | null>(null);
+  const practiceMomentumActiveRef = useRef(false);
   const practiceSnappedIndexRef = useRef(
     Math.max(0, PRACTICE_PLAYER_COUNTS.indexOf(practicePlayerCount)),
-  );
-  const practiceMomentumActiveRef = useRef(false);
-  const practicePersistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
   );
   const wheelDeltaRef = useRef(0);
   const ringPulse = useRef(new Animated.Value(1)).current;
@@ -287,6 +285,7 @@ export default function PlayerHub({
       setRecent(null);
     }
     const practiceCount = await readPracticePlayerCount();
+    practicePersistedCountRef.current = practiceCount;
     setPracticePlayerCount(practiceCount);
     const daily = await loadDailyChallengeState(s);
     // Mark complete for UI, but never auto-grant XP — player taps to claim.
@@ -321,7 +320,8 @@ export default function PlayerHub({
       triggerHaptic("light");
       setPracticePlayerCount(count);
     }
-    if (persist) {
+    if (persist && practicePersistedCountRef.current !== count) {
+      practicePersistedCountRef.current = count;
       void writePracticePlayerCount(count);
     }
   };
@@ -372,21 +372,13 @@ export default function PlayerHub({
     selectPracticePlayerCount(count, true);
   };
 
-  const queuePersistPracticeCount = (countIndex: number | null) => {
-    if (practicePersistTimeoutRef.current) {
-      clearTimeout(practicePersistTimeoutRef.current);
-    }
-    practicePersistTimeoutRef.current = setTimeout(() => {
-      practicePersistTimeoutRef.current = null;
-      if (practiceMomentumActiveRef.current) return;
-      persistPracticeCountAtIndex(countIndex);
-    }, 0);
-  };
-
   useEffect(() => {
     practicePlayerCountRef.current = practicePlayerCount;
     const countIndex = PRACTICE_PLAYER_COUNTS.indexOf(practicePlayerCount);
-    if (countIndex >= 0) {
+    if (
+      countIndex >= 0 &&
+      practiceSnappedIndexRef.current !== countIndex
+    ) {
       practiceSnappedIndexRef.current = countIndex;
       practicePickerRef.current?.scrollTo({
         x: countIndex * PRACTICE_PICKER_ITEM_WIDTH,
@@ -394,15 +386,6 @@ export default function PlayerHub({
       });
     }
   }, [practicePlayerCount]);
-
-  useEffect(
-    () => () => {
-      if (practicePersistTimeoutRef.current) {
-        clearTimeout(practicePersistTimeoutRef.current);
-      }
-    },
-    [],
-  );
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -989,13 +972,14 @@ export default function PlayerHub({
                           event.nativeEvent.contentOffset.x,
                           true,
                         );
-                        queuePersistPracticeCount(countIndex);
+                        const velocityX = Math.abs(
+                          event.nativeEvent.velocity?.x ?? 0,
+                        );
+                        if (velocityX < 0.05 && !practiceMomentumActiveRef.current) {
+                          persistPracticeCountAtIndex(countIndex);
+                        }
                       }}
                       onMomentumScrollBegin={() => {
-                        if (practicePersistTimeoutRef.current) {
-                          clearTimeout(practicePersistTimeoutRef.current);
-                          practicePersistTimeoutRef.current = null;
-                        }
                         practiceMomentumActiveRef.current = true;
                       }}
                       onMomentumScrollEnd={(event) => {
@@ -1004,10 +988,6 @@ export default function PlayerHub({
                           true,
                         );
                         practiceMomentumActiveRef.current = false;
-                        if (practicePersistTimeoutRef.current) {
-                          clearTimeout(practicePersistTimeoutRef.current);
-                          practicePersistTimeoutRef.current = null;
-                        }
                         persistPracticeCountAtIndex(countIndex);
                       }}
                       accessibilityRole="adjustable"
