@@ -226,6 +226,7 @@ export default function PlayerHub({
   const practiceSnappedIndexRef = useRef(
     Math.max(0, PRACTICE_PLAYER_COUNTS.indexOf(PRACTICE_DEFAULT_PLAYERS)),
   );
+  const practiceMomentumActiveRef = useRef(false);
   const wheelDeltaRef = useRef(0);
   const ringPulse = useRef(new Animated.Value(1)).current;
   const xpPulse = useRef(new Animated.Value(1)).current;
@@ -359,6 +360,13 @@ export default function PlayerHub({
       x: countIndex * PRACTICE_PICKER_ITEM_WIDTH,
       animated: false,
     });
+  };
+
+  const persistPracticeCountAtIndex = (countIndex: number | null) => {
+    if (countIndex == null) return;
+    const count = PRACTICE_PLAYER_COUNTS[countIndex];
+    if (count == null) return;
+    selectPracticePlayerCount(count, true);
   };
 
   useEffect(() => {
@@ -958,24 +966,21 @@ export default function PlayerHub({
                           event.nativeEvent.contentOffset.x,
                           true,
                         );
-                        if (countIndex == null) return;
-                        const velocityX = Math.abs(
-                          event.nativeEvent.velocity?.x ?? 0,
-                        );
-                        if (velocityX > 0.01) return;
-                        const count = PRACTICE_PLAYER_COUNTS[countIndex];
-                        if (count == null) return;
-                        selectPracticePlayerCount(count, true);
+                        setTimeout(() => {
+                          if (practiceMomentumActiveRef.current) return;
+                          persistPracticeCountAtIndex(countIndex);
+                        }, 0);
+                      }}
+                      onMomentumScrollBegin={() => {
+                        practiceMomentumActiveRef.current = true;
                       }}
                       onMomentumScrollEnd={(event) => {
                         const countIndex = selectPracticeCountAtOffset(
                           event.nativeEvent.contentOffset.x,
                           true,
                         );
-                        if (countIndex == null) return;
-                        const count = PRACTICE_PLAYER_COUNTS[countIndex];
-                        if (count == null) return;
-                        selectPracticePlayerCount(count, true);
+                        practiceMomentumActiveRef.current = false;
+                        persistPracticeCountAtIndex(countIndex);
                       }}
                       accessibilityRole="adjustable"
                       accessibilityLabel={`AI player count: ${practicePlayerCount}. Swipe to change.`}
