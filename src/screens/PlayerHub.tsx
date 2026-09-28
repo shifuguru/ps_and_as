@@ -959,6 +959,10 @@ export default function PlayerHub({
                           true,
                         );
                         if (countIndex == null) return;
+                        const velocityX = Math.abs(
+                          event.nativeEvent.velocity?.x ?? 0,
+                        );
+                        if (velocityX > 0.01) return;
                         const count = PRACTICE_PLAYER_COUNTS[countIndex];
                         if (count == null) return;
                         selectPracticePlayerCount(count, true);
