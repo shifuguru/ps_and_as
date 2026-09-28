@@ -224,7 +224,7 @@ export default function PlayerHub({
   const practicePickerRef = useRef<ScrollView>(null);
   const practicePlayerCountRef = useRef(practicePlayerCount);
   const practiceSnappedIndexRef = useRef(
-    Math.max(0, PRACTICE_PLAYER_COUNTS.indexOf(PRACTICE_DEFAULT_PLAYERS)),
+    Math.max(0, PRACTICE_PLAYER_COUNTS.indexOf(practicePlayerCount)),
   );
   const practiceMomentumActiveRef = useRef(false);
   const wheelDeltaRef = useRef(0);
