@@ -223,6 +223,13 @@ export default function PlayerHub({
   );
   const practicePickerRef = useRef<ScrollView>(null);
   const practicePlayerCountRef = useRef(practicePlayerCount);
+  const practiceSnappedIndexRef = useRef(
+    Math.max(0, PRACTICE_PLAYER_COUNTS.indexOf(practicePlayerCount)),
+  );
+  const practiceMomentumActiveRef = useRef(false);
+  const practicePersistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const wheelDeltaRef = useRef(0);
   const ringPulse = useRef(new Animated.Value(1)).current;
   const xpPulse = useRef(new Animated.Value(1)).current;
@@ -308,19 +315,22 @@ export default function PlayerHub({
     fn();
   };
 
-  const selectPracticePlayerCount = (count: number) => {
-    if (count === practicePlayerCountRef.current) return;
-    practicePlayerCountRef.current = count;
-    triggerHaptic("light");
-    setPracticePlayerCount(count);
-    void writePracticePlayerCount(count);
+  const selectPracticePlayerCount = (count: number, persist = false) => {
+    if (count !== practicePlayerCountRef.current) {
+      practicePlayerCountRef.current = count;
+      triggerHaptic("light");
+      setPracticePlayerCount(count);
+    }
+    if (persist) {
+      void writePracticePlayerCount(count);
+    }
   };
 
   const selectPracticeCountAtOffset = (
     offset: number,
     animated = false,
     forceScroll = false,
-  ) => {
+  ): number | null => {
     const countIndex = Math.max(
       0,
       Math.min(
@@ -329,8 +339,11 @@ export default function PlayerHub({
       ),
     );
     const count = PRACTICE_PLAYER_COUNTS[countIndex];
-    if (count == null) return;
-    selectPracticePlayerCount(count);
+    if (count == null) return null;
+    if (countIndex !== practiceSnappedIndexRef.current) {
+      practiceSnappedIndexRef.current = countIndex;
+      selectPracticePlayerCount(count);
+    }
     const snappedOffset = countIndex * PRACTICE_PICKER_ITEM_WIDTH;
     if (animated && (forceScroll || Math.abs(offset - snappedOffset) > 0.5)) {
       practicePickerRef.current?.scrollTo({
@@ -338,28 +351,58 @@ export default function PlayerHub({
         animated: true,
       });
     }
+    return countIndex;
   };
 
   const selectPracticeCountFromTap = (count: number) => {
     const countIndex = PRACTICE_PLAYER_COUNTS.indexOf(count);
     if (countIndex < 0) return;
-    selectPracticePlayerCount(count);
+    practiceSnappedIndexRef.current = countIndex;
+    selectPracticePlayerCount(count, true);
     practicePickerRef.current?.scrollTo({
       x: countIndex * PRACTICE_PICKER_ITEM_WIDTH,
       animated: false,
     });
   };
 
+  const persistPracticeCountAtIndex = (countIndex: number | null) => {
+    if (countIndex == null) return;
+    const count = PRACTICE_PLAYER_COUNTS[countIndex];
+    if (count == null) return;
+    selectPracticePlayerCount(count, true);
+  };
+
+  const queuePersistPracticeCount = (countIndex: number | null) => {
+    if (practicePersistTimeoutRef.current) {
+      clearTimeout(practicePersistTimeoutRef.current);
+    }
+    practicePersistTimeoutRef.current = setTimeout(() => {
+      practicePersistTimeoutRef.current = null;
+      if (practiceMomentumActiveRef.current) return;
+      persistPracticeCountAtIndex(countIndex);
+    }, 0);
+  };
+
   useEffect(() => {
     practicePlayerCountRef.current = practicePlayerCount;
     const countIndex = PRACTICE_PLAYER_COUNTS.indexOf(practicePlayerCount);
     if (countIndex >= 0) {
+      practiceSnappedIndexRef.current = countIndex;
       practicePickerRef.current?.scrollTo({
         x: countIndex * PRACTICE_PICKER_ITEM_WIDTH,
         animated: true,
       });
     }
   }, [practicePlayerCount]);
+
+  useEffect(
+    () => () => {
+      if (practicePersistTimeoutRef.current) {
+        clearTimeout(practicePersistTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -942,16 +985,30 @@ export default function PlayerHub({
                         );
                       }}
                       onScrollEndDrag={(event) => {
-                        selectPracticeCountAtOffset(
+                        const countIndex = selectPracticeCountAtOffset(
                           event.nativeEvent.contentOffset.x,
                           true,
                         );
+                        queuePersistPracticeCount(countIndex);
+                      }}
+                      onMomentumScrollBegin={() => {
+                        if (practicePersistTimeoutRef.current) {
+                          clearTimeout(practicePersistTimeoutRef.current);
+                          practicePersistTimeoutRef.current = null;
+                        }
+                        practiceMomentumActiveRef.current = true;
                       }}
                       onMomentumScrollEnd={(event) => {
-                        selectPracticeCountAtOffset(
+                        const countIndex = selectPracticeCountAtOffset(
                           event.nativeEvent.contentOffset.x,
                           true,
                         );
+                        practiceMomentumActiveRef.current = false;
+                        if (practicePersistTimeoutRef.current) {
+                          clearTimeout(practicePersistTimeoutRef.current);
+                          practicePersistTimeoutRef.current = null;
+                        }
+                        persistPracticeCountAtIndex(countIndex);
                       }}
                       accessibilityRole="adjustable"
                       accessibilityLabel={`AI player count: ${practicePlayerCount}. Swipe to change.`}
