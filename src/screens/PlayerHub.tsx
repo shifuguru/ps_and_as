@@ -224,6 +224,7 @@ export default function PlayerHub({
   const practicePickerRef = useRef<ScrollView>(null);
   const practicePlayerCountRef = useRef(practicePlayerCount);
   const practicePersistedCountRef = useRef<number | null>(null);
+  const practiceMomentumActiveRef = useRef(false);
   const practiceSnappedIndexRef = useRef(
     Math.max(0, PRACTICE_PLAYER_COUNTS.indexOf(practicePlayerCount)),
   );
@@ -971,13 +972,22 @@ export default function PlayerHub({
                           event.nativeEvent.contentOffset.x,
                           true,
                         );
-                        persistPracticeCountAtIndex(countIndex);
+                        const velocityX = Math.abs(
+                          event.nativeEvent.velocity?.x ?? 0,
+                        );
+                        if (velocityX < 0.05 && !practiceMomentumActiveRef.current) {
+                          persistPracticeCountAtIndex(countIndex);
+                        }
+                      }}
+                      onMomentumScrollBegin={() => {
+                        practiceMomentumActiveRef.current = true;
                       }}
                       onMomentumScrollEnd={(event) => {
                         const countIndex = selectPracticeCountAtOffset(
                           event.nativeEvent.contentOffset.x,
                           true,
                         );
+                        practiceMomentumActiveRef.current = false;
                         persistPracticeCountAtIndex(countIndex);
                       }}
                       accessibilityRole="adjustable"
