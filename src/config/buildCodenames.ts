@@ -176,6 +176,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.2.10": "Run It Back",
   "1.2.11": "Empty Hand Heroics",
   "1.2.12": "President's Day Off",
+  "1.2.13": "Your Turn, Apparently",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
