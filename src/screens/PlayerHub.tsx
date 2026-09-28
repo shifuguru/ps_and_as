@@ -223,6 +223,7 @@ export default function PlayerHub({
   );
   const practicePickerRef = useRef<ScrollView>(null);
   const practicePlayerCountRef = useRef(practicePlayerCount);
+  const practicePersistedCountRef = useRef<number | null>(null);
   const practiceSnappedIndexRef = useRef(
     Math.max(0, PRACTICE_PLAYER_COUNTS.indexOf(practicePlayerCount)),
   );
@@ -283,6 +284,7 @@ export default function PlayerHub({
       setRecent(null);
     }
     const practiceCount = await readPracticePlayerCount();
+    practicePersistedCountRef.current = practiceCount;
     setPracticePlayerCount(practiceCount);
     const daily = await loadDailyChallengeState(s);
     // Mark complete for UI, but never auto-grant XP — player taps to claim.
@@ -317,7 +319,8 @@ export default function PlayerHub({
       triggerHaptic("light");
       setPracticePlayerCount(count);
     }
-    if (persist) {
+    if (persist && practicePersistedCountRef.current !== count) {
+      practicePersistedCountRef.current = count;
       void writePracticePlayerCount(count);
     }
   };
