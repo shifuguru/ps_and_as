@@ -152,7 +152,7 @@ async function stripeWebhookHandler(req, res) {
         product === REMOVE_ADS_PRODUCT &&
         session.payment_status === "paid"
       ) {
-        const entry = grantRemoveAds(playerId);
+        const entry = await grantRemoveAds(playerId);
         console.log(
           "[billing] remove_ads granted:",
           playerId,
