@@ -32,7 +32,10 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+.env.*
+!.env.example
 
 server/data/player-stats.json
 server/data/analytics.json
