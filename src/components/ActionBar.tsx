@@ -225,16 +225,17 @@ export default function ActionBar({
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={[styles.actionTrack, { gap: actionTrackGap, minHeight: buttonMinHeight }]}>
+        <View style={styles.actionTrack}>
           <AnimatedTouchable
             style={[
               styles.passButton,
-              { minHeight: buttonMinHeight },
+              { minHeight: buttonMinHeight, flex: 1 },
               passDisabled && styles.passButtonDisabled,
               showPassFlash && styles.passButtonFlash,
               {
                 backgroundColor: passBackground,
                 borderColor: passBorder,
+                marginRight: actionTrackGap / 2,
               },
             ]}
             onPress={() => {
@@ -284,7 +285,7 @@ export default function ActionBar({
           <AnimatedTouchable
             style={[
               styles.playButton,
-              { minHeight: buttonMinHeight },
+              { minHeight: buttonMinHeight, flex: 1 },
               playDisabled && styles.playButtonDisabled,
               playReady && styles.playButtonReady,
               playEnabled && !playReady && styles.playButtonTurn,
@@ -292,6 +293,7 @@ export default function ActionBar({
                 backgroundColor: playBackground,
                 borderColor: playBorderColor,
                 borderWidth: playReady || playEnabled ? 1.5 : 1,
+                marginLeft: actionTrackGap / 2,
                 ...(playReady || playEnabled
                   ? Platform.select({
                       ios: { shadowColor: accent },
@@ -337,7 +339,7 @@ const styles = StyleSheet.create({
   actionTrack: {
     flexDirection: "row",
     alignItems: "stretch",
-    gap: 10,
+    justifyContent: "center",
     minHeight: 48,
     width: "100%",
   },
@@ -349,7 +351,6 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   passButton: {
-    flex: 1,
     borderRadius: CAPSULE_RADIUS,
     borderWidth: 1,
     paddingHorizontal: 14,
@@ -371,7 +372,6 @@ const styles = StyleSheet.create({
     }),
   },
   playButton: {
-    flex: 1.45,
     borderRadius: CAPSULE_RADIUS,
     borderWidth: 1,
     paddingHorizontal: 16,
