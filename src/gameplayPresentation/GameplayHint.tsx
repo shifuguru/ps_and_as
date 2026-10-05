@@ -25,7 +25,7 @@ import {
 } from "../hooks/useTurnIntroAnimation";
 
 const BULB_ICON = 20;
-/** Match ActionBar track width so the bulb lines up with the track’s right edge. */
+/** Match ActionBar track width so the bulb lines up with the track's right edge. */
 function actionTrackWidth(windowWidth: number): number {
   return Math.min(windowWidth - 32, 440);
 }
@@ -76,12 +76,12 @@ export default function GameplayHint({
   const textOpacity = useRef(new Animated.Value(expanded ? 1 : 0)).current;
   const turnIntro = useTurnIntroAnimation(yourTurn && visible);
   const [turnFlameKey, setTurnFlameKey] = useState(0);
-  const flameLive = visible && yourTurn;
+  const flameLive = visible && yourTurn && expanded;
 
-  // Remount the flame whenever the tip hides/shows so animation state restarts.
+  // Remount the flame whenever it should show/hide so animation state restarts cleanly.
   useEffect(() => {
     setTurnFlameKey((k) => k + 1);
-  }, [flameLive, expanded]);
+  }, [flameLive]);
 
   useEffect(() => {
     Animated.timing(hostOpacity, {
@@ -134,8 +134,9 @@ export default function GameplayHint({
     >
       <View style={[styles.track, { width: trackWidth, maxWidth: trackWidth }]}>
         {expanded ? (
-          yourTurn ? (
+          yourTurn && flameLive ? (
             <Animated.View
+              key={`flame-wrapper-${turnFlameKey}`}
               style={[styles.flameHost, { opacity: textOpacity }]}
               pointerEvents="box-none"
             >
@@ -146,7 +147,7 @@ export default function GameplayHint({
                 pillStyle={styles.flamePill}
                 palette={JOKER_COLORS}
                 flameSeeds={JOKER_FLAME_SEEDS}
-                active={visible && expanded && yourTurn}
+                active={flameLive}
               >
                 <Text
                   style={[
