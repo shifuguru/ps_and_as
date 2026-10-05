@@ -138,6 +138,8 @@ type Props = {
   startingCardIndex?: number;
   /** Lowest valid play — flame highlight to suggest the best move. */
   recommendedCardIndex?: number;
+  /** All cards in the lowest valid play (multiples share the flame). */
+  recommendedCardIndices?: number[];
   /** When true, cards cannot be selected for play — browsing/scrolling still works. */
   disabled?: boolean;
   onCardPress: (index: number) => void;
@@ -592,6 +594,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     playableIndices,
     startingCardIndex = -1,
     recommendedCardIndex = -1,
+    recommendedCardIndices,
     disabled,
     onCardPress,
   },
@@ -1252,7 +1255,9 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                 flash={index === startingCardIndex}
                 playable={isPlayable && !selectionLocked}
                 recommended={
-                  index === recommendedCardIndex &&
+                  (recommendedCardIndices
+                    ? recommendedCardIndices.includes(index)
+                    : index === recommendedCardIndex) &&
                   index !== startingCardIndex &&
                   !isSelected &&
                   !selectionLocked

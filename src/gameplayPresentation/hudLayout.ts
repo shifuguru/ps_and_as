@@ -69,10 +69,9 @@ export function resolveHudCardHeight(density: HudDensity): number {
     case "ultra":
     case "dense":
       // eyebrow + display + pips + compact pad
-      return 78;
+      return 58;
     default:
-      // + rarity caption
-      return 96;
+      return 64;
   }
 }
 

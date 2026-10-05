@@ -9,6 +9,7 @@ import {
   Animated,
   Easing,
 } from "react-native";
+import MenuIcon from "./MenuIcon";
 import { triggerHaptic } from "../utils/haptics";
 import { useAppTheme } from "../context/ThemeContext";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
@@ -50,6 +51,8 @@ type Props = {
   /** Bot open table — show Skip game in the pass/play row (spectator, etc.). */
   skipGameOnly?: boolean;
   onSkipGame?: () => void;
+  /** Quick chat — rendered between Pass and Play. */
+  onOpenTableChat?: () => void;
   /** @deprecated Utilities live in GameplayHud — kept for call-site compatibility. */
   onNavigateToSettings?: () => void;
   /** @deprecated Utilities live in GameplayHud — kept for call-site compatibility. */
@@ -68,6 +71,7 @@ export default function ActionBar({
   leaveOnly = false,
   skipGameOnly = false,
   onSkipGame,
+  onOpenTableChat,
 }: Props) {
   const { colors } = useAppTheme();
   const isLight = colors.mode === "light";
@@ -253,6 +257,30 @@ export default function ActionBar({
             )}
           </AnimatedTouchable>
 
+          {onOpenTableChat ? (
+            <TouchableOpacity
+              style={[
+                styles.chatButton,
+                {
+                  width: buttonMinHeight * 0.75,
+                  height: buttonMinHeight * 0.75,
+                  borderRadius: buttonMinHeight,
+                  borderColor: passIdleBorder,
+                  backgroundColor: passIdleBg,
+                },
+              ]}
+              onPress={() => {
+                triggerHaptic("light");
+                onOpenTableChat();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Quick chat"
+              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+            >
+              <MenuIcon name="chat" size={16} color={accent} />
+            </TouchableOpacity>
+          ) : null}
+
           <AnimatedTouchable
             style={[
               styles.playButton,
@@ -312,6 +340,13 @@ const styles = StyleSheet.create({
     gap: 10,
     minHeight: 48,
     width: "100%",
+  },
+  chatButton: {
+    alignSelf: "center",
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   passButton: {
     flex: 1,
