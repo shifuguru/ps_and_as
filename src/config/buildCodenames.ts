@@ -181,6 +181,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.2.15": "Misdeal Mayhem",
   "1.2.16": "Quad Squad Goals",
   "1.2.17": "Pile On Patrol",
+  "1.2.18": "Flush With Hubris",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
