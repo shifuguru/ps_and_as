@@ -75,6 +75,13 @@ export default function GameplayHint({
   const hostOpacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
   const textOpacity = useRef(new Animated.Value(expanded ? 1 : 0)).current;
   const turnIntro = useTurnIntroAnimation(yourTurn && visible);
+  const [turnFlameKey, setTurnFlameKey] = useState(0);
+  const flameLive = visible && yourTurn;
+
+  // Remount the flame whenever the tip hides/shows so animation state restarts.
+  useEffect(() => {
+    setTurnFlameKey((k) => k + 1);
+  }, [flameLive, expanded]);
 
   useEffect(() => {
     Animated.timing(hostOpacity, {
@@ -133,11 +140,13 @@ export default function GameplayHint({
               pointerEvents="box-none"
             >
               <RunsPill
+                key={`turn-flame-${turnFlameKey}`}
+                maxFlameHeight={15}
                 style={styles.flameRoot}
                 pillStyle={styles.flamePill}
                 palette={JOKER_COLORS}
                 flameSeeds={JOKER_FLAME_SEEDS}
-                active
+                active={visible && expanded && yourTurn}
               >
                 <Text
                   style={[

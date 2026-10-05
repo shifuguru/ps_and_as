@@ -4,7 +4,6 @@ import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
 import {
   RARITY_COLOR,
-  RARITY_LABEL,
   roundStreakRarityProgress,
 } from "../services/achievementRarity";
 import GameplayGlassPanel from "./GameplayGlassPanel";
@@ -77,15 +76,14 @@ export default function RoundsInRowWidget({
     >
       <GameplayGlassPanel compact accentColor={accent} style={styles.panel}>
         <View style={styles.header}>
-          <Text style={styles.fire}>🔥</Text>
+          <Text
+            style={styles.count}
+            accessibilityLabel={`${current} ${current === 1 ? "round" : "rounds"}`}
+          >
+            {current}
+          </Text>
           <Text style={styles.eyebrow}>Round Streak</Text>
         </View>
-        <Text
-          style={styles.count}
-          accessibilityLabel={`${current} ${current === 1 ? "round" : "rounds"}`}
-        >
-          {current}
-        </Text>
         <View style={styles.pipRow}>
           {Array.from({ length: pipCount }).map((_, i) => (
             <View
@@ -100,9 +98,6 @@ export default function RoundsInRowWidget({
             />
           ))}
         </View>
-        {!dense ? (
-          <Text style={styles.rarityLabel}>{RARITY_LABEL[progress.rarity]}</Text>
-        ) : null}
       </GameplayGlassPanel>
     </RunsPill>
   );
@@ -141,7 +136,6 @@ function createStyles(
       gap: 4,
       marginBottom: 0,
     },
-    fire: { fontSize: 12 },
     eyebrow: {
       color: accent,
       fontSize: HUD_TYPE.eyebrow,
@@ -167,14 +161,6 @@ function createStyles(
       width: 8,
       height: 8,
       borderRadius: 4,
-    },
-    rarityLabel: {
-      color: accent,
-      fontSize: HUD_TYPE.caption,
-      fontWeight: "800",
-      letterSpacing: 0.5,
-      textTransform: "uppercase",
-      marginTop: 2,
     },
   });
 }

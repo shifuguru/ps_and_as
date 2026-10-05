@@ -5023,6 +5023,20 @@ function GameScreenBoard() {
       ? playableIndices.indexOf(true)
       : -1;
 
+  const recommendedCardIndices = useMemo(() => {
+    if (recommendedCardIndex < 0) return [];
+    const rec = hand[recommendedCardIndex];
+    if (!rec) return [];
+    const pile = state.pile ?? [];
+    const samePile = pile.length > 1 && pile.every((c) => c.value === pile[0].value);
+    const need = samePile ? pile.length : 1;
+    const out: number[] = [recommendedCardIndex];
+    for (let i = 0; i < hand.length && out.length < need; i++) {
+      if (i !== recommendedCardIndex && hand[i].value === rec.value && playableIndices[i]) out.push(i);
+    }
+    return out;
+  }, [recommendedCardIndex, hand, state.pile, playableIndices]);
+
   /** Any empty-pile forced lead (blocks Pass) — true mid-round after a trick win. */
   const isForcedLead =
     !!state.mustPlay &&
@@ -6195,9 +6209,6 @@ function GameScreenBoard() {
         onOpenAchievements={onNavigateToAchievements}
         onOpenReadMe={onNavigateToReadMe}
         onOpenSettings={onNavigateToSettings}
-        onOpenTableChat={
-          myPlayerId ? () => setTableChatModalVisible(true) : undefined
-        }
         onLeave={requestLeaveGame}
         statsRefreshKey={roundCompleteSignal + (state.trickHistory?.length ?? 0)}
         hideFeedback={
@@ -6233,6 +6244,7 @@ function GameScreenBoard() {
               playableIndices={playableIndices}
               startingCardIndex={startingCardIndex}
               recommendedCardIndex={recommendedCardIndex}
+              recommendedCardIndices={recommendedCardIndices}
               disabled={!isHumanTurn || !!handPlayInFlight}
               onCardPress={handleCardPress}
             />
@@ -6347,6 +6359,9 @@ function GameScreenBoard() {
             selectedCount={handPlayInFlight ? 0 : selected.length}
             onPlay={handlePlayPress}
             onPass={handlePassPress}
+            onOpenTableChat={
+              myPlayerId ? () => setTableChatModalVisible(true) : undefined
+            }
             onNavigateToSettings={onNavigateToSettings}
             onNavigateToAchievements={onNavigateToAchievements}
             playDisabled={gameplayLocked || !!handPlayInFlight || !isHumanTurn || roundOver || roundEndLastPlayHold || (!!localHumanId && hasPassedInCurrentTrick(state, localHumanId) && !humanRunOnTopTurn) || selected.length === 0 || !selectedCanPlay}

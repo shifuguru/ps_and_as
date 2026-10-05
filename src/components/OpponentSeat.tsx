@@ -703,7 +703,7 @@ export default function OpponentSeat({
       ) : isDisconnected ? (
         <Text style={[styles.statusPill, styles.awayPill]}>Away</Text>
       ) : hasPassed ? (
-        <Text style={[styles.statusPill, styles.passPill]}>Pass</Text>
+        <Text style={[styles.statusPill, styles.passPill]}>Passed</Text>
       ) : isThinking ? (
         <Text style={[styles.statusPill, styles.thinkPill]}>…</Text>
       ) : isLocal ? (
