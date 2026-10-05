@@ -5018,6 +5018,11 @@ function GameScreenBoard() {
       ? openingLeadCardIndex(hand, state.players)
       : -1;
 
+  const recommendedCardIndex =
+    showActiveTurnUi && isHumanTurn && !roundOver && !handPlayInFlight
+      ? playableIndices.indexOf(true)
+      : -1;
+
   /** Any empty-pile forced lead (blocks Pass) — true mid-round after a trick win. */
   const isForcedLead =
     !!state.mustPlay &&
@@ -6227,6 +6232,7 @@ function GameScreenBoard() {
               }
               playableIndices={playableIndices}
               startingCardIndex={startingCardIndex}
+              recommendedCardIndex={recommendedCardIndex}
               disabled={!isHumanTurn || !!handPlayInFlight}
               onCardPress={handleCardPress}
             />

@@ -12,6 +12,7 @@ import { useDarkModeCards } from "../context/CardAppearanceContext";
 import { getCardFaceColors, suitColorForCard } from "../utils/cardFaceTheme";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
+import { RunsPill, JOKER_COLORS, JOKER_FLAME_SEEDS } from "../gameplayPresentation/RunsEffect";
 
 function backFaceRadii(
   style: { width?: number; height?: number } | undefined,
@@ -54,6 +55,8 @@ export default function Card({
   disabled = false,
   compact = false,
   flash = false,
+  playable = false,
+  recommended = false,
   variant = "hand",
   cornerRadius,
   style,
@@ -68,6 +71,10 @@ export default function Card({
   compact?: boolean;
   /** Opening-lead pulse (same rhythm as the Pass button flash) */
   flash?: boolean;
+  /** Valid play for the current turn — thin white rim. */
+  playable?: boolean;
+  /** Lowest valid play — Joker-style flame behind the card. */
+  recommended?: boolean;
   /** hand = opaque face so overlapped fan cards don't bleed through */
   variant?: "hand" | "table";
   /** Override outer corner radius (mini face-down cards). */
@@ -351,7 +358,12 @@ export default function Card({
         inputRange: [0, 1],
         outputRange: [faceColors.flashBorderFrom, faceColors.flashBorderTo],
       })
-    : borderGlow;
+    : selected
+      ? colors.accent
+      : playable && !disabled
+        ? "rgba(255,255,255,0.95)"
+        : borderGlow;
+  const emphasizeBorder = !flash && !disabled && (selected || playable);
 
   const defaultLabelColor = faceColors.label;
   const defaultSuitColor = suitColorForCard(faceColors, card.suit, disabled);
@@ -413,6 +425,18 @@ export default function Card({
         flash && local.cardFlash,
       ]}
     >
+      {recommended && !selected && !disabled ? (
+        <RunsPill
+          style={local.recommendedFlame}
+          pillStyle={{ borderRadius: face.outerRadius, width: face.width, height: face.height }}
+          palette={JOKER_COLORS}
+          flameSeeds={JOKER_FLAME_SEEDS}
+          maxFlameHeight={22}
+          active
+        >
+          <View style={{ width: face.width, height: face.height }} />
+        </RunsPill>
+      ) : null}
       <TouchableWithoutFeedback onPress={disabled ? undefined : onPress} accessibilityLabel={`card-${label}-${card.suit}`}>
         <View style={local.inner}>
           <Animated.View
@@ -425,6 +449,7 @@ export default function Card({
                 shadowRadius: elevation,
                 borderColor: cardBorder,
                 backgroundColor: cardBackground,
+                ...(emphasizeBorder ? { borderWidth: 2 } : null),
               } as any,
             ]}
           >
@@ -614,6 +639,9 @@ const local = StyleSheet.create({
     shadowOpacity: 0,
     shadowRadius: 0,
     elevation: 0,
+  },
+  recommendedFlame: {
+    ...StyleSheet.absoluteFillObject,
   },
   cardHandShell: {
     ...StyleSheet.absoluteFillObject,
