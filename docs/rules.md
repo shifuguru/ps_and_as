@@ -1,44 +1,44 @@
 # Rules – Presidents & Arseholes
 
 ## Objective
-Empty your hand first. Next round, ranks: President, VP, ... Arsehole.
+Empty your hand first to become president. The last player left becomes asshole. Next round the asshole must trade their best 2 cards to the president. If the same player becomes asshole 3 consecutive times they don't have to trade for 1 turn. 
 
 ## Turn basics
-- Players must beat the current top set or **pass**.
-- A "set" is {N of a kind} or a **run** (sequence) when allowed.
+- Players take turns clock-wise to beat the current pile. 
+- If a player cannot take their turn, or simply doesn't want to, they can **pass** their turn. 
+- Passing will make you wait until the current pile is cleared before you can play again.
+- Play begins with the 3 ♣️. If you have multiple 3's you can play as many or few as possible. 
+- If the pile begins as singles, doubles, triples, or quads, it must continue in that fashion until the pile clears. 
 
 ## Dealing & opening
-- **Round 1:** the lobby host deals.
-- **Later rounds:** the previous round's Asshole deals.
-- Cards are dealt clockwise, starting with the player one seat anticlockwise from the dealer (to the dealer's left).
-- **Round 1 opening:** walk deal order among living players — first with 3♣ opens with 3s including it; else first with any 3 opens with 3s. While any living player holds 3♣, an opening lead of 3s must include it. If no living player has a 3, reshuffle. **Dead hand exception:** when the dead hand holds 3♣, use 3♠ first (include it if held), then any 3.
-- **Round 2+ opening (after role trades):** whoever holds **3♣** leads — President, Asshole, or middle rank in a 3-player game (only P↔A trade). If no living player has 3♣, use the same walk as round 1. Any legal lead is allowed once play starts.
+- **Round 1:** lobby host deals cards first. 
+- **Later rounds:** the previous round's Asshole shuffles.
+- Cards are dealt clockwise, starting with the player one seat clockwise from the dealer (to the dealer's left).
+
+— first with 3♣ opens the pile with any number of 3s they have and wish to use in their first turn; **Dead hand exception:** when the dead hand holds 3♣, use 3♠ first (include it if held), then any other 3.
+- **Subsequent Rounds (after role trades):** Whoever holds **3♣** leads. 
 
 ## Sets
-- Singles: any rank. Jokers (if used) are highest.
+- Singles: any rank.
 - Doubles/Triples/Quads: must match count to beat (e.g., double beats double).
+- 10 allows the player to influence the next player's card choice, lower or higher. After the requirement is met, play continues in ascending order as normal. 
+- Jokers are the highest rank, they beat (almost) any play, but use them wisely there are only 2. They cannot be played on closed ranks, or 10 lower **See Joker rules for more detail.**
 
-## Runs (this variant)
-- **Definition:** A consecutive sequence of 3+ cards of the *same count* (e.g., 3-4-5-6 singles; or 5♦-5♣ + 6♦-6♣ + 7♦-7♣ as doubles).
-- **High end:** K-A-2 is a valid run (2 follows Ace on the rank ladder).
-- **No wraps** below 3 (e.g. A-2-3 is invalid).
-- **To beat a run:** same length & count; strictly higher sequence, or extend with an adjacent rank while the run is active.
-- **On top!:** when a run ends (everyone else passes without extending), the last player who played on the run gets one extra turn to play the next **consecutive** rank (same as extending the run). The same applies when everyone passes under an active **10 rule** (higher or lower) — the player who set the rule may play on top following that direction, or pass to take the trick if they have nothing legal.
-- **Completed quads:** when a rank is completed across turns (e.g. one 3 then three more 3s), that play is unbeatable — everyone else must pass until the trick clears.
-- **Single-play quads:** playing all four of a rank at once is a bomb — beatable by higher quads or a joker.
-- **Quads run:** three or more consecutive ranks each played as four-of-a-kind (e.g. 5555 → 6666 → 7777). Jokers cannot be played during any active run, including quads runs; extend with the next rank’s quad.
+## Runs / Consecutives
+- **Definition:** "Runs" are a consecutive play initiated when 3 players where a sequence of 3 cards of the *same multiplicity* e.g., |3♣| + |4♦| + |5♣| as singles; or |5♦|5♣| + |6♦|6♣| + |7♦|7♣| as doubles, same goes for triples or quads. 
+- **High cards:** |K♣| + |A♣| + |2♣| is a valid run. Joker is not playable during runs. 
+- Once runs are active players can only play cards adjacent to the last played cards in the pile, following the pile's multiplicity. 
+- **No wraps:** 3 is the lowest card. (e.g. A-2-3 is invalid).
+- **To beat a run:** same multiplicity; strictly in higher sequence, or extend with an adjacent rank while the run is active.
+- **On top!:** when a run ends (where everyone else passes), the last player in the run gets an option to play an additional legal play "on top!". The same applies with an active **10 rule** (higher or lower) — the player who played 10 where everyone else has passed may play a legal play on top, or skip if they have nothing legal to play or simply choose not to play a card on top. 
+- **Completed quads:** when a rank is completed across turns (e.g. one 3 played by one player then the next player could play the remaining cards: three 3s, if they have them), that play is unbeatable — everyone else must pass, even a joker cannot be played here. 
+- **Quads:** playing all four of a rank in one play is beatable by any higher quads or a joker.
+- **Quads run:** three or more consecutive ranks each played as four-of-a-kind (e.g. 5555 → 6666 → 7777). Jokers cannot be played during any active run.
 
 ## Passing
-- You may pass; you’re locked out until the pile clears.
+- You may pass; but you forfeit your turns until the current pile clears.
 
 ## President & Asshole trades
 - After round 1, the **Asshole** gives their best card(s) to the **President**, who returns the same number of their worst cards.
 - **5+ players:** **Vice Asshole** ↔ **Vice President** trades also apply (one card each). Middle-ranked players (“middle man”) stay neutral — no trade.
 - **Fresh round:** if the same player is Asshole **three rounds in a row**, the next round skips the President↔Asshole trade only. Play otherwise continues normally (deal, open, VP trades in 5+ games). Trades resume from the following round.
-
-## Edge cases
-- 2s are highest singles; a lone 2 on the pile (not part of a run) still follows the twos rule.
-- Reset on clear; next player may lead any legal set.
-
-## Examples
-- Lead: 4-5-6 (singles). Beating plays: 6-7-8, 7-8-9. **Not allowed:** 7-8 (too short), pair run, or 4-5-6 of mixed counts.
