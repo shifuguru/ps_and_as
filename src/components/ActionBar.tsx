@@ -84,15 +84,6 @@ export default function ActionBar({
   const playTurnBgRest = hexToRgba(accent, isLight ? 0.15 : 0.21);
   const playReadyBorder = isLight ? hexToRgba(accent, 0.92) : hexToRgba(accent, 1);
   const playTurnBorderRest = hexToRgba(accent, isLight ? 0.78 : 0.84);
-  const passTurnBgLow = isLight
-    ? hexToRgba(colors.textPrimary, 0.04)
-    : "rgba(255,255,255,0.06)";
-  const passTurnBgHigh = isLight
-    ? hexToRgba(colors.textPrimary, 0.08)
-    : "rgba(255,255,255,0.11)";
-  const passTurnBgRest = isLight
-    ? hexToRgba(colors.textPrimary, 0.06)
-    : "rgba(255,255,255,0.08)";
   const { width, height: shellHeight } = useWindowDimensions();
   const viewport = useVisualViewportSize();
   const tier = resolveCompactHeightTier(viewport.height || shellHeight);
@@ -160,12 +151,7 @@ export default function ActionBar({
           isLight ? "rgba(255,255,255,0.96)" : "rgba(255,255,255,0.92)",
         ],
       })
-    : isPlayerTurn && !passDisabled
-      ? turnIntro.interpolate({
-          inputRange: [0, TURN_INTRO_PEAK, 1],
-          outputRange: [passTurnBgLow, passTurnBgHigh, passTurnBgRest],
-        })
-      : passIdleBg;
+    : passIdleBg;
 
   const passBorder = showPassFlash
     ? passFlash.interpolate({

@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import MenuIcon from "../components/MenuIcon";
+import { RunsPill, JOKER_COLORS, JOKER_FLAME_SEEDS } from "./RunsEffect";
 import { useAppTheme } from "../context/ThemeContext";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import { hexToRgba } from "../utils/colorTheory";
@@ -126,24 +127,46 @@ export default function GameplayHint({
     >
       <View style={[styles.track, { width: trackWidth, maxWidth: trackWidth }]}>
         {expanded ? (
-          <Animated.View
-            style={[
-              styles.messagePill,
-              yourTurn && styles.messagePillYourTurn,
-              {
-                opacity: textOpacity,
-                borderColor: pillBorder,
-                backgroundColor: pillBg,
-              },
-            ]}
-          >
-            <Text
-              style={[styles.label, yourTurn && styles.labelYourTurn]}
-              numberOfLines={1}
+          yourTurn ? (
+            <Animated.View
+              style={[styles.flameHost, { opacity: textOpacity }]}
+              pointerEvents="box-none"
             >
-              {message}
-            </Text>
-          </Animated.View>
+              <RunsPill
+                style={styles.flameRoot}
+                pillStyle={styles.flamePill}
+                palette={JOKER_COLORS}
+                flameSeeds={JOKER_FLAME_SEEDS}
+                active
+              >
+                <Text
+                  style={[
+                    styles.label,
+                    styles.labelYourTurn,
+                    styles.labelFlame,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {message}
+                </Text>
+              </RunsPill>
+            </Animated.View>
+          ) : (
+            <Animated.View
+              style={[
+                styles.messagePill,
+                {
+                  opacity: textOpacity,
+                  borderColor: pillBorder,
+                  backgroundColor: pillBg,
+                },
+              ]}
+            >
+              <Text style={styles.label} numberOfLines={1}>
+                {message}
+              </Text>
+            </Animated.View>
+          )
         ) : (
           <View style={styles.messageSpacer} />
         )}
@@ -212,6 +235,22 @@ function createStyles(
     messagePillYourTurn: {
       borderWidth: 1.5,
     },
+    flameHost: {
+      flex: 1,
+      minWidth: 0,
+    },
+    flameRoot: {
+      alignSelf: "stretch",
+    },
+    flamePill: {
+      minHeight: barH,
+      borderRadius: barH / 2,
+      paddingHorizontal: barH < 36 ? 12 : 16,
+      justifyContent: "center",
+      backgroundColor: glass,
+      borderWidth: 1.5,
+      borderColor: hexToRgba(colors.accent, 0.85),
+    },
     messageSpacer: {
       flex: 1,
       minWidth: 0,
@@ -228,6 +267,9 @@ function createStyles(
       fontWeight: "800",
       letterSpacing: 0.6,
       color: colors.mode === "light" ? "#1a1208" : "#fff8e8",
+    },
+    labelFlame: {
+      color: "#fff8e8",
     },
     bulbBtn: {
       width: barH,

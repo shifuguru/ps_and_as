@@ -136,6 +136,8 @@ type Props = {
   playableIndices: boolean[];
   /** Index of the 3♣ when it must be played to open — pulses like Pass flash */
   startingCardIndex?: number;
+  /** Lowest valid play — flame highlight to suggest the best move. */
+  recommendedCardIndex?: number;
   /** When true, cards cannot be selected for play — browsing/scrolling still works. */
   disabled?: boolean;
   onCardPress: (index: number) => void;
@@ -589,6 +591,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     hiddenCardKeys = [],
     playableIndices,
     startingCardIndex = -1,
+    recommendedCardIndex = -1,
     disabled,
     onCardPress,
   },
@@ -1247,6 +1250,13 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                           : 0
                 }
                 flash={index === startingCardIndex}
+                playable={isPlayable && !selectionLocked}
+                recommended={
+                  index === recommendedCardIndex &&
+                  index !== startingCardIndex &&
+                  !isSelected &&
+                  !selectionLocked
+                }
                 disabled={cardInteractionLocked}
                 onPress={() => {
                   handleCardPress(index);
