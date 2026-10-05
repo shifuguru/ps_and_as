@@ -134,7 +134,7 @@ export default function GameplayHint({
     >
       <View style={[styles.track, { width: trackWidth, maxWidth: trackWidth }]}>
         {expanded ? (
-          yourTurn && flameLive ? (
+          flameLive ? (
             <Animated.View
               key={`flame-wrapper-${turnFlameKey}`}
               style={[styles.flameHost, { opacity: textOpacity }]}
