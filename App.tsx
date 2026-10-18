@@ -83,6 +83,9 @@ const ViewportDebugOverlay =
     ? require("./src/debug/ViewportDebugOverlay").default
     : null;
 
+const DEFAULT_PLAYER_NAME = "Player";
+const ONBOARDING_DEFER_MS = 800;
+
 function AppContent() {
   const { colors, ui, blur, feltTint, setFeltTint, refreshFeltTint } = useAppTheme();
   const viewport = useVisualViewportSize();
@@ -129,15 +132,13 @@ function AppContent() {
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[] | null>(null);
   const [dealSeed, setDealSeed] = useState<number | undefined>(undefined);
-  const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
+  const [localPlayerName, setLocalPlayerName] = useState<string | null>(DEFAULT_PLAYER_NAME);
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
   const [installCoachVisible, setInstallCoachVisible] = useState(false);
   const [installCoachResolved, setInstallCoachResolved] = useState(false);
   const [nameSetupVisible, setNameSetupVisible] = useState(false);
   const [nameSetupResolved, setNameSetupResolved] = useState(false);
   const [nameSetupAccountSync, setNameSetupAccountSync] = useState(false);
-  const onboardingBlocking = installCoachVisible || nameSetupVisible;
-  const onboardingReady = installCoachResolved && nameSetupResolved;
   const [roomAdapter, setRoomAdapter] = useState<SocketAdapter | null>(null);
   // localAdapter is used for offline/mock games so we can reuse the same
   // MockAdapter instance between screens and avoid multiple adapters/logs.
@@ -153,7 +154,7 @@ function AppContent() {
   const { count: updateLogUnreadCount, markSeen: markUpdateLogSeen } =
     useUpdateLogUnreadCount(menuVisible, updateLogOpen);
   const onlinePresence = useOnlinePresence(
-    !splashVisible && !onboardingBlocking && onboardingReady,
+    !splashVisible,
     localPlayerName,
   );
 
@@ -331,7 +332,7 @@ function AppContent() {
   }, [splashVisible, beginSplashReveal, finishSplash]);
 
   const startPracticeGame = async (playerCount: number) => {
-    if (onboardingBlocking || !localPlayerName?.trim()) return;
+    if (!localPlayerName?.trim()) return;
     disconnectRoom();
     const playerInfo = await getOrCreatePlayerId();
     const hostName = localPlayerName.trim();
@@ -375,22 +376,10 @@ function AppContent() {
   const [pendingRejoin, setPendingRejoin] = useState<LobbySession | null>(null);
 
   useEffect(() => {
-    if (
-      menuVisible &&
-      screen === "menu" &&
-      installCoachResolved &&
-      nameSetupResolved &&
-      !nameSetupVisible
-    ) {
+    if (menuVisible && screen === "menu") {
       trackHubViewedOnce();
     }
-  }, [
-    menuVisible,
-    screen,
-    installCoachResolved,
-    nameSetupResolved,
-    nameSetupVisible,
-  ]);
+  }, [menuVisible, screen]);
 
   useEffect(() => {
     if (!menuVisible) return;
@@ -399,7 +388,8 @@ function AppContent() {
       return;
     }
     let cancelled = false;
-    void (async () => {
+    // Deferred so the menu is playable first; modals are optional overlays.
+    const timer = setTimeout(() => void (async () => {
       const resolved = await resolveDisplayNameSetupState();
       if (cancelled) return;
       setLocalPlayerId(resolved.profileId);
@@ -414,7 +404,7 @@ function AppContent() {
         setInstallCoachResolved(false);
         setNameSetupVisible(false);
         setNameSetupAccountSync(false);
-        setLocalPlayerName(null);
+        if (resolved.needsSetup) setLocalPlayerName(resolved.temporaryName);
         return;
       }
 
@@ -424,16 +414,17 @@ function AppContent() {
 
       if (resolved.needsSetup) {
         setNameSetupVisible(true);
-        setLocalPlayerName(null);
+        setLocalPlayerName(resolved.temporaryName);
       } else {
         setNameSetupVisible(false);
         setLocalPlayerName(resolved.displayName);
       }
       setNameSetupResolved(true);
       if (screen === "menu") setHubRefreshKey((k) => k + 1);
-    })();
+    })(), ONBOARDING_DEFER_MS);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [menuVisible, screen, installCoachResolved, nameSetupResolved]);
 
@@ -862,9 +853,7 @@ function AppContent() {
         {menuVisible && screen === "menu" && (
           <Animated.View
             style={[{ flex: 1 }, { opacity: menuOpacity }]}
-            pointerEvents={
-              !onboardingReady || onboardingBlocking ? "none" : "auto"
-            }
+            pointerEvents="auto"
           >
             <PlayerHub
               displayName={localPlayerName ?? "Player"}
@@ -884,12 +873,12 @@ function AppContent() {
               onNavigateSound={() => playEffect("click")}
               actions={{
                 onPlay: (playerCount) => {
-                  if (onboardingBlocking || !localPlayerName) return;
+                  if (!localPlayerName) return;
                   trackAnalyticsEvent("cta_quick_game", { playerCount });
                   void startPracticeGame(playerCount);
                 },
                 onHostOnlineGame: (name) => {
-                  if (onboardingBlocking || !localPlayerName) return;
+                  if (!localPlayerName) return;
                   trackAnalyticsEvent("cta_online_game");
                   void (async () => {
                     if (
@@ -912,7 +901,7 @@ function AppContent() {
                   })();
                 },
                 onJoinOnlineRoom: (roomId, playerName) => {
-                  if (onboardingBlocking || !localPlayerName) return;
+                  if (!localPlayerName) return;
                   trackAnalyticsEvent("cta_online_join", { roomId });
                   void (async () => {
                     const profile = await getOrCreatePlayerId();
@@ -935,7 +924,7 @@ function AppContent() {
                   })();
                 },
                 onSpectateOnlineRoom: (roomId, playerName) => {
-                  if (onboardingBlocking || !localPlayerName) return;
+                  if (!localPlayerName) return;
                   void (async () => {
                     const profile = await getOrCreatePlayerId();
                     setLocalPlayerName(playerName);
@@ -969,7 +958,7 @@ function AppContent() {
           </Animated.View>
         )}
         <WebInstallCoachModal
-          visible={menuVisible && installCoachVisible}
+          visible={menuVisible && screen === "menu" && installCoachVisible}
           onContinueInBrowser={() => {
             void (async () => {
               trackAnalyticsEvent("install_coach_continued");
@@ -981,10 +970,16 @@ function AppContent() {
           }}
         />
         <DisplayNameSetupModal
-          visible={menuVisible && nameSetupVisible}
+          visible={menuVisible && screen === "menu" && nameSetupVisible}
           variant={
             nameSetupAccountSync ? "browser-with-account-sync" : "default"
           }
+          onSkip={() => {
+            trackAnalyticsEvent("name_setup_skipped");
+            setLocalPlayerName((n) => n?.trim() || DEFAULT_PLAYER_NAME);
+            setNameSetupVisible(false);
+            setNameSetupResolved(true);
+          }}
           onComplete={(name) => {
             trackAnalyticsEvent("name_setup_completed");
             setLocalPlayerName(name);

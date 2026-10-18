@@ -20,7 +20,7 @@ type Props = {
 };
 
 /**
- * Blocking first-run coach for mobile browser tabs (not standalone PWA).
+ * Dismissible first-run coach for mobile browser tabs (not standalone PWA).
  * Shown before display-name setup so install is offered first.
  */
 export default function WebInstallCoachModal({
@@ -76,9 +76,7 @@ export default function WebInstallCoachModal({
       transparent
       animationType="fade"
       statusBarTranslucent
-      onRequestClose={() => {
-        /* Blocking — choose install path or continue in browser. */
-      }}
+      onRequestClose={handleContinueInBrowser}
     >
       <View
         style={[
