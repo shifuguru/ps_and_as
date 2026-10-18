@@ -29,6 +29,14 @@ export const PLAYER_NAME_CHOSEN_KEY = "@player_name_chosen";
 /** Legacy runtime / storage fallback — not an explicit user choice. */
 export const IMPLICIT_PLAYER_NAME_FALLBACK = "Player";
 
+/** Unique temporary name (e.g. "Player_a3f9") derived from the profile id. */
+export function makeTemporaryPlayerName(profileId: string): string {
+  const suffix = profileId.replace(/[^a-zA-Z0-9]/g, "").slice(-4).toLowerCase();
+  return suffix
+    ? `${IMPLICIT_PLAYER_NAME_FALLBACK}_${suffix}`
+    : IMPLICIT_PLAYER_NAME_FALLBACK;
+}
+
 export type DisplayNameSetupSnapshot = {
   cachedName: string | null;
   nameChosen: boolean;
@@ -87,6 +95,7 @@ export type ResolvedDisplayNameSetup = {
   needsSetup: boolean;
   displayName: string | null;
   profileId: string;
+  temporaryName: string;
 };
 
 /**
@@ -114,5 +123,6 @@ export async function resolveDisplayNameSetupState(): Promise<ResolvedDisplayNam
     needsSetup,
     displayName: needsSetup ? null : trimmed || profile.displayName,
     profileId: profile.id,
+    temporaryName: makeTemporaryPlayerName(profile.id),
   };
 }

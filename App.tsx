@@ -404,6 +404,7 @@ function AppContent() {
         setInstallCoachResolved(false);
         setNameSetupVisible(false);
         setNameSetupAccountSync(false);
+        if (resolved.needsSetup) setLocalPlayerName(resolved.temporaryName);
         return;
       }
 
@@ -413,6 +414,7 @@ function AppContent() {
 
       if (resolved.needsSetup) {
         setNameSetupVisible(true);
+        setLocalPlayerName(resolved.temporaryName);
       } else {
         setNameSetupVisible(false);
         setLocalPlayerName(resolved.displayName);
