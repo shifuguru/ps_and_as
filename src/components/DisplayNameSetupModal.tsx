@@ -31,6 +31,8 @@ export type DisplayNameSetupVariant = "default" | "browser-with-account-sync";
 type Props = {
   visible: boolean;
   onComplete: (name: string) => void;
+  /** Dismiss without choosing a name; the default name is used. */
+  onSkip?: () => void;
   /** After declining PWA install — offer Google sync with name setup. */
   variant?: DisplayNameSetupVariant;
 };
@@ -38,6 +40,7 @@ type Props = {
 export default function DisplayNameSetupModal({
   visible,
   onComplete,
+  onSkip,
   variant = "default",
 }: Props) {
   const { ui, blur, colors } = useAppTheme();
@@ -121,9 +124,7 @@ export default function DisplayNameSetupModal({
       transparent
       animationType="fade"
       statusBarTranslucent
-      onRequestClose={() => {
-        /* Blocking gate — cannot dismiss without choosing a name. */
-      }}
+      onRequestClose={() => onSkip?.()}
     >
       <View
         style={[
@@ -195,6 +196,17 @@ export default function DisplayNameSetupModal({
             />
           ) : showGoogle ? (
             <Text style={styles.syncHint}>Google sync coming soon</Text>
+          ) : null}
+
+          {onSkip ? (
+            <AppButton
+              label="Skip for now"
+              variant="secondary"
+              disabled={saving || googleBusy}
+              onPress={onSkip}
+              accessibilityLabel="Skip setting a display name"
+              style={styles.googleBtn}
+            />
           ) : null}
         </BlurPanel>
       </View>

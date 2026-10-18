@@ -10,6 +10,7 @@ export type ClientAnalyticsEvent =
   | "cta_online_join"
   | "quick_game_started"
   | "name_setup_completed"
+  | "name_setup_skipped"
   | "install_coach_continued";
 
 type AnalyticsProps = Record<string, string | number | boolean>;
