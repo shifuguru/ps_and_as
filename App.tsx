@@ -13,17 +13,13 @@ import ScreenContainer from "./src/components/ScreenContainer";
 import BlurPanel from "./src/components/BlurPanel";
 import { ThemeProvider, useAppTheme } from "./src/context/ThemeContext";
 import { CardAppearanceProvider } from "./src/context/CardAppearanceContext";
-import { preloadGamePreferences } from "./src/services/gamePreferences";
 import {
   clampPracticePlayerCount,
   writePracticePlayerCount,
 } from "./src/services/practicePreferences";
-import { ensurePlayerStatsRestored } from "./src/services/playerStats";
-import { preloadAdsConsent } from "./src/services/ads/adsConsent";
-import { preloadAdsEntitlement } from "./src/services/ads/adsEntitlement";
 import AdsConsentBanner from "./src/components/AdsConsentBanner";
 import PrivacyPolicyModal from "./src/components/PrivacyPolicyModal";
-import { useMenuAudio } from "./src/hooks/useMenuAudio";
+import { useAssetAndAdsPreload } from "./src/hooks/useAssetAndAdsPreload";
 import AnimatedBackground from "./src/components/AnimatedBackground";
 import { SocketAdapter } from "./src/game/socketAdapter";
 import type { LobbyMember } from "./src/game/network";
@@ -76,6 +72,7 @@ import {
   trackHubViewedOnce,
 } from "./src/services/analytics";
 import { strings } from "./src/strings";
+import { TutorialModal } from "./src/components/TutorialModal";
 
 const ViewportDebugOverlay =
   Platform.OS === "web" &&
@@ -94,31 +91,16 @@ function AppContent() {
   // menuVisible: whether the main menu should be shown (after splash fully hidden)
   const [splashVisible, setSplashVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
+const [tutorialVisible, setTutorialVisible] = useState(false);
+const [tutorialResolved, setTutorialResolved] = useState(false);
   const { playEffect, toggleMute, muted, unlockAudio } = useMenuAudio();
-  const playGameSound = useCallback(
+  useAudioWarmUp(unlockAudio);
     (effect: string) => {
       playEffect(effect);
     },
     [playEffect],
   );
 
-  // Warm the SFX pool on the first user gesture so menu clicks are not waiting
-  // on createAsync the first time each effect is used.
-  useEffect(() => {
-    const warm = () => {
-      void unlockAudio();
-    };
-    const opts = { capture: true, once: true } as AddEventListenerOptions;
-    const doc = typeof document !== "undefined" ? document : null;
-    doc?.addEventListener("pointerdown", warm, opts);
-    doc?.addEventListener("touchstart", warm, opts);
-    doc?.addEventListener("keydown", warm, opts);
-    return () => {
-      doc?.removeEventListener("pointerdown", warm, true);
-      doc?.removeEventListener("touchstart", warm, true);
-      doc?.removeEventListener("keydown", warm, true);
-    };
-  }, [unlockAudio]);
 
   const [screen, setScreen] = useState<
     "menu" | "create" | "find" | "game"
@@ -151,8 +133,18 @@ function AppContent() {
   const [updateDismissedBuildId, setUpdateDismissedBuildId] = useState<
     string | null
   >(null);
-  const { count: updateLogUnreadCount, markSeen: markUpdateLogSeen } =
-    useUpdateLogUnreadCount(menuVisible, updateLogOpen);
+  useEffect(() => {
+    try {
+      const loc = (globalThis as { location?: Location }).location;
+      if (loc?.search?.includes("privacy=1")) {
+        setPrivacyOpen(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+    useAssetAndAdsPreload();
   const onlinePresence = useOnlinePresence(
     !splashVisible,
     localPlayerName,
@@ -166,63 +158,6 @@ function AppContent() {
     cancel?.();
   }, []);
 
-  useEffect(() => {
-    void preloadGamePreferences();
-    void ensurePlayerStatsRestored();
-    void preloadAdsConsent().then(async () => {
-      try {
-        const { getAdsConsentSync, canLoadPersonalizedAds } = await import(
-          "./src/services/ads/adsConsent"
-        );
-        if (canLoadPersonalizedAds() || getAdsConsentSync() === "accepted") {
-          const { configureH5AdsSound } = await import(
-            "./src/services/ads/webH5Ads"
-          );
-          configureH5AdsSound(true);
-        }
-      } catch {
-        // ignore
-      }
-    });
-    void preloadAdsEntitlement();
-    // Stripe return: refresh Remove Ads entitlement from cloud.
-    if (Platform.OS === "web") {
-      void (async () => {
-        try {
-          const {
-            consumePurchaseQueryParam,
-            refreshAdsEntitlementFromCloud,
-          } = await import("./src/services/ads/removeAdsPurchase");
-          const purchase = consumePurchaseQueryParam();
-          if (purchase === "remove_ads_success") {
-            const ok = await refreshAdsEntitlementFromCloud();
-            if (ok) {
-              Alert.alert(
-                strings.alerts.removeAdsThanksTitle,
-                strings.alerts.removeAdsThanksMessage,
-              );
-            } else {
-              Alert.alert(
-                strings.alerts.removeAdsPendingTitle,
-                strings.alerts.removeAdsPendingMessage,
-              );
-            }
-          }
-          // Deep-link to privacy modal
-          try {
-            const loc = (globalThis as { location?: Location }).location;
-            if (loc?.search?.includes("privacy=1")) {
-              setPrivacyOpen(true);
-            }
-          } catch {
-            // ignore
-          }
-        } catch {
-          // ignore
-        }
-      })();
-    }
-  }, []);
 
   const { updateAvailable, latestBuild } = useBuildUpdateCheck(
     !splashVisible,
