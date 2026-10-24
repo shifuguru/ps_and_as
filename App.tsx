@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { View, Animated, StyleSheet, Text, TouchableOpacity, Platform, Alert } from "react-native";
 import SplashScreen from "./src/screens/SplashScreen";
@@ -8,20 +9,45 @@ import Achievements from "./src/screens/Achievements";
 import Settings from "./src/screens/Settings";
 import UpdateLog from "./src/screens/UpdateLog";
 import ReadMeScreen from "./src/screens/ReadMeScreen";
+<<<<<<< Updated upstream
 import MainMenu from "./src/screens/MainMenu";
+=======
+import AppMenuContent from "./src/navigation/AppMenuContent";
+>>>>>>> Stashed changes
 import ScreenContainer from "./src/components/ScreenContainer";
 import BlurPanel from "./src/components/BlurPanel";
 import { ThemeProvider, useAppTheme } from "./src/context/ThemeContext";
 import { CardAppearanceProvider } from "./src/context/CardAppearanceContext";
+<<<<<<< Updated upstream
 import { preloadGamePreferences } from "./src/services/gamePreferences";
 import { ensurePlayerStatsRestored } from "./src/services/playerStats";
 import { useMenuAudio } from "./src/hooks/useMenuAudio";
+=======
+import { useMenuAudio } from "./src/hooks/useMenuAudio";
+import { useAudioWarmUp } from "./src/hooks/useAudioWarmUp";
+import {
+  clampPracticePlayerCount,
+  writePracticePlayerCount,
+} from "./src/services/practicePreferences";
+import AdsConsentBanner from "./src/components/AdsConsentBanner";
+import PrivacyPolicyModal from "./src/components/PrivacyPolicyModal";
+import { useAssetAndAdsPreload } from "./src/hooks/useAssetAndAdsPreload";
+>>>>>>> Stashed changes
 import AnimatedBackground from "./src/components/AnimatedBackground";
 import { SocketAdapter } from "./src/game/socketAdapter";
 import type { LobbyMember } from "./src/game/network";
 import { MockAdapter } from "./src/game/network";
 import { isSocketAdapter } from "./src/game/socketAdapter";
 import { getOrCreatePlayerId } from "./src/services/gameCenter";
+<<<<<<< Updated upstream
+=======
+import { makeTemporaryPlayerName } from "./src/services/playerDisplayName";
+import { resolveDisplayNameSetupState } from "./src/services/playerDisplayName";
+import {
+  markWebInstallDeclined,
+  resolveWebOnboardingState,
+} from "./src/services/webOnboarding";
+>>>>>>> Stashed changes
 import {
   clearLobbySession,
   getLobbySession,
@@ -58,13 +84,28 @@ function AppContent() {
   // menuVisible: whether the main menu should be shown (after splash fully hidden)
   const [splashVisible, setSplashVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
+<<<<<<< Updated upstream
   const { playEffect, toggleMute, isMuted, muted } = useMenuAudio();
+=======
+const [tutorialVisible, setTutorialVisible] = useState(false);
+const [tutorialResolved, setTutorialResolved] = useState(false);
+
+const { playEffect, toggleMute, muted, unlockAudio } = useMenuAudio();
+useAudioWarmUp(unlockAudio);
+const playEffectCallback = useCallback((effect: string) => {
+  playEffect(effect);
+}, [playEffect]);
+const playGameSound = useCallback((name: string) => playEffect(name), [playEffect]);
+
+
+>>>>>>> Stashed changes
   const [screen, setScreen] = useState<
     "menu" | "create" | "find" | "game"
   >("menu");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [achievementsOpen, setAchievementsOpen] = useState(false);
   const [updateLogOpen, setUpdateLogOpen] = useState(false);
+const { count: updateLogUnreadCount, markSeen: markUpdateLogSeen } = useUpdateLogUnreadCount(menuVisible, updateLogOpen);
   const [readmeOpen, setReadmeOpen] = useState(false);
   const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[] | null>(null);
   const [dealSeed, setDealSeed] = useState<number | undefined>(undefined);
@@ -208,9 +249,19 @@ function AppContent() {
     return () => clearTimeout(timeout);
   }, [splashVisible, menuOpacity, splashOpacity]);
 
+<<<<<<< Updated upstream
   const startRandomGame = async () => {
     const playerInfo = await getOrCreatePlayerId();
     const hostName = playerInfo.displayName || "Player";
+=======
+  const startPracticeGame = async (playerCount: number) => {
+    // Ensure a non‑empty name; use temporary fallback if needed
+const playerInfo = await getOrCreatePlayerId();
+const hostName = localPlayerName?.trim() ?? makeTemporaryPlayerName(playerInfo.id);
+if (!hostName) return;
+    disconnectRoom();
+// (original duplicate removed)
+>>>>>>> Stashed changes
     const savedTint = (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
     console.log("[App] Quick Game requested", {
       hostName,
@@ -647,6 +698,7 @@ function AppContent() {
         )}
 
         {/* Main menu — consolidated with icons */}
+<<<<<<< Updated upstream
         {menuVisible && screen === "menu" && (
           <Animated.View style={[{ flex: 1 }, { opacity: menuOpacity }]}>
             {pendingRejoin ? (
@@ -723,6 +775,143 @@ function AppContent() {
             />
           </Animated.View>
         )}
+=======
+{menuVisible && screen === "menu" && (
+  <AppMenuContent
+    menuOpacity={menuOpacity}
+    displayName={localPlayerName ?? "Player"}
+    currentPlayerId={localPlayerId}
+    whatsNewUnread={updateLogUnreadCount}
+    onlinePlayerCount={onlinePresence.count}
+    onlinePlayers={onlinePresence.players}
+    refreshKey={hubRefreshKey}
+    updateAvailable={updateAvailable}
+    onOpenUpdate={() => setUpdateDismissedBuildId(null)}
+    pendingLobby={pendingRejoin}
+    onRejoinLobby={() => void rejoinLobby()}
+    onDismissLobby={() => {
+      void clearLobbySession();
+      setPendingRejoin(null);
+    }}
+    onNavigateSound={() => playEffect("click")}
+    actions={{
+      onPlay: (playerCount) => {
+        if (!localPlayerName) return;
+        trackAnalyticsEvent("cta_quick_game", { playerCount });
+        void startPracticeGame(playerCount);
+      },
+      onHostOnlineGame: (name) => {
+        if (!localPlayerName) return;
+        trackAnalyticsEvent("cta_online_game");
+        void (async () => {
+          if (
+            isSocketAdapter(roomAdapter) &&
+            activeRoomId &&
+            roomAdapter.isConnected()
+          ) {
+            roomAdapter.dismissRoom(activeRoomId);
+          }
+          disconnectRoom();
+          const profile = await getOrCreatePlayerId();
+          setLocalPlayerName(name);
+          setRoomAdapter(
+            new SocketAdapter(undefined, "", name, profile.id, false, feltTint),
+          );
+          setJoinedRoomId(null);
+          setActiveRoomId(null);
+          setIsOnlineGame(true);
+          setScreen("create");
+        })();
+      },
+      onJoinOnlineRoom: (roomId, playerName) => {
+        if (!localPlayerName) return;
+        trackAnalyticsEvent("cta_online_join", { roomId });
+        void (async () => {
+          const profile = await getOrCreatePlayerId();
+          setLocalPlayerName(playerName);
+          setIsSpectator(false);
+          setRoomAdapter(
+            new SocketAdapter(
+              undefined,
+              roomId,
+              playerName,
+              profile.id,
+              true,
+              feltTint,
+            ),
+          );
+          setJoinedRoomId(roomId);
+          setActiveRoomId(roomId);
+          setIsOnlineGame(true);
+          setScreen("create");
+        })();
+      },
+      onSpectateOnlineRoom: (roomId, playerName) => {
+        if (!localPlayerName) return;
+        void (async () => {
+          const profile = await getOrCreatePlayerId();
+          setLocalPlayerName(playerName);
+          setLocalPlayerId(profile.id);
+          setIsSpectator(true);
+          setLobbyMembers([]);
+          const adapter = new SocketAdapter(
+            undefined,
+            roomId,
+            playerName,
+            profile.id,
+            true,
+            feltTint,
+          );
+          setRoomAdapter(adapter);
+          setJoinedRoomId(roomId);
+          setActiveRoomId(roomId);
+          setIsOnlineGame(true);
+          setGameInstanceKey((k) => k + 1);
+          setScreen("game");
+          await adapter.connect();
+        })();
+      },
+      onOpenAchievements: openAchievements,
+      onOpenTitles: openTitles,
+      onOpenWhatsNew: openUpdateLog,
+      onOpenSettings: openSettings,
+      onOpenReadMe: openReadMe,
+    }}
+  />
+)}
+
+/* <WebInstallCoachModal
+  visible={menuVisible && screen === "menu" && installCoachVisible}
+  onContinueInBrowser={() => {
+    void (async () => {
+      trackAnalyticsEvent("install_coach_continued");
+      await markWebInstallDeclined();
+      setInstallCoachVisible(false);
+      setInstallCoachResolved(true);
+      // nameSetupResolved stays false → effect opens name + Google sync
+    })();
+  }}
+/>
+<DisplayNameSetupModal
+  visible={menuVisible && screen === "menu" && nameSetupVisible}
+  variant={
+    nameSetupAccountSync ? "browser-with-account-sync" : "default"
+  }
+  onSkip={() => {
+    trackAnalyticsEvent("name_setup_skipped");
+    setLocalPlayerName((n) => n?.trim() || DEFAULT_PLAYER_NAME);
+    setNameSetupVisible(false);
+    setNameSetupResolved(true);
+  }}
+  onComplete={(name) => {
+    trackAnalyticsEvent("name_setup_completed");
+    setLocalPlayerName(name);
+    setNameSetupVisible(false);
+    setNameSetupResolved(true);
+    updateOnlinePresenceDisplayName(name);
+  }}
+/> */
+>>>>>>> Stashed changes
         {menuVisible && screen === "create" && (
           <CreateGame 
             adapter={roomAdapter || undefined} 
@@ -1002,6 +1191,15 @@ function AppContent() {
         ) : null}
         </View>
     </View>
+<<<<<<< Updated upstream
+=======
+    null
+    <PrivacyPolicyModal
+      visible={privacyOpen}
+      onClose={() => setPrivacyOpen(false)}
+    />
+    {ViewportDebugOverlay ? <ViewportDebugOverlay /> : null}
+>>>>>>> Stashed changes
     </>
   );
 }

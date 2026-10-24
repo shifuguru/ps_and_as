@@ -1,0 +1,74 @@
+ Volume in drive C is 4TB 990 PRO
+ Volume Serial Number is 0E21-BF0D
+
+ Directory of C:\Users\Admin\source\repos\ps_and_as
+
+22/10/2026  09:16 pm    <DIR>          .
+04/10/2026  09:54 pm    <DIR>          ..
+30/05/2026  01:43 am    <DIR>          .cursor
+20/08/2026  04:28 pm             2,071 .env.example
+27/05/2026  01:38 am    <DIR>          .expo
+22/10/2025  10:34 pm                68 .gitattributes
+25/05/2026  05:00 pm    <DIR>          .github
+30/09/2026  06:05 pm               627 .gitignore
+29/05/2026  08:41 am                 0 .nojekyll
+20/06/2026  09:52 pm             2,355 404.html
+23/10/2025  01:24 am    <DIR>          android
+30/09/2026  05:17 pm             1,557 app.config.js
+19/10/2026  10:07 pm             1,995 app.json
+22/10/2026  07:14 pm            45,099 App.tsx
+20/08/2026  04:28 pm            39,556 ARCHITECTURE_GAPS.md
+05/08/2026  04:58 pm    <DIR>          assets
+29/05/2026  01:13 am               157 babel.config.js
+18/09/2026  02:30 pm                13 CNAME
+08/06/2026  01:38 pm             7,727 CPU_STALL_INVESTIGATION.md
+23/10/2025  01:04 am             8,764 DEBUGGING.md
+22/09/2026  11:51 pm    <DIR>          dist
+26/10/2025  11:03 pm    <DIR>          dist-scripts
+13/10/2026  10:46 pm    <DIR>          docs
+05/08/2026  04:48 pm               974 eas.json
+31/05/2026  12:39 am            14,510 favicon.ico
+22/10/2026  09:16 pm                 0 files.txt
+23/10/2025  01:04 am             7,603 GAMECENTER.md
+05/08/2026  04:48 pm             7,043 GAMECENTER_SETUP.md
+03/08/2026  04:48 pm            20,995 GAME_ARCHITECTURE.md
+19/10/2026  10:07 pm             6,206 index.html
+31/07/2026  12:07 pm             1,166 index.ts
+18/09/2026  02:30 pm               342 manifest.webmanifest
+31/05/2026  12:39 am                49 metadata.json
+30/05/2026  09:39 pm             1,516 metro.config.js
+08/06/2026  01:38 pm             3,326 MULTIPLAYER_ARCHITECTURE.md
+23/10/2025  02:08 am             8,481 MULTIPLAYER_CHANGES.md
+20/08/2026  06:50 pm             4,794 MULTIPLAYER_SETUP.md
+22/09/2026  11:42 pm    <DIR>          node_modules
+19/10/2026  10:07 pm           527,065 package-lock.json
+19/10/2026  10:07 pm             4,159 package.json
+23/10/2025  01:15 am             7,277 PLAYER_NAMES.md
+05/08/2026  04:48 pm            13,545 privacy.html
+30/09/2026  05:17 pm    <DIR>          public
+05/06/2026  12:02 pm            15,445 QA_BOT_LEAGUE.md
+05/08/2026  04:48 pm               854 railway.toml
+18/09/2026  02:30 pm            16,272 readme-fallback.html
+06/08/2026  04:37 pm             5,753 README.md
+05/08/2026  04:48 pm            15,614 RELEASE_GATE.md
+31/07/2026  12:27 pm    <DIR>          reports
+26/10/2025  11:03 pm            12,895 repro-state.json
+18/09/2026  02:30 pm    <DIR>          scripts
+05/08/2026  04:48 pm             2,375 SECURITY.md
+30/09/2026  06:05 pm    <DIR>          server
+26/10/2025  11:03 pm            36,263 simulate-debug-trace.json
+30/09/2026  05:17 pm    <DIR>          site-root
+19/10/2026  11:39 pm    <DIR>          src
+27/05/2026  04:06 am             1,212 test-core-out.txt
+27/05/2026  04:06 am                 0 test-output.txt
+20/08/2026  04:51 pm               488 tsconfig.json
+20/06/2026  09:52 pm             8,317 TURN_OWNERSHIP_INVESTIGATION.md
+19/10/2026  10:07 pm               193 version.json
+19/09/2026  12:08 am    <DIR>          web-build
+27/05/2026  06:30 am    <DIR>          web-build-raw
+01/06/2026  11:26 pm    <DIR>          web-build-test
+18/09/2026  02:30 pm            10,955 web-shell.css
+29/05/2026  08:41 am               186 _config.yml
+30/09/2026  06:05 pm    <DIR>          _expo
+              46 File(s)        865,862 bytes
+              21 Dir(s)  276,023,869,440 bytes free
