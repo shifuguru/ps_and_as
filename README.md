@@ -1,55 +1,56 @@
-Get rid of all your cards before everyone else and finish as **President**.
+# Presidents and Assholes
 
-Try not to finish last.
+A multiplayer card game where everyone wants to be **President**, and nobody wants to be left as the **Asshole**.
 
 ---
 
 # The Goal
 
 Be the first player to empty your hand.
-
 Your finishing order sets your rank for the next round:
 
 | Finish | Rank |
 |--------|------|
 | First | President |
-| Everyone else | Citizen |
+| Second | Vice-President |
+| Everyone else | Citizens |
+| Second Last | Vice-Asshole |
 | Last | Asshole |
 
-With five or more players, second and second-to-last become **Vice President** and **Vice Asshole**.
+The Asshole trades their best card(s) to the President, who in-turn trades, *ideally*, their worst card(s) to the Asshole.
 
-Ranks carry into the next round. The President gets an advantage. The Asshole has to give away their best cards.
+**Note: For 5 or more active players, the President & Asshole trade 2 cards, Vice-President & Vice-Asshole trade 1 card.**
 
 ---
 
 # Quick Rules
 
-| Rule | |
+| Rule | Description |
 |------|------|
-| Goal | Empty your hand first |
-| Lowest card | 3 |
-| Highest card | Joker |
-| Opening card | 3♣ |
-| Shortest run | Three consecutive ranks |
+| Lowest rank | Any 3 |
+| Highest rank | Joker |
+| Opening card | 3♣ (clubs) |
+| Runs | Three consecutive ranks in-order |
+| Higher/Lower | 10 forces the next card to be higher or lower with the exception of during Runs |
 | A trick ends | When every other active player passes |
 
 ---
 
 # Taking Your Turn
 
-Players take turns playing cards onto the table.
+The player who has the 3♣ begins the round with that card. They can play the 3♣ with any other 3. This changes the current Trick's multiplicity and other players must follow the same multiplicity.
 
-You can play:
+You can start a trick with any multiplicity of a single rank:
 
-- A single card
-- A pair
-- Three of a kind
-- Four of a kind
-- A valid run
+| Multiplicities | Example |
+|------|-----|
+| Singles | 3♣ |
+| Doubles | 3♣ + 3♦ |
+| Triples | 3♣ + 3♦ + 3♥ |
+| Quads | 3♣ + 3♦ + 3♥ + 3♠ |
 
-Your play must beat whatever is currently on the table.
-
-If you cannot — or do not want to — beat it, press **Pass**. After you pass, you are locked out of that trick until the pile clears.
+If you do not have a legal play (or simply wish to pass), press **Pass**. 
+**Note: After you pass, you are locked out of that trick until the pile clears.**
 
 When every other active player has passed, the trick ends. The player who made the last successful play starts the next one.
 
