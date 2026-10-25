@@ -1,5 +1,7 @@
+
 # What is P's & A's?
-A multiplayer card game where everyone is trying to shed their cards as soon as possible to avoid becoming the asshole and giving up their best card(s) next round.
+
+P's & A's is a popular multiplayer card game, at least in New Zealand where I live. Everyone here has heard of P's & A's / Presidents and Assholes / Kings & Assholes / Presidents / Scum. In P's & A's everyone's aim is to get rid of all of their cards as soon as possible to avoid losing the round and being left as the **Asshole**. At the beginning of each subsequent round card trading occurs where both the Asshole(s) and President(s) trade their best and worst cards, respectively. In this digital version of the popular card game we can now all play Online with our friends from all over the world!
 
 ---
 
@@ -26,20 +28,20 @@ The Asshole trades their best card(s) to the President, who in-turn trades, *ide
 
 | Rule | Description |
 |------|------|
-| Lowest rank | Any 3 |
-| Highest rank | Joker |
+| Lowest card / rank | Any 3 |
+| Highest card / rank | Joker |
 | Opening card | 3♣ (clubs) |
-| Runs | Three consecutive ranks in-order |
-| Higher/Lower | 10 forces the next card to be higher or lower with the exception of during Runs |
-| A trick ends | When every other active player passes |
+| Runs | Three consecutive ranks e.g. 3, 4, 5. Runs must remain consecutive by +1 or -1 |
+| Higher/Lower | 10 forces the next card to be higher or lower chosen by its player, but during Runs 10s have no power! |
+| A trick ends | When every other active player passes. If the last player either played a 10 (higher or lower), or Runs is active, an additional card can be played On Top! |
 
 ---
 
-# Taking Your Turn
+# Taking Turns
 
-The player who has the 3♣ begins the round with that card. They can play the 3♣ with any other 3. This changes the current Trick's multiplicity and other players must follow the same multiplicity.
+The player who has the 3♣ begins the game.
 
-You can start a trick with any multiplicity of a single rank:
+Note: The 3♣ can be played with any other 3, thus changing the Trick's *"multiplicity"* and other players must follow the same multiplicity.
 
 | Multiplicities | Example |
 |------|-----|
