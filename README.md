@@ -1,6 +1,5 @@
-# Presidents and Assholes
-
-A multiplayer card game where everyone wants to be **President**, and nobody wants to be left as the **Asshole**.
+# What is P's & A's?
+A multiplayer card game where everyone is trying to shed their cards as soon as possible to avoid becoming the asshole and giving up their best card(s) next round.
 
 ---
 
