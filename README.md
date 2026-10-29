@@ -1,55 +1,57 @@
-Get rid of all your cards before everyone else and finish as **President**.
 
-Try not to finish last.
+# What is P's & A's?
+
+P's & A's is a popular multiplayer card game, at least in New Zealand where I live. Everyone here has heard of P's & A's / Presidents and Assholes / Kings & Assholes / Presidents / Scum. In P's & A's everyone's aim is to get rid of all of their cards as soon as possible to avoid losing the round and being left as the **Asshole**. At the beginning of each subsequent round card trading occurs where both the Asshole(s) and President(s) trade their best and worst cards, respectively. In this digital version of the popular card game we can now all play Online with our friends from all over the world!
 
 ---
 
 # The Goal
 
 Be the first player to empty your hand.
-
 Your finishing order sets your rank for the next round:
 
 | Finish | Rank |
 |--------|------|
 | First | President |
-| Everyone else | Citizen |
+| Second | Vice-President |
+| Everyone else | Citizens |
+| Second Last | Vice-Asshole |
 | Last | Asshole |
 
-With five or more players, second and second-to-last become **Vice President** and **Vice Asshole**.
+The Asshole trades their best card(s) to the President, who in-turn trades, *ideally*, their worst card(s) to the Asshole.
 
-Ranks carry into the next round. The President gets an advantage. The Asshole has to give away their best cards.
+**Note: For 5 or more active players, the President & Asshole trade 2 cards, Vice-President & Vice-Asshole trade 1 card.**
 
 ---
 
 # Quick Rules
 
-| Rule | |
+| Rule | Description |
 |------|------|
-| Goal | Empty your hand first |
-| Lowest card | 3 |
-| Highest card | Joker |
-| Opening card | 3♣ |
-| Shortest run | Three consecutive ranks |
-| A trick ends | When every other active player passes |
+| Lowest card / rank | Any 3 |
+| Highest card / rank | Joker |
+| Opening card | 3♣ (clubs) |
+| Runs | Three consecutive ranks e.g. 3, 4, 5. Runs must remain consecutive by +1 or -1 |
+| Higher/Lower | 10 forces the next card to be higher or lower chosen by its player, but during Runs 10s have no power! |
+| A trick ends | When every other active player passes. If the last player either played a 10 (higher or lower), or Runs is active, an additional card can be played On Top! |
 
 ---
 
-# Taking Your Turn
+# Taking Turns
 
-Players take turns playing cards onto the table.
+The player who has the 3♣ begins the game.
 
-You can play:
+Note: The 3♣ can be played with any other 3, thus changing the Trick's *"multiplicity"* and other players must follow the same multiplicity.
 
-- A single card
-- A pair
-- Three of a kind
-- Four of a kind
-- A valid run
+| Multiplicities | Example |
+|------|-----|
+| Singles | 3♣ |
+| Doubles | 3♣ + 3♦ |
+| Triples | 3♣ + 3♦ + 3♥ |
+| Quads | 3♣ + 3♦ + 3♥ + 3♠ |
 
-Your play must beat whatever is currently on the table.
-
-If you cannot — or do not want to — beat it, press **Pass**. After you pass, you are locked out of that trick until the pile clears.
+If you do not have a legal play (or simply wish to pass), press **Pass**. 
+**Note: After you pass, you are locked out of that trick until the pile clears.**
 
 When every other active player has passed, the trick ends. The player who made the last successful play starts the next one.
 
