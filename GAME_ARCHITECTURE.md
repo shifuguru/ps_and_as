@@ -340,7 +340,7 @@ When a seated human disconnects in a **standard online room**:
 | Timeout expires | CPU temporarily controls the seat; match continues; seat stays owned by the human |
 | Original player returns later | Reclaims the same seat when reconnect rules allow (see below) |
 
-> **TODO (implementation):** In-game grace is currently **20–30 s random** (`IN_GAME_AWAY_GRACE_MIN_MS` / `MAX` in `server/index.js`), not a fixed 15 s. Align constants and UI copy with the intended 15 s timeout.
+In-game and lobby disconnect grace are both a fixed **15 s** (`IN_GAME_AWAY_GRACE_MS` / `LOBBY_DISCONNECT_GRACE` in `server/index.js`); clients derive the countdown from server `reconnectUntil` and fall back to 15 s.
 
 ### CPU takeover
 
@@ -395,7 +395,7 @@ Waiting for reconnect
 - Disconnected seats dimmed in `OpponentRing` (`disconnectedPlayerIds`)
 - Server rejects actions with `Game paused — waiting for a player to reconnect`
 
-> **TODO (implementation):** Multi-line pause layout and per-second countdown lines are not fully implemented; countdown is a single updating banner string. Lobby disconnect uses 15 s grace; in-game uses 20–30 s (see timeout TODO above).
+> **TODO (implementation):** Multi-line pause layout and per-second countdown lines are not fully implemented; countdown is a single updating banner string. Lobby and in-game disconnect both use a fixed 15 s grace (see timeout above).
 
 ### Server authority during disconnects
 

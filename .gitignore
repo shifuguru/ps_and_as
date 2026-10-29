@@ -1,50 +1,55 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# Local AI coding agents
+/.opencode/
+/.cursor/
+/.claude/
+AGENTS.md
+agents.json
 
-# dependencies
+# Internal development notes
+/docs-internal/
+/notes/
+/planning/
+/investigations/
+
+# Dependencies and generated output
 node_modules/
-
-# Expo
 .expo/
 dist/
 web-build/
 web-build-*/
 expo-env.d.ts
 
-# Native
-.kotlin/
-*.orig.*
+# Native build output
+/ios
+/android
+
+# Debug output
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+/reports/qa/
+/repro-state.json
+/simulate-debug-trace.json
+/test-core-out.txt
+/test-output.txt
+
+# Local environment configuration
+.env
+.env.*
+!.env.example
+
+# Native signing credentials
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
 *.mobileprovision
 
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
+# Operating system
 .DS_Store
-*.pem
 
-# local env files
-.env
-.env*.local
-.env.*
-!.env.example
-
-server/data/player-stats.json
-server/data/analytics.json
-
-# QA League harness output
-reports/qa/
-
-
-# generated native folders
-/ios
-/android
-src/screens/GameScreen.tsx
+# Runtime-generated server data
+/server/data/player-stats.json
+/server/data/analytics.json
