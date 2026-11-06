@@ -5,6 +5,11 @@ import {
   GAME_CENTER_ACHIEVEMENTS,
   GAME_CENTER_LEADERBOARDS,
 } from "../config/gameCenterIds";
+import {
+  getDisplayNameChosen,
+  IMPLICIT_PLAYER_NAME_FALLBACK,
+  makeTemporaryPlayerName,
+} from "./temporaryPlayerName";
 
 type GameCenterModule = typeof import("expo-game-center");
 type GameCenterServiceClass = GameCenterModule["GameCenterService"];
@@ -78,7 +83,9 @@ async function readHardwareInstallId(): Promise<string | null> {
   return null;
 }
 
-async function ensureInstallId(): Promise<string> {
+let installIdPromise: Promise<string> | null = null;
+
+async function createInstallId(): Promise<string> {
   const cached = await getCachedInstallId();
   if (cached) return cached;
 
@@ -94,6 +101,15 @@ async function ensureInstallId(): Promise<string> {
     await cachePlayerId(id);
   }
   return id;
+}
+
+async function ensureInstallId(): Promise<string> {
+  if (!installIdPromise) {
+    installIdPromise = createInstallId().finally(() => {
+      installIdPromise = null;
+    });
+  }
+  return installIdPromise;
 }
 
 function buildPlayerInfo(
@@ -124,10 +140,10 @@ async function playerInfoFromLocalPlayer(
 ): Promise<PlayerInfo> {
   await cacheLinkedGameCenterId(player.playerID);
   await cachePlayerId(player.playerID);
-  const displayName =
-    cachedName || player.displayName || player.alias || "Player";
-  if (!cachedName && displayName) {
-    await cachePlayerName(displayName);
+  const accountName = player.displayName || player.alias;
+  const displayName = cachedName || accountName || makeTemporaryPlayerName(installId);
+  if (!cachedName && accountName) {
+    await cachePlayerName(accountName);
   }
   return buildPlayerInfo(
     installId,
@@ -215,11 +231,18 @@ export async function getOrCreatePlayerId(): Promise<PlayerInfo> {
     }
   }
 
+  const chosen = await getDisplayNameChosen();
+  const trimmedName = cachedName?.trim();
+  const displayName =
+    trimmedName && (trimmedName !== IMPLICIT_PLAYER_NAME_FALLBACK || chosen)
+      ? trimmedName
+      : makeTemporaryPlayerName(installId);
+
   if (linkedAccountId) {
     const isGoogle = linkedAccountId.startsWith("google:");
     return buildPlayerInfo(
       installId,
-      cachedName || "Player",
+      displayName,
       linkedAccountId,
       isGoogle,
       isGoogle ? "google" : "gamecenter",
@@ -228,7 +251,7 @@ export async function getOrCreatePlayerId(): Promise<PlayerInfo> {
 
   return buildPlayerInfo(
     installId,
-    cachedName || "Player",
+    displayName,
     null,
     false,
     "fallback",
@@ -240,8 +263,9 @@ export async function getCachedInstallId(): Promise<string | null> {
     const AsyncStorage =
       require("@react-native-async-storage/async-storage").default;
     return await AsyncStorage.getItem(INSTALL_ID_KEY);
-  } catch {
-    return null;
+  } catch (error) {
+    console.error("[GameCenter] Failed to read install ID:", error);
+    throw error;
   }
 }
 
@@ -250,8 +274,9 @@ export async function cacheInstallId(id: string): Promise<void> {
     const AsyncStorage =
       require("@react-native-async-storage/async-storage").default;
     await AsyncStorage.setItem(INSTALL_ID_KEY, id);
-  } catch {
-    // ignore
+  } catch (error) {
+    console.error("[GameCenter] Failed to save install ID:", error);
+    throw error;
   }
 }
 
