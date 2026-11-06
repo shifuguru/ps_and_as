@@ -74,6 +74,7 @@ const CARD_PREVIEW_SAMPLES: CardType[] = [
 ];
 
 export default function Settings({
+  currentPlayerName,
   onWallpaperPreview,
   onWallpaperChange,
   onBack,
@@ -83,6 +84,7 @@ export default function Settings({
   soundMuted,
   onToggleSoundMute,
 }: {
+  currentPlayerName?: string | null;
   onWallpaperPreview?: (tint: string) => void;
   onWallpaperChange?: () => void;
   onBack?: () => void;
@@ -158,8 +160,8 @@ export default function Settings({
         getPlayerStats(),
       ]);
       setPlayerInfo(info);
-      setPlayerName(info.displayName);
-      setSavedName(info.displayName);
+      setPlayerName(currentPlayerName?.trim() || info.displayName);
+      setSavedName(currentPlayerName?.trim() || info.displayName);
       setCareerXp(stats.xp ?? 0);
       const resolvedTint = tint ?? DEFAULT_FELT_COLOR;
       setPreviewTint(resolvedTint);
@@ -180,8 +182,8 @@ export default function Settings({
         const info = await getOrCreatePlayerId();
         const stats = await getPlayerStats();
         setPlayerInfo(info);
-        setPlayerName(info.displayName);
-        setSavedName(info.displayName);
+        setPlayerName(currentPlayerName?.trim() || info.displayName);
+        setSavedName(currentPlayerName?.trim() || info.displayName);
         setCareerXp(stats.xp ?? 0);
         const tint = (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
         setPreviewTint(tint);
