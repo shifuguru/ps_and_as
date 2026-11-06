@@ -536,8 +536,8 @@ export default function RoundCompleteModal({
               ui.modalCard,
               styles.modalCard,
               {
-                width: cardWidth,
-                maxWidth: cardWidth,
+                flex: 1,
+                width: "100%",
                 maxHeight: maxCardHeight,
               },
             ]}
