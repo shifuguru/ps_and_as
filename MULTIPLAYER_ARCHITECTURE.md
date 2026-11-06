@@ -28,6 +28,20 @@ Clients **do not** apply `playCards` / `passTurn` locally while online; they ren
 | `src/game/socketAdapter.ts` | Socket events → adapter messages |
 | `GameScreen` `applyServerSync` | Ceremony / trades / between-rounds (still local UX); live play from server only |
 
+### Player identity
+
+The client creates one persisted install ID before entering a game or lobby.
+When no display name has been chosen, the shared profile derives a temporary
+name from that install ID; it does not save the temporary name as a chosen
+name. The hub, settings, practice game, presence and online adapter use that
+identity without requiring an account. Explicit names and linked account IDs
+remain authoritative.
+
+An online lobby saves the name actually sent to the room and the original
+profile ID, even if the server assigns a different seat ID. Rejoin uses the
+saved name and reconnect secret; a name changed in Settings also updates the
+saved lobby session.
+
 ## Dead hand
 
 1. Human joins in progress as **spectator**.
