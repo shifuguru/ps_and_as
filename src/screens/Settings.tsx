@@ -985,7 +985,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     marginRight: 12,
   },
   avatarText: {
-    color: colors.textPrimary,
+    color: colors.mode === "light" ? colors.btnAccentText : colors.textPrimary,
     fontWeight: "800",
     fontSize: 16,
   },

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 import { hexToRgba } from "../utils/colorTheory";
+import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 
 type Props = {
   size: number;
@@ -30,11 +31,15 @@ export default function AvatarAmbientEffect({
   enabled = true,
   turnActive = false,
 }: Props) {
+  const motion = useDecorativeMotion();
   const glow = useRef(new Animated.Value(turnActive ? 0.32 : 0.18)).current;
   const moteAnims = useRef(MOTES.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !motion) {
+      glow.setValue(turnActive ? 0.32 : 0.18);
+      return;
+    }
     const peak = turnActive ? 0.38 : 0.26;
     const trough = turnActive ? 0.2 : 0.14;
     const duration = turnActive ? 2000 : 3200;
@@ -82,7 +87,7 @@ export default function AvatarAmbientEffect({
       glowLoop.stop();
       moteLoops.forEach((l) => l.stop());
     };
-  }, [enabled, glow, moteAnims, turnActive]);
+  }, [enabled, motion, glow, moteAnims, turnActive]);
 
   const styles = useMemo(() => createStyles(size, accentColor), [size, accentColor]);
   if (!enabled) return null;
@@ -91,7 +96,7 @@ export default function AvatarAmbientEffect({
     <View style={styles.host} pointerEvents="none">
       <Animated.View style={[styles.halo, { opacity: glow }]} />
       <Animated.View style={[styles.bloom, { opacity: glow }]} />
-      {MOTES.map((m, i) => {
+      {motion && MOTES.map((m, i) => {
         const translateY = moteAnims[i].interpolate({
           inputRange: [0, 1],
           outputRange: [m.drift * 0.4, -m.drift],

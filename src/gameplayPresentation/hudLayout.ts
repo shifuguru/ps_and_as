@@ -61,17 +61,15 @@ export function resolveHudDensity(
 }
 
 /**
- * Round Streak height — title + number + pips (+ rarity on roomy).
- * Sized for HUD_TYPE + HUD_GLASS_PAD, not crushed type.
+ * Round Streak height — number alongside title and pips, with glass padding.
  */
 export function resolveHudCardHeight(density: HudDensity): number {
   switch (density) {
     case "ultra":
     case "dense":
-      // eyebrow + display + pips + compact pad
-      return 58;
+      return 48;
     default:
-      return 64;
+      return 52;
   }
 }
 

@@ -12,6 +12,7 @@ import {
 import MenuIcon from "./MenuIcon";
 import { triggerHaptic } from "../utils/haptics";
 import { useAppTheme } from "../context/ThemeContext";
+import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import { hexToRgba } from "../utils/colorTheory";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
@@ -97,6 +98,7 @@ export default function ActionBar({
   const barWidth = Math.min(width - 32, 440);
 
   const turnIntro = useTurnIntroAnimation(isPlayerTurn);
+  const motion = useDecorativeMotion();
   const passFlash = useRef(new Animated.Value(0)).current;
 
   const hasSelection = selectedCount > 0;
@@ -127,6 +129,10 @@ export default function ActionBar({
       passFlash.setValue(0);
       return;
     }
+    if (!motion) {
+      passFlash.setValue(1);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(passFlash, {
@@ -145,7 +151,7 @@ export default function ActionBar({
     );
     loop.start();
     return () => loop.stop();
-  }, [showPassFlash, passFlash]);
+  }, [showPassFlash, passFlash, motion]);
 
   const passBackground = showPassFlash
     ? passFlash.interpolate({

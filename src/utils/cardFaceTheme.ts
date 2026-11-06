@@ -25,10 +25,10 @@ export function getCardFaceColors(
     return {
       faceBg: "#f5f4ef",
       faceBorder: "rgba(0,0,0,0.1)",
-      label: disabled ? "#7a7a7a" : "#1a1a1a",
-      redSuit: disabled ? "#9a8080" : "#b71c1c",
-      blackSuit: disabled ? "#7a7a7a" : "#1a1a1a",
-      joker: disabled ? "#7a7a7a" : "#1a1a1a",
+      label: disabled ? "#585858" : "#1a1a1a",
+      redSuit: disabled ? "#984444" : "#b71c1c",
+      blackSuit: disabled ? "#585858" : "#1a1a1a",
+      joker: disabled ? "#585858" : "#1a1a1a",
       flashBgFrom: "#f5f4ef",
       flashBgTo: "#ffffff",
       flashBorderFrom: "rgba(0,0,0,0.12)",
@@ -37,17 +37,17 @@ export function getCardFaceColors(
       flashLabelTo: "#111111",
       flashRedSuitTo: "#8b0000",
       flashBlackSuitTo: "#333333",
-      disabledWash: "rgba(168, 166, 158, 0.38)",
+      disabledWash: "rgba(168, 166, 158, 0.16)",
     };
   }
 
   return {
     faceBg: "#1c1c1e",
     faceBorder: "rgba(255,255,255,0.14)",
-    label: disabled ? "#6b6b6b" : "#ececec",
-    redSuit: disabled ? "#8f5555" : "#ef5350",
-    blackSuit: disabled ? "#6b6b6b" : "#f5f5f5",
-    joker: disabled ? "#6b6b6b" : "#ffd54f",
+    label: disabled ? "#b0b0b0" : "#ececec",
+    redSuit: disabled ? "#ed9692" : "#ef5350",
+    blackSuit: disabled ? "#b0b0b0" : "#f5f5f5",
+    joker: disabled ? "#b0b0b0" : "#ffd54f",
     flashBgFrom: "#1c1c1e",
     flashBgTo: "#2a2a2e",
     flashBorderFrom: "rgba(255,255,255,0.12)",
@@ -56,7 +56,7 @@ export function getCardFaceColors(
     flashLabelTo: "#ffffff",
     flashRedSuitTo: "#ff8a80",
     flashBlackSuitTo: "#ffffff",
-    disabledWash: "rgba(0, 0, 0, 0.42)",
+    disabledWash: "rgba(0, 0, 0, 0.15)",
   };
 }
 

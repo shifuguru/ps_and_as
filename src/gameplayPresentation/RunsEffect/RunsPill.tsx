@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   LayoutChangeEvent,
   Platform,
@@ -23,6 +23,7 @@ import {
   type RunsPalette,
 } from "./constants";
 import { WARM_FIRE_FACE } from "./realisticFireSim";
+import { useDecorativeMotion } from "../../hooks/useDecorativeMotion";
 
 const USE_REALISTIC_FIRE = Platform.OS === "web";
 
@@ -57,6 +58,8 @@ type Props = {
    * only tiny sparkles extend outside.
    */
   containFlames?: boolean;
+  /** Render fire without pill chrome or its oval bloom. */
+  effectOnly?: boolean;
 };
 
 /**
@@ -77,12 +80,15 @@ export default function RunsPill({
   maxFlameHeight = RUNS_LAYOUT.maxFlameHeight,
   emberSpread = "top",
   containFlames = false,
+  effectOnly = false,
 }: Props) {
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [fireIntensity, setFireIntensity] = useState(0);
-  const anim = useRunsAnimation(active);
-  const realisticOn =
+  const motion = useDecorativeMotion();
+  const anim = useRunsAnimation(active && motion, motion);
+  const realisticChrome =
     showFlames && active && USE_REALISTIC_FIRE && !containFlames;
+  const realisticOn =
+    realisticChrome && motion;
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -95,22 +101,6 @@ export default function RunsPill({
     }
   };
 
-  // Steady burn opacity for canvas fire — follow master fade only.
-  // Do NOT couple to flameIntensity/ignition idle pulses (reads as speed-ups).
-  useEffect(() => {
-    if (!realisticOn) {
-      setFireIntensity(0);
-      return;
-    }
-    const id = setInterval(() => {
-      const next = anim.effectOpacity.value;
-      setFireIntensity((prev) =>
-        Math.abs(prev - next) > 0.02 ? next : prev,
-      );
-    }, 48);
-    return () => clearInterval(id);
-  }, [realisticOn, anim.effectOpacity]);
-
   const burstStyle = useAnimatedStyle(() => {
     return {
       opacity: anim.ignition.value * 0.85 * anim.effectOpacity.value,
@@ -122,14 +112,14 @@ export default function RunsPill({
     } as ViewStyle;
   });
 
-  const flamesOn = showFlames && active;
+  const flamesOn = showFlames && active && motion;
   // Canvas fire brings its own bloom — skip the soft GlowLayer there.
-  const glowOn = showGlow && active && !realisticOn;
+  const glowOn = showGlow && active && motion && !realisticOn;
   const flameMax = containFlames
     ? Math.min(maxFlameHeight, Math.max(12, size.height * 0.7 || 14))
     : maxFlameHeight;
 
-  const fireChromeStyle = realisticOn
+  const fireChromeStyle = realisticChrome
     ? palette.chromeBorder
       ? ({
           borderWidth: 1.5,
@@ -177,7 +167,7 @@ export default function RunsPill({
     : null;
 
   const labelColor =
-    realisticOn && palette.chromeText
+    realisticChrome && palette.chromeText
       ? palette.chromeText
       : undefined;
 
@@ -203,8 +193,9 @@ export default function RunsPill({
           width={size.width}
           height={size.height}
           active={active}
-          intensity={fireIntensity}
+          intensity={anim.effectOpacity}
           fireKind={palette.fireKind}
+          showBloom={!effectOnly}
         />
       ) : null}
 
@@ -244,7 +235,11 @@ export default function RunsPill({
         style={[
           styles.glassPill,
           pillStyle,
-          fireChromeStyle,
+          !effectOnly && fireChromeStyle,
+          effectOnly && active && !motion && {
+            borderWidth: 2,
+            borderColor: palette.chromeBorder ?? palette.core,
+          },
         ]}
       >
         {children ?? (
@@ -261,7 +256,7 @@ export default function RunsPill({
         )}
       </View>
 
-      {!realisticOn ? (
+      {active && motion && !realisticOn ? (
         <View style={styles.sparkleAccent} pointerEvents="none">
           <EmberLayer
             width={size.width}

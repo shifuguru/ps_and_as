@@ -46,7 +46,7 @@ export const ENVIRONMENT_LIGHT: EnvironmentProfile = {
   ambientBrightness: 0.74,
   ambientWarmth: 0.42,
   feltBrightness: 0.8,
-  feltSaturation: 1.14,
+  feltSaturation: 0.88,
   feltTextureStrength: 1.16,
   vignetteStrength: 0.52,
   vignetteRadius: 1.08,

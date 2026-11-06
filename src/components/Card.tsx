@@ -11,6 +11,7 @@ import {
 import { useDarkModeCards } from "../context/CardAppearanceContext";
 import { getCardFaceColors, suitColorForCard } from "../utils/cardFaceTheme";
 import { useAppTheme } from "../context/ThemeContext";
+import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 import { hexToRgba } from "../utils/colorTheory";
 import { RunsPill, JOKER_COLORS, JOKER_FLAME_SEEDS } from "../gameplayPresentation/RunsEffect";
 
@@ -54,6 +55,7 @@ export default function Card({
   faceDown = false,
   disabled = false,
   compact = false,
+  compactCornerRight = false,
   flash = false,
   playable = false,
   recommended = false,
@@ -69,6 +71,8 @@ export default function Card({
   disabled?: boolean;
   /** Hand view: only top-left rank/suit visible when overlapped */
   compact?: boolean;
+  /** Show the compact hand label on the exposed right edge, upright. */
+  compactCornerRight?: boolean;
   /** Opening-lead pulse (same rhythm as the Pass button flash) */
   flash?: boolean;
   /** Valid play for the current turn — thin white rim. */
@@ -82,6 +86,7 @@ export default function Card({
   style?: any;
 }) {
   const darkModeCards = useDarkModeCards();
+  const motion = useDecorativeMotion();
   const { colors } = useAppTheme();
   const faceColors = getCardFaceColors(darkModeCards, disabled, colors.accent);
   const cardBox = useMemo(() => readCardBox(style), [style]);
@@ -89,6 +94,7 @@ export default function Card({
     () => resolveCardFaceMetrics(cardBox.width, cardBox.height),
     [cardBox.width, cardBox.height],
   );
+  const { value: valueFontSize } = face;
   /** Felt-theme accent — selection / highlight rim follows the table, not fixed colour. */
   const accentBorder = useMemo(
     () => hexToRgba(colors.accent, 0.88),
@@ -121,6 +127,10 @@ export default function Card({
       flashAnim.setValue(0);
       return;
     }
+    if (!motion) {
+      flashAnim.setValue(1);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(flashAnim, {
@@ -139,7 +149,7 @@ export default function Card({
     );
     loop.start();
     return () => loop.stop();
-  }, [flash, flashAnim]);
+  }, [flash, flashAnim, motion]);
 
   const selectTranslateY = anim.interpolate({
     inputRange: [0, 1],
@@ -283,7 +293,7 @@ export default function Card({
           <Text
             style={[
               local.value,
-              { color: labelColor, fontSize: face.value },
+              { color: labelColor, fontSize: valueFontSize },
             ]}
           >
             {label}
@@ -360,10 +370,13 @@ export default function Card({
       })
     : selected
       ? colors.accent
+      : recommended && !disabled && !motion
+        ? JOKER_COLORS.edge
       : playable && !disabled
         ? "rgba(255,255,255,0.95)"
         : borderGlow;
-  const emphasizeBorder = !flash && !disabled && (selected || playable);
+  const emphasizeBorder =
+    !flash && !disabled && (selected || playable || (recommended && !motion));
 
   const defaultLabelColor = faceColors.label;
   const defaultSuitColor = suitColorForCard(faceColors, card.suit, disabled);
@@ -425,17 +438,21 @@ export default function Card({
         flash && local.cardFlash,
       ]}
     >
-      {recommended && !selected && !disabled ? (
-        <RunsPill
-          style={local.recommendedFlame}
-          pillStyle={{ borderRadius: face.outerRadius, width: face.width, height: face.height }}
-          palette={JOKER_COLORS}
-          flameSeeds={JOKER_FLAME_SEEDS}
-          maxFlameHeight={22}
-          active
-        >
-          <View style={{ width: face.width, height: face.height }} />
-        </RunsPill>
+      {recommended && !selected && !disabled && motion ? (
+        <View style={local.recommendedFlameBounds} pointerEvents="none">
+          <RunsPill
+            style={local.recommendedFlame}
+            pillStyle={{ borderRadius: face.outerRadius, width: face.width, height: face.height }}
+            palette={JOKER_COLORS}
+            flameSeeds={JOKER_FLAME_SEEDS}
+            maxFlameHeight={12}
+            showGlow={false}
+            effectOnly
+            active
+          >
+            <View style={{ width: face.width, height: face.height }} />
+          </RunsPill>
+        </View>
       ) : null}
       <TouchableWithoutFeedback onPress={disabled ? undefined : onPress} accessibilityLabel={`card-${label}-${card.suit}`}>
         <View style={local.inner}>
@@ -443,7 +460,6 @@ export default function Card({
             pointerEvents="none"
             style={[
               local.cardHandShell,
-              disabled && local.cardHandDisabled,
               {
                 borderRadius: face.outerRadius,
                 shadowRadius: elevation,
@@ -511,13 +527,11 @@ export default function Card({
           </Animated.View>
           {!faceDown ? (
           <Animated.View
-            style={[
-              local.handTextLayer,
-              disabled && local.cardHandTextDisabled,
-            ]}
+            style={local.handTextLayer}
             pointerEvents="none"
           >
             <>
+              {!compactCornerRight ? (
               <View
                 style={[
                   local.cornerTopLeft,
@@ -553,13 +567,15 @@ export default function Card({
                   {suitSymbol}
                 </AnimatedText>
               </View>
+              ) : null}
               <View
                 style={[
-                  local.cornerBottomRight,
-                  {
-                    bottom: face.cornerInsetTop,
-                    right: face.cornerInsetSide,
-                  },
+                  compactCornerRight
+                    ? local.cornerTopRight
+                    : local.cornerBottomRight,
+                  compactCornerRight
+                    ? { top: face.cornerInsetTop, right: face.cornerInsetSide }
+                    : { bottom: face.cornerInsetTop, right: face.cornerInsetSide },
                 ]}
                 pointerEvents="none"
               >
@@ -593,7 +609,7 @@ export default function Card({
                   <AnimatedText
                     style={[
                       local.value,
-                      { color: labelColor, fontSize: face.value },
+                      { color: labelColor, fontSize: valueFontSize },
                     ]}
                   >
                     {label}
@@ -640,8 +656,15 @@ const local = StyleSheet.create({
     shadowRadius: 0,
     elevation: 0,
   },
-  recommendedFlame: {
+  recommendedFlameBounds: {
     ...StyleSheet.absoluteFillObject,
+    overflow: "visible",
+    opacity: 0.4,
+  },
+  recommendedFlame: {
+    position: "absolute",
+    top: 0,
+    left: 0,
   },
   cardHandShell: {
     ...StyleSheet.absoluteFillObject,
@@ -661,14 +684,6 @@ const local = StyleSheet.create({
     }),
   },
   cardDisabled: {
-    opacity: 0.88,
-    ...Platform.select({
-      web: { filter: "saturate(0.35)" as any },
-      default: {},
-    }),
-  },
-  /** Dim unplayable hand cards on the scaled shell only (avoids ghost overlay). */
-  cardHandDisabled: {
     opacity: 0.88,
     ...Platform.select({
       web: { filter: "saturate(0.35)" as any },
@@ -735,9 +750,6 @@ const local = StyleSheet.create({
     justifyContent: "center",
     zIndex: 2,
   },
-  cardHandTextDisabled: {
-    opacity: 0.88,
-  },
   cardFace: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 13,
@@ -760,6 +772,10 @@ const local = StyleSheet.create({
   cornerTopLeft: {
     position: "absolute",
     alignItems: "flex-start",
+  },
+  cornerTopRight: {
+    position: "absolute",
+    alignItems: "flex-end",
   },
   cornerBottomRight: {
     position: "absolute",

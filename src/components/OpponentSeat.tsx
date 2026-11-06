@@ -30,6 +30,7 @@ import {
 import { useSeatDimensions } from "../hooks/useSeatDimensions";
 import { ceremonyCardCornerRadius } from "./cardDimensions";
 import { useAppTheme } from "../context/ThemeContext";
+import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 import { hexToRgba } from "../utils/colorTheory";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
 import type { FeltPalette } from "../styles/feltPalette";
@@ -130,6 +131,7 @@ export default function OpponentSeat({
   onAvatarPress,
 }: Props) {
   const { colors, palette } = useAppTheme();
+  const motion = useDecorativeMotion();
   const styles = useMemo(() => createStyles(colors, palette), [colors, palette]);
   const hookDims = useSeatDimensions(layoutWidth);
   const dims = seatDimsProp ?? hookDims;
@@ -138,7 +140,7 @@ export default function OpponentSeat({
   const turnBreath = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!isActive || isOut) {
+    if (!isActive || isOut || !motion) {
       turnBreath.stopAnimation();
       turnBreath.setValue(0);
       return;
@@ -161,7 +163,7 @@ export default function OpponentSeat({
     );
     loop.start();
     return () => loop.stop();
-  }, [isActive, isOut, turnBreath]);
+  }, [isActive, isOut, motion, turnBreath]);
   const initials = playerInitials(player.name);
   const role = roleEmoji(player.role);
 
@@ -169,6 +171,10 @@ export default function OpponentSeat({
     if (!nudgeHighlighted || !isActive || isOut) {
       nudgePulse.stopAnimation();
       nudgePulse.setValue(0);
+      return;
+    }
+    if (!motion) {
+      nudgePulse.setValue(1);
       return;
     }
     nudgePulse.setValue(1);
@@ -190,7 +196,7 @@ export default function OpponentSeat({
     );
     loop.start();
     return () => loop.stop();
-  }, [nudgeHighlighted, isActive, isOut, nudgePulse]);
+  }, [nudgeHighlighted, isActive, isOut, motion, nudgePulse]);
 
   const introRange = [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, TURN_INTRO_SETTLE, 1] as const;
 

@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { useAppTheme } from "../context/ThemeContext";
+import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 import { hexToRgba } from "../utils/colorTheory";
 import { triggerHaptic } from "../utils/haptics";
 
@@ -18,6 +19,7 @@ type Props = {
 
 export default function TurnBellButton({ visible, onPress }: Props) {
   const { colors } = useAppTheme();
+  const motion = useDecorativeMotion();
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -47,7 +49,7 @@ export default function TurnBellButton({ visible, onPress }: Props) {
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (!visible) {
+    if (!visible || !motion) {
       swing.setValue(0);
       pulse.setValue(1);
       return;
@@ -98,7 +100,7 @@ export default function TurnBellButton({ visible, onPress }: Props) {
       swingLoop.stop();
       pulseLoop.stop();
     };
-  }, [visible, pulse, swing]);
+  }, [visible, motion, pulse, swing]);
 
   if (!visible) return null;
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Animated, Easing } from "react-native";
+import { useDecorativeMotion } from "./useDecorativeMotion";
 
 /** Fade in → scale → one gentle pulse → static rest. */
 export const TURN_INTRO_MS = 520;
@@ -15,6 +16,7 @@ const TURN_INTRO_EASING = Easing.bezier(0.22, 1, 0.36, 1);
  * Holds at progress 1 while the turn continues; resets when inactive.
  */
 export function useTurnIntroAnimation(active: boolean, disabled = false) {
+  const motion = useDecorativeMotion();
   const progress = useRef(new Animated.Value(0)).current;
   const wasActiveRef = useRef(false);
 
@@ -23,6 +25,13 @@ export function useTurnIntroAnimation(active: boolean, disabled = false) {
       progress.stopAnimation();
       progress.setValue(0);
       wasActiveRef.current = false;
+      return;
+    }
+
+    if (!motion) {
+      progress.stopAnimation();
+      progress.setValue(1);
+      wasActiveRef.current = true;
       return;
     }
 
@@ -43,7 +52,7 @@ export function useTurnIntroAnimation(active: boolean, disabled = false) {
     anim.start();
 
     return () => anim.stop();
-  }, [active, disabled, progress]);
+  }, [active, disabled, progress, motion]);
 
   return progress;
 }

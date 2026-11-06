@@ -1,13 +1,15 @@
 import React from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
+import type { SharedValue } from "react-native-reanimated";
 
 type Props = {
   width: number;
   height: number;
   active?: boolean;
   /** 0–1 master intensity (idle settle / ignition). */
-  intensity?: number;
+  intensity: SharedValue<number>;
   fireKind?: "petrol" | "blue" | "warm" | "platinum";
+  showBloom?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 

@@ -44,6 +44,7 @@ export function createUiStyles(c: AppThemeColors) {
       borderColor: c.leaveButtonBorder,
       ...(Platform.OS === "web"
         ? ({
+            backgroundColor: "transparent",
             backgroundImage: `linear-gradient(135deg, ${c.leaveButtonBg}, ${c.btnSecondaryBg})`,
             backdropFilter: "blur(16px) saturate(1.25)",
             WebkitBackdropFilter: "blur(16px) saturate(1.25)",

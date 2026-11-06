@@ -14,6 +14,7 @@ import type { BlurPreset } from "../styles/themeColors";
 type Props = {
   children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  contentStyle?: StyleProp<ViewStyle>;
   className?: string;
   /** Blur strength on native (0–100). */
   intensity?: number;
@@ -78,6 +79,7 @@ function splitPadding(style: StyleProp<ViewStyle>): {
 export default function BlurPanel({
   children,
   style,
+  contentStyle,
   className,
   intensity,
   scrimOpacity,
@@ -121,6 +123,7 @@ export default function BlurPanel({
             styles.content,
             overflowStyle,
             contentPad,
+            contentStyle,
           ]}
         >
           {children}
@@ -144,7 +147,7 @@ export default function BlurPanel({
         surface,
       ]}
     >
-      <View style={[styles.content, overflowStyle, contentPad]}>
+      <View style={[styles.content, overflowStyle, contentPad, contentStyle]}>
         {children}
       </View>
     </BlurView>

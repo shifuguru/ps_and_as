@@ -31,7 +31,7 @@ export type RunsAnimation = {
  * Orchestrates Runs! energy: ignition (~850ms) → idle flicker.
  * Motion stays on the UI thread via Reanimated.
  */
-export function useRunsAnimation(active: boolean): RunsAnimation {
+export function useRunsAnimation(active: boolean, animateExit = true): RunsAnimation {
   const ignition = useSharedValue(0);
   const glowOpacity = useSharedValue(0);
   const glowScale = useSharedValue(0.85);
@@ -46,13 +46,14 @@ export function useRunsAnimation(active: boolean): RunsAnimation {
       cancelAnimation(glowScale);
       cancelAnimation(flameIntensity);
       cancelAnimation(effectOpacity);
+      cancelAnimation(phase);
       phase.value = 0;
-      effectOpacity.value = withTiming(0, { duration: 220 });
+      effectOpacity.value = animateExit ? withTiming(0, { duration: 220 }) : 0;
       ignition.value = 0;
       glowOpacity.value = 0;
       glowScale.value = 0.85;
       flameIntensity.value = 0;
-      return;
+      return () => cancelAnimation(effectOpacity);
     }
 
     phase.value = 1;
@@ -157,9 +158,11 @@ export function useRunsAnimation(active: boolean): RunsAnimation {
       cancelAnimation(glowScale);
       cancelAnimation(flameIntensity);
       cancelAnimation(effectOpacity);
+      cancelAnimation(phase);
     };
   }, [
     active,
+    animateExit,
     ignition,
     glowOpacity,
     glowScale,

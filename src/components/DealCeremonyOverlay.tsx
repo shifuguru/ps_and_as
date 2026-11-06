@@ -376,6 +376,10 @@ export default function DealCeremonyOverlay({
     onDealtCountsChangeRef.current?.(dealtCounts);
   }, [visible, dealtCounts]);
 
+  const progressFlightActive = activeFlights.some((flight) =>
+    flight.id.startsWith("deal-"),
+  );
+
   useEffect(() => {
     if (!visible) {
       onDealProgressChangeRef.current?.({
@@ -388,9 +392,9 @@ export default function DealCeremonyOverlay({
     onDealProgressChangeRef.current?.({
       phase,
       dealRound,
-      flightActive: activeFlights.some((f) => f.id.startsWith("deal-")),
+      flightActive: progressFlightActive,
     });
-  }, [visible, phase, dealRound, activeFlights]);
+  }, [visible, phase, dealRound, progressFlightActive]);
 
   // Web/native fallback — riffle animation can stall without firing onComplete.
   useEffect(() => {

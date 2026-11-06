@@ -21,6 +21,7 @@ import type { PlayAreaLayout } from "../utils/tableLayout";
 import { tableScaleLimits } from "../utils/tableLayout";
 import type { TrickPlayDisplay } from "../utils/trickDisplay";
 import { playDisplayKey } from "../utils/tablePlayFlight";
+import { tableCollectionOffsets } from "../utils/tableCollection";
 import {
   computePlayStackLayout,
   layoutPlayBundle,
@@ -172,7 +173,7 @@ type Props = {
   /** Live run bonus XP — shown above the card row as large felt-contrast text. */
   runXpPoolAmount?: number | null;
   layoutHint?: PlayAreaLayout | null;
-  /** Slide all plays onto the first pile (trick-end collect). */
+  /** Gather all played cards into a centered stack at trick end. */
   collectToStack?: boolean;
   collectDurationMs?: number;
   /** Fade the whole table out (winner banner phase — keep cards stacked, don't reset). */
@@ -307,7 +308,6 @@ export default function GameTable({
 
   const cardW = layout.cardWidth;
   const cardH = layout.cardHeight;
-  const stackTarget = layout.positions[0] ?? { left: 0, top: 0, opacity: 1, scale: 1 };
 
   const tableRows = useMemo(() => {
     const rows = plays.map((play, playIndex) => {
@@ -507,24 +507,21 @@ export default function GameTable({
                   const isHidden = hiddenPlayKeys?.has(playDisplayKey(play)) ?? false;
                   if (isHidden) return null;
 
-                  const deltaX = stackTarget.left - pos.left;
-                  const deltaY = stackTarget.top - pos.top;
+                  const target = tableCollectionOffsets(
+                    stageWidth, stageHeight, cardW, cardH, pos.left, pos.top, 0,
+                  );
                   const translateX = collectAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, deltaX],
+                    outputRange: [0, target.groupX],
                   });
                   const translateY = collectAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, deltaY],
-                  });
-                  const groupScale = collectAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [1, playIndex === 0 ? 1 : 0.94],
+                    outputRange: [0, target.groupY],
                   });
                   /** Keep full opacity while stacking — fade the whole pile after flip. */
                   const showFaceDown = stackFaceDown || fadeOut;
                   const stackZIndex =
-                    collectToStack || stackFaceDown || fadeOut
+                    stackFaceDown || fadeOut
                       ? (playIndex + 1) * GROUP_Z_STRIDE
                       : unifiedPileGroupZ != null &&
                           isUnifiedActivePilePlay(plays, playIndex)
@@ -567,7 +564,6 @@ export default function GameTable({
                           transform: [
                             { translateX },
                             { translateY },
-                            { scale: groupScale },
                             ...(pos.tier === "buried" && pos.rotation && !collectToStack
                               ? [{ rotate: `${pos.rotation}deg` }]
                               : []),
@@ -584,7 +580,7 @@ export default function GameTable({
                       }))).map((entry) => {
                         const card = entry.play.cards[entry.cardIndex];
                         return (
-                          <View
+                          <Animated.View
                             key={`${entry.play.playerId}-${card.suit}-${card.value}-${entry.cardIndex}`}
                             style={[
                               styles.bundleCard,
@@ -593,6 +589,15 @@ export default function GameTable({
                                 width: cardW,
                                 height: cardH,
                                 zIndex: entry.z,
+                                transform: [{
+                                  translateX: collectAnim.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [0, tableCollectionOffsets(
+                                      stageWidth, stageHeight, cardW, cardH,
+                                      pos.left, pos.top, entry.left,
+                                    ).cardX],
+                                  }),
+                                }],
                               },
                             ]}
                           >
@@ -607,7 +612,7 @@ export default function GameTable({
                               }}
                               onPress={() => {}}
                             />
-                          </View>
+                          </Animated.View>
                         );
                       })}
                     </Animated.View>

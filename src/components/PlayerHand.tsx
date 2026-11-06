@@ -30,9 +30,10 @@ import {
   HAND_SELECT_NEIGHBOR_SPREAD,
 } from "./cardDimensions";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
-import { resolveHandMetrics } from "../utils/compactGameLayout";
+import { resolveHandCarouselStep, resolveHandMetrics } from "../utils/compactGameLayout";
 import { buttonLabel } from "../styles/buttonStyles";
 import { useAppTheme } from "../context/ThemeContext";
+import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 import type { BlurPreset } from "../styles/themeColors";
 
 function scrollHintEdgeOpacity(preset: BlurPreset): number {
@@ -58,7 +59,6 @@ type CarouselSlot = {
   angle: number;
   scale: number;
   zIndex: number;
-  opacity: number;
   compact: boolean;
 };
 
@@ -167,17 +167,6 @@ function cardCenterFromHandLayout(
     x: handWindow.x + slot.left + cardWidth / 2 - scroll,
     y: handWindow.y + handZoneHeight - slot.bottom - cardHeight / 2 - lift,
   };
-}
-
-function carouselStep(
-  count: number,
-  containerWidth: number,
-  cardWidth: number,
-): number {
-  if (count <= 1) return cardWidth;
-  const slots = Math.min(count - 1, 9);
-  const fitStep = (containerWidth * 0.52) / slots;
-  return Math.round(Math.max(26, Math.min(32, fitStep)));
 }
 
 function cardLeft(
@@ -344,10 +333,9 @@ function computeCarouselSlots(
 
     const zIndex =
       1000 + Math.round((1 - absNorm) * 100) - Math.abs(i - focused) * 5 + i;
-    const opacity = Math.max(0.92, 1 - absNorm * 0.08);
     const compact = i !== focused;
 
-    return { left, bottom, angle, scale, zIndex, opacity, compact };
+    return { left, bottom, angle, scale, zIndex, compact };
   });
 }
 
@@ -436,8 +424,13 @@ function ScrollPlayHint({
   onPress: () => void;
 }) {
   const flashAnim = useRef(new Animated.Value(0)).current;
+  const motion = useDecorativeMotion();
 
   useEffect(() => {
+    if (!motion) {
+      flashAnim.setValue(0);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(flashAnim, {
@@ -456,7 +449,7 @@ function ScrollPlayHint({
     );
     loop.start();
     return () => loop.stop();
-  }, [flashAnim]);
+  }, [flashAnim, motion]);
 
   const chevronFlashColor = flashAnim.interpolate({
     inputRange: [0, 1],
@@ -634,7 +627,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
   const [pressedIndex, setPressedIndex] = useState<number | null>(null);
 
   const step = useMemo(
-    () => carouselStep(cards.length, layoutWidth, cardWidth),
+    () => resolveHandCarouselStep(cards.length, layoutWidth, cardWidth),
     [cards.length, layoutWidth, cardWidth],
   );
 
@@ -790,7 +783,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     const w = layoutWidthRef.current;
     const cw = cardWidthRef.current;
     const oldStep = stepRef.current;
-    const s = carouselStep(next, w, cw);
+    const s = resolveHandCarouselStep(next, w, cw);
     stepRef.current = s;
     const b = scrollBounds(next, w, s, cw);
     boundsRef.current = b;
@@ -826,7 +819,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
     const w = layoutWidthRef.current;
     const cw = cardWidthRef.current;
     const n = cardsLengthRef.current;
-    const s = carouselStep(n, w, cw);
+    const s = resolveHandCarouselStep(n, w, cw);
     const b = scrollBounds(n, w, s, cw);
     stepRef.current = s;
     boundsRef.current = b;
@@ -1162,8 +1155,6 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
             width: Math.max(stripWidth, layoutWidth),
             height: cardHeight + fanHeadroom,
             transform: [{ translateX: Animated.multiply(scrollX, -1) }],
-            // Waiting: still fully readable — mild settle, not a broken/disabled wash.
-            opacity: selectionLocked ? 0.92 : 1,
           },
         ]}
       >
@@ -1206,7 +1197,6 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                 : isPressed || index === pendingFocusIndex
                   ? 2500 + index
                   : slot.zIndex,
-              opacity: isSelected ? 1 : slot.opacity,
               transform: slotTransform,
             },
           ] as ViewStyle[];
@@ -1239,6 +1229,7 @@ const PlayerHand = forwardRef<PlayerHandHandle, Props>(function PlayerHand(
                 card={card}
                 selected={isSelected}
                 compact={slot.compact && !isSelected}
+                compactCornerRight={slot.compact && !isSelected && index > displayFocusIndex}
                 highlight={
                   waitingFocusHighlight != null
                     ? waitingFocusHighlight

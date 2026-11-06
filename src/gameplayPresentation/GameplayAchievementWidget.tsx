@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View, Animated } from "react-native";
 import ProgressMeter from "../components/ProgressMeter";
 import { useAppTheme } from "../context/ThemeContext";
+import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 import { hexToRgba } from "../utils/colorTheory";
 import {
   getPlayerStats,
@@ -29,14 +30,21 @@ export default function GameplayAchievementWidget({
   refreshKey = 0,
 }: Props) {
   const { colors } = useAppTheme();
+  const motion = useDecorativeMotion();
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const pulse = useMemo(() => new Animated.Value(1), []);
+  const next = stats ? selectNextAchievement(stats) : null;
+  const hasNext = next !== null;
 
   useEffect(() => {
     void getPlayerStats().then(setStats);
   }, [refreshKey]);
 
   useEffect(() => {
+    if (!motion || !hasNext) {
+      pulse.setValue(1);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
@@ -53,9 +61,8 @@ export default function GameplayAchievementWidget({
     );
     loop.start();
     return () => loop.stop();
-  }, [pulse]);
+  }, [pulse, motion, hasNext]);
 
-  const next = stats ? selectNextAchievement(stats) : null;
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   if (!next) return null;

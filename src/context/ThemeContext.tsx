@@ -29,6 +29,7 @@ import {
 
 type ThemeContextValue = {
   mode: ThemeMode;
+  preferencesLoaded: boolean;
   appearancePreference: AppearancePreference;
   textContrastPreference: TextContrastPreference;
   feltTint: string;
@@ -66,6 +67,7 @@ function buildValue(
     | "setFeltTint"
     | "refreshFeltTint"
   >,
+  preferencesLoaded = true,
 ): ThemeContextValue {
   const { colors, palette } = buildThemeBundle(
     feltTint,
@@ -74,6 +76,7 @@ function buildValue(
   );
   return {
     mode,
+    preferencesLoaded,
     appearancePreference,
     textContrastPreference,
     feltTint,
@@ -173,6 +176,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           "auto",
           "system",
           setters,
+          false,
         )}
       >
         {children}
@@ -191,6 +195,7 @@ export function useAppTheme(): ThemeContextValue {
     const fallback = buildThemeBundle(DEFAULT_FELT_COLOR, "dark", "auto");
     return {
       mode: "dark",
+      preferencesLoaded: true,
       appearancePreference: "dark",
       textContrastPreference: "auto",
       feltTint: DEFAULT_FELT_COLOR,

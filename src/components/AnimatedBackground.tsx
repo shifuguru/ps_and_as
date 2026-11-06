@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View } from "react-native";
+import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 
 const COLORS = [
   "rgba(8, 12, 10, 1)",
@@ -9,9 +10,14 @@ const COLORS = [
 
 export default function AnimatedBackground() {
   const pan = useRef(new Animated.Value(0)).current;
+  const motion = useDecorativeMotion();
 
   useEffect(() => {
-    Animated.loop(
+    if (!motion) {
+      pan.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pan, {
           toValue: 1,
@@ -24,8 +30,10 @@ export default function AnimatedBackground() {
           useNativeDriver: false,
         }),
       ]),
-    ).start();
-  }, [pan]);
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pan, motion]);
 
   const bg1 = pan.interpolate({
     inputRange: [0, 0.5, 1],

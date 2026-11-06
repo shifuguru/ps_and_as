@@ -9,7 +9,6 @@ import {
   useWindowDimensions,
 } from "react-native";
 import MenuIcon from "../components/MenuIcon";
-import { RunsPill, JOKER_COLORS, JOKER_FLAME_SEEDS } from "./RunsEffect";
 import { useAppTheme } from "../context/ThemeContext";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
 import { hexToRgba } from "../utils/colorTheory";
@@ -18,11 +17,6 @@ import {
   resolveCompactHeightTier,
   resolveHandHintSlot,
 } from "../utils/compactGameLayout";
-import {
-  TURN_INTRO_FADE,
-  TURN_INTRO_PEAK,
-  useTurnIntroAnimation,
-} from "../hooks/useTurnIntroAnimation";
 
 const BULB_ICON = 20;
 /** Match ActionBar track width so the bulb lines up with the track's right edge. */
@@ -45,9 +39,7 @@ type Props = {
    * Bulb always stays pinned to the right edge of the action track.
    */
   startCollapsed?: boolean;
-  /**
-   * Stronger turn cue — gold pulse + weight when it is the local player's turn.
-   */
+  /** Subtle accent when it is the local player's turn. */
   yourTurn?: boolean;
 };
 
@@ -74,15 +66,6 @@ export default function GameplayHint({
   const [expanded, setExpanded] = useState(!startCollapsed);
   const hostOpacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
   const textOpacity = useRef(new Animated.Value(expanded ? 1 : 0)).current;
-  const turnIntro = useTurnIntroAnimation(yourTurn && visible);
-  const [turnFlameKey, setTurnFlameKey] = useState(0);
-  const flameLive = visible && yourTurn && expanded;
-
-  // Remount the flame whenever it should show/hide so animation state restarts cleanly.
-  useEffect(() => {
-    setTurnFlameKey((k) => k + 1);
-  }, [flameLive]);
-
   useEffect(() => {
     Animated.timing(hostOpacity, {
       toValue: visible ? 1 : 0,
@@ -104,29 +87,6 @@ export default function GameplayHint({
   if (!visible) return null;
 
   const accent = colors.accent;
-  const pillBorder = yourTurn
-    ? turnIntro.interpolate({
-        inputRange: [0, TURN_INTRO_FADE, TURN_INTRO_PEAK, 1],
-        outputRange: [
-          hexToRgba(accent, 0.22),
-          hexToRgba(accent, 0.85),
-          hexToRgba(accent, 1),
-          hexToRgba(accent, 0.72),
-        ],
-      })
-    : hexToRgba(colors.textPrimary, 0.12);
-
-  const pillBg = yourTurn
-    ? turnIntro.interpolate({
-        inputRange: [0, TURN_INTRO_PEAK, 1],
-        outputRange: [
-          hexToRgba(colors.mode === "dark" ? "#06140e" : "#0a1a12", 0.42),
-          hexToRgba(accent, colors.mode === "light" ? 0.28 : 0.34),
-          hexToRgba(accent, colors.mode === "light" ? 0.18 : 0.24),
-        ],
-      })
-    : hexToRgba(colors.mode === "dark" ? "#06140e" : "#0a1a12", 0.42);
-
   return (
     <Animated.View
       style={[styles.host, { opacity: hostOpacity }]}
@@ -134,49 +94,17 @@ export default function GameplayHint({
     >
       <View style={[styles.track, { width: trackWidth, maxWidth: trackWidth }]}>
         {expanded ? (
-          flameLive ? (
-            <Animated.View
-              key={`flame-wrapper-${turnFlameKey}`}
-              style={[styles.flameHost, { opacity: textOpacity }]}
-              pointerEvents="box-none"
-            >
-              <RunsPill
-                key={`turn-flame-${turnFlameKey}`}
-                maxFlameHeight={15}
-                style={styles.flameRoot}
-                pillStyle={styles.flamePill}
-                palette={JOKER_COLORS}
-                flameSeeds={JOKER_FLAME_SEEDS}
-                active={flameLive}
-              >
-                <Text
-                  style={[
-                    styles.label,
-                    styles.labelYourTurn,
-                    styles.labelFlame,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {message}
-                </Text>
-              </RunsPill>
-            </Animated.View>
-          ) : (
-            <Animated.View
-              style={[
-                styles.messagePill,
-                {
-                  opacity: textOpacity,
-                  borderColor: pillBorder,
-                  backgroundColor: pillBg,
-                },
-              ]}
-            >
-              <Text style={styles.label} numberOfLines={1}>
-                {message}
-              </Text>
-            </Animated.View>
-          )
+          <Animated.View
+            style={[
+              styles.messagePill,
+              yourTurn && styles.messagePillYourTurn,
+              { opacity: textOpacity },
+            ]}
+          >
+            <Text style={styles.label} numberOfLines={1}>
+              {message}
+            </Text>
+          </Animated.View>
         ) : (
           <View style={styles.messageSpacer} />
         )}
@@ -212,10 +140,9 @@ function createStyles(
   barH: number,
   padBottom: number,
 ) {
-  // Same glass band both modes — table lighting carries theme brightness.
   const glass = hexToRgba(
-    colors.mode === "dark" ? "#06140e" : "#0a1a12",
-    0.42,
+    colors.mode === "dark" ? "#06140e" : "#f5f4ef",
+    colors.mode === "dark" ? 0.72 : 0.92,
   );
   return StyleSheet.create({
     host: {
@@ -243,23 +170,8 @@ function createStyles(
       minWidth: 0,
     },
     messagePillYourTurn: {
-      borderWidth: 1.5,
-    },
-    flameHost: {
-      flex: 1,
-      minWidth: 0,
-    },
-    flameRoot: {
-      alignSelf: "stretch",
-    },
-    flamePill: {
-      minHeight: barH,
-      borderRadius: barH / 2,
-      paddingHorizontal: barH < 36 ? 12 : 16,
-      justifyContent: "center",
-      backgroundColor: glass,
-      borderWidth: 1.5,
-      borderColor: hexToRgba(colors.accent, 0.85),
+      borderColor: hexToRgba(colors.accent, 0.45),
+      borderWidth: 1,
     },
     messageSpacer: {
       flex: 1,
@@ -271,15 +183,6 @@ function createStyles(
       fontWeight: "700",
       textAlign: "center",
       letterSpacing: 0.2,
-    },
-    labelYourTurn: {
-      fontSize: barH < 36 ? 13 : 15,
-      fontWeight: "800",
-      letterSpacing: 0.6,
-      color: colors.mode === "light" ? "#1a1208" : "#fff8e8",
-    },
-    labelFlame: {
-      color: "#fff8e8",
     },
     bulbBtn: {
       width: barH,
@@ -294,8 +197,8 @@ function createStyles(
       marginLeft: "auto",
     },
     bulbBtnYourTurn: {
-      borderColor: hexToRgba(colors.accent, 0.65),
-      borderWidth: 1.5,
+      borderColor: hexToRgba(colors.accent, 0.45),
+      borderWidth: 1,
     },
   });
 }

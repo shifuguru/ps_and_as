@@ -58,14 +58,6 @@ type Props = {
   leaveConfirmVisible?: boolean;
   onLeaveCancel?: () => void;
   onLeaveConfirm?: () => void;
-  /** Opt-in rewarded ad for XP (Remove Ads does not hide this). */
-  rewardedAdAvailable?: boolean;
-  rewardedAdXp?: number;
-  rewardedAdRemaining?: number;
-  rewardedAdBusy?: boolean;
-  /** Shown under the watch-ad button when a request fails. */
-  rewardedAdError?: string | null;
-  onWatchRewardedAd?: () => void;
 };
 
 const AVATAR_SIZE = 40;
@@ -385,20 +377,19 @@ export default function RoundCompleteModal({
   leaveConfirmVisible = false,
   onLeaveCancel,
   onLeaveConfirm,
-  rewardedAdAvailable = false,
-  rewardedAdXp = 75,
-  rewardedAdRemaining = 0,
-  rewardedAdBusy = false,
-  rewardedAdError = null,
-  onWatchRewardedAd,
 }: Props) {
   const { colors, ui, blur, palette } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const feltGreen = palette.complementBright;
   const insets = useLayoutInsets();
   const { width, height } = useWindowDimensions();
-  const cardWidth = Math.min(width - 48, 400);
-  const maxCardHeight = Math.min(height - insets.top - insets.bottom - 48, 640);
+  const cardWidth = Math.min(width - 32, 480);
+  const contentPaddingTop = Math.max(24, insets.top + 12);
+  const contentPaddingBottom = Math.max(24, insets.bottom + 12);
+  const maxCardHeight = Math.max(
+    0,
+    height - contentPaddingTop - contentPaddingBottom,
+  );
   const canClaimSeat = spectatorMode && deadHandSeatOpen;
   const displayReadyStates = useMemo(() => {
     // CPUs never manually ready — count and show them ready whenever seated.
@@ -496,25 +487,6 @@ export default function RoundCompleteModal({
       ? "Not Ready"
       : "Next Round";
 
-  // Keep footer chrome (ready / ad / actions) fully visible inside BlurPanel's
-  // overflow:hidden maxHeight by shrinking the rankings scroll, not the buttons.
-  const cardChromeHeight =
-    40 + // modalCard vertical padding
-    52 + // title + subtitle
-    28 + // ready count + margin
-    52; // footer actions
-  let optionalFooterHeight = 0;
-  if (botsAutoReady && botDealSecondsLeft != null) optionalFooterHeight += 32;
-  if (canClaimSeat) optionalFooterHeight += 40;
-  if (rewardedAdAvailable && onWatchRewardedAd && !spectatorMode) {
-    // Button 48 + margins; error up to 3×17 lineHeight + marginBottom.
-    optionalFooterHeight += rewardedAdError ? 120 : 52;
-  }
-  const rankingsMaxHeight = Math.max(
-    120,
-    maxCardHeight - cardChromeHeight - optionalFooterHeight,
-  );
-
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
       <View style={styles.modalRoot} pointerEvents="box-none">
@@ -525,8 +497,8 @@ export default function RoundCompleteModal({
             {
               opacity: modalOpacity,
               transform: [{ scale: modalScale }],
-              paddingTop: Math.max(24, insets.top + 12),
-              paddingBottom: Math.max(24, insets.bottom + 12),
+              paddingTop: contentPaddingTop,
+              paddingBottom: contentPaddingBottom,
             },
           ]}
           pointerEvents="box-none"
@@ -537,10 +509,12 @@ export default function RoundCompleteModal({
               styles.modalCard,
               {
                 flex: 1,
-                width: "100%",
+                width: cardWidth,
+                maxWidth: cardWidth,
                 maxHeight: maxCardHeight,
               },
             ]}
+            contentStyle={styles.modalCardContent}
             preset={blur.modal}
             onLayout={() => {
               setBoardDisplayed(true);
@@ -550,7 +524,7 @@ export default function RoundCompleteModal({
             <Text style={ui.modalBody}>Final Rankings</Text>
 
             <ScrollView
-              style={[styles.rankingsScroll, { maxHeight: rankingsMaxHeight }]}
+              style={styles.rankingsScroll}
               contentContainerStyle={styles.rankings}
               showsVerticalScrollIndicator
               keyboardShouldPersistTaps="handled"
@@ -621,33 +595,6 @@ export default function RoundCompleteModal({
                 </Text>
               ) : null}
 
-              {rewardedAdAvailable && onWatchRewardedAd && !spectatorMode ? (
-                <View style={styles.adBlock}>
-                  <AppButton
-                    label={
-                      rewardedAdBusy
-                        ? "Loading ad…"
-                        : `Watch ad · +${rewardedAdXp} XP`
-                    }
-                    variant="secondary"
-                    disabled={rewardedAdBusy || rewardedAdRemaining <= 0}
-                    onPress={() => {
-                      triggerHaptic("light");
-                      onWatchRewardedAd();
-                    }}
-                    accessibilityLabel={`Watch an ad for ${rewardedAdXp} XP`}
-                    style={{
-                      marginBottom: rewardedAdError ? 6 : 10,
-                    }}
-                  />
-                  {rewardedAdError ? (
-                    <Text style={styles.adError} numberOfLines={3}>
-                      {rewardedAdError}
-                    </Text>
-                  ) : null}
-                </View>
-              ) : null}
-
               <View style={styles.footerActions}>
                 <AppButton
                   label="Quit Game"
@@ -712,11 +659,15 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: 24,
+      paddingHorizontal: 16,
       zIndex: ROUND_COMPLETE_Z + 1,
     },
     modalCard: {
       width: "100%",
+    },
+    modalCardContent: {
+      flex: 1,
+      minHeight: 0,
     },
     toastHost: {
       ...StyleSheet.absoluteFillObject,
@@ -726,10 +677,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     rankingsScroll: {
       width: "100%",
       marginBottom: 12,
+      flex: 1,
       minHeight: 0,
     },
     rankings: {
       gap: 8,
+      flexGrow: 1,
+      justifyContent: "space-evenly",
     },
     rankRow: {
       borderRadius: 14,
@@ -916,18 +870,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     footerChrome: {
       width: "100%",
       flexShrink: 0,
-    },
-    adBlock: {
-      width: "100%",
-      flexShrink: 0,
-    },
-    adError: {
-      color: colors.textSecondary,
-      fontSize: 12,
-      lineHeight: 17,
-      textAlign: "center",
-      marginBottom: 12,
-      paddingHorizontal: 4,
     },
     footerActions: {
       flexDirection: "row",

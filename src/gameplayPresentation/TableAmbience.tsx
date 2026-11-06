@@ -4,6 +4,7 @@ import Svg, { Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
 import { gameTitleFaceStyle } from "../utils/gameTitleFont";
+import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 
 type Props = {
   width: number;
@@ -25,6 +26,7 @@ export default function TableAmbience({
   compact = false,
 }: Props) {
   const { colors, palette } = useAppTheme();
+  const motion = useDecorativeMotion();
   const breath = useRef(new Animated.Value(0.35)).current;
   const glow = palette.complementBright;
   const centre = colors.environment.centreLight;
@@ -44,6 +46,10 @@ export default function TableAmbience({
       : waitingForPlay
         ? 0.28
         : 0.18;
+    if (!motion || width <= 0 || height <= 0) {
+      breath.setValue((peak + trough) / 2);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(breath, {
@@ -62,7 +68,7 @@ export default function TableAmbience({
     );
     loop.start();
     return () => loop.stop();
-  }, [breath, waitingForPlay, compact]);
+  }, [breath, waitingForPlay, compact, motion, width, height]);
 
   const styles = useMemo(() => createStyles(colors, compact), [colors, compact]);
   if (width <= 0 || height <= 0) return null;

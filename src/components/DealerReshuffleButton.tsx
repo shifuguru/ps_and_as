@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { useAppTheme } from "../context/ThemeContext";
+import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 import { hexToRgba } from "../utils/colorTheory";
 import { triggerHaptic } from "../utils/haptics";
 
@@ -18,6 +19,7 @@ type Props = {
 
 export default function DealerReshuffleButton({ visible, onPress }: Props) {
   const { colors } = useAppTheme();
+  const motion = useDecorativeMotion();
   const pulse = useRef(new Animated.Value(1)).current;
   const spin = useRef(new Animated.Value(0)).current;
 
@@ -67,7 +69,7 @@ export default function DealerReshuffleButton({ visible, onPress }: Props) {
   );
 
   useEffect(() => {
-    if (!visible) {
+    if (!visible || !motion) {
       pulse.setValue(1);
       spin.setValue(0);
       return;
@@ -105,7 +107,7 @@ export default function DealerReshuffleButton({ visible, onPress }: Props) {
       pulseLoop.stop();
       spinLoop.stop();
     };
-  }, [visible, pulse, spin]);
+  }, [visible, motion, pulse, spin]);
 
   if (!visible) return null;
 

@@ -25,6 +25,12 @@ App
 
 **Navigation (`App.tsx`):** Menu → Find or Create → Lobby → **Start / spectate** → Game Screen. Leaving the match unmounts Game Screen and returns to menu (or Find).
 
+The hand uses a horizontally browsable fan with height-aware card dimensions.
+Unplayable cards retain readable faces and a muted wash; waiting for a turn does
+not dim the whole hand. Recommended cards retain a subdued flame, while the
+expandable gameplay hint and round-streak panel use static secondary styling.
+The active-player avatar ring remains a separate turn indicator.
+
 ---
 
 ## 2. Match lifecycle (player-facing)
@@ -193,6 +199,26 @@ flowchart TB
 | Play-type pills | `GameTable` play-type badge row |
 | Trick winner banner | `GameTable` winner overlay; driven from `GameScreen` trick pause |
 | Context prompts | Reshuffle overlay, ceremony status pill, away / disconnect banner |
+
+During the trick pause, the existing collection clock moves each displayed card
+from its current position to a centered stack. All cards share the same progress,
+preserving their horizontal order until the stack turns face down; this is purely
+presentation and does not change the authoritative trick or its timing.
+
+When a play-flight measurement is cancelled by a presentation update, its
+in-progress reservation is released immediately so the next render can retry.
+Only the active measurement may release its reservation on completion; stale
+measurements cannot interfere with a newer attempt.
+
+Deal progress is reported when the phase, deal step, or deal-flight activity
+changes. Trade flights do not themselves change deal progress. Stable seat,
+layout, and pending-trade inputs prevent unrelated board renders from restarting
+the mandatory trade animation and its completion timer.
+
+Decorative motion follows the system reduced-motion setting and pauses while
+the app is backgrounded. Fire, motes, ambience and repeated attention cues use
+static alternatives when motion is suppressed. Card flights and ceremony clocks
+remain independent so gameplay state and completion callbacks still advance.
 
 ---
 

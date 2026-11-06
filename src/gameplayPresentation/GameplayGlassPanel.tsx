@@ -22,8 +22,7 @@ type Props = {
 };
 
 /**
- * Premium frosted glass — opacity from theme blur.panel (mode-neutral).
- * Theme brightness lives on the felt / ambient, not here.
+ * Premium frosted glass using the mode-aware panel preset.
  */
 export default function GameplayGlassPanel({
   children,

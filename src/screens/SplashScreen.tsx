@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { gameTitleFaceStyle } from "../utils/gameTitleFont";
 import { USE_NATIVE_DRIVER } from "../utils/useNativeDriver";
+import { useAppTheme } from "../context/ThemeContext";
 
 type Props = {
   onFinish: () => void;
@@ -56,13 +57,17 @@ function GlassCard({
   card,
   width,
   progress,
+  dark,
 }: {
   card: SplashCard;
   width: number;
   progress: Animated.Value;
+  dark: boolean;
 }) {
   const height = width * 1.4;
-  const color = card.red ? BURGUNDY : CHARCOAL;
+  const color = dark
+    ? card.red ? "#f2a4b4" : "#f2efeb"
+    : card.red ? BURGUNDY : CHARCOAL;
   const settle = progress.interpolate({
     inputRange: [0, 1],
     outputRange: [26, 0],
@@ -76,6 +81,7 @@ function GlassCard({
       pointerEvents="none"
       style={[
         local.card,
+        dark && local.darkCard,
         {
           width,
           height,
@@ -90,7 +96,7 @@ function GlassCard({
       {BlurViewImpl && Platform.OS !== "android" ? (
         <BlurViewImpl
           intensity={30}
-          tint="light"
+          tint={dark ? "dark" : "light"}
           style={StyleSheet.absoluteFill}
         />
       ) : null}
@@ -112,9 +118,12 @@ function GlassCard({
  */
 export default function SplashScreen({ onFinish, onRevealBegin }: Props) {
   const { width, height } = useWindowDimensions();
+  const { mode, preferencesLoaded } = useAppTheme();
+  const dark = mode === "dark";
   const veilOpacity = useRef(new Animated.Value(1)).current;
   const bgIn = useRef(new Animated.Value(0)).current;
   const lightIn = useRef(new Animated.Value(0)).current;
+  const lightDrift = useRef(new Animated.Value(0)).current;
   const cardProgress = useRef(CARDS.map(() => new Animated.Value(0))).current;
   const loader = useRef(new Animated.Value(0)).current;
   const brandOpacity = useRef(new Animated.Value(0)).current;
@@ -125,6 +134,14 @@ export default function SplashScreen({ onFinish, onRevealBegin }: Props) {
   const logoSize = Math.max(44, Math.min(72, width * 0.15));
 
   useEffect(() => {
+    if (!preferencesLoaded) return;
+    const drift = Animated.timing(lightDrift, {
+      toValue: 1,
+      duration: 6000,
+      easing: Easing.inOut(Easing.sin),
+      useNativeDriver: USE_NATIVE_DRIVER,
+    });
+    drift.start();
     const markReveal = () => {
       if (revealStarted.current) return;
       revealStarted.current = true;
@@ -212,24 +229,29 @@ export default function SplashScreen({ onFinish, onRevealBegin }: Props) {
     return () => {
       clearTimeout(revealTimer);
       sequence.stop();
+      drift.stop();
     };
   }, [
     bgIn,
     cardProgress,
     lightIn,
+    lightDrift,
     loader,
     brandOpacity,
     brandScale,
     brandTranslate,
     onFinish,
     onRevealBegin,
+    preferencesLoaded,
     veilOpacity,
   ]);
+
+  if (!preferencesLoaded) return null;
 
   return (
     <View style={local.root} pointerEvents="auto">
       <Animated.View
-        style={[local.stage, { opacity: veilOpacity }]}
+        style={[local.stage, dark && local.darkStage, { opacity: veilOpacity }]}
         pointerEvents="none"
       >
         <Animated.View style={[local.fill, { opacity: bgIn }]}>
@@ -240,13 +262,24 @@ export default function SplashScreen({ onFinish, onRevealBegin }: Props) {
           />
         </Animated.View>
         <Animated.View style={[local.fill, { opacity: lightIn }]}>
-          <View style={[local.glow, local.glowBurgundy]} />
-          <View style={[local.glow, local.glowCharcoal]} />
+          <Animated.View style={[local.glow, local.glowBurgundy, dark && local.darkGlowBurgundy, {
+            transform: [
+              { translateX: lightDrift.interpolate({ inputRange: [0, 1], outputRange: [-12, 32] }) },
+              { translateY: lightDrift.interpolate({ inputRange: [0, 1], outputRange: [0, 24] }) },
+            ],
+          }]} />
+          <Animated.View style={[local.glow, local.glowCharcoal, dark && local.darkGlowCharcoal, {
+            transform: [
+              { translateX: lightDrift.interpolate({ inputRange: [0, 1], outputRange: [12, -32] }) },
+              { translateY: lightDrift.interpolate({ inputRange: [0, 1], outputRange: [0, -22] }) },
+            ],
+          }]} />
           {BG_SUITS.map((b) => (
             <Text
               key={b.s}
               style={[
                 local.bgSuit,
+                dark && local.darkBgSuit,
                 { left: b.left, top: b.top, fontSize: b.size },
               ]}
             >
@@ -261,6 +294,7 @@ export default function SplashScreen({ onFinish, onRevealBegin }: Props) {
               card={card}
               width={cardWidth}
               progress={cardProgress[i]}
+              dark={dark}
             />
           ))}
         </View>
@@ -281,6 +315,7 @@ export default function SplashScreen({ onFinish, onRevealBegin }: Props) {
         <Text
           style={[
             local.title,
+            dark && local.darkTitle,
             gameTitleFaceStyle(),
             { fontSize: logoSize * 1.5, lineHeight: logoSize * 2 },
           ]}
@@ -288,13 +323,14 @@ export default function SplashScreen({ onFinish, onRevealBegin }: Props) {
         >
           P&apos;s & A&apos;s
         </Text>
-        <Text style={local.subtitle}>THE CARD GAME</Text>
+        <Text style={[local.subtitle, dark && local.darkSubtitle]}>THE CARD GAME</Text>
         <View style={local.loader} accessibilityLabel="Loading">
           {SUITS.map((s, i) => (
             <Animated.Text
               key={s}
               style={[
                 local.loaderSuit,
+                dark && local.darkLoaderSuit,
                 {
                   opacity: loader.interpolate({
                     inputRange: [0, i * 0.2, i * 0.2 + 0.3, 1],
@@ -308,7 +344,7 @@ export default function SplashScreen({ onFinish, onRevealBegin }: Props) {
             </Animated.Text>
           ))}
         </View>
-        <Text style={local.credit}>App designed by Shifuguru</Text>
+        <Text style={[local.credit, dark && local.darkCredit]}>App designed by Shifuguru</Text>
       </Animated.View>
     </View>
   );
@@ -325,6 +361,9 @@ const local = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#efebe6",
     overflow: "hidden",
+  },
+  darkStage: {
+    backgroundColor: "#191c1b",
   },
   fill: {
     ...StyleSheet.absoluteFillObject,
@@ -353,12 +392,21 @@ const local = StyleSheet.create({
     bottom: "-18%",
     backgroundColor: "rgba(42,38,40,0.14)",
   },
+  darkGlowBurgundy: {
+    backgroundColor: "rgba(172,77,97,0.22)",
+  },
+  darkGlowCharcoal: {
+    backgroundColor: "rgba(143,164,151,0.14)",
+  },
   bgSuit: {
     position: "absolute",
     color: "rgba(122,31,53,0.07)",
     ...(Platform.OS === "web"
       ? ({ filter: "blur(3px)" } as object)
       : { textShadowColor: "rgba(122,31,53,0.12)", textShadowRadius: 8 }),
+  },
+  darkBgSuit: {
+    color: "rgba(224,150,166,0.10)",
   },
   cards: {
     ...StyleSheet.absoluteFillObject,
@@ -378,6 +426,11 @@ const local = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 4,
+  },
+  darkCard: {
+    backgroundColor: "rgba(42,48,45,0.68)",
+    borderColor: "rgba(255,255,255,0.28)",
+    shadowColor: "#000000",
   },
   cardCorner: {
     position: "absolute",
@@ -406,12 +459,19 @@ const local = StyleSheet.create({
     textShadowColor: "rgba(255,255,255,0.8)",
     textShadowRadius: 12,
   },
+  darkTitle: {
+    color: "#f2efeb",
+    textShadowColor: "rgba(0,0,0,0.75)",
+  },
   subtitle: {
     color: "rgba(42,38,40,0.62)",
     fontSize: 11,
     marginTop: 4,
     letterSpacing: 4,
     fontWeight: "600",
+  },
+  darkSubtitle: {
+    color: "rgba(242,239,235,0.72)",
   },
   loader: {
     flexDirection: "row",
@@ -422,10 +482,15 @@ const local = StyleSheet.create({
     fontSize: 11,
     marginTop: 18,
   },
+  darkCredit: {
+    color: "rgba(242,239,235,0.58)",
+  },
   loaderSuit: {
     color: BURGUNDY,
     fontSize: 14,
     marginHorizontal: 7,
   },
+  darkLoaderSuit: {
+    color: "#f2a4b4",
+  },
 });
-

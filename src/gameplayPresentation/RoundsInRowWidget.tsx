@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
+import { clampLuminance } from "../styles/feltPalette";
 import {
   RARITY_COLOR,
   roundStreakRarityProgress,
@@ -13,11 +14,6 @@ import {
   resolveHudCardHeight,
   type HudDensity,
 } from "./hudLayout";
-import {
-  RunsPill,
-  flameSeedsFromPalette,
-  paletteFromAccent,
-} from "./RunsEffect";
 
 type Props = {
   current: number;
@@ -25,13 +21,7 @@ type Props = {
   density?: HudDensity;
 };
 
-/**
- * Session round streak — hierarchy:
- * icon → title → count → rarity pips → rarity label (roomy only).
- * No “Start a run” copy — “run” means consecutive cards in this game.
- * Count is a bare number so “Round” isn’t repeated under the title.
- * Type sizes follow HUD_TYPE (P0 coherence audit) — density omits lines only.
- */
+/** Session round streak and rarity progress. */
 export default function RoundsInRowWidget({
   current,
   best: _best,
@@ -39,15 +29,10 @@ export default function RoundsInRowWidget({
 }: Props) {
   const { colors } = useAppTheme();
   const progress = roundStreakRarityProgress(current);
-  const accent = RARITY_COLOR[progress.rarity];
-  const energyOn = current > 0;
-  const dense = density !== "comfortable";
-  const ultra = density === "ultra";
-  const palette = useMemo(() => paletteFromAccent(accent), [accent]);
-  const flameSeeds = useMemo(
-    () => flameSeedsFromPalette(palette),
-    [palette],
-  );
+  const rarityColor = RARITY_COLOR[progress.rarity];
+  const accent = colors.mode === "light"
+    ? clampLuminance(rarityColor, 0.09)
+    : rarityColor;
   const styles = useMemo(
     () => createStyles(colors, accent, density),
     [colors, accent, density],
@@ -62,44 +47,33 @@ export default function RoundsInRowWidget({
   );
 
   return (
-    <RunsPill
-      active={energyOn}
-      style={styles.root}
-      showGlow={energyOn && !ultra}
-      showFlames={energyOn && !ultra}
-      containFlames
-      emberSpread="around"
-      maxFlameHeight={dense ? 12 : 16}
-      palette={palette}
-      flameSeeds={flameSeeds}
-      pillStyle={styles.effectShell}
-    >
-      <GameplayGlassPanel compact accentColor={accent} style={styles.panel}>
-        <View style={styles.header}>
-          <Text
-            style={styles.count}
-            accessibilityLabel={`${current} ${current === 1 ? "round" : "rounds"}`}
-          >
-            {current}
-          </Text>
+    <GameplayGlassPanel compact accentColor={accent} style={[styles.root, styles.panel]}>
+      <View style={styles.header}>
+        <Text
+          style={styles.count}
+          accessibilityLabel={`${current} ${current === 1 ? "round" : "rounds"}`}
+        >
+          {current}
+        </Text>
+        <View style={styles.details}>
           <Text style={styles.eyebrow}>Round Streak</Text>
+          <View style={styles.pipRow}>
+            {Array.from({ length: pipCount }).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.pip,
+                  {
+                    backgroundColor:
+                      i < filled ? accent : hexToRgba(accent, 0.22),
+                  },
+                ]}
+              />
+            ))}
+          </View>
         </View>
-        <View style={styles.pipRow}>
-          {Array.from({ length: pipCount }).map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.pip,
-                {
-                  backgroundColor:
-                    i < filled ? accent : hexToRgba(accent, 0.22),
-                },
-              ]}
-            />
-          ))}
-        </View>
-      </GameplayGlassPanel>
-    </RunsPill>
+      </View>
+    </GameplayGlassPanel>
   );
 }
 
@@ -115,32 +89,28 @@ function createStyles(
       alignSelf: "flex-start",
       maxWidth: "100%",
     },
-    /** Transparent host so GameplayGlassPanel remains the glass surface. */
-    effectShell: {
-      backgroundColor: "transparent",
-      borderWidth: 0,
-      padding: 0,
-      overflow: "visible",
-    },
     panel: {
-      minWidth: 118,
+      minWidth: 136,
       maxWidth: 148,
       height: cardH,
-      justifyContent: "flex-start",
-      gap: 4,
+      justifyContent: "center",
       padding: pad,
     },
     header: {
       flexDirection: "row",
       alignItems: "center",
       gap: 4,
-      marginBottom: 0,
+    },
+    details: {
+      justifyContent: "center",
+      gap: 3,
     },
     eyebrow: {
       color: accent,
       fontSize: HUD_TYPE.eyebrow,
       fontWeight: "800",
       letterSpacing: 0.6,
+      lineHeight: 13,
       textTransform: "uppercase",
     },
     count: {
@@ -155,7 +125,6 @@ function createStyles(
       flexDirection: "row",
       alignItems: "center",
       gap: 4,
-      marginTop: 2,
     },
     pip: {
       width: 8,

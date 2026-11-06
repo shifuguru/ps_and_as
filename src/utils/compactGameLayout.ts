@@ -123,6 +123,17 @@ export type HandLayoutMetrics = {
   handZoneBottomPad: number;
 };
 
+export function resolveHandCarouselStep(
+  count: number,
+  containerWidth: number,
+  cardWidth: number,
+): number {
+  if (count <= 1) return cardWidth;
+  const slots = Math.min(count - 1, 9);
+  const fitStep = (containerWidth * 0.52) / slots;
+  return Math.round(Math.max(30, Math.min(36, fitStep)));
+}
+
 export function resolveHandMetrics(shellHeight: number): HandLayoutMetrics {
   const tier = resolveCompactHeightTier(shellHeight);
   const cardScale = handCardScale(tier);

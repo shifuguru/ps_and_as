@@ -376,10 +376,9 @@ function createStyles(
       justifyContent: "center",
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: hexToRgba(colors.accent, 0.35),
-      backgroundColor: hexToRgba(
-        colors.mode === "dark" ? "#0a1a12" : "#ffffff",
-        0.28,
-      ),
+      backgroundColor: colors.mode === "dark"
+        ? hexToRgba("#0a1a12", 0.28)
+        : colors.btnSecondaryBg,
     },
     bottomRow: {
       position: "absolute",

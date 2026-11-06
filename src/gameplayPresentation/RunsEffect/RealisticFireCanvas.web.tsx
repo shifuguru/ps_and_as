@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
+import type { SharedValue } from "react-native-reanimated";
 import {
   drawFireBloom,
   drawFireEmber,
@@ -31,8 +32,9 @@ type Props = {
   height: number;
   active?: boolean;
   /** 0–1 master intensity (idle settle / ignition). */
-  intensity?: number;
+  intensity: SharedValue<number>;
   fireKind?: FireKind;
+  showBloom?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -44,8 +46,9 @@ export default function RealisticFireCanvas({
   width,
   height,
   active = true,
-  intensity = 1,
+  intensity,
   fireKind,
+  showBloom = true,
   style,
 }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -138,14 +141,14 @@ export default function RealisticFireCanvas({
       const dt = Math.min(0.033, (now - last) / 1000);
       last = now;
       const time = now / 1000;
-      const intensityNow = Math.max(0, Math.min(1, intensityRef.current));
+      const intensityNow = Math.max(0, Math.min(1, intensityRef.current.value));
 
       stepFireSim(particles, embers, pill, dt, time, cfg);
 
       ctx.clearRect(0, 0, cw, ch);
       if (intensityNow > 0.02) {
         const palette = firePaletteRef.current;
-        drawFireBloom(ctx, pill, time, intensityNow * 0.85, palette);
+        if (showBloom) drawFireBloom(ctx, pill, time, intensityNow * 0.85, palette);
         for (const p of particles) {
           if (!p.front) drawFireParticle(ctx, p, intensityNow, palette);
         }
@@ -181,7 +184,7 @@ export default function RealisticFireCanvas({
       cancelAnimationFrame(raf);
       if (canvas.parentNode === host) host.removeChild(canvas);
     };
-  }, [active, width, height, hostReady, fireKind]);
+  }, [active, width, height, hostReady, fireKind, showBloom]);
 
   if (!active || width <= 0 || height <= 0) {
     return null;

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { View, Text, StyleSheet, Animated, Easing, Platform } from "react-native";
 import { TRICK_WIN_XP } from "../services/playerStats";
 import { useAppTheme } from "../context/ThemeContext";
+import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 import { hexToRgba } from "../utils/colorTheory";
 import {
   dealStackCenterInAvatarWrap,
@@ -60,6 +61,7 @@ export default function TrickWinCelebration({
   celebrationColors,
 }: Props) {
   const { colors, palette } = useAppTheme();
+  const motion = useDecorativeMotion();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const burst = useRef(new Animated.Value(0)).current;
   const flagPop = useRef(new Animated.Value(0)).current;
@@ -81,6 +83,14 @@ export default function TrickWinCelebration({
       flagPop.setValue(0);
       flagWave.setValue(0);
       xpFloat.setValue(0);
+      return;
+    }
+
+    if (!motion) {
+      burst.setValue(0);
+      flagPop.setValue(1);
+      flagWave.setValue(0);
+      xpFloat.setValue(0.2);
       return;
     }
 
@@ -127,23 +137,25 @@ export default function TrickWinCelebration({
       flagAnim.start();
     }
 
+    const xpAnim = Animated.sequence([
+      Animated.delay(180),
+      Animated.timing(xpFloat, {
+        toValue: 1,
+        duration: 920,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]);
     if (showXp || xpOnly) {
-      Animated.sequence([
-        Animated.delay(180),
-        Animated.timing(xpFloat, {
-          toValue: 1,
-          duration: 920,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]).start();
+      xpAnim.start();
     }
 
     return () => {
       burstAnim.stop();
       flagAnim.stop();
+      xpAnim.stop();
     };
-  }, [active, burst, flagPop, flagWave, showXp, xpFloat, xpOnly]);
+  }, [active, burst, flagPop, flagWave, showXp, xpFloat, xpOnly, motion]);
 
   if (!active) return null;
 
@@ -176,7 +188,7 @@ export default function TrickWinCelebration({
       pointerEvents="none"
     >
       {particles.map((p, i) => {
-        if (xpOnly) return null;
+        if (xpOnly || !motion) return null;
         const travel = spread * p.distance;
         const translateX = burst.interpolate({
           inputRange: [0, 1],

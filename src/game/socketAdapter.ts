@@ -16,6 +16,7 @@ export function isSocketAdapter(adapter: unknown): adapter is SocketAdapter {
 }
 
 const RECONNECT_SECRET_KEY_PREFIX = "@ps_and_as_reconnect_secret:";
+const MAX_RECONNECTION_ATTEMPTS = 5;
 
 function reconnectSecretStorageKey(roomId: string, profileId: string): string {
   return `${RECONNECT_SECRET_KEY_PREFIX}${roomId}:${profileId}`;
@@ -331,7 +332,7 @@ export class SocketAdapter implements NetworkAdapter {
             Platform.OS === "web" ? ["polling"] : ["polling", "websocket"],
           withCredentials: false,
           reconnection: true,
-          reconnectionAttempts: Infinity,
+          reconnectionAttempts: MAX_RECONNECTION_ATTEMPTS,
           reconnectionDelay: 1000,
           reconnectionDelayMax: 5000,
         });

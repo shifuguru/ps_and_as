@@ -222,6 +222,12 @@ export default function GamePlayArea({
     );
   }, []);
 
+  const updatePlayAreaScreenOrigin = useCallback((origin: { x: number; y: number }) => {
+    setPlayAreaScreenOrigin((previous) =>
+      previous.x === origin.x && previous.y === origin.y ? previous : origin,
+    );
+  }, []);
+
   const layout = useMemo(() => {
     if (size.width <= 0 || size.height <= 0) return null;
     const seats =
@@ -233,9 +239,9 @@ export default function GamePlayArea({
   useEffect(() => {
     if (!layout || size.height <= 0) return;
     void measureViewInWindow(rootRef.current).then((win) => {
-      if (win) setPlayAreaScreenOrigin(win);
+      if (win) updatePlayAreaScreenOrigin(win);
     });
-  }, [layout, size.width, size.height]);
+  }, [layout, size.width, size.height, updatePlayAreaScreenOrigin]);
 
   useEffect(() => {
     if (!layout || !onPlayAreaMetrics) return;
@@ -467,7 +473,7 @@ export default function GamePlayArea({
         }
         return;
       }
-      setPlayAreaScreenOrigin(playAreaWin);
+      updatePlayAreaScreenOrigin(playAreaWin);
 
       const flightsToStart: CardFlightSpec[] = [];
       const maxSpreadWidth = layout.cardZoneWidth * MAX_SPREAD_WIDTH_RATIO;
@@ -556,14 +562,19 @@ export default function GamePlayArea({
         }
       }
       } finally {
-        for (const key of playKeys) {
-          flightsInProgressRef.current.delete(key);
+        if (!cancelled) {
+          for (const key of playKeys) {
+            flightsInProgressRef.current.delete(key);
+          }
         }
       }
     })();
 
     return () => {
       cancelled = true;
+      for (const key of playKeys) {
+        flightsInProgressRef.current.delete(key);
+      }
     };
   }, [
     plays,
@@ -579,6 +590,7 @@ export default function GamePlayArea({
     onLocalHandFlightConsumed,
     onPlayFlightStarted,
     onPlayFlightLanded,
+    updatePlayAreaScreenOrigin,
   ]);
 
   /** Hand capture can arrive after plays sync landed early — fly from the hand. */

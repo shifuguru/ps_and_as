@@ -52,6 +52,7 @@ import { generateRoomCode } from "../utils/roomCode";
 import { DEAD_HAND_ID, DEAD_HAND_NAME } from "../game/deadHand";
 import { ACTION_BAR_HEIGHT } from "../components/ActionBar";
 import { useAppTheme } from "../context/ThemeContext";
+import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 import { copyToClipboard } from "../utils/clipboard";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import { hexToRgba } from "../utils/colorTheory";
@@ -888,10 +889,15 @@ export default function CreateGame({
         : !lobbyFullEnough;
 
   const showReadyFlash = showReadyAction && !isLocalReady && !primaryDisabled;
+  const motion = useDecorativeMotion();
 
   useEffect(() => {
     if (!showReadyFlash) {
       readyFlash.setValue(0);
+      return;
+    }
+    if (!motion) {
+      readyFlash.setValue(1);
       return;
     }
     const loop = Animated.loop(
@@ -912,7 +918,7 @@ export default function CreateGame({
     );
     loop.start();
     return () => loop.stop();
-  }, [showReadyFlash, readyFlash]);
+  }, [showReadyFlash, readyFlash, motion]);
 
   const primaryLabel = usingMock
     ? "Start Game"

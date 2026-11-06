@@ -9,6 +9,9 @@ Multiplayer uses a **server-authoritative** model:
 - The server applies `core` rules once, advances inactive seats, bumps a monotonic **`stateVersion`**, and broadcasts **`gameStateSync`** snapshots (with **`phase`** metadata).
 
 Clients **do not** apply `playCards` / `passTurn` locally while online; they render the latest snapshot.
+The client retries a lost server connection up to five times with increasing delays, then stops
+automatic retries instead of logging connection failures indefinitely. A later explicit connection
+attempt can start a fresh retry cycle.
 
 ## Modules (server)
 

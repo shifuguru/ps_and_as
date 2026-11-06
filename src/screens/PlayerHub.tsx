@@ -49,6 +49,7 @@ import { useClientBuildLabel } from "../hooks/useClientBuildLabel";
 import { gameTitleFaceStyle } from "../utils/gameTitleFont";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
 import { useAppTheme } from "../context/ThemeContext";
+import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 import { playerInitials } from "../utils/playerDisplay";
 import { hexToRgba } from "../utils/colorTheory";
 import { strings } from "../strings";
@@ -192,6 +193,7 @@ export default function PlayerHub({
   onOpenUpdate,
 }: Props) {
   const { colors } = useAppTheme();
+  const motion = useDecorativeMotion();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
   const { width, height } = useVisualViewportSize();
@@ -243,6 +245,10 @@ export default function PlayerHub({
     : 0;
 
   useEffect(() => {
+    if (!motion) {
+      ringPulse.setValue(1);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(ringPulse, {
@@ -259,7 +265,7 @@ export default function PlayerHub({
     );
     loop.start();
     return () => loop.stop();
-  }, [ringPulse]);
+  }, [ringPulse, motion]);
 
   const reload = useCallback(async () => {
     const s = await getPlayerStats();
@@ -372,6 +378,15 @@ export default function PlayerHub({
     selectPracticePlayerCount(count, true);
   };
 
+  const practicePickerHandlersRef = useRef({
+    selectPracticeCountAtOffset,
+    persistPracticeCountAtIndex,
+  });
+  practicePickerHandlersRef.current = {
+    selectPracticeCountAtOffset,
+    persistPracticeCountAtIndex,
+  };
+
   useEffect(() => {
     practicePlayerCountRef.current = practicePlayerCount;
     const countIndex = PRACTICE_PLAYER_COUNTS.indexOf(practicePlayerCount);
@@ -394,6 +409,42 @@ export default function PlayerHub({
       | undefined;
     if (!node) return;
 
+    let drag: { startX: number; startOffset: number; moved: boolean } | null = null;
+    let suppressClick = false;
+    let clickTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const onMouseDown = (event: MouseEvent) => {
+      if (event.button !== 0) return;
+      drag = { startX: event.clientX, startOffset: node.scrollLeft, moved: false };
+    };
+    const onMouseMove = (event: MouseEvent) => {
+      if (!drag) return;
+      const delta = event.clientX - drag.startX;
+      if (!drag.moved && Math.abs(delta) < 4) return;
+      drag.moved = true;
+      event.preventDefault();
+      node.scrollLeft = drag.startOffset - delta;
+      practicePickerHandlersRef.current.selectPracticeCountAtOffset(node.scrollLeft);
+    };
+    const onMouseUp = () => {
+      if (!drag) return;
+      if (drag.moved) {
+        suppressClick = true;
+        const index = practicePickerHandlersRef.current.selectPracticeCountAtOffset(
+          node.scrollLeft,
+        );
+        if (index != null) node.scrollLeft = index * PRACTICE_PICKER_ITEM_WIDTH;
+        practicePickerHandlersRef.current.persistPracticeCountAtIndex(index);
+        clickTimer = setTimeout(() => { suppressClick = false; }, 0);
+      }
+      drag = null;
+    };
+    const onClickCapture = (event: MouseEvent) => {
+      if (!suppressClick) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      suppressClick = false;
+    };
     const onWheel = (event: WheelEvent) => {
       const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX)
         ? event.deltaY
@@ -403,7 +454,7 @@ export default function PlayerHub({
       wheelDeltaRef.current += delta;
       if (Math.abs(wheelDeltaRef.current) < 24) return;
 
-      const direction = wheelDeltaRef.current > 0 ? 1 : -1;
+      const direction = wheelDeltaRef.current > 0 ? -1 : 1;
       wheelDeltaRef.current = 0;
       const currentIndex = PRACTICE_PLAYER_COUNTS.indexOf(
         practicePlayerCountRef.current,
@@ -412,16 +463,27 @@ export default function PlayerHub({
         0,
         Math.min(PRACTICE_PLAYER_COUNTS.length - 1, currentIndex + direction),
       );
-      selectPracticeCountAtOffset(
+      practicePickerHandlersRef.current.selectPracticeCountAtOffset(
         nextIndex * PRACTICE_PICKER_ITEM_WIDTH,
         true,
         true,
       );
     };
 
+    node.addEventListener("mousedown", onMouseDown);
+    node.addEventListener("click", onClickCapture, true);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
     node.addEventListener("wheel", onWheel, { passive: false });
-    return () => node.removeEventListener("wheel", onWheel);
-  }, [selectPracticeCountAtOffset]);
+    return () => {
+      node.removeEventListener("mousedown", onMouseDown);
+      node.removeEventListener("click", onClickCapture, true);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      node.removeEventListener("wheel", onWheel);
+      if (clickTimer) clearTimeout(clickTimer);
+    };
+  }, []);
 
   const {
     publicRooms,
@@ -1510,7 +1572,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       position: "relative",
     },
     onlinePlayButton: {
-      backgroundColor: hexToRgba(colors.textPrimary, colors.mode === "dark" ? 0.13 : 0.1),
+      backgroundColor: colors.mode === "dark"
+        ? hexToRgba(colors.textPrimary, 0.13)
+        : colors.btnSecondaryBg,
       borderWidth: 1,
       borderColor: hexToRgba(colors.accent, colors.mode === "dark" ? 0.46 : 0.4),
       alignItems: "center",
@@ -1828,7 +1892,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       right: 0,
       bottom: 12,
       textAlign: "center",
-      color: colors.textTertiary,
+      color: colors.mode === "dark" ? colors.textTertiary : colors.textOnAccent,
       fontSize: 13,
       fontWeight: "700",
     },
@@ -1857,19 +1921,19 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     practiceCountText: {
       textAlign: "center",
-      color: colors.textTertiary,
+      color: colors.mode === "dark" ? colors.textTertiary : colors.onFelt.textPrimary,
       fontSize: 14,
       fontWeight: "700",
       opacity: 0.22,
       fontVariant: ["tabular-nums"],
     },
     practiceCountTextAdjacent: {
-      color: colors.textSecondary,
+      color: colors.mode === "dark" ? colors.textSecondary : colors.onFelt.textPrimary,
       fontSize: 16,
       opacity: 0.58,
     },
     practiceCountTextSelected: {
-      color: colors.accent,
+      color: colors.mode === "dark" ? colors.accent : colors.onFelt.textPrimary,
       fontSize: 22,
       fontWeight: "900",
       opacity: 1,

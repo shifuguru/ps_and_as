@@ -38,15 +38,15 @@ export function ceremonyCardCornerRadius(width: number, height: number): number 
  * Callers scale these by `width / HAND_CARD_WIDTH` so hand and pile stay proportional.
  */
 export const CARD_FACE_REF = {
-  cornerRank: 13,
-  cornerSuit: 11,
-  cornerRankLine: 15,
-  cornerSuitLine: 13,
+  cornerRank: 14,
+  cornerSuit: 12,
+  cornerRankLine: 16,
+  cornerSuitLine: 14,
   value: 18,
   suit: 20,
   suitMarginTop: 6,
   cornerInsetTop: 6,
-  cornerInsetSide: 8,
+  cornerInsetSide: 7,
   outerRadius: 14,
   faceRadius: 13,
 } as const;

@@ -3750,6 +3750,39 @@ function GameScreen({
     shellHeight,
   ]);
 
+  const tableSeats = useMemo(
+    () => (state ? buildTableSeatConfig(state.players, myPlayerId) : null),
+    [state?.players, myPlayerId],
+  );
+  const localControlledIds = useMemo(
+    () => (humanPlayer ? [humanPlayer.id] : []),
+    [humanPlayer?.id],
+  );
+  const contentTopPadding = insets.top + 8;
+  const localPlayerOutForLayout =
+    !!humanPlayer && !!state?.finishedOrder.includes(humanPlayer.id);
+  const handReserveForLayout =
+    ((humanPlayer?.hand.length ?? 0) > 0 && !gameplayLocked) ||
+    localPlayerOutForLayout;
+  const playAreaGameHeight = Math.max(
+    0,
+    playAreaSize.height -
+      contentTopPadding -
+      reservedBottomHeight(insets.bottom || 0, handReserveForLayout, shellHeight),
+  );
+  const playAreaLayout = useMemo(
+    () =>
+      !tableSeats || playAreaSize.width <= 0 || playAreaGameHeight <= 0
+        ? null
+        : computePlayAreaLayout(
+            playAreaSize.width,
+            playAreaGameHeight,
+            tableSeats.layoutSeatCount,
+            shellHeight,
+          ),
+    [tableSeats?.layoutSeatCount, playAreaSize.width, playAreaGameHeight, shellHeight],
+  );
+
   if (!state) {
     return (
       <ScreenContainer ignoreHeaderOffset style={{ flex: 1 }}>
@@ -3793,33 +3826,11 @@ function GameScreen({
   for (const p of tradePhase?.players ?? ceremonyPrep?.players ?? state.players) {
     roleById[p.id] = p.role;
   }
-  const tableSeats = buildTableSeatConfig(state.players, myPlayerId);
-  const contentTopPadding = insets.top + 8;
-  const localPlayerOutForLayout =
-    !!humanPlayer && state.finishedOrder.includes(humanPlayer.id);
-  const handReserveForLayout =
-    ((humanPlayer?.hand.length ?? 0) > 0 && !gameplayLocked) ||
-    localPlayerOutForLayout;
-  const playAreaGameHeight = Math.max(
-    0,
-    playAreaSize.height -
-      contentTopPadding -
-      reservedBottomHeight(insets.bottom || 0, handReserveForLayout, shellHeight),
-  );
-  const playAreaLayout =
-    playAreaSize.width <= 0 || playAreaGameHeight <= 0
-      ? null
-      : computePlayAreaLayout(
-          playAreaSize.width,
-          playAreaGameHeight,
-          tableSeats.layoutSeatCount,
-          shellHeight,
-        );
+  if (!tableSeats) return null;
   const ceremonyPlayAreaLayout =
     livePlayAreaMetrics?.layout ?? playAreaLayout;
   const ceremonyPlayAreaHeight =
     livePlayAreaMetrics?.height ?? playAreaGameHeight;
-  const localControlledIds = humanPlayer ? [humanPlayer.id] : [];
   const deadHandGraveyard =
     !gameplayLocked && !ceremonyPrep && !tradePhase;
 
@@ -4278,6 +4289,10 @@ function GameScreenBoard() {
     dealRound: number;
     flightActive: boolean;
   }>({ phase: "done", dealRound: 0, flightActive: false });
+  const pendingCeremonyTrades = useMemo(
+    () => ceremonyPrep?.trades.filter((trade) => !trade.completed) ?? [],
+    [ceremonyPrep?.trades],
+  );
   const [ceremonyStatusText, setCeremonyStatusText] = useState<string | null>(
     null,
   );
@@ -5099,22 +5114,7 @@ function GameScreenBoard() {
   const prevTrickHistoryLen = useRef(0);
   const [roundCompleteSignal, setRoundCompleteSignal] = useState(0);
   const prevRankingsVisible = useRef(false);
-  const [rewardedAdAvailable, setRewardedAdAvailable] = useState(false);
-  const [rewardedAdXp, setRewardedAdXp] = useState(75);
-  const [rewardedAdRemaining, setRewardedAdRemaining] = useState(0);
-  const [rewardedAdBusy, setRewardedAdBusy] = useState(false);
-  const [rewardedAdError, setRewardedAdError] = useState<string | null>(null);
-  const [rewardedBonusXp, setRewardedBonusXp] = useState(0);
   const forcedAdInFlight = useRef(false);
-  const rewardedAdWatchGen = useRef(0);
-
-  useEffect(() => {
-    if (!rankingsModalVisible) {
-      setRewardedBonusXp(0);
-      setRewardedAdError(null);
-      setRewardedAdBusy(false);
-    }
-  }, [rankingsModalVisible]);
 
   useEffect(() => {
     if (!roundOver && !lastHandReveal) return;
@@ -5140,86 +5140,9 @@ function GameScreenBoard() {
           }
         })();
       }
-      void (async () => {
-        try {
-          const { getRewardedAdUiState } = await import(
-            "../services/ads/AdsService"
-          );
-          const ui = await getRewardedAdUiState();
-          setRewardedAdAvailable(ui.available);
-          setRewardedAdXp(ui.xp);
-          setRewardedAdRemaining(ui.remaining);
-        } catch {
-          setRewardedAdAvailable(false);
-        }
-      })();
     }
     prevRankingsVisible.current = rankingsModalVisible;
   }, [rankingsModalVisible]);
-
-  const handleWatchRewardedAd = useCallback(() => {
-    if (rewardedAdBusy || spectatorMode) return;
-    const watchId = ++rewardedAdWatchGen.current;
-    setRewardedAdBusy(true);
-    setRewardedAdError(null);
-    // Hard ceiling so the button can never stick on "Loading ad…".
-    const safety = setTimeout(() => {
-      if (rewardedAdWatchGen.current !== watchId) return;
-      setRewardedAdBusy(false);
-      setRewardedAdError("No ad ready right now. Try again in a moment.");
-    }, 8_000);
-    void (async () => {
-      try {
-        const {
-          showRewardedAdForXp,
-          rewardedAdFailureMessage,
-          getRewardedAdUiState,
-        } = await import("../services/ads/AdsService");
-        const { commitRoundXpEarned } = await import("../services/playerStats");
-        const result = await showRewardedAdForXp();
-        if (rewardedAdWatchGen.current !== watchId) return;
-        if (result.ok && result.xpGranted > 0) {
-          await commitRoundXpEarned(result.xpGranted, 0);
-          setRewardedBonusXp((n) => n + result.xpGranted);
-          setRewardedAdError(null);
-        } else {
-          setRewardedAdError(
-            rewardedAdFailureMessage(result.reason || "notShown"),
-          );
-        }
-        const ui = await getRewardedAdUiState();
-        setRewardedAdAvailable(ui.available && ui.remaining > 0);
-        setRewardedAdRemaining(ui.remaining);
-        setRewardedAdXp(ui.xp);
-      } catch {
-        if (rewardedAdWatchGen.current !== watchId) return;
-        setRewardedAdError("Could not show an ad. Try again later.");
-      } finally {
-        clearTimeout(safety);
-        if (rewardedAdWatchGen.current === watchId) {
-          setRewardedAdBusy(false);
-        }
-      }
-    })();
-  }, [rewardedAdBusy, spectatorMode]);
-
-  const displayScoreboardXp = useMemo(() => {
-    if (!myPlayerId || rewardedBonusXp <= 0) return scoreboardXpByPlayerId;
-    return {
-      ...scoreboardXpByPlayerId,
-      [myPlayerId]:
-        (scoreboardXpByPlayerId[myPlayerId] ?? 0) + rewardedBonusXp,
-    };
-  }, [scoreboardXpByPlayerId, myPlayerId, rewardedBonusXp]);
-
-  const displayScoreboardRoundXp = useMemo(() => {
-    if (!myPlayerId || rewardedBonusXp <= 0) return scoreboardRoundXpByPlayerId;
-    return {
-      ...scoreboardRoundXpByPlayerId,
-      [myPlayerId]:
-        (scoreboardRoundXpByPlayerId[myPlayerId] ?? 0) + rewardedBonusXp,
-    };
-  }, [scoreboardRoundXpByPlayerId, myPlayerId, rewardedBonusXp]);
 
   useEffect(() => {
     // Authoritative: snapshot is built from the completed trick at pause start.
@@ -6454,7 +6377,7 @@ function GameScreenBoard() {
             : ceremonyCardsPerSeat(state.players)
         }
         totalCards={FULL_DECK_SIZE}
-        pendingTrades={ceremonyPrep?.trades.filter((t) => !t.completed) ?? []}
+        pendingTrades={pendingCeremonyTrades}
         freshRound={!!ceremonyPrep?.baseState.freshRound}
         skipDealPhases={!!ceremonyPrep?.skipDealPhases}
         onDealComplete={handleDealComplete}
@@ -6525,8 +6448,8 @@ function GameScreenBoard() {
         )}
         players={state.players.filter((p) => !isDeadHandPlayer(p))}
         readyStates={scoreboardReadyStates}
-        playerXp={displayScoreboardXp}
-        playerRoundXp={displayScoreboardRoundXp}
+        playerXp={scoreboardXpByPlayerId}
+        playerRoundXp={scoreboardRoundXpByPlayerId}
         xpAnimationReady={xpAnimationReady}
         localPlayerId={myPlayerId ?? undefined}
         avatarBordersByPlayerId={avatarBordersByPlayerId}
@@ -6540,12 +6463,6 @@ function GameScreenBoard() {
         leaveConfirmVisible={leaveConfirmVisible}
         onLeaveCancel={cancelLeaveGame}
         onLeaveConfirm={confirmLeaveGame}
-        rewardedAdAvailable={rewardedAdAvailable && rewardedAdRemaining > 0}
-        rewardedAdXp={rewardedAdXp}
-        rewardedAdRemaining={rewardedAdRemaining}
-        rewardedAdBusy={rewardedAdBusy}
-        rewardedAdError={rewardedAdError}
-        onWatchRewardedAd={handleWatchRewardedAd}
         onToggleReady={() => {
           const id = myPlayerId;
           if (!id) return;
