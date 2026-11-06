@@ -47,6 +47,19 @@ export async function getLobbySession(): Promise<LobbySession | null> {
   }
 }
 
+export async function updateLobbySessionPlayerName(
+  roomId: string,
+  playerName: string,
+): Promise<LobbySession | null> {
+  const session = await getLobbySession();
+  if (!session || session.roomId !== roomId) return null;
+  const AsyncStorage = getAsyncStorage();
+  if (!AsyncStorage) throw new Error("Lobby session storage is unavailable");
+  const updated = { ...session, playerName };
+  await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(updated));
+  return updated;
+}
+
 export async function clearLobbySession(): Promise<void> {
   const AsyncStorage = getAsyncStorage();
   if (!AsyncStorage) return;
