@@ -20,24 +20,25 @@ import {
 import AdsConsentBanner from "./src/components/AdsConsentBanner";
 import PrivacyPolicyModal from "./src/components/PrivacyPolicyModal";
 import { useAssetAndAdsPreload } from "./src/hooks/useAssetAndAdsPreload";
+import { useMenuAudio } from "./src/hooks/useMenuAudio";
+import { useAudioWarmUp } from "./src/hooks/useAudioWarmUp";
+import { type GameSfxId } from "./src/audio/gameSfx";
 import AnimatedBackground from "./src/components/AnimatedBackground";
 import { SocketAdapter } from "./src/game/socketAdapter";
 import type { LobbyMember } from "./src/game/network";
 import { MockAdapter } from "./src/game/network";
 import { isSocketAdapter } from "./src/game/socketAdapter";
-import { getOrCreatePlayerId } from "./src/services/gameCenter";
-import { resolveDisplayNameSetupState } from "./src/services/playerDisplayName";
+import { getOrCreatePlayerId, type PlayerInfo } from "./src/services/gameCenter";
 import {
   markWebInstallDeclined,
-  resolveWebOnboardingState,
 } from "./src/services/webOnboarding";
 import {
   clearLobbySession,
   getLobbySession,
   saveLobbySession,
+  updateLobbySessionPlayerName,
   type LobbySession,
 } from "./src/services/lobbySession";
-import DisplayNameSetupModal from "./src/components/DisplayNameSetupModal";
 import WebInstallCoachModal from "./src/components/WebInstallCoachModal";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import FeltBackground from "./src/components/FeltBackground";
@@ -52,7 +53,7 @@ import { useVisualViewportSize, useWebShellLayout } from "./src/hooks/useVisualV
 import { isMobileWeb, installWebShellCss } from "./src/utils/webViewport";
 import { useAppFonts } from "./src/hooks/useAppFonts";
 import { useBuildUpdateCheck } from "./src/hooks/useBuildUpdateCheck";
-import { useOnlinePresence, updateOnlinePresenceDisplayName } from "./src/hooks/useOnlinePlayerCount";
+import { useOnlinePresence } from "./src/hooks/useOnlinePlayerCount";
 import { useUpdateLogUnreadCount } from "./src/hooks/useUpdateLogUnreadCount";
 import { useWebEscapeKey } from "./src/hooks/useWebEscapeKey";
 import UpdateRequiredOverlay from "./src/components/UpdateRequiredOverlay";
@@ -80,9 +81,6 @@ const ViewportDebugOverlay =
     ? require("./src/debug/ViewportDebugOverlay").default
     : null;
 
-const DEFAULT_PLAYER_NAME = "Player";
-const ONBOARDING_DEFER_MS = 800;
-
 function AppContent() {
   const { colors, ui, blur, feltTint, setFeltTint, refreshFeltTint } = useAppTheme();
   const viewport = useVisualViewportSize();
@@ -91,15 +89,19 @@ function AppContent() {
   // menuVisible: whether the main menu should be shown (after splash fully hidden)
   const [splashVisible, setSplashVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
-const [tutorialVisible, setTutorialVisible] = useState(false);
-const [tutorialResolved, setTutorialResolved] = useState(false);
+
+  const [tutorialVisible, setTutorialVisible] = useState(false);
+  const [tutorialResolved, setTutorialResolved] = useState(false);
   const { playEffect, toggleMute, muted, unlockAudio } = useMenuAudio();
-  useAudioWarmUp(unlockAudio);
-    (effect: string) => {
-      playEffect(effect);
+  const playGameSound = useCallback(
+    (id: GameSfxId) => {
+      playEffect(id);
     },
     [playEffect],
   );
+
+  useAudioWarmUp(unlockAudio);
+
 
 
   const [screen, setScreen] = useState<
@@ -110,17 +112,47 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
   const [achievementsInitialTab, setAchievementsInitialTab] =
     useState<ProfileTab>("achievements");
   const [updateLogOpen, setUpdateLogOpen] = useState(false);
+  const { count: updateLogUnreadCount, markSeen: markUpdateLogSeen } = useUpdateLogUnreadCount(menuVisible, updateLogOpen);
   const [readmeOpen, setReadmeOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[] | null>(null);
   const [dealSeed, setDealSeed] = useState<number | undefined>(undefined);
-  const [localPlayerName, setLocalPlayerName] = useState<string | null>(DEFAULT_PLAYER_NAME);
+  const [localPlayerName, setLocalPlayerName] = useState<string | null>(null);
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
+  const localPlayerNameRef = useRef(localPlayerName);
+  localPlayerNameRef.current = localPlayerName;
+  const identityPromiseRef = useRef<Promise<PlayerInfo | null> | null>(null);
+  const ensurePlayerIdentity = useCallback((): Promise<PlayerInfo | null> => {
+    if (!identityPromiseRef.current) {
+      identityPromiseRef.current = getOrCreatePlayerId().then((profile) => {
+        localPlayerNameRef.current = profile.displayName;
+        setLocalPlayerName(profile.displayName);
+        setLocalPlayerId(profile.id);
+        return profile;
+      }).catch((error) => {
+        identityPromiseRef.current = null;
+        console.error("[App] Failed to initialize player identity:", error);
+        Alert.alert("Player profile unavailable", "Could not load your player profile. Please try again.");
+        return null;
+      });
+    }
+    return identityPromiseRef.current;
+  }, []);
+  const getCurrentPlayerIdentity = useCallback(async (): Promise<PlayerInfo | null> => {
+    if (!(await ensurePlayerIdentity())) return null;
+    try {
+      return await getOrCreatePlayerId();
+    } catch (error) {
+      console.error("[App] Failed to load player identity:", error);
+      Alert.alert("Player profile unavailable", "Could not load your player profile. Please try again.");
+      return null;
+    }
+  }, [ensurePlayerIdentity]);
+  useEffect(() => {
+    void ensurePlayerIdentity();
+  }, [ensurePlayerIdentity]);
   const [installCoachVisible, setInstallCoachVisible] = useState(false);
-  const [installCoachResolved, setInstallCoachResolved] = useState(false);
-  const [nameSetupVisible, setNameSetupVisible] = useState(false);
-  const [nameSetupResolved, setNameSetupResolved] = useState(false);
-  const [nameSetupAccountSync, setNameSetupAccountSync] = useState(false);
+  const [, setInstallCoachResolved] = useState(false);
   const [roomAdapter, setRoomAdapter] = useState<SocketAdapter | null>(null);
   // localAdapter is used for offline/mock games so we can reuse the same
   // MockAdapter instance between screens and avoid multiple adapters/logs.
@@ -146,7 +178,7 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
 
     useAssetAndAdsPreload();
   const onlinePresence = useOnlinePresence(
-    !splashVisible,
+    !splashVisible && !!localPlayerId,
     localPlayerName,
   );
 
@@ -205,7 +237,8 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
 
   const rejoinLobby = async () => {
     if (!pendingRejoin) return;
-    const profile = await getOrCreatePlayerId();
+    const profile = await getCurrentPlayerIdentity();
+    if (!profile) return;
     if (profile.id !== pendingRejoin.profileId) {
       await clearLobbySession();
       setPendingRejoin(null);
@@ -217,6 +250,7 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
     }
     playEffect("click");
     setLocalPlayerName(pendingRejoin.playerName);
+    setLocalPlayerId(profile.id);
     setRoomAdapter(
       new SocketAdapter(
         undefined,
@@ -267,10 +301,10 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
   }, [splashVisible, beginSplashReveal, finishSplash]);
 
   const startPracticeGame = async (playerCount: number) => {
-    if (!localPlayerName?.trim()) return;
+    const playerInfo = await getCurrentPlayerIdentity();
+    if (!playerInfo) return;
+    const hostName = localPlayerNameRef.current?.trim() || playerInfo.displayName;
     disconnectRoom();
-    const playerInfo = await getOrCreatePlayerId();
-    const hostName = localPlayerName.trim();
     const savedTint = (await getWallpaperTint()) ?? DEFAULT_FELT_COLOR;
     const totalPlayers = clampPracticePlayerCount(playerCount);
     await writePracticePlayerCount(totalPlayers);
@@ -315,53 +349,6 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
       trackHubViewedOnce();
     }
   }, [menuVisible, screen]);
-
-  useEffect(() => {
-    if (!menuVisible) return;
-    if (installCoachResolved && nameSetupResolved) {
-      if (screen === "menu") setHubRefreshKey((k) => k + 1);
-      return;
-    }
-    let cancelled = false;
-    // Deferred so the menu is playable first; modals are optional overlays.
-    const timer = setTimeout(() => void (async () => {
-      const resolved = await resolveDisplayNameSetupState();
-      if (cancelled) return;
-      setLocalPlayerId(resolved.profileId);
-
-      const onboarding = await resolveWebOnboardingState({
-        needsDisplayNameSetup: resolved.needsSetup,
-      });
-      if (cancelled) return;
-
-      if (onboarding.phase === "install-coach") {
-        setInstallCoachVisible(true);
-        setInstallCoachResolved(false);
-        setNameSetupVisible(false);
-        setNameSetupAccountSync(false);
-        if (resolved.needsSetup) setLocalPlayerName(resolved.temporaryName);
-        return;
-      }
-
-      setInstallCoachVisible(false);
-      setInstallCoachResolved(true);
-      setNameSetupAccountSync(onboarding.coupleNameWithGoogleSync);
-
-      if (resolved.needsSetup) {
-        setNameSetupVisible(true);
-        setLocalPlayerName(resolved.temporaryName);
-      } else {
-        setNameSetupVisible(false);
-        setLocalPlayerName(resolved.displayName);
-      }
-      setNameSetupResolved(true);
-      if (screen === "menu") setHubRefreshKey((k) => k + 1);
-    })(), ONBOARDING_DEFER_MS);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [menuVisible, screen, installCoachResolved, nameSetupResolved]);
 
   useEffect(() => {
     console.log("[App] screen state", {
@@ -428,7 +415,11 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
     }
   };
 
-  const openSettings = () => setSettingsOpen(true);
+  const openSettings = () => {
+    void ensurePlayerIdentity().then((profile) => {
+      if (profile) setSettingsOpen(true);
+    });
+  };
 
   const closeSettings = () => {
     void reloadWallpaper();
@@ -486,8 +477,6 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
   lobbyMembersRef.current = lobbyMembers;
   const screenRef = useRef(screen);
   screenRef.current = screen;
-  const localPlayerNameRef = useRef(localPlayerName);
-  localPlayerNameRef.current = localPlayerName;
   const localPlayerIdRef = useRef(localPlayerId);
   localPlayerIdRef.current = localPlayerId;
   const activeRoomIdRef = useRef(activeRoomId);
@@ -808,14 +797,15 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
               onNavigateSound={() => playEffect("click")}
               actions={{
                 onPlay: (playerCount) => {
-                  if (!localPlayerName) return;
                   trackAnalyticsEvent("cta_quick_game", { playerCount });
                   void startPracticeGame(playerCount);
                 },
-                onHostOnlineGame: (name) => {
-                  if (!localPlayerName) return;
+                onHostOnlineGame: () => {
                   trackAnalyticsEvent("cta_online_game");
                   void (async () => {
+                    const profile = await getCurrentPlayerIdentity();
+                    if (!profile) return;
+                    const name = localPlayerNameRef.current ?? profile.displayName;
                     if (
                       isSocketAdapter(roomAdapter) &&
                       activeRoomId &&
@@ -824,8 +814,8 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
                       roomAdapter.dismissRoom(activeRoomId);
                     }
                     disconnectRoom();
-                    const profile = await getOrCreatePlayerId();
                     setLocalPlayerName(name);
+                    setLocalPlayerId(profile.id);
                     setRoomAdapter(
                       new SocketAdapter(undefined, "", name, profile.id, false, feltTint),
                     );
@@ -835,12 +825,14 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
                     setScreen("create");
                   })();
                 },
-                onJoinOnlineRoom: (roomId, playerName) => {
-                  if (!localPlayerName) return;
+                onJoinOnlineRoom: (roomId) => {
                   trackAnalyticsEvent("cta_online_join", { roomId });
                   void (async () => {
-                    const profile = await getOrCreatePlayerId();
+                    const profile = await getCurrentPlayerIdentity();
+                    if (!profile) return;
+                    const playerName = localPlayerNameRef.current ?? profile.displayName;
                     setLocalPlayerName(playerName);
+                    setLocalPlayerId(profile.id);
                     setIsSpectator(false);
                     setRoomAdapter(
                       new SocketAdapter(
@@ -858,10 +850,11 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
                     setScreen("create");
                   })();
                 },
-                onSpectateOnlineRoom: (roomId, playerName) => {
-                  if (!localPlayerName) return;
+                onSpectateOnlineRoom: (roomId) => {
                   void (async () => {
-                    const profile = await getOrCreatePlayerId();
+                    const profile = await getCurrentPlayerIdentity();
+                    if (!profile) return;
+                    const playerName = localPlayerNameRef.current ?? profile.displayName;
                     setLocalPlayerName(playerName);
                     setLocalPlayerId(profile.id);
                     setIsSpectator(true);
@@ -892,7 +885,7 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
             />
           </Animated.View>
         )}
-        <WebInstallCoachModal
+        {false && <WebInstallCoachModal
           visible={menuVisible && screen === "menu" && installCoachVisible}
           onContinueInBrowser={() => {
             void (async () => {
@@ -900,36 +893,17 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
               await markWebInstallDeclined();
               setInstallCoachVisible(false);
               setInstallCoachResolved(true);
-              // nameSetupResolved stays false → effect opens name + Google sync
             })();
           }}
         />
-        <DisplayNameSetupModal
-          visible={menuVisible && screen === "menu" && nameSetupVisible}
-          variant={
-            nameSetupAccountSync ? "browser-with-account-sync" : "default"
-          }
-          onSkip={() => {
-            trackAnalyticsEvent("name_setup_skipped");
-            setLocalPlayerName((n) => n?.trim() || DEFAULT_PLAYER_NAME);
-            setNameSetupVisible(false);
-            setNameSetupResolved(true);
-          }}
-          onComplete={(name) => {
-            trackAnalyticsEvent("name_setup_completed");
-            setLocalPlayerName(name);
-            setNameSetupVisible(false);
-            setNameSetupResolved(true);
-            updateOnlinePresenceDisplayName(name);
-          }}
-        />
+        }
         {menuVisible && screen === "create" && (
           <CreateGame 
             adapter={roomAdapter || undefined} 
             isJoining={!!roomAdapter && !!joinedRoomId}
             joinRoomId={joinedRoomId || undefined}
             preferredPlayerName={localPlayerName ?? undefined}
-            onRoomReady={(roomId, displayRoomName) => {
+            onRoomReady={(roomId, displayRoomName, playerName) => {
               setActiveRoomId(roomId);
               if (isSocketAdapter(roomAdapter)) {
                 roomAdapter.setActiveRoomId(roomId);
@@ -938,8 +912,10 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
                 const profile = await getOrCreatePlayerId();
                 await saveLobbySession({
                   roomId,
-                  profileId: profile.id,
-                  playerName: profile.displayName,
+                  profileId: isSocketAdapter(roomAdapter)
+                    ? roomAdapter.getPreferredProfileId() || profile.id
+                    : profile.id,
+                  playerName,
                   isHost: !joinedRoomId,
                   roomName: displayRoomName || roomId,
                   reconnectSecret: isSocketAdapter(roomAdapter)
@@ -947,7 +923,10 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
                     : undefined,
                 });
                 setPendingRejoin(null);
-              })();
+              })().catch((error) => {
+                console.error("[App] Failed to save lobby session:", error);
+                Alert.alert("Lobby not saved", "This lobby may not be available to rejoin after a restart.");
+              });
             }}
             onBack={() => {
               const wasOnlineLobby = isSocketAdapter(roomAdapter);
@@ -1122,6 +1101,7 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
             <FullscreenBlurScrim />
             <View style={appStyles.settingsForeground}>
               <Settings
+                currentPlayerName={localPlayerName}
                 onWallpaperPreview={setFeltTint}
                 onWallpaperChange={async () => {
                   reloadWallpaper();
@@ -1141,7 +1121,7 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
                 onToggleSoundMute={() => {
                   void toggleMute();
                 }}
-                onNameSaved={(name) => {
+                onNameSaved={async (name) => {
                   setLocalPlayerName(name);
                   const roomId = activeRoomIdRef.current ?? joinedRoomIdRef.current;
                   if (
@@ -1151,6 +1131,18 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
                     roomAdapter.isConnected()
                   ) {
                     roomAdapter.updatePlayerName(roomId, name);
+                  }
+                  const savedRoomId = roomId ?? pendingRejoin?.roomId;
+                  if (savedRoomId) {
+                    try {
+                      const session = await updateLobbySessionPlayerName(savedRoomId, name);
+                      if (session && pendingRejoin?.roomId === savedRoomId) {
+                        setPendingRejoin(session);
+                      }
+                    } catch (error) {
+                      console.error("[App] Failed to update saved lobby name:", error);
+                      Alert.alert("Lobby not updated", "Your saved lobby name could not be updated.");
+                    }
                   }
                 }}
                 onProfileSynced={() => {
@@ -1218,7 +1210,7 @@ const [tutorialResolved, setTutorialResolved] = useState(false);
         </View>
     </View>
     {menuVisible && !splashVisible ? (
-      <AdsConsentBanner onOpenPrivacy={() => setPrivacyOpen(true)} />
+      false && <AdsConsentBanner onOpenPrivacy={() => setPrivacyOpen(true)} />
     ) : null}
     <PrivacyPolicyModal
       visible={privacyOpen}
