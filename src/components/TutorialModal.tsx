@@ -11,9 +11,11 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ visible, onClose }
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
         <View style={styles.container}>
-          <Text style={styles.title}>Welcome to P&apos;s & A&apos;s!</Text>
-          <Text style={styles.body}>This is a quick tutorial. You can customize it later.</Text>
-          <Button title="Got it" onPress={onClose} />
+          <Text style={styles.title}>Welcome to P&apos;s & A&apos;s</Text>
+          <Text style={styles.body}>A quick tutorial before playing online?</Text>
+          <Button title="Okay" onPress={onClose} />
+          <Button title="No thanks" onPress={onClose} />
+          /* Change button behaviour relative to user choice */
         </View>
       </View>
     </Modal>
