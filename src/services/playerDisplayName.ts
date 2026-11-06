@@ -23,19 +23,18 @@ import {
   isValidDisplayText,
   validateDisplayText,
 } from "../utils/profanityFilter";
-
-export const PLAYER_NAME_CHOSEN_KEY = "@player_name_chosen";
-
-/** Legacy runtime / storage fallback — not an explicit user choice. */
-export const IMPLICIT_PLAYER_NAME_FALLBACK = "Player";
-
-/** Unique temporary name (e.g. "Player_a3f9") derived from the profile id. */
-export function makeTemporaryPlayerName(profileId: string): string {
-  const suffix = profileId.replace(/[^a-zA-Z0-9]/g, "").slice(-4).toLowerCase();
-  return suffix
-    ? `${IMPLICIT_PLAYER_NAME_FALLBACK}_${suffix}`
-    : IMPLICIT_PLAYER_NAME_FALLBACK;
-}
+import {
+  getDisplayNameChosen,
+  IMPLICIT_PLAYER_NAME_FALLBACK,
+  makeTemporaryPlayerName,
+  PLAYER_NAME_CHOSEN_KEY,
+} from "./temporaryPlayerName";
+export {
+  getDisplayNameChosen,
+  IMPLICIT_PLAYER_NAME_FALLBACK,
+  makeTemporaryPlayerName,
+  PLAYER_NAME_CHOSEN_KEY,
+} from "./temporaryPlayerName";
 
 export type DisplayNameSetupSnapshot = {
   cachedName: string | null;
@@ -54,17 +53,6 @@ export function needsDisplayNameSetup(
   if (!trimmed) return true;
   if (trimmed === IMPLICIT_PLAYER_NAME_FALLBACK) return true;
   return false;
-}
-
-export async function getDisplayNameChosen(): Promise<boolean> {
-  try {
-    const AsyncStorage =
-      require("@react-native-async-storage/async-storage").default;
-    const raw = await AsyncStorage.getItem(PLAYER_NAME_CHOSEN_KEY);
-    return raw === "1" || raw === "true";
-  } catch {
-    return false;
-  }
 }
 
 export async function markDisplayNameChosen(): Promise<void> {
@@ -123,6 +111,6 @@ export async function resolveDisplayNameSetupState(): Promise<ResolvedDisplayNam
     needsSetup,
     displayName: needsSetup ? null : trimmed || profile.displayName,
     profileId: profile.id,
-    temporaryName: makeTemporaryPlayerName(profile.id),
+    temporaryName: makeTemporaryPlayerName(profile.installId),
   };
 }
