@@ -39,7 +39,7 @@ Use this file to drive engineering work — not conversation memory.
 | 6 | Client `repairStuckTurnPointer` on every `gameStateSync` | **Stale / not confirmed** — no client repair in `GameScreen.tsx` today; do not track |
 | 7 | Seated `playerReadyForNextRound` not gated on `betweenRounds` | **Resolved on critical-issues branch** — seated + `tryStartNextRoundIfReady` gated |
 | 8 | Rankings before last hand — fixes shipped, verification incomplete | **Existing** — Rankings before last hand (online) |
-| 9 | In-game grace 20–30 s random, not fixed 15 s | **Existing** — Disconnect timeout |
+| 9 | In-game grace was 20–30 s random, not fixed 15 s | **Resolved** — fixed 15 s in-game grace |
 | 10 | `gameAction` ten-rule branch does not validate chooser | **Resolved** — server chooser + direction guard |
 
 **Also noted (not new gaps):** BOTOPN pass-on-run stall RC-1 loop mitigation shipped (`repairTurnPointerAndReschedule` in `server/botHostedRooms.js`); late-round out leader + all passed trick finalize shipped (What's New Jun 2026). Both are mitigations under **Turn Ownership Invariant**, not closure of that gap.
@@ -65,7 +65,7 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 | **P0** | **CPU takeover after disconnect** | Investigate implementation plan. Define ownership, reclaim, timeout, and resume behaviour. Close architecture gap before expanding disconnect features. |
 | **P0** | **Returning player after timeout** | Ship with CPU takeover (late reclaim). |
 | **P1** | **Ready-for-next-round gating** | **Resolved on critical-issues branch** — seated + `tryStartNextRoundIfReady` gated on `betweenRounds`. Optional: broader spectator/dead-hand/BOTOPN ready matrix. |
-| **P1** | **Disconnect timeout** | Align 15 s grace with server + UI. |
+| **P1** | **Disconnect timeout** | **Resolved** — fixed 15 s in-game grace (`IN_GAME_AWAY_GRACE_MS`) + client fallbacks aligned to 15000 ms. |
 | **P1** | **XP persistence** | Design account-independent persistence; document migration from browser-local progression. |
 | **P1** | **Mobile browser onboarding (PWA → Google)** | Install-first coach on mobile browser; decline path couples display name with Google Sign-in sync (Play Store / stats). |
 | **P2** | **Turn Ownership Invariant** | **Documentation only** unless a live bug traces here. Do not redesign `currentPlayerIndex` or new ownership APIs. Tests/validation only when supporting an active bug investigation. See [TURN_OWNERSHIP_INVESTIGATION.md](./TURN_OWNERSHIP_INVESTIGATION.md). |
@@ -79,7 +79,7 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 | Priority | Gaps |
 |----------|------|
 | **P0** | Rankings before last hand (online); CPU takeover after disconnect; Returning player after timeout |
-| **P1** | Disconnect timeout; XP and progression persistence; Mobile browser onboarding (PWA → Google) (Ready-for-next-round seated gate resolved on critical-issues branch) |
+| **P1** | XP and progression persistence; Mobile browser onboarding (PWA → Google) (Ready-for-next-round seated gate resolved on critical-issues branch) |
 | **P2** | Turn Ownership Invariant (documented); Online pass optimistic local mutation; Pause state presentation; Bot-open disconnect model vs standard rooms; Ad monetization (H5 + Remove Ads); Android Play Store release; Product analytics (DIY) |
 
 **How to maintain:** When a gap is fixed, set `Status: Resolved` and add a one-line note with version or PR. When intent changes, update the architecture doc first, then close or rewrite the gap here.
@@ -93,21 +93,22 @@ If authoritative state is wrong, fix that before touching UI. For turn-pointer i
 **Intended behaviour:**  
 Fixed **15 second** reconnect window after an in-game disconnect. All clients show the same remaining time derived from server `reconnectUntil`.
 
-**Current behaviour:**  
-In-game grace is **20–30 seconds**, chosen at random per disconnect (`inGameAwayGraceMs()` in `server/index.js`). Lobby disconnect uses 15 s (`LOBBY_DISCONNECT_GRACE`). Client countdown uses `reconnectUntil` from `playerDisconnected` / lobby sync but the duration does not match the documented 15 s target.
+**Previous behaviour (pre-fix):**  
+In-game grace **was** 20–30 seconds, chosen at random per disconnect (`inGameAwayGraceMs()` in `server/index.js`). Lobby disconnect uses 15 s (`LOBBY_DISCONNECT_GRACE`). Client countdown uses `reconnectUntil` from `playerDisconnected` / lobby sync, but the duration did not match the documented 15 s target. Now fixed at 15 s (`IN_GAME_AWAY_GRACE_MS`); client falls back to 15000 ms.
 
 **Impact:**  
-Players experience inconsistent wait times; architecture and UI copy cannot promise a fixed 15 s window.
+Players experienced inconsistent wait times; architecture and UI copy could not promise a fixed 15 s window. No longer applies.
 
 **Files likely involved:**  
-`server/index.js` (`IN_GAME_AWAY_GRACE_*`, `markPlayerAway`, `scheduleAwayRemoval`), `src/screens/GameScreen.tsx` (`awayNotice`, `awayPlayers`), `src/game/socketAdapter.ts`
+`server/index.js` (`IN_GAME_AWAY_GRACE_MS`, `markPlayerAway`, `scheduleAwayRemoval`), `src/screens/GameScreen.tsx` (`awayNotice`, `awayPlayers`), `src/game/socketAdapter.ts`
 
 **Priority:** P1
 
-**Status:** Open
+**Status:** Resolved
 
 **Notes:**  
-Align server constant, broadcast `gracePeriod`, and any player-facing strings together. Gameplay Auditor Finding 9 reaffirmed (2026-06-08).
+Resolved: fixed 15 s in-game grace (`IN_GAME_AWAY_GRACE_MS`) + client fallbacks aligned to 15000 ms; verified end-to-end and asserted in `scripts/test-seat-security.mjs`.
+Pre-fix guidance: align server constant, broadcast `gracePeriod`, and any player-facing strings together. Gameplay Auditor Finding 9 (2026-06-08; now closed).
 
 ---
 
@@ -602,7 +603,7 @@ Short assessment of how well implementation matches documented architecture (as 
 |------|--------|
 | **Turn ownership** | Documented debt only; see gap **Turn Ownership Invariant** (fix on live bug, not proactive refactor). |
 | **Ready-for-next-round** | Spectator + seated `betweenRounds` guards shipped; optional broader ready-matrix coverage remains. |
-| **Disconnect handling** | Pause works on standard rooms; grace duration and presentation do not match intent. |
+| **Disconnect handling** | Pause works on standard rooms; grace fixed at 15 s; pause presentation still does not match intent. |
 | **CPU takeover** | Documented target; not implemented for private online games (abort instead). |
 | **Persistence** | Local-first XP; cloud partial; accounts not built. |
 | **Identity / accounts** | Profile id / socket identity only; mobile browser funnel scaffolds Google sync; OAuth not built. |
