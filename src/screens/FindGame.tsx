@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -113,6 +113,8 @@ export default function FindGame({
   const [roomsLoaded, setRoomsLoaded] = useState(false);
   const [isSearching, setIsSearching] = useState(true);
   const [playerName, setPlayerName] = useState("");
+  const preferredPlayerNameRef = useRef(preferredPlayerName);
+  preferredPlayerNameRef.current = preferredPlayerName;
   const [roomCode, setRoomCode] = useState("");
   const [codeFocused, setCodeFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,13 +140,8 @@ export default function FindGame({
 
     (async () => {
       const playerInfo = await getOrCreatePlayerId();
-      if (mounted) setPlayerName(playerInfo.displayName);
-
-      if (playerInfo.source === "fallback") {
-        setTimeout(async () => {
-          const updated = await getOrCreatePlayerId();
-          if (mounted) setPlayerName(updated.displayName);
-        }, 2000);
+      if (mounted) {
+        setPlayerName(preferredPlayerNameRef.current?.trim() || playerInfo.displayName);
       }
     })();
 
