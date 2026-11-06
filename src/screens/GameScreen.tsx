@@ -2795,7 +2795,7 @@ function GameScreen({
         ev.type === "state" &&
         ev.state?.type === "playerDisconnected"
       ) {
-        const grace = ev.state.gracePeriod ?? 25000;
+        const grace = ev.state.gracePeriod ?? 15000;
         const reconnectUntil =
           ev.state.reconnectUntil ?? Date.now() + grace;
         const playerId = ev.state.playerId as string | undefined;
@@ -2846,7 +2846,7 @@ function GameScreen({
                   until:
                     typeof member.reconnectUntil === "number"
                       ? member.reconnectUntil
-                      : (prev[member.id]?.until ?? Date.now() + 25000),
+                      : (prev[member.id]?.until ?? Date.now() + 15000),
                   reason:
                     member.awayReason === "left" ? "left" : member.awayReason,
                 };
