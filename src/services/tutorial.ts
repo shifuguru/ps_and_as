@@ -1,4 +1,4 @@
-import { type Storage } from "@react-native-async-storage/async-storage";
+import type Storage from "@react-native-async-storage/async-storage";
 
 const TUTORIAL_DONE_KEY = "@ps_and_as_tutorial_done";
 
