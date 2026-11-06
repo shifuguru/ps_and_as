@@ -155,7 +155,9 @@ export function opponentSeatPosition(
       sin > 0
         ? arenaWidth - sideAnchorMargin - footprintW
         : sideAnchorMargin;
-    left = edgeLeft + (left - edgeLeft) * SIDE_ANCHOR_CENTER_BLEND;
+    // dynamic blend factor based on viewport width.  For very wide viewports we use SIDE_ANCHOR_CENTER_BLEND; otherwise we fall back to 0.5
+    const blendFactor = arenaWidth > 1200 ? SIDE_ANCHOR_CENTER_BLEND : 0.5;
+    left = edgeLeft + (left - edgeLeft) * blendFactor;
   }
 
   return { left, top };
