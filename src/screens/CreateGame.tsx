@@ -323,7 +323,7 @@ export default function CreateGame({
   onNavigateToSettings?: () => void;
   onNavigateToAchievements?: () => void;
   joinRoomId?: string;
-  onRoomReady?: (roomId: string, roomName?: string) => void;
+  onRoomReady?: (roomId: string, roomName: string | undefined, playerName: string) => void;
   onLobbyMembersChange?: (members: LobbyMember[]) => void;
   preferredPlayerName?: string;
 }) {
@@ -338,6 +338,8 @@ export default function CreateGame({
   const [lobbyMembers, setLobbyMembers] = useState<LobbyMember[]>([]);
   const lobbyMembersRef = useRef<LobbyMember[]>([]);
   const playerNameRef = useRef("");
+  const preferredPlayerNameRef = useRef(preferredPlayerName);
+  preferredPlayerNameRef.current = preferredPlayerName;
   const playerIdRef = useRef<string | null>(null);
   const localIdRef = useRef<string | null>(null);
   const [roomName, setRoomName] = useState<string>("");
@@ -570,18 +572,11 @@ export default function CreateGame({
     (async () => {
       const playerInfo = await getOrCreatePlayerId();
       if (mounted) {
-        setPlayerId(playerInfo.id);
-        setPlayerName(playerInfo.displayName);
+        const name = preferredPlayerNameRef.current?.trim() || playerInfo.displayName;
+        setPlayerId(isSocketAdapter(adapter) ? adapter.getProfileId() || playerInfo.id : playerInfo.id);
+        playerNameRef.current = name;
+        setPlayerName(name);
         setPlayerNameReady(true);
-      }
-      if (playerInfo.source === "fallback") {
-        setTimeout(async () => {
-          const updatedInfo = await getOrCreatePlayerId();
-          if (mounted) {
-            setPlayerId(updatedInfo.id);
-            setPlayerName(updatedInfo.displayName);
-          }
-        }, 2000);
       }
     })();
     return () => {
@@ -770,10 +765,10 @@ export default function CreateGame({
             if (!roomTitleCheck.ok) {
               setRoomName("Game Room");
             }
-            onRoomReady?.(code, title);
+            onRoomReady?.(code, title, nameCheck.value);
           } else if (joinRoomId) {
             setActualRoomId(joinRoomId);
-            onRoomReady?.(joinRoomId);
+            onRoomReady?.(joinRoomId, undefined, playerNameRef.current);
           }
         } else {
           if (roomCreatedRef.current) return;
