@@ -142,6 +142,35 @@ export default function OpponentRing({
   const compact = ringLayout.totalPlayers >= 6;
   const totalPlayers = ringLayout.totalPlayers;
 
+  const seatPositions = useMemo(() => {
+    return seatIds.map((playerId, seatIndex) => {
+      if (seatIndex >= totalPlayers) return null;
+
+      const player = playersById.get(playerId);
+      if (!player) return null;
+
+      const isLocal = localSet.has(playerId);
+      const angle = ringAngleForSeat(seatIndex, totalPlayers);
+      const isOut = finishedSet.has(player.id);
+      const isActive = !isOut && player.id === currentPlayerId;
+      const isCPU   = isCpuPlayer(player);
+      const isLastPlay  = !!lastPlayPlayerId && player.id === lastPlayPlayerId && !isOut;
+      const celebrateTrickWin = !!trickWinnerPlayerId && player.id === trickWinnerPlayerId && !isOut;
+
+      const pos = opponentSeatPosition(angle, {
+        cx: ringLayout.cx,
+        cy: ringLayout.cy,
+        radius: ringLayout.radius,
+        arenaWidth,
+        footprintW: seatFootprintW,
+        footprintH: seatFootprintH,
+        sideAnchorMargin,
+      });
+
+      return { player, pos, isLocal, isOut, isActive, isCPU, isLastPlay, celebrateTrickWin };
+    });
+  }, [seatIds, playersById, localSet, finishedSet, currentPlayerId, lastPlayPlayerId, trickWinnerPlayerId, ringLayout, arenaWidth, seatFootprintW, seatFootprintH, sideAnchorMargin]);
+
   return (
     <View style={styles.arena} pointerEvents="box-none">
       {seatIds.map((playerId, seatIndex) => {
