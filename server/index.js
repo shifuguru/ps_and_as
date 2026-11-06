@@ -929,9 +929,9 @@ function tryStartNextRoundIfReady(roomId) {
   startNextRound(roomId);
 }
 
-// Testing timeouts — raise these for production (e.g. 60s in-game, 2m lobby, 10m empty shell).
-const IN_GAME_AWAY_GRACE_MIN_MS = 20 * 1000;
-const IN_GAME_AWAY_GRACE_MAX_MS = 30 * 1000;
+// Fixed product values - do not raise for production: in-game must stay 15 s to match the
+// documented reconnect window and LOBBY_DISCONNECT_GRACE.
+const IN_GAME_AWAY_GRACE_MS = 15 * 1000;
 const LOBBY_DISCONNECT_GRACE = 15 * 1000;
 /** How long an empty room shell stays joinable by code before auto-delete. */
 const EMPTY_ROOM_REJOIN_MS = 15 * 1000;
@@ -940,8 +940,7 @@ const emptyRoomTimers = {};
 const awayRemovalTimers = new Map();
 
 function inGameAwayGraceMs() {
-  const span = IN_GAME_AWAY_GRACE_MAX_MS - IN_GAME_AWAY_GRACE_MIN_MS;
-  return IN_GAME_AWAY_GRACE_MIN_MS + Math.floor(Math.random() * (span + 1));
+  return IN_GAME_AWAY_GRACE_MS;
 }
 
 function cancelAwayRemoval(roomId, playerId) {
