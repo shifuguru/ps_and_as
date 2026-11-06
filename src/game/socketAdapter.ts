@@ -123,6 +123,10 @@ export class SocketAdapter implements NetworkAdapter {
     return this.profileId;
   }
 
+  getPreferredProfileId(): string {
+    return this.preferredProfileId;
+  }
+
   getHostId(): string | null {
     return this.cachedHostId;
   }
