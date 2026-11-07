@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node index.js",
+    "start": "ENABLE_ON_DEMAND_BOT_TABLE=true node index.js",
+    "dev": "ENABLE_ON_DEMAND_BOT_TABLE=true node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
