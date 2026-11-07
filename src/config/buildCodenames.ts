@@ -187,6 +187,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.2.21": "Joker's Wild Ride",
   "1.2.22": "Ace Up the Sleeve",
   "1.2.23": "Your Turn, Apparently",
+  "1.2.24": "Fold Em And Hold Em",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
