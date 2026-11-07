@@ -3,7 +3,7 @@
  * - live seat hijack via public profileId
  * - disconnect reclaim without reconnectSecret
  * - name-only reclaim
- * - cross-room leave must pause (not ghost) in-game seats
+ * - cross-room leave must abort cleanly (not ghost) in-game seats
  * - forged roundFinished must not broadcast fake rankings
  * - mid-round ready must not start next deal
  *
@@ -213,13 +213,14 @@ async function testNameOnlyReclaimBlocked() {
   console.log("  PASS name-only reclaim blocked");
 }
 
-async function testCrossRoomLeavePausesMatch() {
+async function testCrossRoomLeaveAbortsMatch() {
   const roomA = roomCode("A");
   const roomB = roomCode("B");
   const { host, guest, third } = await startThreePlayerGame(roomA);
   const guestId = guest.state.id;
 
-  // Guest creates a new room on the same socket — must pause room A, not ghost-remove.
+  // Guest creates a new room on the same socket - confirmed leave must abort room A cleanly.
+  const aborted = once(host.socket, "gameAborted", 3000);
   guest.socket.emit("createRoom", {
     roomId: roomB,
     name: "Guest",
@@ -227,34 +228,20 @@ async function testCrossRoomLeavePausesMatch() {
     isPublic: false,
   });
   await once(guest.socket, "connected");
-  await wait(500);
+  const abortPayload = await aborted;
 
-  if (!host.state.playerDisconnected && !host.state.lobby?.players?.some((p) => p.id === guestId && p.disconnected)) {
-    throw new Error("cross-room leave did not mark in-game seat away");
+  if (abortPayload.roomId !== roomA) {
+    throw new Error(`aborted wrong room: ${abortPayload.roomId}`);
   }
-  host.socket.emit("requestGameState", { roomId: roomA });
-  await wait(300);
-  const stillSeated = host.state.gameState?.players?.some((p) => p.id === guestId);
-  if (!stillSeated) {
-    throw new Error("in-game player was removed from gameState (ghost/abort path)");
+  if (!/left and did not return/i.test(abortPayload.message ?? "")) {
+    throw new Error(`unexpected abort message: ${abortPayload.message}`);
   }
-  // Actions should be paused
-  host.state.errors = [];
-  host.socket.emit("gameAction", {
-    roomId: roomA,
-    action: { type: "pass" },
-  });
-  await wait(400);
-  if (!host.state.errors.some((m) => /paused|reconnect/i.test(m))) {
-    // Host may not be current player; ask guest seat via third — still expect pause for current actor.
-    // Soft check: room still inGame with away player present.
-    if (!host.state.lobby?.players?.some((p) => p.id === guestId && p.disconnected)) {
-      throw new Error("expected paused away seat after cross-room leave");
-    }
+  if (host.state.gameAborted?.roomId !== roomA) {
+    throw new Error("host did not observe gameAborted for room A");
   }
 
   for (const c of [host, guest, third]) c.socket.disconnect();
-  console.log("  PASS cross-room leave pauses match (no ghost seat)");
+  console.log("  PASS cross-room leave aborts match (no ghost seat)");
 }
 
 async function testForgedRoundFinishedIgnored() {
@@ -356,6 +343,9 @@ async function testPauseJoinIsSpectator() {
   if (!host.state.playerDisconnected) {
     throw new Error("expected playerDisconnected during reconnect pause");
   }
+  if (host.state.playerDisconnected.gracePeriod !== 15000) {
+    throw new Error(`expected 15s reconnect grace, got ${host.state.playerDisconnected.gracePeriod}`);
+  }
 
   const carol = await join("Carol", `carol-${roomId}`, roomId);
   if (!carol.state.id) {
@@ -406,7 +396,7 @@ async function main() {
   await testSecretRequiredAfterDisconnect();
   await testNameOnlyReclaimBlocked();
   await testProfileIdPreClaimDoesNotLockout();
-  await testCrossRoomLeavePausesMatch();
+  await testCrossRoomLeaveAbortsMatch();
   await testForgedRoundFinishedIgnored();
   await testMidRoundReadyIgnored();
   await testPauseJoinIsSpectator();

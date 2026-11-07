@@ -66,6 +66,7 @@ export const STACK_CENTER_Y = 0.5;
 
 /** Fixed chrome slots inside the gameplay stage — never derived from pile bounds. */
 export const STAGE_PLAY_TYPE_BADGE_GAP = 16;
+export const STAGE_PLAY_TYPE_BADGE_GAP_COMPACT = 28;
 export const STAGE_PLAY_TYPE_BADGE_HEIGHT = 30;
 export const STAGE_TURN_HINT_GAP = 8;
 
@@ -86,10 +87,11 @@ export function stagePlayTypeBadgeTop(
 /** Play-type pills ("Singles", "Runs!", …) — anchored above the played-card stack. */
 export function stagePlayTypeBadgeAboveStackTop(
   playStackTop: number,
+  gap = STAGE_PLAY_TYPE_BADGE_GAP,
 ): number {
   return Math.max(
     0,
-    playStackTop - STAGE_PLAY_TYPE_BADGE_GAP - STAGE_PLAY_TYPE_BADGE_HEIGHT,
+    playStackTop - gap - STAGE_PLAY_TYPE_BADGE_HEIGHT,
   );
 }
 

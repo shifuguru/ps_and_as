@@ -53,4 +53,3 @@ yarn-error.*
 # Runtime-generated server data
 /server/data/player-stats.json
 /server/data/analytics.json
-scripts/*

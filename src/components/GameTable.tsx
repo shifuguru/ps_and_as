@@ -29,6 +29,7 @@ import {
   isUnifiedActivePilePlay,
   unifiedActivePileGroupZ,
   stageCardRowCenterY,
+  STAGE_PLAY_TYPE_BADGE_GAP_COMPACT,
   stagePlayTypeBadgeAboveStackTop,
   stageRunXpTop,
   playStackTopFromLayout,
@@ -398,8 +399,14 @@ export default function GameTable({
   );
 
   const playTypeBadgeTop = useMemo(
-    () => stagePlayTypeBadgeAboveStackTop(playStackTop),
-    [playStackTop],
+    () =>
+      stagePlayTypeBadgeAboveStackTop(
+        playStackTop,
+        layoutHint?.isCompact || layoutHint?.isVeryCompact
+          ? STAGE_PLAY_TYPE_BADGE_GAP_COMPACT
+          : undefined,
+      ),
+    [playStackTop, layoutHint?.isCompact, layoutHint?.isVeryCompact],
   );
 
   const runXpTop = useMemo(

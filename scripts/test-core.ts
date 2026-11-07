@@ -66,7 +66,6 @@ import {
 } from "../src/game/roundPrep";
 import {
   resolveCeremonyLaunchMode,
-  resolveOnlineRoomSkipDealAnimations,
   resolveSkipDealAnimations,
 } from "../src/game/dealCeremonyAnimation";
 import { applyFinishOrderRoles, roleForPlacement, supportsViceRoles } from "../src/utils/roundRoles";
@@ -2657,19 +2656,13 @@ console.log("Server role-trade sync tests passed");
     "Offline ignores room flag",
   );
   assert.strictEqual(
-    resolveOnlineRoomSkipDealAnimations({
-      syncSkipDealAnimations: true,
-      cachedRoomSkipDealAnimations: false,
+    resolveSkipDealAnimations({
+      onlineMultiplayer: true,
+      roomSkipDealAnimations: false,
+      localSkipDealAnimations: true,
     }),
-    true,
-    "gameStateSync skip flag wins over stale adapter cache",
-  );
-  assert.strictEqual(
-    resolveOnlineRoomSkipDealAnimations({
-      cachedRoomSkipDealAnimations: true,
-    }),
-    true,
-    "Adapter cache used when sync flag absent",
+    false,
+    "Online respects enabled room animations even when the guest skips locally",
   );
   const pendingTrade = {
     key: "president" as const,
