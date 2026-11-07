@@ -77,7 +77,7 @@ export default function RoundEndCelebration({ active }: { active: boolean }) {
   const swayInput = Array.from({ length: SWAY_STEPS + 1 }, (_, k) => k / SWAY_STEPS);
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View testID="round-end-celebration" style={StyleSheet.absoluteFill} pointerEvents="none">
       {bubbles.map((b, i) => {
         const v = progress[i];
         const swayOut = swayInput.map(

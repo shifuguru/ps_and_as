@@ -120,11 +120,13 @@ export default function HubOnlinePlayPanel({
               const isBotTable = !!room.isBotHosted;
               const botStalled = !!room.botTableStalled;
               const full =
-                !inPlay && !isBotTable && room.playerCount >= room.maxPlayers;
+                (room.onDemandBotTable && room.humanSeatsAvailable === false) ||
+                (!inPlay && !isBotTable && room.playerCount >= room.maxPlayers);
               const showSpectate =
+                !full &&
                 !!onSpectateRoom &&
                 !!room.inGame &&
-                seatOpen &&
+                (seatOpen || !!room.onDemandBotTable) &&
                 room.playerCount >= 2 &&
                 (isBotTable || inPlay);
               const actionLabel = showSpectate

@@ -6,6 +6,7 @@ import {
   StyleSheet,
 } from "react-native";
 import BlurPanel from "../components/BlurPanel";
+import AvatarRewardBorder from "../components/AvatarRewardBorder";
 import ProgressMeter from "../components/ProgressMeter";
 import { useAppTheme } from "../context/ThemeContext";
 import type { PlayerStats } from "../services/playerStats";
@@ -23,6 +24,7 @@ import {
 import { hexToRgba } from "../utils/colorTheory";
 import { triggerHaptic } from "../utils/haptics";
 import { useGameTerminology } from "../hooks/useGameTerminology";
+import { resolveTitleAvatarBorder, type AvatarBorderDesign } from "../rewards/avatarBorders";
 
 export function TitlesScrollContent({ stats }: { stats: PlayerStats }) {
   const { colors, ui } = useAppTheme();
@@ -68,7 +70,7 @@ export function TitlesScrollContent({ stats }: { stats: PlayerStats }) {
           {wording(activeTitle ?? "None selected")}
         </Text>
         <Text style={styles.hint}>
-          Selected title track will be displayed on your profile.
+          Your selected title also determines your avatar decoration. Its appearance changes with each tier.
         </Text>
       </BlurPanel>
 
@@ -86,6 +88,7 @@ export function TitlesScrollContent({ stats }: { stats: PlayerStats }) {
         <TitleTrackRow
           key={row.track.id}
           row={row}
+          border={resolveTitleAvatarBorder(stats, row.track.id)}
           isDisplayed={displayTrackId === row.track.id}
           saving={savingTrackId === row.track.id}
           onToggleDisplay={() => handleSelectDisplay(row.track.id)}
@@ -100,6 +103,7 @@ export function TitlesScrollContent({ stats }: { stats: PlayerStats }) {
 
 function TitleTrackRow({
   row,
+  border,
   isDisplayed,
   saving,
   onToggleDisplay,
@@ -108,6 +112,7 @@ function TitleTrackRow({
   ui,
 }: {
   row: TitleTrackProgress;
+  border: AvatarBorderDesign | null;
   isDisplayed: boolean;
   saving: boolean;
   onToggleDisplay: () => void;
@@ -133,6 +138,11 @@ function TitleTrackRow({
       intensity={44}
     >
       <View style={styles.trackHeader}>
+        {border ? (
+          <View style={styles.decorationPreview}>
+            <AvatarRewardBorder design={border} avatarSize={32} />
+          </View>
+        ) : null}
         <View style={styles.trackTitleBlock}>
           <Text style={styles.trackName}>{wording(row.track.trackName)}</Text>
           <Text style={styles.tierName} numberOfLines={1}>
@@ -221,6 +231,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       gap: 12,
     },
     trackTitleBlock: { flex: 1 },
+    decorationPreview: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: hexToRgba(colors.textSecondary, 0.18),
+      marginBottom: 8,
+    },
     trackName: {
       color: colors.textPrimary,
       fontSize: 16,

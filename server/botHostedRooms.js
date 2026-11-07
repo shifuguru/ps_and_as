@@ -1,9 +1,9 @@
 /**
  * Bot-hosted tables (Open Bot Table BOTOPN + optional QA rooms).
  *
- * Public Open Bot Table is **off by default** — it used to auto-deal forever with
- * zero humans and burn server CPU. Set ENABLE_OPEN_BOT_TABLE=1 to opt in (tests /
- * explicit ops). Find Game still hides BOTOPN (D-010) even when enabled.
+ * The legacy public table is off by default and remains hidden (D-010).
+ * ENABLE_OPEN_BOT_TABLE=1 enables its original autopilot for tests / explicit ops.
+ * ENABLE_ON_DEMAND_BOT_TABLE=1 instead exposes an idle table that starts on join.
  *
  * QA League uses ensureBotHostedRoomAt(QALEG) under PS_QA_LEAGUE — independent.
  */
@@ -34,6 +34,11 @@ function isOpenBotTableEnabled() {
   const v = process.env.ENABLE_OPEN_BOT_TABLE;
   return v === '1' || v === 'true' || String(v || '').toLowerCase() === 'yes';
 }
+
+function isOnDemandBotTableEnabled() {
+  const v = process.env.ENABLE_ON_DEMAND_BOT_TABLE;
+  return v === '1' || v === 'true' || String(v || '').toLowerCase() === 'yes';
+}
 /** No bot progress while a round is active — table is probably stuck. */
 const BOT_NO_TIMER_STALL_MS = 18_000;
 /** No progress at all (including between rounds with nobody watching). */
@@ -43,6 +48,7 @@ const BOT_EMPTY_BETWEEN_ROUNDS_MS = 45_000;
 const BOT_SKIP_COOLDOWN_MS = 8_000;
 
 const tableRoster = require('./tableRoster');
+const { clearJokerAckAutoPassTimer } = require('./turnAdvance');
 
 const CPU_ID_RE = /^cpu-\d+$/i;
 const DEAD_HAND_ID = tableRoster.DEAD_HAND_ID;
@@ -67,8 +73,8 @@ function hasHumanPublicLobbies(rooms, isRoomListedPublic) {
 
 function shouldListBotRoom(rooms, room, isRoomListedPublic) {
   if (!room?.isBotHosted) return false;
-  if (!isOpenBotTableEnabled()) return false;
-  if (hasHumanPublicLobbies(rooms, isRoomListedPublic)) return false;
+  if (!isOpenBotTableEnabled() && !isOnDemandBotTableEnabled()) return false;
+  if (!room.onDemand && hasHumanPublicLobbies(rooms, isRoomListedPublic)) return false;
   return isRoomListedPublic(room);
 }
 
@@ -93,7 +99,7 @@ function shutdownOpenBotTableIfPresent(ctx) {
 
   delete ctx.rooms[BOT_ROOM_CODE];
   console.log(
-    '[Server] Open Bot Table disabled — BOTOPN stopped (set ENABLE_OPEN_BOT_TABLE=1 to enable)',
+    '[Server] Open Bot Table disabled — BOTOPN stopped',
   );
   if (typeof ctx.broadcastAvailableRooms === 'function') {
     ctx.broadcastAvailableRooms();
@@ -117,7 +123,10 @@ function countHumansSeated(room) {
 }
 
 function openSeatsForHumans(room) {
-  return Math.max(0, MAX_SEATED - countHumansSeated(room));
+  const humans = room.onDemand
+    ? room.players.filter((p) => !p.isSpectator && !isBotMember(p)).length
+    : countHumansSeated(room);
+  return Math.max(0, MAX_SEATED - humans);
 }
 
 /** True when spectators can still claim a seat at this bot table. */
@@ -128,7 +137,7 @@ function openSeatsAvailable(room) {
 
 function canJoinBotRoomInProgress(room) {
   if (!room?.isBotHosted || !room.inGame) return true;
-  return countHumansSeated(room) < MAX_SEATED;
+  return openSeatsForHumans(room) > 0;
 }
 
 function shouldJoinBotRoomAsSpectator(room) {
@@ -191,12 +200,15 @@ function promoteReadySpectators(room) {
   }
 
   let bots = room.players.filter((p) => isBotMember(p) && !p.isSpectator);
-  for (let i = 0; i < toPromote.length && bots.length > 0; i++) {
+  const botsToRemove = room.onDemand
+    ? Math.max(0, room.players.filter((p) => !p.isSpectator).length - MAX_SEATED)
+    : toPromote.length;
+  for (let i = 0; i < botsToRemove && bots.length > 0; i++) {
     const bot = bots.pop();
     room.players = room.players.filter((p) => p.id !== bot.id);
   }
 
-  if (countHumansSeated(room) >= 2) {
+  if (!room.onDemand && countHumansSeated(room) >= 2) {
     room.players = room.players.filter((p) => !isBotMember(p));
   }
 
@@ -229,6 +241,14 @@ function createBotMembers() {
   ];
 }
 
+function refillBotSeats(room) {
+  if (!room?.onDemand) return;
+  for (const bot of createBotMembers()) {
+    if (room.players.filter((p) => !p.isSpectator).length >= MAX_SEATED) break;
+    if (!room.players.some((p) => p.id === bot.id)) room.players.push(bot);
+  }
+}
+
 /**
  * @param {Record<string, object>} rooms
  * @param {string} roomCode
@@ -258,10 +278,12 @@ function createBotHostedRoomAt(rooms, roomCode, options = {}) {
 }
 
 function createBotHostedRoom(rooms) {
-  return createBotHostedRoomAt(rooms, BOT_ROOM_CODE, {
+  const room = createBotHostedRoomAt(rooms, BOT_ROOM_CODE, {
     isPublic: true,
     roomName: 'Open Bot Table',
   });
+  room.onDemand = isOnDemandBotTableEnabled();
+  return room;
 }
 
 /** Start or resume bot turn loop for any bot-hosted room id. */
@@ -577,6 +599,7 @@ function connectedLobbyCount(room) {
 
 function isBotRoomStalled(room) {
   if (!room?.isBotHosted || !room.inGame) return false;
+  if (room.onDemand && room.players.some((p) => !isBotMember(p) && p.disconnectedAt && !p.isSpectator)) return false;
   const now = Date.now();
   const last = room._botLastProgressAt ?? room.createdAt ?? now;
 
@@ -591,6 +614,12 @@ function isBotRoomStalled(room) {
       return true;
     }
     return false;
+  }
+
+  if (room.onDemand) {
+    const pendingTrades = Object.values(room.gameState.pendingTrades || {});
+    if (pendingTrades.some((trade) => !trade.selected)) return false;
+    if (!shouldBotCpuAct(room)) return false;
   }
 
   if (!room._botTurnTimer && now - last > BOT_NO_TIMER_STALL_MS) {
@@ -628,7 +657,7 @@ function resetBotHostedRoom(roomId, ctx, message) {
 }
 
 function repairBotHostedRoomIfNeeded(ctx) {
-  if (!isOpenBotTableEnabled()) {
+  if (!isOpenBotTableEnabled() && !isOnDemandBotTableEnabled()) {
     return shutdownOpenBotTableIfPresent(ctx);
   }
 
@@ -761,6 +790,7 @@ function processBotTurnStep(room, ctx) {
 function scheduleBotTurns(roomId, ctx) {
   const room = ctx.rooms[roomId];
   if (!room?.isBotHosted || !room.inGame) return;
+  if (room.onDemand && ctx.isGamePausedForAway(room)) return;
   if (room._botTurnTimer) return;
 
   room._botTurnTimer = setTimeout(() => {
@@ -799,6 +829,7 @@ function runBotTurnLoop(roomId, ctx) {
     if (safety-- <= 0) return;
     const live = ctx.rooms[roomId];
     if (!live?.inGame || !live.gameState) return;
+    if (ctx.isGamePausedForAway(live)) return;
 
     if (resolveBotPendingTrades(live, ctx)) {
       ctx.emitTradesCompleteIfReady(
@@ -920,13 +951,13 @@ function startBotHostedGame(roomId, ctx) {
 }
 
 function ensureBotHostedRooms(ctx) {
-  if (!isOpenBotTableEnabled()) {
+  if (!isOpenBotTableEnabled() && !isOnDemandBotTableEnabled()) {
     shutdownOpenBotTableIfPresent(ctx);
     return null;
   }
 
   const { rooms } = ctx;
-  if (hasHumanPublicLobbies(rooms, ctx.isRoomListedPublic)) {
+  if (!isOnDemandBotTableEnabled() && hasHumanPublicLobbies(rooms, ctx.isRoomListedPublic)) {
     return null;
   }
 
@@ -936,6 +967,8 @@ function ensureBotHostedRooms(ctx) {
   if (!room) {
     room = createBotHostedRoom(rooms);
   }
+
+  if (room.onDemand) return room;
 
   if (!room.inGame || !room.gameState) {
     startBotHostedGame(BOT_ROOM_CODE, ctx);
@@ -974,6 +1007,9 @@ function skipBotHostedGame(roomId, ctx) {
   const code = String(roomId || '').trim().toUpperCase();
   const room = ctx.rooms[code];
   if (!room?.isBotHosted) return { ok: false, message: 'Not a bot table.' };
+  if (room.onDemand && ctx.isGamePausedForAway(room)) {
+    return { ok: false, message: 'Waiting for a player to reconnect.' };
+  }
 
   const now = Date.now();
   if (room._lastBotSkipAt && now - room._lastBotSkipAt < BOT_SKIP_COOLDOWN_MS) {
@@ -1099,6 +1135,29 @@ function onBotRoomRoundFinished(room, roomId, ctx, hasLastHandReveal = false) {
 function afterBotRoomPlayerLeft(room, roomId, ctx) {
   if (!room?.isBotHosted) return false;
 
+  if (room.onDemand) {
+    const humans = room.players.filter((p) => !isBotMember(p));
+    if (humans.length === 0) {
+      if (room._botTurnTimer) clearTimeout(room._botTurnTimer);
+      room._botTurnTimer = null;
+      clearJokerAckAutoPassTimer(room);
+      room._jokerAckDeadline = null;
+      clearBotNextRoundSchedule(room, roomId, ctx.io);
+      room.players = createBotMembers();
+      room.host = room.creatorId = 'cpu-1';
+      room.hostName = BOT_NAMES[0];
+      room.gameState = null;
+      room.inGame = false;
+      return true;
+    }
+    ensureHumanHost(room);
+    if (!ctx.isGamePausedForAway(room)) {
+      ctx.tryStartNextRoundIfReady(roomId);
+      scheduleBotTurns(roomId, ctx);
+    }
+    return true;
+  }
+
   // Keep bots and every still-connected human (seated or spectator).
   // Previously this also dropped all connected spectators whenever anyone
   // left, which wiped remaining watchers / ready-to-promote state.
@@ -1120,6 +1179,8 @@ function roomListingExtras(room) {
   return {
     isBotHosted: true,
     botTableStalled: isBotRoomStalled(room),
+    onDemandBotTable: !!room.onDemand,
+    ...(room.onDemand ? { humanSeatsAvailable: openSeatsForHumans(room) > 0 } : {}),
   };
 }
 
@@ -1137,7 +1198,9 @@ const __investigation = {
 module.exports = {
   BOT_ROOM_CODE,
   isOpenBotTableEnabled,
+  isOnDemandBotTableEnabled,
   createBotHostedRoomAt,
+  refillBotSeats,
   ensureBotHostedRoomAt,
   startBotHostedGame,
   __investigation,

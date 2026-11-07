@@ -246,7 +246,7 @@ export default function GameplayHud({
                 accessibilityLabel="Game rules"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <MenuIcon name="list" size={16} color={colors.accent} />
+                <MenuIcon name="bookOpen" size={16} color={colors.accent} />
               </TouchableOpacity>
             ) : null}
             {onOpenTableChat ? (

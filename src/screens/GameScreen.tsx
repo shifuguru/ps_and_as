@@ -111,6 +111,8 @@ import {
   resolveAvatarBorder,
   type AvatarBorderDesign,
 } from "../rewards/avatarBorders";
+import { usePlayerAvatarBorder } from "../hooks/usePlayerAvatarBorder";
+import { fetchCloudPlayerRecord } from "../services/playerStatsCloud";
 import {
   getCpuAvatarBorder,
   getCpuCareerXp,
@@ -673,9 +675,7 @@ function GameScreen({
   const [playerReadyStates, setPlayerReadyStates] = useState<{
     [playerId: string]: boolean;
   }>({});
-  const [localAvatarBorder, setLocalAvatarBorder] = useState<AvatarBorderDesign | null>(
-    null,
-  );
+  const localAvatarBorder = usePlayerAvatarBorder();
   const [lastTrickWinner, setLastTrickWinner] = useState<string | null>(null);
   const [showWinnerBanner, setShowWinnerBanner] = useState(false);
   const [stackCollecting, setStackCollecting] = useState(false);
@@ -1974,12 +1974,6 @@ function GameScreen({
   }, [awayPlayers]);
 
   useEffect(() => {
-    void getPlayerStats().then((stats) => {
-      setLocalAvatarBorder(resolveAvatarBorder(stats));
-    });
-  }, []);
-
-  useEffect(() => {
     if (!onlineMultiplayer || !myPlayerId) return;
     void getPlayerStats().then((stats) => {
       void pushCloudPlayerStats(myPlayerId, stats);
@@ -1990,9 +1984,6 @@ function GameScreen({
     if (!showWinnerBanner || !myPlayerId || trickPauseSnapshot?.winnerId !== myPlayerId) {
       return;
     }
-    void getPlayerStats().then((stats) => {
-      setLocalAvatarBorder(resolveAvatarBorder(stats));
-    });
     const xp = TRICK_WIN_XP + (trickPauseSnapshot?.runBonusXp ?? 0);
     pushGameplayToast({
       kind: "xp",
@@ -4567,9 +4558,9 @@ function GameScreenBoard() {
       await Promise.all(
         humans.map(async (player) => {
           if (player.id === myPlayerId) return;
-          const cloud = await fetchCloudPlayerStats(player.id);
-          if (!cloud) return;
-          const border = resolveAvatarBorder(cloud);
+          const record = await fetchCloudPlayerRecord(player.id);
+          if (!record?.stats) return;
+          const border = resolveAvatarBorder(record.stats, record.profile?.displayTitleTrackId);
           if (border) borders[player.id] = border;
         }),
       );

@@ -13,6 +13,8 @@ export type AvailableRoom = {
   spectatorCount?: number;
   isBotHosted?: boolean;
   botTableStalled?: boolean;
+  onDemandBotTable?: boolean;
+  humanSeatsAvailable?: boolean;
 };
 
 export function formatRoomTimeAgo(timestamp: number): string {
@@ -23,9 +25,10 @@ export function formatRoomTimeAgo(timestamp: number): string {
   return `${Math.floor(minutes / 60)}h ago`;
 }
 
-/** D-010 — hide bot-hosted public table from listings. */
 export function filterPublicRooms(rooms: AvailableRoom[]): AvailableRoom[] {
   return rooms.filter(
-    (room) => !room.isBotHosted && !isBotPublicRoomCode(room.roomId),
+    (room) =>
+      room.onDemandBotTable ||
+      (!room.isBotHosted && !isBotPublicRoomCode(room.roomId)),
   );
 }

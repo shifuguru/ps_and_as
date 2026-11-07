@@ -36,6 +36,7 @@ import OnlinePlayersModal from "../components/OnlinePlayersModal";
 import MenuIcon from "../components/MenuIcon";
 import HubProgressRing from "../components/HubProgressRing";
 import NextAchievementCard from "../components/NextAchievementCard";
+import PlayerStatisticsPanel from "../components/PlayerStatisticsPanel";
 import RewardClaimBurst from "../components/RewardClaimBurst";
 import RunsPill from "../gameplayPresentation/RunsEffect/RunsPill";
 import {
@@ -56,7 +57,6 @@ import { strings } from "../strings";
 import { useGameTerminology } from "../hooks/useGameTerminology";
 import {
   getPlayerStats,
-  winRate,
   formatAchievementPrestige,
   type PlayerStats,
   type AchievementDef,
@@ -86,19 +86,12 @@ import {
   loadDailyLoginState,
   type DailyLoginState,
 } from "../services/dailyLoginReward";
-import {
-  resolveAvatarBorder,
-  type AvatarBorderDesign,
-} from "../rewards/avatarBorders";
+import { usePlayerAvatarBorder } from "../hooks/usePlayerAvatarBorder";
 import {
   RARITY_COLOR,
   RARITY_LABEL,
   rarityForAchievementId,
 } from "../services/achievementRarity";
-import {
-  selectFeaturedStat,
-  type FeaturedStat,
-} from "../services/featuredStat";
 import {
   readDisplayTitleTrackId,
   displayedTitleForStats,
@@ -149,7 +142,6 @@ export type PlayerHubActions = {
   onJoinOnlineRoom: (roomId: string, playerName: string) => void;
   onSpectateOnlineRoom?: (roomId: string, playerName: string) => void;
   onOpenAchievements: () => void;
-  onOpenTitles: () => void;
   onOpenWhatsNew: () => void;
   onOpenSettings: () => void;
   onOpenReadMe: () => void;
@@ -206,7 +198,7 @@ export default function PlayerHub({
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [goals, setGoals] = useState<HubGoal[]>([]);
   const [nextAch, setNextAch] = useState<NextAchievement | null>(null);
-  const [border, setBorder] = useState<AvatarBorderDesign | null>(null);
+  const border = usePlayerAvatarBorder();
   const [recent, setRecent] = useState<{
     def: AchievementDef;
     age: string;
@@ -215,7 +207,6 @@ export default function PlayerHub({
   const [dailyDef, setDailyDef] = useState<DailyChallengeDef | null>(null);
   const [dailyState, setDailyState] = useState<DailyChallengeState | null>(null);
   const [loginState, setLoginState] = useState<DailyLoginState | null>(null);
-  const [featured, setFeatured] = useState<FeaturedStat | null>(null);
   const [displayedTitle, setDisplayedTitle] = useState<string | null>(null);
   const [onlinePlayersOpen, setOnlinePlayersOpen] = useState(false);
   const [friends, setFriends] = useState<FriendProfile[]>([]);
@@ -277,11 +268,9 @@ export default function PlayerHub({
     setDisplayedTitle(
       playerTitle ?? displayedTitleForStats(s, trackId) ?? null,
     );
-    setFeatured(selectFeaturedStat(s));
     const next = selectNextAchievement(s);
     setNextAch(next);
     setGoals(selectHubGoals(s, 3, next?.def.id));
-    setBorder(resolveAvatarBorder(s));
     const recentUnlock = await getMostRecentUnlock();
     if (recentUnlock) {
       setRecent({
@@ -592,10 +581,19 @@ export default function PlayerHub({
       return;
     }
     if (isBotPublicRoomCode(normalized)) {
-      setOnlineError(
-        "No public games available right now. Host a game or try again later.",
+      const botRoom = publicRooms.find(
+        (room) => room.roomId === normalized && room.onDemandBotTable,
       );
-      return;
+      if (!botRoom) {
+        setOnlineError(
+          "No public games available right now. Host a game or try again later.",
+        );
+        return;
+      }
+      if (botRoom.inGame && actions.onSpectateOnlineRoom) {
+        handleSpectateOnlineRoom(normalized);
+        return;
+      }
     }
     handleJoinOnlineRoom(normalized);
   };
@@ -627,11 +625,9 @@ export default function PlayerHub({
       ]).start();
       const refreshed = await getPlayerStats();
       setStats(refreshed);
-      setFeatured(selectFeaturedStat(refreshed));
       const nextRefreshed = selectNextAchievement(refreshed);
       setNextAch(nextRefreshed);
       setGoals(selectHubGoals(refreshed, 3, nextRefreshed?.def.id));
-      setBorder(resolveAvatarBorder(refreshed));
     },
     [animateXpTo, xpPulse],
   );
@@ -796,16 +792,16 @@ export default function PlayerHub({
             accessibilityLabel="Open game rules"
             style={styles.identityActionBtn}
           >
-            <MenuIcon name="list" size={25} color={colors.accent} />
+            <MenuIcon name="bookOpen" size={25} color={colors.accent} />
           </TouchableOpacity>
           <Text style={styles.identityActionLabel}>Rules</Text>
         </View>
         <View style={styles.identityActionItem}>
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => run(actions.onOpenTitles)}
+            onPress={() => run(actions.onOpenAchievements)}
             accessibilityRole="button"
-            accessibilityLabel="Open titles and achievements"
+            accessibilityLabel="Open achievements"
             style={styles.identityActionBtn}
           >
             <MenuIcon name="trophy" size={27} color={colors.accent} />
@@ -813,7 +809,7 @@ export default function PlayerHub({
               <Text style={[styles.titleActionText, gameTitleFaceStyle()]}>T</Text>
             </View>
           </TouchableOpacity>
-          <Text style={styles.identityActionLabel}>Titles</Text>
+          <Text style={styles.identityActionLabel}>Achievements</Text>
         </View>
         <View style={styles.identityActionItem}>
           <TouchableOpacity
@@ -1190,72 +1186,113 @@ export default function PlayerHub({
 
           {/* Recent Unlock — celebration when fresh */}
           {hasPlayed && recent && recentRarity ? (
-            <BlurPanel
-              intensity={44}
-              style={[
-                styles.card,
-                styles.utilityCard,
-                { borderColor: hexToRgba(recentAccent, 0.32) },
-              ]}
+            <TouchableOpacity
+              activeOpacity={0.88}
+              accessibilityRole="button"
+              onPress={() => run(actions.onOpenAchievements)}
             >
-              <Text style={styles.sectionTitle}>
-                {recent.prestige > 1 ? "Recent Prestige" : "Recent Unlock"}
-                {" · "}
-                <Text style={{ color: recentAccent }}>
-                  {RARITY_LABEL[recentRarity]}
-                </Text>
-              </Text>
-              <View style={styles.unlockRow}>
-                <Text style={styles.unlockEmoji}>{recent.def.emoji}</Text>
-                <View style={styles.unlockBody}>
-                  <Text style={[styles.unlockTitle, { color: recentAccent }]}>
-                    {wording(recent.def.title)}
-                    {recent.prestige > 1
-                      ? ` · ${formatAchievementPrestige(recent.prestige)}`
-                      : ""}
+              <BlurPanel
+                intensity={44}
+                style={[
+                  styles.card,
+                  styles.utilityCard,
+                  { borderColor: hexToRgba(recentAccent, 0.32) },
+                ]}
+              >
+                <View style={styles.recentHeader}>
+                  <Text style={styles.recentEyebrow}>
+                    {recent.prestige > 1 ? "Recent Prestige" : "Recent Unlock"}
                   </Text>
-                  <Text style={styles.goalSub} numberOfLines={2}>
-                    {wording(recent.def.description)}
-                  </Text>
-                  <Text style={styles.unlockAge}>
-                    {recent.prestige > 1 ? "Prestiged" : "Unlocked"} {recent.age}
-                  </Text>
+                  <View
+                    style={[
+                      styles.rarityPill,
+                      {
+                        backgroundColor: hexToRgba(recentAccent, 0.18),
+                        borderColor: hexToRgba(recentAccent, 0.4),
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.rarityPillText, { color: recentAccent }]}
+                    >
+                      {RARITY_LABEL[recentRarity]}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-              <TouchableOpacity
-                onPress={() => run(actions.onOpenTitles)}
-                style={styles.linkBtn}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.linkBtnText}>View Titles</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.linkBtn}
-                onPress={() => run(actions.onOpenAchievements)}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.linkBtnText}>View Achievements</Text>
-              </TouchableOpacity>
-            </BlurPanel>
+                <View style={styles.unlockRow}>
+                  <Text style={styles.unlockEmoji}>{recent.def.emoji}</Text>
+                  <View style={styles.unlockBody}>
+                    <Text style={[styles.unlockTitle, { color: recentAccent }]}>
+                      {wording(recent.def.title)}
+                      {recent.prestige > 1
+                        ? ` · ${formatAchievementPrestige(recent.prestige)}`
+                        : ""}
+                    </Text>
+                    <Text style={styles.goalSub} numberOfLines={2}>
+                      {wording(recent.def.description)}
+                    </Text>
+                    <Text style={styles.unlockAge}>
+                      {recent.prestige > 1 ? "Prestiged" : "Unlocked"}{" "}
+                      {recent.age}
+                    </Text>
+                  </View>
+                </View>
+              </BlurPanel>
+            </TouchableOpacity>
           ) : null}
 
           {/* Continue Your Journey — longer-arc goals */}
           {hasPlayed && goals.length > 0 ? (
-            <BlurPanel intensity={44} style={[styles.card, styles.utilityCard]}>
+            <BlurPanel
+              intensity={52}
+              style={[
+                styles.card,
+                styles.utilityCard,
+                styles.journeyCard,
+                { borderColor: hexToRgba(colors.accent, 0.38) },
+              ]}
+            >
               <Text style={styles.sectionTitle}>Continue Your Journey</Text>
               <View style={styles.goalStack}>
-                {goals.map((g, idx) => (
-                  <View key={g.id}>
-                    {idx > 0 ? <View style={styles.goalDivider} /> : null}
-                    <View style={styles.goalRow}>
-                      <View style={styles.goalTextCol}>
-                        <Text style={styles.goalTitle}>{wording(g.title)}</Text>
-                        <Text style={styles.goalSub}>{wording(g.subtitle)}</Text>
+                {goals.map((g) => {
+                  const goalAccent = g.achievementId
+                    ? RARITY_COLOR[rarityForAchievementId(g.achievementId)]
+                    : colors.accent;
+                  return (
+                    <TouchableOpacity
+                      key={g.id}
+                      activeOpacity={0.88}
+                      accessibilityRole="button"
+                      onPress={() => run(actions.onOpenAchievements)}
+                      style={[
+                        styles.journeyGoal,
+                        {
+                          backgroundColor: hexToRgba(goalAccent, 0.08),
+                          borderColor: hexToRgba(goalAccent, 0.3),
+                        },
+                      ]}
+                    >
+                      <View style={styles.journeyGoalHeader}>
+                        <Text
+                          style={[styles.journeyEyebrow, { color: goalAccent }]}
+                        >
+                          {g.kind === "achievement" && g.nextPrestige
+                            ? `Next Prestige ${formatAchievementPrestige(g.nextPrestige)}`
+                            : "Next Level"}
+                        </Text>
+                        <Text style={styles.journeyProgress}>
+                          {g.current} / {g.target}
+                        </Text>
                       </View>
-                      <ProgressMeter progress={g.fraction} height={7} />
-                    </View>
-                  </View>
-                ))}
+                      <Text style={styles.goalTitle}>{wording(g.title)}</Text>
+                      <ProgressMeter
+                        progress={g.fraction}
+                        height={7}
+                        fillColor={goalAccent}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </BlurPanel>
           ) : null}
@@ -1286,46 +1323,14 @@ export default function PlayerHub({
             </BlurPanel>
           ) : null}
 
-          {/* Stats Snapshot */}
+          {/* Full statistics */}
           {hasPlayed ? (
-            <BlurPanel intensity={44} style={[styles.card, styles.utilityCard]}>
-              <Text style={styles.sectionTitle}>Stats Snapshot</Text>
-              {featured ? (
-                <View style={styles.featuredStat}>
-                  <Text style={styles.featuredValue}>{featured.value}</Text>
-                  <Text style={styles.featuredLabel}>{wording(featured.label)}</Text>
-                  <Text style={styles.goalSub}>{wording(featured.hint)}</Text>
-                </View>
-              ) : null}
-              <View style={styles.statsGrid}>
-                <StatCell
-                  label="Rounds"
-                  value={String(stats?.roundsPlayed ?? 0)}
-                  styles={styles}
-                />
-                <StatCell
-                  label="Win Rate"
-                  value={`${stats ? winRate(stats) : 0}%`}
-                  styles={styles}
-                />
-                <StatCell
-                  label={wording("Presidents")}
-                  value={String(stats?.timesPresident ?? 0)}
-                  styles={styles}
-                />
-                <StatCell
-                  label="Tricks Won"
-                  value={String(stats?.tricksWon ?? 0)}
-                  styles={styles}
-                />
-              </View>
-              <TouchableOpacity
-                onPress={() => run(actions.onOpenAchievements)}
-                style={styles.linkBtn}
-              >
-                <Text style={styles.linkBtnText}>View Full Stats</Text>
-              </TouchableOpacity>
-            </BlurPanel>
+            <PlayerStatisticsPanel
+              stats={stats}
+              style={[styles.card, styles.utilityCard, styles.statisticsCard]}
+              intensity={44}
+              overflowVisible
+            />
           ) : null}
 
           {/* What's New */}
@@ -1428,23 +1433,6 @@ export default function PlayerHub({
         onClose={() => setOnlinePlayersOpen(false)}
       />
     </ScreenContainer>
-  );
-}
-
-function StatCell({
-  label,
-  value,
-  styles,
-}: {
-  label: string;
-  value: string;
-  styles: ReturnType<typeof createStyles>;
-}) {
-  return (
-    <View style={styles.statCell}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
   );
 }
 
@@ -1636,6 +1624,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
         colors.mode === "dark" ? 0.12 : 0.1,
       ),
     },
+    statisticsCard: {
+      overflow: "visible",
+    },
     identityCard: {
       borderColor: hexToRgba(colors.accent, 0.34),
       ...(Platform.select({
@@ -1648,27 +1639,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
         android: { elevation: 3 },
         default: {},
       }) as ViewStyle),
-    },
-    featuredStat: {
-      marginBottom: 12,
-      padding: 12,
-      borderRadius: 14,
-      backgroundColor: hexToRgba(colors.accent, 0.1),
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.accent, 0.28),
-    },
-    featuredValue: {
-      color: colors.textPrimary,
-      fontSize: 28,
-      fontWeight: "900",
-      fontVariant: ["tabular-nums"],
-    },
-    featuredLabel: {
-      color: colors.textPrimary,
-      fontSize: 15,
-      fontWeight: "800",
-      marginTop: 2,
-      marginBottom: 2,
     },
     dailyDoneCard: {
       borderColor: hexToRgba(colors.accent, 0.42),
@@ -1833,14 +1803,34 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginTop: 2,
       fontVariant: ["tabular-nums"],
     },
-    goalStack: { gap: 0 },
-    goalDivider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: hexToRgba(colors.textPrimary, 0.14),
-      marginVertical: 12,
+    journeyCard: {
+      padding: 16,
     },
-    goalRow: { gap: 8 },
-    goalTextCol: { gap: 2 },
+    goalStack: { gap: 10 },
+    journeyGoal: {
+      gap: 8,
+      padding: 12,
+      borderRadius: 14,
+      borderWidth: StyleSheet.hairlineWidth,
+    },
+    journeyGoalHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+    },
+    journeyEyebrow: {
+      fontSize: 11,
+      fontWeight: "800",
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
+    },
+    journeyProgress: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: "800",
+      fontVariant: ["tabular-nums"],
+    },
     goalTitle: {
       color: colors.textPrimary,
       fontSize: 16,
@@ -1964,6 +1954,30 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       alignItems: "center",
       gap: 14,
     },
+    recentHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+      marginBottom: 12,
+    },
+    recentEyebrow: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 0.2,
+    },
+    rarityPill: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+      borderWidth: StyleSheet.hairlineWidth,
+    },
+    rarityPillText: {
+      fontSize: 11,
+      fontWeight: "800",
+      letterSpacing: 0.4,
+    },
     unlockEmoji: { fontSize: 40, lineHeight: 48 },
     unlockBody: { flex: 1, minWidth: 0, gap: 3 },
     unlockTitle: {
@@ -1975,38 +1989,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       marginTop: 4,
       color: colors.textTertiary,
       fontSize: 12,
-      fontWeight: "700",
-    },
-    statsGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 10,
-      marginBottom: 4,
-    },
-    statCell: {
-      width: "47%",
-      flexGrow: 1,
-      paddingVertical: 8,
-      paddingHorizontal: 10,
-      borderRadius: 12,
-      backgroundColor: hexToRgba(colors.textPrimary, 0.06),
-    },
-    statValue: {
-      color: colors.textPrimary,
-      fontSize: 18,
-      fontWeight: "800",
-      fontVariant: ["tabular-nums"],
-    },
-    statLabel: {
-      color: colors.textSecondary,
-      fontSize: 11,
-      fontWeight: "600",
-      marginTop: 2,
-    },
-    linkBtn: { marginTop: 10, alignSelf: "flex-start" },
-    linkBtnText: {
-      color: colors.accent,
-      fontSize: 13,
       fontWeight: "700",
     },
     whatsNewRow: {

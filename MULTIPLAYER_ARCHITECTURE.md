@@ -74,6 +74,22 @@ saved lobby session.
 
 Same pipeline; `botHostedRooms` runs CPU steps on the server and uses the same `advancePastInactiveSeats` wrapper.
 
+The on-demand public table is an opt-in rollout: set
+`ENABLE_ON_DEMAND_BOT_TABLE=1` on the server. It appears in online discovery
+as a bot table even when human-hosted lobbies are available. The idle table
+does not deal or schedule bot turns. Its first human joins a new game with
+two bots; subsequent arrivals watch and can ready to join at the next deal.
+Bots are replaced only when seats are needed, up to eight seated humans, and
+refilled on later deals when space permits.
+
+An in-game disconnect pauses the on-demand table for the existing 15-second
+reconnect window, preserving the seat. A confirmed leave removes the player
+immediately. When the last human leaves or their reconnect window expires,
+the game and timers are cleared and the table returns to its idle bot roster.
+The legacy `ENABLE_OPEN_BOT_TABLE` and QA League behavior remains separate.
+This table uses ordinary CPU profiles; it does not create persistent bot
+careers or a ranked leaderboard.
+
 ## Legacy note
 
 Older docs described broadcasting raw `gameAction` for client replay. That path is **offline / deprecated** for online play; the server does not rely on clients replaying actions.

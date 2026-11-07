@@ -436,11 +436,6 @@ function AppContent() {
     setHubRefreshKey((k) => k + 1);
   };
 
-  const openTitles = () => {
-    setAchievementsInitialTab("titles");
-    setAchievementsOpen(true);
-  };
-
   const openUpdateLog = () => setUpdateLogOpen(true);
 
   const closeUpdateLog = () => setUpdateLogOpen(false);
@@ -877,7 +872,6 @@ function AppContent() {
                   })();
                 },
                 onOpenAchievements: openAchievements,
-                onOpenTitles: openTitles,
                 onOpenWhatsNew: openUpdateLog,
                 onOpenSettings: openSettings,
                 onOpenReadMe: openReadMe,
@@ -1180,10 +1174,7 @@ function AppContent() {
                 key={achievementsInitialTab}
                 initialTab={achievementsInitialTab}
                 onBack={closeAchievements}
-                onNavigateToSettings={() => {
-                  closeAchievements();
-                  openSettings();
-                }}
+                onProfileSynced={() => setHubRefreshKey((key) => key + 1)}
               />
             </View>
           </WebModalPortal>

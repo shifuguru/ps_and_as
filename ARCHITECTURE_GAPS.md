@@ -315,7 +315,11 @@ Two disconnect stories; architecture readers may apply standard-room rules to bo
 **Status:** Open — product surface disabled
 
 **Notes:**  
-Public Open Bot Table is **off by default** (`ENABLE_OPEN_BOT_TABLE` unset): no BOTOPN create/deal loop, Find Game hide (D-010) kept. Code retained for opt-in tests / QA League (`QALEG` via `PS_QA_LEAGUE`). Gap remains relevant if the table is re-enabled. Gameplay Auditor Finding 4 reaffirmed (2026-06-08): immediate demotion removes human from `gameState` mid-round with no pause or grace.
+Public Open Bot Table is **off by default** (both bot-table flags unset): no BOTOPN create/deal loop, Find Game hide (D-010) kept. Code retained for opt-in tests / QA League (`QALEG` via `PS_QA_LEAGUE`). Gap remains relevant if the legacy table is re-enabled. Gameplay Auditor Finding 4 reaffirmed (2026-06-08): immediate demotion removes human from `gameState` mid-round with no pause or grace.
+
+The separately gated `ENABLE_ON_DEMAND_BOT_TABLE=1` mode pauses for seated
+disconnects and preserves their seats for the reconnect window. It does not
+change the legacy bot-table or QA League behavior described above.
 
 ---
 

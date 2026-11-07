@@ -57,16 +57,20 @@ export default function ModalBackdrop({
     <Animated.View
       style={[
         styles.root,
-        { zIndex, elevation: zIndex, opacity },
+        { zIndex, elevation: zIndex },
+        // An opacity ancestor is a backdrop root on web and hides earlier siblings from the filter.
+        Platform.OS !== "web" && { opacity },
         style,
       ]}
       pointerEvents={visible ? "auto" : "none"}
     >
       {Platform.OS === "web" ? (
-        <View
+        <Animated.View
+          testID="modal-backdrop-blur"
           style={[
             StyleSheet.absoluteFill,
             {
+              opacity,
               backgroundColor: `rgba(${scrimRgb}, ${modalBlur.webOpacity})`,
               backdropFilter: `blur(${webBlurPx}px) saturate(1.35)`,
               WebkitBackdropFilter: `blur(${webBlurPx}px) saturate(1.35)`,
@@ -88,15 +92,22 @@ export default function ModalBackdrop({
         />
       )}
       {!milky ? (
-        <View
+        <Animated.View
           style={[
             StyleSheet.absoluteFill,
-            { backgroundColor: `rgba(0, 0, 0, ${dimOpacity})` },
+            {
+              backgroundColor: `rgba(0, 0, 0, ${dimOpacity})`,
+              ...(Platform.OS === "web" ? { opacity } : null),
+            },
           ]}
           pointerEvents="none"
         />
       ) : null}
-      {children}
+      {Platform.OS === "web" && children ? (
+        <Animated.View style={[styles.root, { opacity }]}>
+          {children}
+        </Animated.View>
+      ) : children}
     </Animated.View>
   );
 }

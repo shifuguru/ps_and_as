@@ -16,9 +16,9 @@ const WAITING_LINES = [
   "Woah! Done so soon?",
   "Well done, you finished!",
   "Am I the asshole?",
-  "Waiting for the others...",
-  "Presidents and Assholes trade cards next round!",
-  "Hang in there baby girl!",
+  "When will the round end...",
+  "Presidents and Assholes trade cards at the beginning of every round",
+  "Hang in there, we're almost done!",
 ];
 
 function getBannerSlotId(): string | null {

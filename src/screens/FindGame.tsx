@@ -49,6 +49,7 @@ import { contentMaxWidth } from "../styles/uiStandards";
 import { useAppTheme } from "../context/ThemeContext";
 import { hexToRgba } from "../utils/colorTheory";
 import { triggerHaptic } from "../utils/haptics";
+import { filterPublicRooms } from "../services/availableRooms";
 
 const CAPSULE_RADIUS = 999;
 
@@ -65,6 +66,8 @@ interface AvailableRoom {
   spectatorCount?: number;
   isBotHosted?: boolean;
   botTableStalled?: boolean;
+  onDemandBotTable?: boolean;
+  humanSeatsAvailable?: boolean;
 }
 
 function formatTimeAgo(timestamp: number) {
@@ -257,18 +260,23 @@ export default function FindGame({
       return;
     }
     if (isBotPublicRoomCode(code)) {
-      setError("No public games available right now. Host a game or try again later.");
-      return;
+      const botRoom = availableRooms.find(
+        (room) => room.roomId === code && room.onDemandBotTable,
+      );
+      if (!botRoom) {
+        setError("No public games available right now. Host a game or try again later.");
+        return;
+      }
+      if (botRoom.inGame && onSpectateRoom) {
+        handleSpectateRoom(code);
+        return;
+      }
     }
     handleJoinRoom(code);
   };
 
-  /** D-010 — hide bot-hosted public table from Find Game listing (fragile cold-start surface). */
   const publicRooms = useMemo(
-    () =>
-      availableRooms.filter(
-        (room) => !room.isBotHosted && !isBotPublicRoomCode(room.roomId),
-      ),
+    () => filterPublicRooms(availableRooms),
     [availableRooms],
   );
 
@@ -399,11 +407,13 @@ export default function FindGame({
                 const isBotTable = !!room.isBotHosted;
                 const botStalled = !!room.botTableStalled;
                 const full =
-                  !inPlay && !isBotTable && room.playerCount >= room.maxPlayers;
+                  (room.onDemandBotTable && room.humanSeatsAvailable === false) ||
+                  (!inPlay && !isBotTable && room.playerCount >= room.maxPlayers);
                 const showSpectate =
+                  !full &&
                   !!onSpectateRoom &&
                   !!room.inGame &&
-                  seatOpen &&
+                  (seatOpen || !!room.onDemandBotTable) &&
                   room.playerCount >= 2 &&
                   (isBotTable || inPlay);
                 const actionLabel = showSpectate

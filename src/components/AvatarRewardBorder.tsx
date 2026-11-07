@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { useGameTerminology } from "../hooks/useGameTerminology";
 import { View, StyleSheet, Platform } from "react-native";
+import Svg, { Circle, Path } from "react-native-svg";
 import type { AvatarBorderDesign } from "../rewards/avatarBorders";
 
 type Props = {
@@ -74,6 +75,34 @@ export default function AvatarRewardBorder({ design, avatarSize }: Props) {
           <View style={[styles.crownSpike, { borderBottomColor: design.primaryColor }]} />
           <View style={[styles.crownSpike, styles.crownSpikeMid, { borderBottomColor: design.secondaryColor }]} />
           <View style={[styles.crownSpike, { borderBottomColor: design.primaryColor }]} />
+        </View>
+      ) : null}
+      {design.kind === "clover" || design.kind === "lightning" ? (
+        <Svg
+          width={Math.max(20, avatarSize * 0.4)}
+          height={Math.max(16, avatarSize * 0.32)}
+          viewBox="0 0 24 20"
+          style={styles.symbol}
+        >
+          {design.kind === "clover" ? (
+            <>
+              <Circle cx="9" cy="6" r="4" fill={design.primaryColor} />
+              <Circle cx="15" cy="6" r="4" fill={design.primaryColor} />
+              <Circle cx="9" cy="12" r="4" fill={design.primaryColor} />
+              <Circle cx="15" cy="12" r="4" fill={design.primaryColor} />
+              <Circle cx="12" cy="9" r="2" fill={design.secondaryColor} />
+              <Path d="M12 12 L14 19" stroke={design.secondaryColor} strokeWidth="2" />
+            </>
+          ) : (
+            <Path d="M13 1 L5 11 H11 L9 19 L19 8 H13 L16 1 Z" fill={design.primaryColor} stroke={design.secondaryColor} strokeWidth="1" />
+          )}
+        </Svg>
+      ) : null}
+      {design.tier ? (
+        <View style={styles.tierRow}>
+          {Array.from({ length: design.tier }, (_, index) => (
+            <View key={index} style={[styles.tierDot, { backgroundColor: design.secondaryColor }]} />
+          ))}
         </View>
       ) : null}
     </View>
@@ -216,6 +245,23 @@ function createStyles(glowColor: string, avatarSize: number) {
       borderRightWidth: 5,
       borderBottomWidth: 10,
       marginBottom: 1,
+    },
+    symbol: {
+      position: "absolute",
+      bottom: 0,
+      alignSelf: "center",
+    },
+    tierRow: {
+      position: "absolute",
+      bottom: -4,
+      alignSelf: "center",
+      flexDirection: "row",
+      gap: 2,
+    },
+    tierDot: {
+      width: 3,
+      height: 3,
+      borderRadius: 2,
     },
   });
 }

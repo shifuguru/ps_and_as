@@ -12,6 +12,7 @@ type IconName =
   | "gear"
   | "ellipsis"
   | "list"
+  | "bookOpen"
   | "palette"
   | "bolt"
   | "robot"
@@ -141,6 +142,18 @@ export default function MenuIcon({ name, size = 20, color = "#9ed6bb" }: Props) 
           <Circle cx="4" cy="6" r="1.2" fill={c} />
           <Circle cx="4" cy="12" r="1.2" fill={c} />
           <Circle cx="4" cy="18" r="1.2" fill={c} />
+        </Svg>
+      );
+    case "bookOpen":
+      return (
+        <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M12 7c-2.8-2.5-6.7-3-10-2v13c3.3-.9 7.2-.5 10 2m0-13c2.8-2.5 6.7-3 10-2v13c-3.3-.9-7.2-.5-10 2m0-13v13"
+            stroke={c}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </Svg>
       );
     case "palette":

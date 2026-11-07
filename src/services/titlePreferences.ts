@@ -6,6 +6,12 @@ import {
 import type { PlayerStats } from "./playerStats";
 
 const STORAGE_KEY = "@ps_and_as_display_title_track";
+const titleListeners = new Set<() => void>();
+
+export function subscribeDisplayTitleTrack(listener: () => void): () => void {
+  titleListeners.add(listener);
+  return () => { titleListeners.delete(listener); };
+}
 
 function getAsyncStorage(): {
   getItem: (k: string) => Promise<string | null>;
@@ -31,22 +37,25 @@ export async function readDisplayTitleTrackId(): Promise<string | null> {
     const raw = await store.getItem(STORAGE_KEY);
     if (!raw || !isValidTrackId(raw)) return null;
     return raw;
-  } catch {
+  } catch (error) {
+    console.error("[TitlePreferences] Failed to read selected title:", error);
     return null;
   }
 }
 
 export async function writeDisplayTitleTrackId(trackId: string | null): Promise<void> {
   const store = getAsyncStorage();
-  if (!store) return;
+  if (!store) throw new Error("Cannot save selected title: storage is unavailable");
   try {
     if (!trackId || !isValidTrackId(trackId)) {
       await store.removeItem(STORAGE_KEY);
-      return;
+    } else {
+      await store.setItem(STORAGE_KEY, trackId);
     }
-    await store.setItem(STORAGE_KEY, trackId);
-  } catch {
-    /* non-critical */
+    titleListeners.forEach((listener) => listener());
+  } catch (error) {
+    console.error("[TitlePreferences] Failed to save selected title:", error);
+    throw error;
   }
 }
 

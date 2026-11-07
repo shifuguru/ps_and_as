@@ -46,7 +46,7 @@ const { computeRoundXpByPlayerId } = require('./roundXp');
 const tableRoster = require('./tableRoster');
 const gameSync = require('./gameSync');
 const analytics = require('./analyticsStore');
-const { advancePastInactiveSeats, syncJokerAckAutoPassTimer } = require('./turnAdvance');
+const { advancePastInactiveSeats, syncJokerAckAutoPassTimer, clearJokerAckAutoPassTimer } = require('./turnAdvance');
 const {
   adjustSeatIndexAfterRemoval,
   lastPlayIndexAfterRemoval,
@@ -230,6 +230,7 @@ function startNextRound(roomId) {
   const promoted = room.isBotHosted
     ? botHosted.promoteReadySpectators(room)
     : [promoteReadySpectator(room)].filter(Boolean);
+  if (room.onDemand) botHosted.refillBotSeats(room);
   const rosterChanged = promoted.length > 0;
   const dealSeed = Math.floor(Math.random() * 2147483647);
   const lastOrder = finishOrderForNextRound(room, promoted, prevState);
@@ -961,8 +962,8 @@ function awayPlayersInGame(room) {
 }
 
 function isGamePausedForAway(room) {
-  // Bot tables keep advancing on the server when humans disconnect or leave.
-  if (room?.isBotHosted) return false;
+  // The legacy bot table continues immediately; on-demand tables preserve seats.
+  if (room?.isBotHosted && !room.onDemand) return false;
   return awayPlayersInGame(room).length > 0;
 }
 
@@ -1048,7 +1049,7 @@ function markPlayerAway(roomId, player, reason = 'disconnected') {
     seatedInGame && reason === 'left' && !room.isBotHosted;
 
   const graceMs = seatedInGame
-    ? immediateLeaveAbort
+    ? immediateLeaveAbort || (room.onDemand && reason === 'left')
       ? 0
       : inGameAwayGraceMs()
     : LOBBY_DISCONNECT_GRACE;
@@ -1067,7 +1068,7 @@ function markPlayerAway(roomId, player, reason = 'disconnected') {
         reason: String(reason || 'disconnected'),
       });
     }
-    if (room.isBotHosted) {
+    if (room.isBotHosted && !room.onDemand) {
       demoteBotTablePlayerToSpectator(room, roomId, player);
       io.to(roomId).emit('playerDisconnected', {
         playerId: player.id,
@@ -1077,6 +1078,13 @@ function markPlayerAway(roomId, player, reason = 'disconnected') {
         reconnectUntil: player.reconnectUntil,
       });
     } else if (!immediateLeaveAbort) {
+      if (room.onDemand) {
+        if (room._botTurnTimer) clearTimeout(room._botTurnTimer);
+        room._botTurnTimer = null;
+        clearJokerAckAutoPassTimer(room);
+        room._jokerAckDeadline = null;
+        botHosted.clearBotNextRoundSchedule(room, roomId, io);
+      }
       broadcastGameState(io, room);
       io.to(roomId).emit('playerDisconnected', {
         playerId: player.id,
@@ -1088,7 +1096,7 @@ function markPlayerAway(roomId, player, reason = 'disconnected') {
     }
   }
 
-  if (immediateLeaveAbort) {
+  if (immediateLeaveAbort || (room.onDemand && reason === 'left')) {
     finalizeAwayPlayerRemoval(roomId, player.id);
     return;
   }
@@ -1139,7 +1147,7 @@ function roomListingPayload(roomId, room) {
 
 function isRoomListedPublic(room) {
   if (!room.isPublic) return false;
-  if (room.isBotHosted) return !!room.inGame;
+  if (room.isBotHosted) return !!room.inGame || !!room.onDemand;
   if (room.inGame && activePlayerCount(room) > 0) return true;
   return activePlayerCount(room) > 0;
 }
@@ -1250,6 +1258,13 @@ function afterPlayerLeftRoom(roomId) {
   const room = rooms[roomId];
   if (!room) return;
   if (room.isBotHosted && botHosted.afterBotRoomPlayerLeft(room, roomId, getBotContext())) {
+    if (room.onDemand && room.inGame && !isGamePausedForAway(room)) {
+      room._botLastProgressAt = Date.now();
+      syncRoomJokerAckAutoPassTimer(room, roomId);
+      if (isRoundComplete(room.gameState) && !room.gameState.tenRulePending && !room._botNextRoundTimer) {
+        botHosted.onBotRoomRoundFinished(room, roomId, getBotContext());
+      }
+    }
     io.to(roomId).emit('lobbyUpdate', buildLobbyUpdate(room));
     if (room.isPublic) broadcastAvailableRooms();
     return;
@@ -1545,6 +1560,36 @@ function broadcastAvailableRooms() {
     .map(([roomId, room]) => roomListingPayload(roomId, room));
 
   io.emit('availableRooms', availableRooms);
+}
+
+function afterGameActionSideEffects(room, roomId) {
+  if (isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
+    const finishOrder = room.gameState.finishedOrder.slice();
+    const handSnapshot = {};
+    for (const p of room.gameState.players) {
+      handSnapshot[p.id] = p.hand;
+    }
+    handleRoundFinished(roomId, finishOrder, handSnapshot);
+  } else if (room.isBotHosted) {
+    botHosted.kickBotTurnLoop(roomId, getBotContext());
+  }
+}
+
+function syncRoomJokerAckAutoPassTimer(room, roomId) {
+  syncJokerAckAutoPassTimer(room, {
+    cloneGameState,
+    afterStateChange: (updatedRoom) => {
+      reconcileCurrentPlayerIndex(updatedRoom);
+      advancePastInactiveSeats(updatedRoom, cloneGameState);
+      updatedRoom.gameState = cloneGameState(
+        repairStuckTurnPointer(updatedRoom.gameState),
+      );
+      reconcileCurrentPlayerIndex(updatedRoom);
+      gameSync.bumpStateVersion(updatedRoom);
+      broadcastGameState(io, updatedRoom);
+      afterGameActionSideEffects(updatedRoom, roomId);
+    },
+  });
 }
 
 function handleRoundFinished(roomId, finishOrder, hands) {
@@ -1867,7 +1912,7 @@ io.on('connection', (socket) => {
   socket.on('joinRoom', ({ roomId, name, profileId, clientBuildId, feltTint, reconnectSecret }) => {
     const code = normalizeRoomCode(roomId);
     if (code === botHosted.BOT_ROOM_CODE) {
-      if (!botHosted.isOpenBotTableEnabled()) {
+      if (!botHosted.isOpenBotTableEnabled() && !botHosted.isOnDemandBotTableEnabled()) {
         botHosted.shutdownOpenBotTableIfPresent(getBotContext());
         socket.emit('error', { message: 'Open Bot Table is unavailable.' });
         return;
@@ -1987,12 +2032,28 @@ io.on('connection', (socket) => {
         playerName: joined.name,
       });
       broadcastGameState(io, room);
+      if (room.onDemand && !isGamePausedForAway(room)) {
+        room._botLastProgressAt = Date.now();
+        syncRoomJokerAckAutoPassTimer(room, code);
+        if (isRoundComplete(room.gameState) && !room.gameState.tenRulePending) {
+          botHosted.onBotRoomRoundFinished(room, code, getBotContext());
+        } else {
+          botHosted.scheduleBotTurns(code, getBotContext());
+        }
+      }
     }
     if (joined) {
       socket.emit('connected', connectedPayload(joined, socket));
     }
+
+    const startingOnDemand = room.onDemand && !room.inGame && joined && !joined.isSpectator;
+    if (startingOnDemand) {
+      room.host = joined.id;
+      room.hostName = joined.name;
+      botHosted.startBotHostedGame(code, getBotContext());
+    }
     
-    if (room.inGame && room.gameState?.players) {
+    if (!startingOnDemand && room.inGame && room.gameState?.players) {
       if (joined) {
         const sync = syncPayloadForMember(room, joined);
         if (sync) {
@@ -2354,6 +2415,7 @@ io.on('connection', (socket) => {
     }
 
     room.gameState = cloneGameState(next);
+    if (room.onDemand) room._botLastProgressAt = Date.now();
     room.gameState.readyForNextRound = room.gameState.readyForNextRound || {};
     reconcileCurrentPlayerIndex(room);
     advancePastInactiveSeats(room, cloneGameState);
@@ -2362,35 +2424,8 @@ io.on('connection', (socket) => {
     gameSync.bumpStateVersion(room);
     broadcastGameState(io, room);
 
-    const afterGameActionSideEffects = (liveRoom) => {
-      if (isRoundComplete(liveRoom.gameState) && !liveRoom.gameState.tenRulePending) {
-        const finishOrder = liveRoom.gameState.finishedOrder.slice();
-        const handSnapshot = {};
-        for (const p of liveRoom.gameState.players) {
-          handSnapshot[p.id] = p.hand;
-        }
-        handleRoundFinished(roomId, finishOrder, handSnapshot);
-      } else if (liveRoom.isBotHosted) {
-        botHosted.kickBotTurnLoop(roomId, getBotContext());
-      }
-    };
-
-    afterGameActionSideEffects(room);
-
-    syncJokerAckAutoPassTimer(room, {
-      cloneGameState,
-      afterStateChange: (updatedRoom) => {
-        reconcileCurrentPlayerIndex(updatedRoom);
-        advancePastInactiveSeats(updatedRoom, cloneGameState);
-        updatedRoom.gameState = cloneGameState(
-          repairStuckTurnPointer(updatedRoom.gameState),
-        );
-        reconcileCurrentPlayerIndex(updatedRoom);
-        gameSync.bumpStateVersion(updatedRoom);
-        broadcastGameState(io, updatedRoom);
-        afterGameActionSideEffects(updatedRoom);
-      },
-    });
+    afterGameActionSideEffects(room, roomId);
+    syncRoomJokerAckAutoPassTimer(room, roomId);
   });
 
   socket.on('skipBotTable', ({ roomId }) => {
@@ -2471,6 +2506,7 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: res.message || 'Invalid trade selection' });
       return;
     }
+    if (room.onDemand) room._botLastProgressAt = Date.now();
 
     // Save updated hands back to gameState
     room.gameState.playerHands = playerHands;

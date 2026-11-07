@@ -34,6 +34,13 @@ reduced motion is enabled; it pauses when the app is backgrounded. The player's
 show/hide choice persists between games and app restarts. The active-player
 avatar ring remains a separate turn indicator.
 
+Avatar decorations follow the selected unlocked title track and its current
+tier. Each track has its own motif, with tier-specific colours and one marker
+per tier. With no valid unlocked title selected, the existing
+achievement-priority decoration remains the fallback. Title decorations use
+the same local or cloud-synced title preference and career stats as titles;
+CPU profiles retain their achievement-based decorations.
+
 ---
 
 ## 2. Match lifecycle (player-facing)

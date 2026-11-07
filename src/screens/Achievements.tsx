@@ -4,14 +4,17 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
+  Alert,
   ActivityIndicator,
   StyleSheet,
   useWindowDimensions,
+  Platform,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import BlurPanel from "../components/BlurPanel";
+import PlayerStatisticsPanel from "../components/PlayerStatisticsPanel";
 import ScreenTopBar from "../components/ScreenTopBar";
 import BottomBar, {
   BottomBarControls,
@@ -24,16 +27,16 @@ import { contentMaxWidth } from "../styles/uiStandards";
 import { useAppTheme } from "../context/ThemeContext";
 import { getOrCreatePlayerId } from "../services/gameCenter";
 import {
+  getGoogleAccountSyncStatus,
+  linkGoogleAccountAndSync,
+} from "../services/googleAccountSync";
+import {
   ACHIEVEMENTS,
-  DEFAULT_PLAYER_STATS,
   achievementPrestige,
   achievementPrestigeProgress,
   formatAchievementCareerTotal,
   formatAchievementPrestige,
   getPlayerStats,
-  totalAchievementPrestige,
-  unlockedAchievements,
-  winRate,
   type PlayerStats,
 } from "../services/playerStats";
 import {
@@ -42,12 +45,6 @@ import {
   rarityForAchievementId,
 } from "../services/achievementRarity";
 import AchievementPrestigeFrame from "../components/AchievementPrestigeFrame";
-import { hexToRgba } from "../utils/colorTheory";
-import {
-  RunsPill,
-  PLATINUM_STREAK_COLORS,
-  PLATINUM_FLAME_SEEDS,
-} from "../gameplayPresentation/RunsEffect";
 import { TitlesScrollContent } from "./Titles";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import { strings } from "../strings";
@@ -57,14 +54,20 @@ export type ProfileTab = "achievements" | "titles";
 
 export default function Achievements({
   onBack,
-  onNavigateToSettings,
+  onProfileSynced,
   initialTab = "achievements",
 }: {
   onBack: () => void;
-  onNavigateToSettings?: () => void;
+  onProfileSynced?: () => void;
   initialTab?: ProfileTab;
 }) {
-  const { colors, ui } = useAppTheme();
+  const {
+    colors,
+    ui,
+    setAppearancePreference,
+    setTextContrastPreference,
+    setFeltTint,
+  } = useAppTheme();
   const wording = useGameTerminology();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
@@ -85,6 +88,7 @@ export default function Achievements({
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [googleLinked, setGoogleLinked] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [googleBusy, setGoogleBusy] = useState(false);
 
   const loadAll = useCallback(async () => {
     setIsLoading(true);
@@ -139,16 +143,47 @@ export default function Achievements({
     [pageWidth],
   );
 
-  const unlocked = stats ? unlockedAchievements(stats) : [];
+  const handleGoogleSignIn = async () => {
+    setGoogleBusy(true);
+    try {
+      const result = await linkGoogleAccountAndSync({
+        preferredDisplayName: savedName || null,
+      });
+      if (result.appearance) {
+        await setAppearancePreference(result.appearance);
+      }
+      if (result.textContrast) {
+        await setTextContrastPreference(result.textContrast);
+      }
+      if (result.feltTint) {
+        setFeltTint(result.feltTint);
+      }
+      const [info, playerStats] = await Promise.all([
+        getOrCreatePlayerId(),
+        getPlayerStats(),
+      ]);
+      setSavedName(info.displayName);
+      setGoogleLinked(!!info.linkedAccountId?.startsWith("google:"));
+      setStats(playerStats);
+      onProfileSynced?.();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Google sign-in failed";
+      if (!/cancelled/i.test(message)) {
+        console.error("[Achievements] Google sign-in failed:", error);
+        Alert.alert("Google sign-in", message);
+      }
+    } finally {
+      setGoogleBusy(false);
+    }
+  };
+
+  const canSignInWithGoogle =
+    Platform.OS === "web" && getGoogleAccountSyncStatus() === "ready";
   const achievementsByExclusivity = useMemo(
     () => orderAchievementsByExclusivity(ACHIEVEMENTS),
     [],
   );
-  const prestigeTotal = stats ? totalAchievementPrestige(stats) : 0;
-  const bestPresidentStreak = stats?.bestPresidentStreak ?? 0;
-  const currentPresidentStreak = stats?.presidentStreak ?? 0;
-  const streakLive = currentPresidentStreak > 0;
-  const showStreakPills = bestPresidentStreak > 0 || currentPresidentStreak > 0;
 
   if (isLoading) {
     return (
@@ -242,78 +277,29 @@ export default function Achievements({
             <Text style={styles.accountText}>
               {googleLinked
                 ? "Stats sync to your Google account across devices. Use Settings → Sync now if another phone is ahead."
-                : "Stats are saved locally. Link Google in Settings to keep XP across phones."}
+                : "Link with Google to save stats online."}
             </Text>
-            {onNavigateToSettings ? (
+            {!googleLinked && canSignInWithGoogle ? (
               <TouchableOpacity
                 style={ui.btnSecondary}
-                onPress={onNavigateToSettings}
+                onPress={() => void handleGoogleSignIn()}
+                disabled={googleBusy}
                 activeOpacity={0.85}
+                accessibilityRole="button"
               >
-                <Text style={ui.btnSecondaryText}>Open Settings</Text>
+                <Text style={ui.btnSecondaryText}>
+                  {googleBusy ? "Connecting…" : "Sign in with Google"}
+                </Text>
               </TouchableOpacity>
             ) : null}
           </BlurPanel>
 
-          <BlurPanel style={ui.panel} intensity={48} overflowVisible>
-            <Text style={ui.panelEyebrow}>Statistics</Text>
-            <View style={styles.statsGrid}>
-              <StatCard label="XP" value={String(stats?.xp ?? 0)} />
-              <StatCard label="Rounds" value={String(stats?.roundsPlayed ?? 0)} />
-              <StatCard
-                label={wording("President")}
-                value={String(stats?.timesPresident ?? 0)}
-              />
-              <StatCard
-                label="Win Rate"
-                value={`${winRate(stats ?? DEFAULT_PLAYER_STATS)}%`}
-              />
-              <StatCard
-                label="Achievements"
-                value={`${unlocked.length}/${ACHIEVEMENTS.length}`}
-              />
-              <StatCard label="Prestige" value={String(prestigeTotal)} />
-              <StatCard label="Tricks" value={String(stats?.tricksWon ?? 0)} />
-            </View>
-
-            <View style={styles.roleRow}>
-              <RolePill
-                label={wording("President")}
-                count={stats?.timesPresident ?? 0}
-                fill="#E8C547"
-              />
-              <RolePill
-                label={wording("Vice Pres.")}
-                count={stats?.timesVicePresident ?? 0}
-                fill="#C0C7D4"
-              />
-              <RolePill
-                label="Vice Asshole"
-                count={stats?.timesViceAsshole ?? 0}
-                fill="#C47A4A"
-              />
-              <RolePill
-                label="Asshole"
-                count={stats?.timesAsshole ?? 0}
-                fill="#A85A32"
-              />
-            </View>
-            {showStreakPills ? (
-              <View style={styles.streakRow}>
-                <StreakEnergyPill
-                  label="Current Streak"
-                  count={currentPresidentStreak}
-                  live={streakLive}
-                  liveLabel
-                />
-                <StreakEnergyPill
-                  label="Best Streak"
-                  count={bestPresidentStreak}
-                  live={false}
-                />
-              </View>
-            ) : null}
-          </BlurPanel>
+          <PlayerStatisticsPanel
+            stats={stats}
+            style={ui.panel}
+            intensity={48}
+            overflowVisible
+          />
 
           <BlurPanel style={ui.panel} intensity={48}>
             <Text style={ui.panelEyebrow}>Achievements</Text>
@@ -457,99 +443,6 @@ function ProfileTabBar({
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  const { colors } = useAppTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  return (
-    <View style={styles.statCard}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-    </View>
-  );
-}
-
-function RolePill({
-  label,
-  count,
-  fill,
-}: {
-  label: string;
-  count: number;
-  fill: string;
-}) {
-  const { colors } = useAppTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  return (
-    <View
-      style={[
-        styles.rolePill,
-        {
-          backgroundColor: hexToRgba(fill, 0.34),
-          borderColor: hexToRgba(fill, 0.7),
-        },
-      ]}
-    >
-      <Text
-        style={[styles.rolePillLabel, { color: colors.textPrimary }]}
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
-      <Text style={[styles.rolePillValue, { color: fill }]}>{count}</Text>
-    </View>
-  );
-}
-
-/** Platinum President streak pill — metallic silver, never warm orange. */
-function StreakEnergyPill({
-  label,
-  count,
-  live,
-  liveLabel = false,
-}: {
-  label: string;
-  count: number;
-  live: boolean;
-  liveLabel?: boolean;
-}) {
-  const { colors } = useAppTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  // Live = brighter platinum; broken = cooler muted silver. Never RUNS orange.
-  const fill = live ? "#E8EEF8" : "#A8B4C8";
-
-  return (
-    <RunsPill
-      active
-      style={styles.streakRoot}
-      showGlow={live}
-      showFlames={live}
-      containFlames={live}
-      emberSpread="around"
-      maxFlameHeight={16}
-      palette={PLATINUM_STREAK_COLORS}
-      flameSeeds={PLATINUM_FLAME_SEEDS}
-      pillStyle={[
-        styles.streakPill,
-        {
-          backgroundColor: hexToRgba(fill, live ? 0.38 : 0.26),
-          borderColor: hexToRgba(fill, live ? 0.9 : 0.5),
-        },
-      ]}
-    >
-      <Text
-        style={[styles.rolePillLabel, { color: colors.textPrimary }]}
-        numberOfLines={1}
-      >
-        {label}
-        {live && liveLabel ? "  ·  Live" : ""}
-      </Text>
-      <Text style={[styles.rolePillValue, { color: live ? "#F2F5FA" : fill }]}>
-        {count}
-      </Text>
-    </RunsPill>
-  );
-}
-
 function createTabBarStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
   return StyleSheet.create({
     row: {
@@ -651,98 +544,6 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       fontSize: 12,
       marginTop: 2,
       fontWeight: "600",
-    },
-    statsGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-      marginBottom: 12,
-    },
-    statCard: {
-      width: "48%",
-      flexGrow: 1,
-      minWidth: "46%",
-      alignItems: "center",
-      paddingVertical: 12,
-      paddingHorizontal: 8,
-      borderRadius: 14,
-      backgroundColor: colors.btnSecondaryBg,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.panelBorder,
-    },
-    statLabel: {
-      color: colors.textSecondary,
-      fontSize: 10,
-      fontWeight: "700",
-      letterSpacing: 0.2,
-      marginBottom: 4,
-      textAlign: "center",
-    },
-    statValue: {
-      color: colors.textPrimary,
-      fontSize: 22,
-      fontWeight: "800",
-      textAlign: "center",
-    },
-    roleRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "stretch",
-      gap: 8,
-      width: "100%",
-      marginBottom: 10,
-    },
-    rolePill: {
-      flexGrow: 1,
-      flexBasis: 0,
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 3,
-      paddingHorizontal: 8,
-      paddingVertical: 9,
-      minHeight: 44,
-      borderRadius: 14,
-      borderWidth: StyleSheet.hairlineWidth,
-    },
-    rolePillLabel: {
-      fontSize: 11,
-      fontWeight: "700",
-      textAlign: "center",
-    },
-    rolePillValue: {
-      fontSize: 15,
-      fontWeight: "800",
-      textAlign: "center",
-    },
-    streakRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "stretch",
-      gap: 8,
-      width: "100%",
-      marginTop: 2,
-      marginBottom: 4,
-      paddingVertical: 10,
-      overflow: "visible",
-    },
-    streakRoot: {
-      flexGrow: 1,
-      flexBasis: 0,
-      alignSelf: "stretch",
-      minWidth: 0,
-    },
-    streakPill: {
-      width: "100%",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 3,
-      paddingHorizontal: 10,
-      paddingVertical: 9,
-      minHeight: 44,
-      borderRadius: 14,
-      borderWidth: StyleSheet.hairlineWidth,
     },
     achievementList: {
       gap: 8,

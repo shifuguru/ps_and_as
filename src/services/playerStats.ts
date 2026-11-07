@@ -368,6 +368,12 @@ async function resolveStatsPlayerId(): Promise<string | null> {
 }
 
 let restorePromise: Promise<PlayerStats> | null = null;
+const statsListeners = new Set<() => void>();
+
+export function subscribePlayerStats(listener: () => void): () => void {
+  statsListeners.add(listener);
+  return () => { statsListeners.delete(listener); };
+}
 
 /** Pull cloud backup (keyed by player id) and merge into local storage. */
 export async function restorePlayerStatsFromCloud(): Promise<PlayerStats> {
@@ -425,6 +431,7 @@ async function writeLocalPlayerStats(stats: PlayerStats): Promise<void> {
   const AsyncStorage = getAsyncStorage();
   if (!AsyncStorage) return;
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+  statsListeners.forEach((listener) => listener());
 }
 
 async function savePlayerStats(stats: PlayerStats): Promise<void> {
