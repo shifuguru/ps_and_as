@@ -364,9 +364,9 @@ async function playRound({
   spectatorsJoined,
   prefix,
 }) {
-  const host =
+  const initialHost =
     clients.find((c) => c.profileId === hostProfileId) ?? clients[0];
-  host.state.roundEnded = null;
+  initialHost.state.roundEnded = null;
   let steps = 0;
   const maxSteps = 900;
 

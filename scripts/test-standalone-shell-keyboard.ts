@@ -42,6 +42,7 @@ function makeWin(opts: {
   return {
     innerHeight: opts.innerHeight,
     visualViewport: {
+      width: 390,
       height: opts.vvHeight,
       offsetTop: opts.offsetTop ?? 0,
     },

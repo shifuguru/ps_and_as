@@ -45,7 +45,6 @@ import {
   isRoundOpeningLead,
   runLengthFromCompletedTrick,
   runTrickBonusXpAmount,
-  activeRunXpPoolInfo,
   resolveEffectiveTenRule,
   isValidRunExtension,
 } from "../game/core";
@@ -55,6 +54,7 @@ import {
   applyServerPlayerHands,
   applyServerRolesToPlayers,
   buildFreshRoundState,
+  buildTradesFromServerPending,
   clonePlayersForRound,
   completeWinnerReturn,
   executeCeremonyDeal,
@@ -186,6 +186,13 @@ import DealShuffleAnimation from "../components/DealShuffleAnimation";
 import DealerReshuffleButton from "../components/DealerReshuffleButton";
 import RoleTradeModal from "../components/RoleTradeModal";
 import RoleTradeStrip from "../components/RoleTradeStrip";
+import WebModalPortal from "../components/WebModalPortal";
+import {
+  completedLocalRoleTrade,
+  displayedLocalRoleTrade,
+  localRoleTrade,
+  roleTradeKey,
+} from "../gameplayPresentation/roleTradePresentation";
 import TableCardFlight, { type CardFlightSpec } from "../components/TableCardFlight";
 import ScreenFlightPortal from "../components/ScreenFlightPortal";
 import { seatOriginInPlayArea } from "../utils/tablePlayFlight";
@@ -593,6 +600,8 @@ function GameScreen({
     trades: ClientPendingTrade[];
   } | null>(null);
   const [activeTrade, setActiveTrade] = useState<ClientPendingTrade | null>(null);
+  const [tradeResult, setTradeResult] = useState<ClientPendingTrade | null>(null);
+  const shownTradeResultRef = useRef<string | null>(null);
   const [tradeReturnPick, setTradeReturnPick] = useState<CardType[]>([]);
   const [tradeReturnFlight, setTradeReturnFlight] = useState<CardFlightSpec | null>(
     null,
@@ -748,7 +757,7 @@ function GameScreen({
       if (!localId) return;
       for (const trade of trades) {
         if (!trade.completed) continue;
-        const key = `${trade.key}:${trade.winnerId}:${trade.loserId}`;
+        const key = roleTradeKey(trade);
         if (titleTradesRecordedRef.current.has(key)) continue;
         titleTradesRecordedRef.current.add(key);
         recordCompletedTradeJokers(trade, localId);
@@ -1255,6 +1264,15 @@ function GameScreen({
     onlineMultiplayer,
   ]);
 
+  const showTradeResult = useCallback((trade: ClientPendingTrade, cards: CardType[]) => {
+    const result = completedLocalRoleTrade(trade, myPlayerIdRef.current, cards);
+    if (!result) return;
+    const key = `${trade.key}:${trade.winnerId}:${trade.loserId}`;
+    if (shownTradeResultRef.current === key) return;
+    shownTradeResultRef.current = key;
+    setTradeResult(result);
+  }, []);
+
   const clearTradeReturnReveal = useCallback(() => {
     if (tradeReturnTimerRef.current) {
       clearTimeout(tradeReturnTimerRef.current);
@@ -1291,6 +1309,7 @@ function GameScreen({
       onDone: () => void,
     ) => {
       setTradeReturnPick(returnedCards);
+      showTradeResult(trade, returnedCards);
       const localId = myPlayerIdRef.current;
       const isLocalLoser = !!localId && trade.loserId === localId;
 
@@ -1311,7 +1330,7 @@ function GameScreen({
       setTradeReturnRevealActive(true);
       setTradeReturnReceiveLanded(false);
     },
-    [clearTradeReturnReveal],
+    [clearTradeReturnReveal, showTradeResult],
   );
 
   const finalizeCeremonyRound = useCallback(
@@ -1613,6 +1632,8 @@ function GameScreen({
 
   const startRoundCeremony = useCallback(
     (baseState: GameState, finishedOrder: string[], nextDealSeed?: number) => {
+      shownTradeResultRef.current = null;
+      setTradeResult(null);
       setAwaitingDealerReshuffle(false);
       clearLastHandReveal();
       titleTradesRecordedRef.current = new Set();
@@ -1652,14 +1673,15 @@ function GameScreen({
 
   const handleTradeConfirm = useCallback(
     (selected: CardType[]) => {
-      if (!tradePhase || !activeTrade) return;
-      const ok = completeWinnerReturn(tradePhase.players, activeTrade, selected);
+      const localTrade = tradePhase?.trades.find((t) => t.winnerId === myPlayerIdRef.current && !t.completed);
+      if (!tradePhase || !localTrade) return;
+      const ok = completeWinnerReturn(tradePhase.players, localTrade, selected);
       if (!ok) return;
-      recordTitleTradesOnce([activeTrade], myPlayerIdRef.current);
+      recordTitleTradesOnce([localTrade], myPlayerIdRef.current);
       if (onlineMultiplayer && isSocketAdapter(networkAdapter) && roomId) {
         networkAdapter.submitTradeSelection(roomId, selected);
       }
-      const completedTrade = activeTrade;
+      const completedTrade = localTrade;
       const remaining = tradePhase.trades.filter((t) => !t.completed);
       const proceed = () => {
         setTradeReturnPick([]);
@@ -1754,6 +1776,8 @@ function GameScreen({
     setBotNextRoundAt(null);
     resetBetweenRoundsUi();
     clearTradeReturnReveal();
+    shownTradeResultRef.current = null;
+    setTradeResult(null);
     pendingTradesCompleteRef.current = null;
     pendingDealSeedRef.current = undefined;
     setCeremonyPrep(null);
@@ -2435,6 +2459,26 @@ function GameScreen({
         !!tradePhaseRef.current ||
         gameplayLockedRef.current;
 
+      if (
+        onlineMultiplayer &&
+        !isBetweenRoundsState(parsed) &&
+        (localCeremonyUi || !shouldSkipDealCeremony(parsed)) &&
+        parsed.pendingTrades &&
+        parsed.roles
+      ) {
+        const localTrade = localRoleTrade(
+          buildTradesFromServerPending(
+            parsed.players,
+            parsed.roles,
+            parsed.pendingTrades,
+          ),
+          myPlayerIdRef.current,
+        );
+        if (localTrade?.completed && localTrade.returnedCards?.length) {
+          showTradeResult(localTrade, localTrade.returnedCards);
+        }
+      }
+
       const finishSpectator = () => {
         stateSyncedRef.current = true;
         if (typeof spectator === "boolean") {
@@ -3035,6 +3079,8 @@ function GameScreen({
           dealSeed: ev.state.dealSeed ?? null,
         });
         resetBetweenRoundsUi();
+        shownTradeResultRef.current = null;
+        setTradeResult(null);
         setBotNextRoundAt(null);
         if (onlineMultiplayer) {
           // Do not clear pendingTradesCompleteRef — tradesComplete may have landed first.
@@ -3203,6 +3249,7 @@ function GameScreen({
     effectiveRoomId,
     isBotOpenTable,
     applyBotNextRoundDeadline,
+    showTradeResult,
     onlineMultiplayer,
   ]);
 
@@ -3867,6 +3914,9 @@ function GameScreen({
         setShowGameLog,
         setPlayAreaSize,
         activeTrade,
+        tradeResult,
+        setTradeResult,
+        shownTradeResultRef,
         spectatorMode,
         onNavigateToAchievements,
         onNavigateToReadMe,
@@ -3992,6 +4042,9 @@ function GameScreenBoard() {
     setShowGameLog,
     setPlayAreaSize,
     activeTrade,
+    tradeResult,
+    setTradeResult,
+    shownTradeResultRef,
     spectatorMode,
     onNavigateToAchievements,
     onNavigateToReadMe,
@@ -4115,6 +4168,9 @@ function GameScreenBoard() {
       React.SetStateAction<{ width: number; height: number }>
     >;
     activeTrade: ClientPendingTrade | null;
+    tradeResult: ClientPendingTrade | null;
+    setTradeResult: React.Dispatch<React.SetStateAction<ClientPendingTrade | null>>;
+    shownTradeResultRef: React.RefObject<string | null>;
     spectatorMode: boolean;
     onNavigateToAchievements: (() => void) | undefined;
     onNavigateToReadMe: (() => void) | undefined;
@@ -4637,26 +4693,6 @@ function GameScreenBoard() {
     state.players,
     onlineMultiplayer,
     remoteAvatarBordersByPlayerId,
-  ]);
-
-  const runXpPoolAmount = useMemo(() => {
-    if (
-      !state ||
-      trickPauseActive ||
-      ceremonyPrep ||
-      tradePhase ||
-      gameplayLocked
-    ) {
-      return null;
-    }
-    const info = activeRunXpPoolInfo(state, RUN_CARD_XP);
-    return info.poolXp > 0 ? info.poolXp : null;
-  }, [
-    state,
-    trickPauseActive,
-    ceremonyPrep,
-    tradePhase,
-    gameplayLocked,
   ]);
 
   const ceremonyCountFor = (playerId: string) =>
@@ -5909,6 +5945,12 @@ function GameScreenBoard() {
   });
 
   // Note: no appear animation here to avoid flashing on re-renders
+  const localTrade = localRoleTrade(tradePhase?.trades ?? [], myPlayerId);
+  const displayedTrade = displayedLocalRoleTrade(
+    localTrade,
+    tradeResult,
+    shownTradeResultRef.current,
+  );
   return (
     <ScreenContainer
       ignoreHeaderOffset={true}
@@ -6043,7 +6085,6 @@ function GameScreenBoard() {
           avatarBordersByPlayerId={avatarBordersByPlayerId}
           playCountLabel={playCountLabel}
           playModifierLabel={playModifierLabel}
-          runXpPoolAmount={runXpPoolAmount}
           playModifierFlash={playModifierFlash}
           tableSeatCount={tableSeats.layoutSeatCount}
           deadHandId={tableSeats.deadHandId}
@@ -6199,33 +6240,7 @@ function GameScreenBoard() {
               visible={!gameplayLocked && !roundOver && !tradePhase}
             />
           ) : null}
-          {tradePhase && activeTrade ? (
-            <>
-              <RoleTradeStrip
-                trade={activeTrade}
-                localPlayerId={myPlayerId}
-                selectedReturn={tradeReturnPick}
-                hideReceiveCard={tradeReturnRevealActive && !tradeReturnReceiveLanded}
-                receiveLanded={tradeReturnReceiveLanded}
-                onReceiveSlotMeasure={onReceiveSlotMeasure}
-              />
-              {activeTrade.winnerId !== myPlayerId && !activeTrade.completed ? (
-                <View style={[local.waitingPill, local.waitingPillCollapsed]}>
-                  <Text style={local.waitingPillText}>
-                    Waiting for {activeTrade.winnerName} to pick return cards…
-                  </Text>
-                </View>
-              ) : null}
-              {activeTrade.loserId === myPlayerId &&
-              activeTrade.completed &&
-              tradeReturnRevealActive &&
-              !tradeReturnReceiveLanded ? (
-                <View style={[local.waitingPill, local.waitingPillCollapsed]}>
-                  <Text style={local.waitingPillText}>Receiving return card…</Text>
-                </View>
-              ) : null}
-            </>
-          ) : readOnlyOnline ? (
+          {tradePhase ? null : readOnlyOnline ? (
             <>
               <View style={[local.waitingPill, local.waitingPillCollapsed]}>
                 <Text style={local.waitingPillText}>
@@ -6381,7 +6396,8 @@ function GameScreenBoard() {
           !!tradePhase &&
           !!activeTrade &&
           !activeTrade.completed &&
-          !tradeReturnRevealActive
+          !localTrade &&
+          !tradeResult
         }
         trade={activeTrade}
         hand={
@@ -6392,6 +6408,27 @@ function GameScreenBoard() {
         onSelectionChange={setTradeReturnPick}
         onConfirm={handleTradeConfirm}
       />
+
+      {displayedTrade && myPlayerId && !ceremonyPrep ? (
+        <WebModalPortal style={local.tradePanelLayer}>
+          <RoleTradeStrip
+            trade={displayedTrade}
+            localPlayerId={myPlayerId}
+            hand={
+              tradePhase?.players.find((p) => p.id === myPlayerId)?.hand ?? []
+            }
+            onSelectionChange={setTradeReturnPick}
+            onConfirm={handleTradeConfirm}
+            onDismiss={tradeResult ? () => setTradeResult(null) : undefined}
+            waitingForOtherTrades={
+              !tradeResult && !!tradePhase && displayedTrade.completed
+            }
+            onReceiveSlotMeasure={
+              tradeReturnRevealActive ? onReceiveSlotMeasure : undefined
+            }
+          />
+        </WebModalPortal>
+      ) : null}
 
       {elevatedHandFlights.length > 0 && !betweenRoundsPresentation ? (
         <ScreenFlightPortal>
@@ -6491,6 +6528,11 @@ export default GameScreen;
 
 const local = StyleSheet.create({
   container: { flex: 1 },
+  tradePanelLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 4000,
+    elevation: 4000,
+  },
   topHeaderRow: {
     position: "absolute",
     left: 14,

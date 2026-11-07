@@ -107,7 +107,7 @@ export default function ActionBar({
     : "Select Cards From Your Hand";
 
   const showPassFlash =
-    isPlayerTurn && noValidPlays && !passDisabled && !onTopTurn;
+    isPlayerTurn && noValidPlays && !passDisabled;
 
   const passLabel = onTopTurn ? "Skip" : "Pass";
   const passAccessibilityLabel = onTopTurn

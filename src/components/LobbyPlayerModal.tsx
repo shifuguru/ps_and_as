@@ -204,14 +204,12 @@ export default function LobbyPlayerModal({
             </>
           ) : null}
 
-          <View style={[ui.actionTrack, styles.footerTrack]}>
-            <TouchableOpacity
-              style={[ui.actionSecondary, { flex: 1 }]}
-              onPress={onClose}
-            >
-              <Text style={ui.actionSecondaryText}>Close</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[ui.actionSecondary, { alignSelf: "stretch", flex: 0 }]}
+            onPress={onClose}
+          >
+            <Text style={ui.actionSecondaryText}>Close</Text>
+          </TouchableOpacity>
         </BlurPanel>
       </View>
     </Modal>
@@ -325,9 +323,6 @@ function createStyles(colors: AppThemeColors) {
       fontWeight: "600",
       textAlign: "center",
       marginBottom: 8,
-    },
-    footerTrack: {
-      marginTop: 4,
     },
   });
 }

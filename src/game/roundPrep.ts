@@ -262,6 +262,7 @@ export function buildTradesFromServerPending(
         incoming: [...(trade.incoming ?? [])],
         returnCount: trade.count ?? trade.incoming?.length ?? 1,
         completed: !!trade.selected,
+        returnedCards: trade.selected ? [...trade.selected] : undefined,
       });
     }
   }
@@ -280,6 +281,7 @@ export function buildTradesFromServerPending(
         incoming: [...(trade.incoming ?? [])],
         returnCount: trade.count ?? trade.incoming?.length ?? 1,
         completed: !!trade.selected,
+        returnedCards: trade.selected ? [...trade.selected] : undefined,
       });
     }
   }

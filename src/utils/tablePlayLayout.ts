@@ -95,19 +95,6 @@ export function stagePlayTypeBadgeAboveStackTop(
   );
 }
 
-/** Run XP — anchored below the card-row anchor. */
-export function stageRunXpTop(
-  zoneHeight: number,
-  cardHeight: number,
-): number {
-  const refCardH = cardHeight > 0 ? cardHeight : BASE_CARD_H;
-  return (
-    stageCardRowCenterY(zoneHeight) +
-    refCardH / 2 +
-    STAGE_PLAY_TYPE_BADGE_GAP
-  );
-}
-
 /** Highest (smallest y) play-group anchor in the current stack layout. */
 export function playStackTopFromLayout(
   positions: ReadonlyArray<{ top: number }>,

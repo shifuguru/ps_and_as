@@ -5,7 +5,7 @@
  * Run: npx tsx ./scripts/test-run-house-rules.ts
  */
 import * as assert from "assert";
-import type { Card } from "../src/game/ruleset";
+import type { Card, Player } from "../src/game/ruleset";
 import {
   isRunContextSequence,
   isValidPlay,
@@ -28,11 +28,11 @@ function triple(
   return suits.map((suit) => card(v, suit));
 }
 
-const players = [
-  { id: "1", name: "P1", hand: [] },
-  { id: "2", name: "P2", hand: [] },
-  { id: "3", name: "P3", hand: [] },
-  { id: "4", name: "P4", hand: [] },
+const players: Player[] = [
+  { id: "1", name: "P1", hand: [], role: "Neutral" },
+  { id: "2", name: "P2", hand: [], role: "Neutral" },
+  { id: "3", name: "P3", hand: [], role: "Neutral" },
+  { id: "4", name: "P4", hand: [], role: "Neutral" },
 ];
 
 function makePlay(playerIdx: number, cards: Card[]) {
@@ -92,26 +92,26 @@ function assertRun(label: string, snap: RunSnapshot, expectValues: number[]): vo
   assert.deepStrictEqual(snap.runSeq, expectValues, `${label}: runSeq mismatch`);
 }
 
-/** Returns true when the engine violates house rules (test stays RED). */
-function expectNotRun(name: string, fn: () => void): boolean {
+/** Returns 1 when the engine violates house rules (test stays RED). */
+function expectNotRun(name: string, fn: () => void): number {
   try {
     fn();
     console.log(`PASS ${name}`);
-    return false;
+    return 0;
   } catch (e) {
     console.log(`RED ${name} — ${e instanceof Error ? e.message : e}`);
-    return true;
+    return 1;
   }
 }
 
-function expectRun(name: string, fn: () => void): boolean {
+function expectRun(name: string, fn: () => void): number {
   try {
     fn();
     console.log(`PASS ${name}`);
-    return false;
+    return 0;
   } catch (e) {
     console.log(`FAIL ${name} — ${e instanceof Error ? e.message : e}`);
-    return true;
+    return 1;
   }
 }
 
@@ -201,7 +201,7 @@ violations += expectNotRun("10,9,10,8 live report", () => {
   );
 });
 
-expectNotRun("10,9,10 partial oscillation (baseline — engine already correct)", () => {
+violations += expectNotRun("10,9,10 partial oscillation (baseline — engine already correct)", () => {
   const pile = [card(10)];
   const history = [[card(10)], [card(9)]];
   const actions = [makePlay(0, [card(10)]), makePlay(1, [card(9)]), makePlay(2, [card(10)])];
@@ -237,14 +237,14 @@ violations += expectRun("QQQ,KKK,AAA trips", () => {
 
 console.log("\n=== Multiplicity mismatch — must NOT be runs ===\n");
 
-expectNotRun("88,99,10 (baseline — engine already correct)", () => {
+violations += expectNotRun("88,99,10 (baseline — engine already correct)", () => {
   const pile = [card(10)];
   const history = [pair(8), pair(9)];
   const actions = [makePlay(0, pair(8)), makePlay(1, pair(9)), makePlay(2, [card(10)])];
   assertNotRun("88,99,10", snapshotRunState(actions, pile, history));
 });
 
-expectNotRun("8,99,1010 (baseline — engine already correct)", () => {
+violations += expectNotRun("8,99,1010 (baseline — engine already correct)", () => {
   const pile = pair(10);
   const history = [[card(8)], pair(9)];
   const actions = [makePlay(0, [card(8)]), makePlay(1, pair(9)), makePlay(2, pair(10))];

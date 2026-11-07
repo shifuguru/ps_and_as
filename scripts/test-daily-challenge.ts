@@ -25,6 +25,11 @@ function stats(partial: Partial<PlayerStats>): PlayerStats {
     bestPresidentStreak: 0,
     xp: 0,
     tricksWon: 0,
+    gamesWon: 0,
+    gamesLost: 0,
+    jokersReceivedInDeal: 0,
+    jokersReceivedInTrade: 0,
+    jokersGivenInTrade: 0,
     ...partial,
   };
 }

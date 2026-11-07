@@ -74,7 +74,6 @@ type Props = RingProps & {
   lastPlayPlayerId?: string | null;
   playCountLabel?: string | null;
   playModifierLabel?: string | null;
-  runXpPoolAmount?: number | null;
   playModifierFlash?: boolean;
   plays?: TrickPlayDisplay[];
   /** Skip fly-in (trick-end pause snapshot, etc.) */
@@ -130,7 +129,6 @@ export default function GamePlayArea({
   lastPlayPlayerId,
   playCountLabel,
   playModifierLabel,
-  runXpPoolAmount = null,
   playModifierFlash = false,
   plays = [],
   skipPlayFlights = false,
@@ -825,7 +823,6 @@ export default function GamePlayArea({
             layoutHint?: typeof layout;
             playCountLabel?: string | null;
             playModifierLabel?: string | null;
-            runXpPoolAmount?: number | null;
             playModifierFlash?: boolean;
             hiddenPlayKeys?: Set<string>;
             playGroupMeasureRefs?: typeof playGroupMeasureRefs;
@@ -835,7 +832,6 @@ export default function GamePlayArea({
             layoutHint: layout,
             playCountLabel,
             playModifierLabel,
-            runXpPoolAmount,
             playModifierFlash,
             hiddenPlayKeys,
             playGroupMeasureRefs: ENABLE_FLIGHT_LAND_DIAGNOSTICS

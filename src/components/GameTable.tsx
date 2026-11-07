@@ -29,11 +29,10 @@ import {
   isUnifiedActivePilePlay,
   unifiedActivePileGroupZ,
   stageCardRowCenterY,
-  STAGE_PLAY_TYPE_BADGE_GAP_COMPACT,
-  stagePlayTypeBadgeAboveStackTop,
-  stageRunXpTop,
+  STAGE_PLAY_TYPE_BADGE_GAP,
   playStackTopFromLayout,
 } from "../utils/tablePlayLayout";
+import { playTypeBadgeBelowCardsTop } from "../utils/tableBadgeLayout";
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
 import type { MeasurableNode } from "../utils/playFlightDiagnostics";
 import TableAmbience from "../gameplayPresentation/TableAmbience";
@@ -44,8 +43,6 @@ import {
   JOKER_COLORS,
   JOKER_FLAME_SEEDS,
 } from "../gameplayPresentation/RunsEffect/constants";
-import { useAppTheme } from "../context/ThemeContext";
-import { binaryFeltInk } from "../styles/feltPalette";
 
 /** z-index stride per play group — cards within use 0..stride-1 by left-to-right order. */
 const GROUP_Z_STRIDE = 100;
@@ -171,8 +168,6 @@ type Props = {
   plays: TrickPlayDisplay[];
   playCountLabel?: string | null;
   playModifierLabel?: string | null;
-  /** Live run bonus XP — shown above the card row as large felt-contrast text. */
-  runXpPoolAmount?: number | null;
   layoutHint?: PlayAreaLayout | null;
   /** Gather all played cards into a centered stack at trick end. */
   collectToStack?: boolean;
@@ -194,7 +189,6 @@ export default function GameTable({
   plays,
   playCountLabel,
   playModifierLabel,
-  runXpPoolAmount = null,
   layoutHint,
   collectToStack = false,
   collectDurationMs = 520,
@@ -205,7 +199,6 @@ export default function GameTable({
   playGroupMeasureRefs,
   measuredZoneRef,
 }: Props) {
-  const { feltTint } = useAppTheme();
   const [zoneSize, setZoneSize] = useState({ width: 0, height: 0 });
   const collectAnim = useRef(new Animated.Value(0)).current;
   const tableFadeAnim = useRef(new Animated.Value(1)).current;
@@ -400,27 +393,15 @@ export default function GameTable({
 
   const playTypeBadgeTop = useMemo(
     () =>
-      stagePlayTypeBadgeAboveStackTop(
-        playStackTop,
-        layoutHint?.isCompact || layoutHint?.isVeryCompact
-          ? STAGE_PLAY_TYPE_BADGE_GAP_COMPACT
-          : undefined,
+      playTypeBadgeBelowCardsTop(
+        layout.positions.length > 0
+          ? layout.positions
+          : [{ top: playStackTop }],
+        refCardHeight,
+        STAGE_PLAY_TYPE_BADGE_GAP,
       ),
-    [playStackTop, layoutHint?.isCompact, layoutHint?.isVeryCompact],
+    [layout.positions, playStackTop, refCardHeight],
   );
-
-  const runXpTop = useMemo(
-    () => stageRunXpTop(stageHeight, refCardHeight),
-    [stageHeight, refCardHeight],
-  );
-
-  const runXpInk = useMemo(() => binaryFeltInk(feltTint), [feltTint]);
-
-  const showRunXpPool =
-    runXpPoolAmount != null && runXpPoolAmount > 0;
-  const showPlayTypePills = !!(playCountLabel || playModifierLabel);
-  const showBadgeColumn =
-    stageHeight > 0 && (showPlayTypePills || showRunXpPool);
 
   const badgeOpacity = collectAnim.interpolate({
     inputRange: [0, 0.35],
@@ -433,6 +414,8 @@ export default function GameTable({
   const showJokerEffect = playModifierLabel === "Joker!";
   const showEffectPill =
     showRunsEffect || showOnTopEffect || showJokerEffect;
+  const showPlayTypePills = !!(playCountLabel || playModifierLabel);
+  const showBadgeColumn = stageHeight > 0 && showPlayTypePills;
   const effectPalette = showOnTopEffect
     ? ON_TOP_COLORS
     : showJokerEffect
@@ -653,31 +636,6 @@ export default function GameTable({
             ]}
             pointerEvents="none"
           >
-            {showRunXpPool ? (
-              <Animated.View
-                style={[
-                  styles.runXpLabel,
-                  {
-                    top: runXpTop,
-                    opacity: collectToStack ? badgeOpacity : 1,
-                  },
-                ]}
-                pointerEvents="none"
-              >
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.runXpText,
-                    {
-                      color: runXpInk.color,
-                      textShadowColor: runXpInk.textShadowColor,
-                    },
-                  ]}
-                >
-                  +{runXpPoolAmount} XP
-                </Text>
-              </Animated.View>
-            ) : null}
             {showPlayTypePills ? (
               <Animated.View
                 style={[
@@ -848,30 +806,6 @@ const styles = StyleSheet.create({
     // Let Runs! fire tongues rise past the badge box.
     overflow: "visible",
     zIndex: 6,
-  },
-  runXpLabel: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    alignItems: "center",
-    justifyContent: "flex-end",
-    overflow: "visible",
-    zIndex: GROUP_Z_STRIDE * 8,
-  },
-  runXpText: {
-    fontSize: 20,
-    lineHeight: 24,
-    fontWeight: "800",
-    letterSpacing: 0.35,
-    textAlign: "center",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
-    flexShrink: 0,
-    backgroundColor: "transparent",
-    ...(Platform.OS === "web"
-      ? ({ whiteSpace: "nowrap", userSelect: "none" } as object)
-      : null),
   },
   playTypeBadgeRow: {
     flexDirection: "row",

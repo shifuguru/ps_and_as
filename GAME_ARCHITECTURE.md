@@ -225,6 +225,12 @@ changes. Trade flights do not themselves change deal progress. Stable seat,
 layout, and pending-trade inputs prevent unrelated board renders from restarting
 the mandatory trade animation and its completion timer.
 
+During role trades, each trader sees their own exchange in a centred panel,
+including every card given and returned. The winner chooses return cards there;
+other players see the waiting modal. Only the Asshole or Vice Asshole sees the
+completed exchange, which closes on Continue or automatically after four seconds
+of being displayed, independently of server play progressing.
+
 Decorative motion starts from the system reduced-motion setting; an explicit
 Settings → Gameplay → "Reduce motion" is off by default; players can enable it if
 animations affect their device's performance.

@@ -34,14 +34,11 @@ type TrickHistoryLike = {
 
 export type OnTopDiagnosticDetail = Record<string, unknown>;
 
-const ENABLED =
-  typeof __DEV__ !== "undefined"
-    ? __DEV__
-    : process.env.EXPO_PUBLIC_ON_TOP_DIAG === "1";
+const ENABLED = process.env.EXPO_PUBLIC_ON_TOP_DIAG === "1";
 
 function log(event: string, detail: OnTopDiagnosticDetail): void {
   if (!ENABLED) return;
-  console.warn(`[ON-TOP-DIAG] ${event}`, detail);
+  console.debug(`[ON-TOP-DIAG] ${event}`, detail);
 }
 
 export function logGrantRunOnTopBeat(

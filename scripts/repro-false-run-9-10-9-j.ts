@@ -1,10 +1,9 @@
 import assert from "assert";
+import type { Card, Player } from "../src/game/ruleset";
 import {
   playWouldActivateRun,
   consecutiveSequenceInfo,
   isRunContextSequence,
-  type Card,
-  type Player,
   type TrickHistory,
 } from "../src/game/core";
 

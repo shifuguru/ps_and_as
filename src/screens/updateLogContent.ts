@@ -32,86 +32,80 @@ export function nzdt(local: string): string {
 export const UPDATE_ENTRIES: UpdateEntry[] = [
   {
     publishedAt: nzst("2026-08-20T16:09"),
-    title: "Online games start more reliably",
+    title: "Online Reliability",
     items: [
-      "Online startup and room entry are less likely to stall before play begins",
-      "Round transitions now recover more cleanly when online messages arrive out of order",
+      "Fixes to make sure online tables are more reliable",
     ],
   },
   {
     publishedAt: nzst("2026-08-14T22:13"),
-    title: "Pick up an online game where you left it",
+    title: "Get back to your online game if you left",
     items: [
-      "A pending online lobby now appears on the Home Hub below Play with Friends",
-      "Rejoin the table without digging through the lobby again",
+      "Your previous Online Lobby will now appear in the Player Hub",
+      "Rejoin the table faster without going through lobby selection",
     ],
   },
   {
     publishedAt: nzst("2026-08-14T00:12"),
-    title: "Achievements and titles share a home",
+    title: "Achievements and Titles",
     items: [
-      "Achievements and title tracks now sit in swipeable profile tabs",
-      "Move between career progress and the title you want to wear without leaving the profile",
+      "Achievements and Title Tracks now sit in swipeable profile tabs",
+      "Move between Achievement and Title Track progress",
+      "Title Tracks can be selected to display a given Title",
     ],
   },
   {
     publishedAt: nzst("2026-08-13T23:39"),
     title: "Online tables are easier to join and talk in",
     items: [
-      "Room names, party counts, and lobby actions are clearer",
-      "Quick chat emotes now appear beside the player who sent them",
-      "Play with Friends puts the table and its main actions first",
-      "Skipping deal animations is less likely to desync an online table",
+      "Room names, party counts, and lobby actions are now a lot clearer",
+      "Quick chat messages appear above players who send them",
     ],
   },
   {
     publishedAt: nzst("2026-08-13T23:04"),
-    title: "CPU opponents play more of the hand",
+    title: "CPU Difficulty Improvements",
     items: [
-      "CPU opponents can now lead doubles, triples, and four-of-a-kind when they hold them",
-      "CPU play no longer stalls after closing a 10-rank across turns",
+      "CPU opponents can now lead Tricks with Doubles, Triples, and Quads!",
     ],
   },
   {
     publishedAt: nzst("2026-08-13T00:30"),
     title: "Cleaner passes and Joker turns",
     items: [
-      "Passing clears stale card selections",
-      "Joker turns acknowledge and move on instead of leaving the table hanging",
+      "After Jokers are played, the turn moves on cleanly without leaving the table hanging waiting for everyone to Pass",
     ],
   },
   {
     publishedAt: nzst("2026-08-12T10:31"),
-    title: "Titles, daily rewards, and more reasons to return",
+    title: "Titles, Daily XP Rewards, and more reasons to return",
     items: [
       "Titles can now be earned from your career and selected from your profile",
       "Daily login rewards add XP when you claim them",
-      "Achievement progress and XP now have more visible places to go",
+      "Achievement progress and XP are now more visible",
     ],
   },
   {
     publishedAt: nzst("2026-08-06T16:28"),
-    title: "The rules page catches up with the game",
+    title: "Rules are less AI-fied (WiP)",
     items: [
       "The in-game Rules page now reflects the house rules more accurately",
-      "Daily challenges became tap-to-claim, so XP is awarded when you choose to collect it",
-      "Quick Game and post-trade opening fixes cover CPU and online stalls players could actually hit",
+      "Daily challenges can be tapped to claim, XP is awarded upon collection",
     ],
   },
   {
     publishedAt: nzst("2026-08-04T22:16"),
-    title: "Rules and progress are easier to find",
+    title: "Rules and Progress easier to find",
     items: [
-      "Game Rules now sits beside the main play choices on Home",
-      "Settings and Achievements are next to your player name",
-      "A Rules button is available from the table when you need a reminder",
+      "Game Rules, Settings, and Achievements can now be found from the Player Hub",
+      "Rules button available from the table when you need a reminder",
     ],
   },
   {
     publishedAt: nzst("2026-08-03T15:51"),
-    title: "Google sync shows what came across",
+    title: "Google Sync",
     items: [
-      "Settings now makes it clear when your profile is linked to Google",
+      "Clearer indication when your profile is linked to Google",
       "Sync reports your Level and XP after the transfer, including when cloud progress is empty",
     ],
   },

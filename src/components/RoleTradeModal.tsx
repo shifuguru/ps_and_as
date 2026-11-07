@@ -136,32 +136,30 @@ export default function RoleTradeModal({
                 })}
               </ScrollView>
 
-              <View style={ui.actionTrack}>
-                <TouchableOpacity
+              <TouchableOpacity
+                style={[
+                  ui.actionPrimary,
+                  !canConfirm && ui.actionPrimaryDisabled,
+                  { alignSelf: "stretch", flex: 0 },
+                ]}
+                disabled={!canConfirm}
+                onPress={() => {
+                  triggerHaptic("medium");
+                  const picked = selected.map((i) => sortedHand[i]);
+                  onConfirm(picked);
+                  setSelected([]);
+                  onSelectionChange?.([]);
+                }}
+              >
+                <Text
                   style={[
-                    ui.actionPrimary,
-                    !canConfirm && ui.actionPrimaryDisabled,
-                    { flex: 1 },
+                    ui.actionPrimaryText,
+                    !canConfirm && ui.actionPrimaryTextDisabled,
                   ]}
-                  disabled={!canConfirm}
-                  onPress={() => {
-                    triggerHaptic("medium");
-                    const picked = selected.map((i) => sortedHand[i]);
-                    onConfirm(picked);
-                    setSelected([]);
-                    onSelectionChange?.([]);
-                  }}
                 >
-                  <Text
-                    style={[
-                      ui.actionPrimaryText,
-                      !canConfirm && ui.actionPrimaryTextDisabled,
-                    ]}
-                  >
-                    Confirm Trade
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                  Confirm Trade
+                </Text>
+              </TouchableOpacity>
             </>
           ) : (
             <Text style={[ui.modalBody, { textAlign: "center" }]}>

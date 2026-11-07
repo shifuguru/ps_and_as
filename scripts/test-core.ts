@@ -2183,7 +2183,7 @@ console.log("Dead hand post-trade opening tests passed");
     { suit: "hearts", value: 3 },
     { suit: "spades", value: 4 },
   ];
-  const table = [
+  const table: Player[] = [
     { id: "cpu-1", name: "CPU", hand: cpuHand, role: "Neutral" as const },
     {
       id: "human",
@@ -2353,7 +2353,7 @@ console.log("CPU round-1 opening tests passed");
     { suit: "clubs", value: 9 },
   ];
   const ctx = {
-    trick: { trickNumber: 2, actions: [] } as const,
+    trick: { trickNumber: 2, actions: [] } as TrickHistory,
     players: [{ id: "cpu-1", name: "B", hand, role: "Neutral" as const }],
     trickHistory: [{ trickNumber: 1, actions: [], winnerId: "cpu-1" }],
   };
