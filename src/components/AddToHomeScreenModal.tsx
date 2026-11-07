@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import {
   Platform,
   StyleSheet,
@@ -22,6 +23,7 @@ type Props = {
 
 export default function AddToHomeScreenModal({ visible, onClose }: Props) {
   const { colors, ui } = useAppTheme();
+  const wording = useGameTerminology();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(width - 40, 420);
@@ -48,7 +50,7 @@ export default function AddToHomeScreenModal({ visible, onClose }: Props) {
         {instructions.kind === "external-browser" ? "External browser" : "Mobile"}
       </Text>
       <Text style={styles.title}>{instructions.title}</Text>
-      <Text style={styles.intro}>{instructions.intro}</Text>
+      <Text style={styles.intro}>{wording(instructions.intro)}</Text>
 
       {instructions.steps.map((step, index) => (
         <View key={step} style={styles.stepRow}>

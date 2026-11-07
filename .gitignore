@@ -53,3 +53,26 @@ yarn-error.*
 # Runtime-generated server data
 /server/data/player-stats.json
 /server/data/analytics.json
+scripts/test-ui-refinements.ts
+scripts/test-table-chat-sheet-web.mjs
+scripts/test-table-chat-seat-web.mjs
+scripts/test-table-chat-bubble-web.mjs
+scripts/test-seat-security.mjs
+scripts/test-reduced-motion-web.mjs
+scripts/test-rankings-layout-web.mjs
+scripts/test-player-display-name.ts
+scripts/test-play-flight-start-web.mjs
+scripts/test-light-glass.ts
+scripts/test-hint-web.mjs
+scripts/test-hint-preference.ts
+scripts/test-hint-game-web.mjs
+scripts/test-game-terminology.ts
+scripts/test-decorative-motion.ts
+scripts/test-deal-ceremony-render-stability.mjs
+scripts/test-deal-animation-room.cjs
+scripts/test-core.ts
+scripts/test-card-face-metrics.ts
+scripts/test-seat-security.mjs
+scripts/test-player-display-name.ts
+scripts/test-core.ts
+scripts/test-card-face-metrics.ts

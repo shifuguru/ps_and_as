@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import {
   Modal,
   View,
@@ -34,6 +35,7 @@ export default function RoleTradeModal({
   onSelectionChange,
 }: Props) {
   const { colors, ui, blur } = useAppTheme();
+  const wording = useGameTerminology();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(width - 48, 440);
@@ -78,7 +80,7 @@ export default function RoleTradeModal({
           preset={blur.modal}
         >
           <Text style={ui.modalTitle}>
-            {roleEmoji(roleLabel) ?? ""} {roleLabel} Trade
+            {roleEmoji(roleLabel) ?? ""} {wording(roleLabel)} Trade
           </Text>
 
           {isWinner ? (
@@ -163,7 +165,7 @@ export default function RoleTradeModal({
             </>
           ) : (
             <Text style={[ui.modalBody, { textAlign: "center" }]}>
-              Waiting for {trade.winnerName} ({roleLabel}) to complete the
+              Waiting for {trade.winnerName} ({wording(roleLabel)}) to complete the
               trade with {trade.loserName}…
             </Text>
           )}

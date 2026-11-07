@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import {
   ActivityIndicator,
   Platform,
@@ -18,6 +19,7 @@ import {
 
 export default function AddToHomeScreenBanner() {
   const { colors, ui } = useAppTheme();
+  const wording = useGameTerminology();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { showOffer, inAppBrowser, installButtonLabel, requestInstall } =
     useWebAppInstall();
@@ -72,7 +74,7 @@ export default function AddToHomeScreenBanner() {
         <Text style={styles.body}>
           {inAppBrowser
             ? "Instagram and similar apps use a limited built-in browser. Tap ⋯ in the top right, choose Open in browser, then play from Safari or Chrome."
-            : "Add P's & A's to your home screen for a full-screen app. We'll show the steps for your phone."}
+            : wording("Add P's & A's to your home screen for a full-screen app. We'll show the steps for your phone.")}
         </Text>
         <View style={styles.actions}>
           <TouchableOpacity

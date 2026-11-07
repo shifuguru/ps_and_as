@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import {
   Modal,
   StyleSheet,
@@ -28,6 +29,7 @@ export default function WebInstallCoachModal({
   onContinueInBrowser,
 }: Props) {
   const { ui, blur, colors } = useAppTheme();
+  const wording = useGameTerminology();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
   const { width } = useWindowDimensions();
@@ -104,9 +106,9 @@ export default function WebInstallCoachModal({
               : "Play better as an app"}
           </Text>
           <Text style={styles.body}>
-            {inAppBrowser
+            {wording(inAppBrowser
               ? "You're in a limited in-app browser. Open P's & A's in Safari or Chrome, then add it to your home screen for full-screen play."
-              : "Add P's & A's to your home screen for full-screen play without the browser bar — the best way to play on your phone."}
+              : "Add P's & A's to your home screen for full-screen play without the browser bar — the best way to play on your phone.")}
           </Text>
 
           {showSteps ? (

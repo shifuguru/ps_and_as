@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { useAppTheme } from "../context/ThemeContext";
-import { hexToRgba } from "../utils/colorTheory";
+import { tableChatBubbleColors } from "../chat/tableChatAppearance";
 
 type Props = {
   active: boolean;
@@ -55,7 +55,8 @@ export default function TableChatBubble({ active, text, avatarSize }: Props) {
       style={[
         styles.host,
         {
-          top: -avatarSize * 0.52,
+          left: (avatarSize - maxWidth) / 2,
+          width: maxWidth,
           opacity: pop,
           transform: [
             {
@@ -84,11 +85,12 @@ export default function TableChatBubble({ active, text, avatarSize }: Props) {
 }
 
 function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
+  const bubbleColors = tableChatBubbleColors(colors);
   return StyleSheet.create({
     host: {
       position: "absolute",
-      left: 0,
-      right: 0,
+      bottom: "100%",
+      marginBottom: 4,
       alignItems: "center",
       zIndex: 42,
     },
@@ -96,9 +98,9 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       paddingHorizontal: 10,
       paddingVertical: 6,
       borderRadius: 12,
-      backgroundColor: colors.mode === "dark" ? "#f4f7f5" : "#ffffff",
+      backgroundColor: bubbleColors.background,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hexToRgba(colors.accent, 0.45),
+      borderColor: bubbleColors.border,
       ...Platform.select({
         ios: {
           shadowColor: "#000",
@@ -111,7 +113,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       }),
     },
     text: {
-      color: colors.mode === "dark" ? "#102018" : "#173126",
+      color: bubbleColors.text,
       fontSize: 11,
       fontWeight: "800",
       letterSpacing: 0.15,
@@ -127,7 +129,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
       borderTopWidth: 7,
       borderLeftColor: "transparent",
       borderRightColor: "transparent",
-      borderTopColor: colors.mode === "dark" ? "#f4f7f5" : "#ffffff",
+      borderTopColor: bubbleColors.background,
     },
   });
 }

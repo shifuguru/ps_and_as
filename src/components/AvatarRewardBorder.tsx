@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import { View, StyleSheet, Platform } from "react-native";
 import type { AvatarBorderDesign } from "../rewards/avatarBorders";
 
@@ -9,6 +10,7 @@ type Props = {
 
 /** Decorative achievement border — sits just below the avatar circle. */
 export default function AvatarRewardBorder({ design, avatarSize }: Props) {
+  const wording = useGameTerminology();
   const styles = useMemo(
     () => createStyles(design.glowColor, avatarSize),
     [design.glowColor, avatarSize],
@@ -18,7 +20,7 @@ export default function AvatarRewardBorder({ design, avatarSize }: Props) {
     <View
       style={styles.host}
       pointerEvents="none"
-      accessibilityLabel={design.label}
+      accessibilityLabel={wording(design.label)}
       accessibilityHint="Achievement reward border"
     >
       {design.kind === "wings" ? (

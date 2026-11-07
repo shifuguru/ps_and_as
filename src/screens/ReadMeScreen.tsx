@@ -26,6 +26,7 @@ import BottomBar, {
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { contentMaxWidth } from "../styles/uiStandards";
 import { useAppTheme } from "../context/ThemeContext";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import { fetchReadmeMarkdown } from "../utils/readmeFallback";
 import {
   parseReadmeHtml,
@@ -50,6 +51,7 @@ const NAV_PROBE_OFFSET = 8;
 
 export default function ReadMeScreen({ onBack }: Props) {
   const { colors, ui } = useAppTheme();
+  const wording = useGameTerminology();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
   const { width } = useWindowDimensions();
@@ -76,7 +78,6 @@ export default function ReadMeScreen({ onBack }: Props) {
   );
 
   const [markdown, setMarkdown] = useState<string | null>(null);
-  const [html, setHtml] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const webScrollRef = useRef<HTMLDivElement | null>(null);
@@ -89,6 +90,17 @@ export default function ReadMeScreen({ onBack }: Props) {
     () => (markdown ? extractRulesSections(markdown) : []),
     [markdown],
   );
+  const html = useMemo(() => {
+    if (!markdown || Platform.OS !== "web") return null;
+    const root = document.createElement("div");
+    root.innerHTML = parseReadmeHtml(markdown);
+    const nodes = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    while (nodes.nextNode()) {
+      const node = nodes.currentNode;
+      node.textContent = wording(node.textContent ?? "");
+    }
+    return root.innerHTML;
+  }, [markdown, wording]);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,9 +108,6 @@ export default function ReadMeScreen({ onBack }: Props) {
       .then((text) => {
         if (cancelled) return;
         setMarkdown(text);
-        if (Platform.OS === "web") {
-          setHtml(parseReadmeHtml(text));
-        }
       })
       .catch((err: Error) => {
         if (!cancelled) {
@@ -244,7 +253,7 @@ export default function ReadMeScreen({ onBack }: Props) {
 
       {markdown && !showHtml && !loadError ? (
         <Text style={styles.plainMarkdown} selectable>
-          {markdown}
+          {wording(markdown)}
         </Text>
       ) : null}
     </View>
@@ -261,7 +270,7 @@ export default function ReadMeScreen({ onBack }: Props) {
         <View style={[styles.header, { maxWidth: contentMax }]}>
           <ScreenTopBar title="Rules" />
           <Text style={styles.sectionTitle} numberOfLines={1}>
-            {activeSectionTitle}
+            {wording(activeSectionTitle)}
           </Text>
         </View>
 

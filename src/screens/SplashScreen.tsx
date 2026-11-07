@@ -12,6 +12,7 @@ import {
 import { gameTitleFaceStyle } from "../utils/gameTitleFont";
 import { USE_NATIVE_DRIVER } from "../utils/useNativeDriver";
 import { useAppTheme } from "../context/ThemeContext";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 
 type Props = {
   onFinish: () => void;
@@ -117,6 +118,7 @@ function GlassCard({
  * Timing is short — splash is a load bridge, not a cinematic.
  */
 export default function SplashScreen({ onFinish, onRevealBegin }: Props) {
+  const wording = useGameTerminology();
   const { width, height } = useWindowDimensions();
   const { mode, preferencesLoaded } = useAppTheme();
   const dark = mode === "dark";
@@ -321,7 +323,7 @@ export default function SplashScreen({ onFinish, onRevealBegin }: Props) {
           ]}
           accessibilityRole="header"
         >
-          P&apos;s & A&apos;s
+          {wording("P's & A's")}
         </Text>
         <Text style={[local.subtitle, dark && local.darkSubtitle]}>THE CARD GAME</Text>
         <View style={local.loader} accessibilityLabel="Loading">

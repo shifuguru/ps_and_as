@@ -2,9 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import {
   areGamePreferencesLoaded,
   getDarkModeCardsSync,
+  getKingsNameSync,
+  getReduceMotionSync,
   getSkipDealAnimationsSync,
   preloadGamePreferences,
   setDarkModeCards as persistDarkModeCards,
+  setKingsName as persistKingsName,
+  setReduceMotion as persistReduceMotion,
   setSkipDealAnimations as persistSkipDealAnimations,
   subscribeGamePreferences,
 } from "../services/gamePreferences";
@@ -13,6 +17,8 @@ function readCachedPreferences() {
   return {
     skipDealAnimations: getSkipDealAnimationsSync(),
     darkModeCards: getDarkModeCardsSync(),
+    reduceMotion: getReduceMotionSync(),
+    kingsName: getKingsNameSync(),
   };
 }
 
@@ -23,6 +29,12 @@ export function useGamePreferences() {
   const [darkModeCards, setDarkModeCardsState] = useState(
     () => readCachedPreferences().darkModeCards,
   );
+  const [reduceMotion, setReduceMotionState] = useState(
+    () => readCachedPreferences().reduceMotion,
+  );
+  const [kingsName, setKingsNameState] = useState(
+    () => readCachedPreferences().kingsName,
+  );
   const [loaded, setLoaded] = useState(areGamePreferencesLoaded());
 
   useEffect(() => {
@@ -32,6 +44,8 @@ export function useGamePreferences() {
       const prefs = readCachedPreferences();
       setSkipDealAnimationsState(prefs.skipDealAnimations);
       setDarkModeCardsState(prefs.darkModeCards);
+      setReduceMotionState(prefs.reduceMotion);
+      setKingsNameState(prefs.kingsName);
       setLoaded(true);
     };
 
@@ -61,11 +75,25 @@ export function useGamePreferences() {
     await persistDarkModeCards(value);
   }, []);
 
+  const setReduceMotion = useCallback(async (value: boolean) => {
+    setReduceMotionState(value);
+    setLoaded(true);
+    await persistReduceMotion(value);
+  }, []);
+
+  const setKingsName = useCallback(async (value: boolean) => {
+    await persistKingsName(value);
+  }, []);
+
   return {
     skipDealAnimations,
     setSkipDealAnimations,
     darkModeCards,
     setDarkModeCards,
+    reduceMotion,
+    setReduceMotion,
+    kingsName,
+    setKingsName,
     loaded,
   };
 }

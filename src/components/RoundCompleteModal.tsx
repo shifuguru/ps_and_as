@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import {
   Modal,
   View,
@@ -11,6 +12,7 @@ import {
 } from "react-native";
 import BlurPanel from "./BlurPanel";
 import ModalBackdrop from "./ModalBackdrop";
+import RoundEndCelebration from "./RoundEndCelebration";
 import AppButton from "./ui/AppButton";
 import AvatarRewardBorder from "./AvatarRewardBorder";
 import { triggerHaptic } from "../utils/haptics";
@@ -212,6 +214,7 @@ function RankingRow({
   styles: ReturnType<typeof createStyles>;
   colors: ReturnType<typeof useAppTheme>["colors"];
 }) {
+  const wording = useGameTerminology();
   const rowOpacity = useRef(new Animated.Value(0)).current;
   const rowTranslate = useRef(new Animated.Value(8)).current;
   const banner = roleBannerStyle(role, colors);
@@ -305,7 +308,7 @@ function RankingRow({
       </View>
       <View style={[styles.roleFooter, banner.container]} pointerEvents="none">
         <Text style={[styles.roleFooterText, banner.text]}>
-          {roleBannerLabel(role)}
+          {wording(roleBannerLabel(role))}
         </Text>
       </View>
     </Animated.View>
@@ -490,7 +493,8 @@ export default function RoundCompleteModal({
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
       <View style={styles.modalRoot} pointerEvents="box-none">
-        <ModalBackdrop visible zIndex={ROUND_COMPLETE_Z} />
+        <RoundEndCelebration active={visible} />
+        <ModalBackdrop visible milky zIndex={ROUND_COMPLETE_Z} />
         <Animated.View
           style={[
             styles.modalContent,

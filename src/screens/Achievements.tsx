@@ -51,6 +51,7 @@ import {
 import { TitlesScrollContent } from "./Titles";
 import { BUTTON_CENTER, buttonLabel } from "../styles/buttonStyles";
 import { strings } from "../strings";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 
 export type ProfileTab = "achievements" | "titles";
 
@@ -64,6 +65,7 @@ export default function Achievements({
   initialTab?: ProfileTab;
 }) {
   const { colors, ui } = useAppTheme();
+  const wording = useGameTerminology();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
   const { width } = useWindowDimensions();
@@ -259,7 +261,7 @@ export default function Achievements({
               <StatCard label="XP" value={String(stats?.xp ?? 0)} />
               <StatCard label="Rounds" value={String(stats?.roundsPlayed ?? 0)} />
               <StatCard
-                label="President"
+                label={wording("President")}
                 value={String(stats?.timesPresident ?? 0)}
               />
               <StatCard
@@ -276,12 +278,12 @@ export default function Achievements({
 
             <View style={styles.roleRow}>
               <RolePill
-                label="President"
+                label={wording("President")}
                 count={stats?.timesPresident ?? 0}
                 fill="#E8C547"
               />
               <RolePill
-                label="Vice Pres."
+                label={wording("Vice Pres.")}
                 count={stats?.timesVicePresident ?? 0}
                 fill="#C0C7D4"
               />
@@ -348,10 +350,10 @@ export default function Achievements({
                           !earned && styles.achievementTitleLocked,
                         ]}
                       >
-                        {achievement.title}
+                        {wording(achievement.title)}
                       </Text>
                       <Text style={styles.achievementDesc}>
-                        {achievement.description}
+                        {wording(achievement.description)}
                       </Text>
                       {progress ? (
                         <Text
@@ -367,7 +369,7 @@ export default function Achievements({
                       ) : null}
                       {stats ? (
                         <Text style={styles.achievementTotal}>
-                          {formatAchievementCareerTotal(stats, achievement)}
+                          {wording(formatAchievementCareerTotal(stats, achievement))}
                         </Text>
                       ) : null}
                     </View>

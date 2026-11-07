@@ -23,7 +23,7 @@ import {
   type RunsPalette,
 } from "./constants";
 import { WARM_FIRE_FACE } from "./realisticFireSim";
-import { useDecorativeMotion } from "../../hooks/useDecorativeMotion";
+import { useDecorativeMotion, useTurnIndicatorMotion } from "../../hooks/useDecorativeMotion";
 
 const USE_REALISTIC_FIRE = Platform.OS === "web";
 
@@ -60,6 +60,8 @@ type Props = {
   containFlames?: boolean;
   /** Render fire without pill chrome or its oval bloom. */
   effectOnly?: boolean;
+  /** "Your turn" cue: keeps animating under reduced motion. */
+  turnIndicator?: boolean;
 };
 
 /**
@@ -81,9 +83,12 @@ export default function RunsPill({
   emberSpread = "top",
   containFlames = false,
   effectOnly = false,
+  turnIndicator = false,
 }: Props) {
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const motion = useDecorativeMotion();
+  const decorativeMotion = useDecorativeMotion();
+  const turnMotion = useTurnIndicatorMotion();
+  const motion = turnIndicator ? turnMotion : decorativeMotion;
   const anim = useRunsAnimation(active && motion, motion);
   const realisticChrome =
     showFlames && active && USE_REALISTIC_FIRE && !containFlames;

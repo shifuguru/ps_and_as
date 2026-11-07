@@ -10,6 +10,7 @@ import {
 import { isDeadHandPlayer } from "../game/deadHand";
 import type { AvatarBorderDesign } from "../rewards/avatarBorders";
 import { isCpuPlayer } from "../utils/localPlayer";
+import { triggerHaptic } from "../utils/haptics";
 
 type Props = {
   players: OpponentSeatPlayer[];
@@ -32,6 +33,8 @@ type Props = {
   trickWinnerShout?: string | null;
   /** Quick-chat bubble text keyed by player id. */
   tableChatByPlayerId?: Record<string, string>;
+  tableChatPlayerId?: string | null;
+  onOpenTableChat?: () => void;
   /** Achievement borders keyed by player id. */
   avatarBordersByPlayerId?: Record<string, AvatarBorderDesign>;
   layoutSeatIds?: string[];
@@ -91,6 +94,8 @@ export default function OpponentRing({
   trickWinnerXpAmount,
   trickWinnerShout = null,
   tableChatByPlayerId = {},
+  tableChatPlayerId = null,
+  onOpenTableChat,
   avatarBordersByPlayerId = {},
   layoutSeatIds,
   deadHandGraveyard = false,
@@ -239,10 +244,18 @@ export default function OpponentRing({
               nudgeHighlighted={player.id === nudgeHighlightPlayerId}
               dealtStackCount={dealtStackCounts?.[player.id] ?? 0}
               onAvatarPress={
-                onPlayerPress && !isDeadHandPlayer(player)
-                  ? () => onPlayerPress(player.id)
-                  : undefined
+                player.id === tableChatPlayerId
+                  ? onOpenTableChat
+                    ? () => {
+                        triggerHaptic("light");
+                        onOpenTableChat();
+                      }
+                    : undefined
+                  : onPlayerPress && !isDeadHandPlayer(player)
+                    ? () => onPlayerPress(player.id)
+                    : undefined
               }
+              avatarOpensChat={player.id === tableChatPlayerId && !!onOpenTableChat}
             />
           </View>
         );

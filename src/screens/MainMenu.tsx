@@ -19,6 +19,7 @@ import { gameTitleFaceStyle } from "../utils/gameTitleFont";
 import { onFeltTextStyle } from "../utils/onFeltTypography";
 import { useAppTheme } from "../context/ThemeContext";
 import { strings } from "../strings";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 
 export type MainMenuButton = {
   label: string;
@@ -92,6 +93,7 @@ function MenuGlassButton({
 
 export default function MainMenu({ buttons, onButtonPress, style }: Props) {
   const { colors } = useAppTheme();
+  const wording = useGameTerminology();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
   const { width, height } = useVisualViewportSize();
@@ -117,10 +119,10 @@ export default function MainMenu({ buttons, onButtonPress, style }: Props) {
       >
         <View style={[styles.content, { maxWidth: contentMaxWidth }]}>
           <Text style={[styles.title, gameTitleFaceStyle()]}>
-            {strings.menu.title}
+            {wording(strings.menu.title)}
           </Text>
-          <Text style={styles.subtitle}>{strings.menu.subtitle}</Text>
-          <Text style={styles.versionLabel}>{versionLabel}</Text>
+          <Text style={styles.subtitle}>{wording(strings.menu.subtitle)}</Text>
+          <Text style={styles.versionLabel}>{wording(versionLabel)}</Text>
 
           <AddToHomeScreenBanner />
 

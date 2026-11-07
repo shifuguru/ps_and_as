@@ -13,6 +13,7 @@ import { playerInitials } from "../utils/playerDisplay";
 import TrickWinCelebration from "./TrickWinCelebration";
 import TrickWinShout from "./TrickWinShout";
 import TableChatBubble from "./TableChatBubble";
+import MenuIcon from "./MenuIcon";
 import AvatarRewardBorder from "./AvatarRewardBorder";
 import type { AvatarBorderDesign } from "../rewards/avatarBorders";
 import Card from "./Card";
@@ -22,7 +23,7 @@ import {
   avatarSizeForSeat,
   COUNT_BADGE_OUTSET_BOTTOM,
   COUNT_BADGE_OUTSET_RIGHT,
-  COUNT_BADGE_PADDING_H,
+  countBadgeDimensions,
   dealStackCenterInAvatarWrap,
   seatMiniCardDimensions,
   type SeatDimensions,
@@ -102,6 +103,8 @@ type Props = {
   dealtStackCount?: number;
   /** Open player profile / stats card. */
   onAvatarPress?: () => void;
+  /** Local avatar opens quick chat instead of a profile. */
+  avatarOpensChat?: boolean;
 };
 
 export default function OpponentSeat({
@@ -116,6 +119,7 @@ export default function OpponentSeat({
   celebrateTrickWin = false,
   trickShout = null,
   tableChatMessage = null,
+  avatarOpensChat = false,
   avatarBorder = null,
   showTrickXp = false,
   trickXpAmount,
@@ -304,6 +308,7 @@ export default function OpponentSeat({
   );
 
   const avatarSize = avatarSizeForSeat(dims, { compact, isLocal });
+  const countBadgeSize = countBadgeDimensions(dims.countBadgeSize);
   const turnHaloPad = 30;
   const turnGlowPad = 16;
   const turnRingPad = 10;
@@ -454,7 +459,7 @@ export default function OpponentSeat({
           isGraveyard && styles.avatarGraveyard,
         ]}
       >
-        <Text
+          <Text
           style={[
             styles.initials,
             {
@@ -546,8 +551,8 @@ export default function OpponentSeat({
           ))}
         </View>
       ) : null}
-      {role ? (
-        <Text
+        {role ? (
+          <Text
           style={[styles.roleBadge, { fontSize: dims.roleFont }]}
           pointerEvents="none"
         >
@@ -578,35 +583,30 @@ export default function OpponentSeat({
           </Text>
         </View>
       ) : null}
-      {!isOut && !isDeadHand && (
+      {(!isOut && !isDeadHand) || (isDeadHand && sidelinedCount > 0) ? (
         <View
+          testID="seat-card-count"
           style={[
             styles.countBadge,
             {
-              minWidth: dims.countBadgeSize,
-              height: dims.countBadgeSize,
-              borderRadius: dims.countBadgeSize / 2,
+              width: countBadgeSize.width,
+              height: countBadgeSize.height,
             },
           ]}
+          pointerEvents="none"
         >
+          <Card
+            card={{ suit: "spades", value: 0, hidden: true }}
+            selected={false}
+            faceDown
+            hideBackOrnament
+            disabled
+            variant="table"
+            onPress={() => {}}
+            style={countBadgeSize}
+          />
           <Text style={[styles.countText, { fontSize: dims.countFont }]}>
-            {player.handCount}
-          </Text>
-        </View>
-      )}
-      {isDeadHand && sidelinedCount > 0 ? (
-        <View
-          style={[
-            styles.countBadge,
-            {
-              minWidth: dims.countBadgeSize,
-              height: dims.countBadgeSize,
-              borderRadius: dims.countBadgeSize / 2,
-            },
-          ]}
-        >
-          <Text style={[styles.countText, { fontSize: dims.countFont }]}>
-            {sidelinedCount}
+            {isDeadHand ? sidelinedCount : player.handCount}
           </Text>
         </View>
       ) : null}
@@ -645,7 +645,9 @@ export default function OpponentSeat({
           activeOpacity={0.85}
           onPress={onAvatarPress}
           accessibilityRole="button"
-          accessibilityLabel={`View ${player.name} profile`}
+          accessibilityLabel={avatarOpensChat ? "Quick chat" : `View ${player.name} profile`}
+          accessibilityHint={avatarOpensChat ? "Open quick chat" : undefined}
+          hitSlop={avatarOpensChat ? Math.max(0, (44 - avatarSize) / 2) : undefined}
           style={[
             styles.avatarWrap,
             { width: avatarSize, height: avatarSize },
@@ -661,6 +663,11 @@ export default function OpponentSeat({
           {avatarBlock}
           {avatarBorder ? (
             <AvatarRewardBorder design={avatarBorder} avatarSize={avatarSize} />
+          ) : null}
+          {avatarOpensChat ? (
+            <View style={styles.chatBadge} pointerEvents="none">
+              <MenuIcon name="chat" size={11} color={colors.actionSecondaryText} />
+            </View>
           ) : null}
         </TouchableOpacity>
       ) : (
@@ -686,35 +693,40 @@ export default function OpponentSeat({
         </View>
       )}
 
-      <Text
-        style={[
-          styles.name,
-          {
-            fontSize: compact ? dims.nameFontCompact : dims.nameFont,
-            maxWidth: compact ? dims.nameMaxWCompact : dims.nameMaxW,
-          },
-          isOut && styles.nameOut,
-        ]}
-        numberOfLines={1}
-      >
-        {player.name}
-      </Text>
+      <View>
+        <View style={styles.seatLabels}>
+          <Text
+            style={[
+              styles.name,
+              {
+                fontSize: compact ? dims.nameFontCompact : dims.nameFont,
+                maxWidth: compact ? dims.nameMaxWCompact : dims.nameMaxW,
+              },
+              isOut && styles.nameOut,
+            ]}
+            numberOfLines={1}
+          >
+            {player.name}
+          </Text>
 
-      {isDeadHand ? (
-        <Text style={[styles.deadHandLabel, isGraveyard && styles.deadHandLabelGraveyard]}>
-          {isGraveyard ? "Graveyard" : "Dead Hand"}
-        </Text>
-      ) : isOut ? (
-        <Text style={styles.statusPill}>Out</Text>
-      ) : isDisconnected ? (
-        <Text style={[styles.statusPill, styles.awayPill]}>Away</Text>
-      ) : hasPassed ? (
-        <Text style={[styles.statusPill, styles.passPill]}>Passed</Text>
-      ) : isThinking ? (
-        <Text style={[styles.statusPill, styles.thinkPill]}>…</Text>
-      ) : isLocal ? (
-        <Text style={[styles.statusPill, styles.youPill]}>You</Text>
-      ) : null}
+          {isDeadHand ? (
+            <Text style={[styles.deadHandLabel, isGraveyard && styles.deadHandLabelGraveyard]}>
+              {isGraveyard ? "Graveyard" : "Dead Hand"}
+            </Text>
+          ) : isOut ? (
+            <Text style={styles.statusPill}>Out</Text>
+          ) : isDisconnected ? (
+            <Text style={[styles.statusPill, styles.awayPill]}>Away</Text>
+          ) : hasPassed ? (
+            <Text style={[styles.statusPill, styles.passPill]}>Passed</Text>
+          ) : isThinking ? (
+            <Text style={[styles.statusPill, styles.thinkPill]}>…</Text>
+          ) : isLocal ? (
+            <Text style={[styles.statusPill, styles.youPill]}>You</Text>
+          ) : null}
+        </View>
+
+      </View>
 
       {showTurnBell && onTurnBellPress ? (
         <View style={styles.bellSlot}>
@@ -734,7 +746,6 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   const accentHalo = hexToRgba(accentBright, 0.14);
   const accentBloom = hexToRgba(accentBright, 0.28);
   const accentLocal = hexToRgba(accent, 0.75);
-  const accentBadge = hexToRgba(accent, 0.35);
   const onFelt = colors.onFelt;
   const saberShadow = (radius: number, opacity = 1) =>
     Platform.select({
@@ -757,6 +768,9 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   seat: {
     alignItems: "center",
     paddingHorizontal: 4,
+  },
+  seatLabels: {
+    alignItems: "center",
   },
   seatOut: {
     opacity: 0.45,
@@ -854,13 +868,27 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
   avatarWrap: {
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    marginBottom: 12,
     overflow: "visible",
     position: "relative",
     zIndex: 2,
   },
   avatarWrapCelebrate: {
     zIndex: 12,
+  },
+  chatBadge: {
+    position: "absolute",
+    left: -7,
+    bottom: -3,
+    width: 19,
+    height: 19,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.actionSecondaryBg,
+    borderColor: colors.actionSecondaryBorder,
+    borderWidth: 1,
+    zIndex: 15,
   },
   turnRingHalo: {
     position: "absolute",
@@ -947,16 +975,16 @@ function createStyles(colors: AppThemeColors, palette: FeltPalette) {
     position: "absolute",
     right: -COUNT_BADGE_OUTSET_RIGHT,
     bottom: -COUNT_BADGE_OUTSET_BOTTOM,
-    paddingHorizontal: COUNT_BADGE_PADDING_H,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.72)",
-    borderWidth: 1,
-    borderColor: accentBadge,
   },
   countText: {
+    position: "absolute",
+    color: "#ffffff",
     fontWeight: "800",
-    ...onFeltTextStyle(onFelt, "primary"),
+    textShadowColor: "#4b0616",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   name: {
     fontWeight: "700",

@@ -53,6 +53,7 @@ import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
 import { playerInitials } from "../utils/playerDisplay";
 import { hexToRgba } from "../utils/colorTheory";
 import { strings } from "../strings";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import {
   getPlayerStats,
   winRate,
@@ -193,6 +194,7 @@ export default function PlayerHub({
   onOpenUpdate,
 }: Props) {
   const { colors } = useAppTheme();
+  const wording = useGameTerminology();
   const motion = useDecorativeMotion();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
@@ -764,7 +766,7 @@ export default function PlayerHub({
           </Text>
           {(playerTitle ?? displayedTitle) ? (
             <Text style={styles.titleSlot} numberOfLines={1}>
-              {playerTitle ?? displayedTitle}
+              {wording(playerTitle ?? displayedTitle ?? "")}
             </Text>
           ) : null}
           <Text style={styles.identityMeta}>Level {displayLevel.level}</Text>
@@ -892,7 +894,7 @@ export default function PlayerHub({
           <Text style={styles.rewardInline}>+{dailyDef.rewardXp} XP</Text>
         </View>
         <Text style={styles.goalTitle}>{dailyDef.title}</Text>
-        <Text style={styles.goalSub}>{dailyDef.description}</Text>
+        <Text style={styles.goalSub}>{wording(dailyDef.description)}</Text>
         <ProgressMeter
           progress={dailyProgress.fraction}
           valueLabel={`${dailyProgress.current} / ${dailyProgress.target}`}
@@ -941,9 +943,9 @@ export default function PlayerHub({
       >
         <View style={[styles.content, { maxWidth: contentMaxWidth }]}>
           <Text style={[styles.brandTitle, gameTitleFaceStyle()]}>
-            P&apos;s & A&apos;s
+            {wording(strings.menu.title)}
           </Text>
-          <Text style={styles.brandSubtitle}>Presidents & Assholes</Text>
+          <Text style={styles.brandSubtitle}>{wording(strings.menu.subtitle)}</Text>
           {/* Tagline hidden per request — keep available for future copy.
           <Text style={styles.brandPitch}>
             Race to empty your hand. Finish first and become President.
@@ -1207,13 +1209,13 @@ export default function PlayerHub({
                 <Text style={styles.unlockEmoji}>{recent.def.emoji}</Text>
                 <View style={styles.unlockBody}>
                   <Text style={[styles.unlockTitle, { color: recentAccent }]}>
-                    {recent.def.title}
+                    {wording(recent.def.title)}
                     {recent.prestige > 1
                       ? ` · ${formatAchievementPrestige(recent.prestige)}`
                       : ""}
                   </Text>
                   <Text style={styles.goalSub} numberOfLines={2}>
-                    {recent.def.description}
+                    {wording(recent.def.description)}
                   </Text>
                   <Text style={styles.unlockAge}>
                     {recent.prestige > 1 ? "Prestiged" : "Unlocked"} {recent.age}
@@ -1247,8 +1249,8 @@ export default function PlayerHub({
                     {idx > 0 ? <View style={styles.goalDivider} /> : null}
                     <View style={styles.goalRow}>
                       <View style={styles.goalTextCol}>
-                        <Text style={styles.goalTitle}>{g.title}</Text>
-                        <Text style={styles.goalSub}>{g.subtitle}</Text>
+                        <Text style={styles.goalTitle}>{wording(g.title)}</Text>
+                        <Text style={styles.goalSub}>{wording(g.subtitle)}</Text>
                       </View>
                       <ProgressMeter progress={g.fraction} height={7} />
                     </View>
@@ -1291,8 +1293,8 @@ export default function PlayerHub({
               {featured ? (
                 <View style={styles.featuredStat}>
                   <Text style={styles.featuredValue}>{featured.value}</Text>
-                  <Text style={styles.featuredLabel}>{featured.label}</Text>
-                  <Text style={styles.goalSub}>{featured.hint}</Text>
+                  <Text style={styles.featuredLabel}>{wording(featured.label)}</Text>
+                  <Text style={styles.goalSub}>{wording(featured.hint)}</Text>
                 </View>
               ) : null}
               <View style={styles.statsGrid}>
@@ -1307,7 +1309,7 @@ export default function PlayerHub({
                   styles={styles}
                 />
                 <StatCell
-                  label="Presidents"
+                  label={wording("Presidents")}
                   value={String(stats?.timesPresident ?? 0)}
                   styles={styles}
                 />
@@ -1358,11 +1360,11 @@ export default function PlayerHub({
             style={[styles.card, styles.utilityCard, styles.supportCard]}
           >
             <Text style={styles.sectionTitle}>Support</Text>
-            <Text style={styles.supportBody}>{strings.support.playerHubMessage}</Text>
+            <Text style={styles.supportBody}>{wording(strings.support.playerHubMessage)}</Text>
             <KofiButton style={styles.supportCta} />
           </BlurPanel>
 
-          <Text style={styles.versionLabel}>{versionLabel}</Text>
+          <Text style={styles.versionLabel}>{wording(versionLabel)}</Text>
               </View>
             </Animated.View>
 

@@ -18,6 +18,8 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   zIndex?: number;
   children?: React.ReactNode;
+  /** Frosted, whitish "milky" blur instead of a dark dim. */
+  milky?: boolean;
 };
 
 /**
@@ -29,6 +31,7 @@ export default function ModalBackdrop({
   style,
   zIndex = 180,
   children,
+  milky = false,
 }: Props) {
   const { colors, blur } = useAppTheme();
   const internalOpacity = useRef(new Animated.Value(0)).current;
@@ -75,17 +78,24 @@ export default function ModalBackdrop({
         <BlurView
           intensity={modalBlur.intensity}
           tint={modalBlur.tint}
-          style={StyleSheet.absoluteFill}
+          style={[
+            StyleSheet.absoluteFill,
+            milky && {
+              backgroundColor: `rgba(${scrimRgb}, ${modalBlur.scrimOpacity})`,
+            },
+          ]}
           pointerEvents="none"
         />
       )}
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { backgroundColor: `rgba(0, 0, 0, ${dimOpacity})` },
-        ]}
-        pointerEvents="none"
-      />
+      {!milky ? (
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: `rgba(0, 0, 0, ${dimOpacity})` },
+          ]}
+          pointerEvents="none"
+        />
+      ) : null}
       {children}
     </Animated.View>
   );

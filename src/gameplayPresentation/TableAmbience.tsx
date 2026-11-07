@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
 import { useAppTheme } from "../context/ThemeContext";
@@ -26,6 +27,7 @@ export default function TableAmbience({
   compact = false,
 }: Props) {
   const { colors, palette } = useAppTheme();
+  const wording = useGameTerminology();
   const motion = useDecorativeMotion();
   const breath = useRef(new Animated.Value(0.35)).current;
   const glow = palette.complementBright;
@@ -129,7 +131,7 @@ export default function TableAmbience({
       </Animated.View>
       {!compact ? (
         <Text style={[styles.crest, gameTitleFaceStyle()]} numberOfLines={1}>
-          {"P's & A's"}
+          {wording("P's & A's")}
         </Text>
       ) : null}
     </View>

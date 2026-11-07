@@ -1102,6 +1102,13 @@ function AppContent() {
             <View style={appStyles.settingsForeground}>
               <Settings
                 currentPlayerName={localPlayerName}
+                roomAdapter={
+                  (screen === "create" || screen === "game") &&
+                  (activeRoomId || joinedRoomId)
+                    ? roomAdapter
+                    : null
+                }
+                roomInGame={screen === "game"}
                 onWallpaperPreview={setFeltTint}
                 onWallpaperChange={async () => {
                   reloadWallpaper();

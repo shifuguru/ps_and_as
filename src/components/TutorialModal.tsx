@@ -1,4 +1,5 @@
 import React from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import { Modal, View, Text, Button, StyleSheet } from "react-native";
 
 export interface TutorialModalProps {
@@ -7,11 +8,12 @@ export interface TutorialModalProps {
 }
 
 export const TutorialModal: React.FC<TutorialModalProps> = ({ visible, onClose }) => {
+  const wording = useGameTerminology();
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
         <View style={styles.container}>
-          <Text style={styles.title}>Welcome to P&apos;s & A&apos;s</Text>
+          <Text style={styles.title}>{wording("Welcome to P's & A's")}</Text>
           <Text style={styles.body}>A quick tutorial before playing online?</Text>
           <Button title="Okay" onPress={onClose} />
           <Button title="No thanks" onPress={onClose} />

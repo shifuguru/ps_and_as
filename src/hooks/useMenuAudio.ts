@@ -67,13 +67,13 @@ async function resumeAudioSubsystem(
 export function useMenuAudio() {
   const audioModuleRef = useRef<ExpoAudioModule | null>(null);
   const unlockedRef = useRef(false);
-  const mutedRef = useRef(false);
+  const mutedRef = useRef(true);
   const poolsRef = useRef<Map<string, PoolEntry[]>>(new Map());
   const poolCursorRef = useRef<Map<string, number>>(new Map());
   const preloadInflightRef = useRef<Map<string, Promise<PoolEntry[]>>>(
     new Map(),
   );
-  const [muted, setMuted] = useState<boolean>(false);
+  const [muted, setMuted] = useState<boolean>(true);
 
   useEffect(() => {
     mutedRef.current = muted;
@@ -83,7 +83,7 @@ export function useMenuAudio() {
     let cancelled = false;
 
     const load = async () => {
-      let initMuted = false;
+      let initMuted = true;
       try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const AsyncStorage = require("@react-native-async-storage/async-storage")

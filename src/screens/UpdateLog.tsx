@@ -25,6 +25,7 @@ import {
   type KnownIssue,
 } from "./updateLogContent";
 import { strings } from "../strings";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 
 function statusColor(
   status: KnownIssue["status"],
@@ -48,6 +49,7 @@ export default function UpdateLog({
     void onViewed?.();
   }, [onViewed]);
   const { colors, ui } = useAppTheme();
+  const wording = useGameTerminology();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
   const { width } = useWindowDimensions();
@@ -93,7 +95,7 @@ export default function UpdateLog({
               {entry.items.map((item) => (
                 <View key={item} style={styles.bulletRow}>
                   <Text style={styles.bullet}>•</Text>
-                  <Text style={styles.bulletText}>{item}</Text>
+                  <Text style={styles.bulletText}>{wording(item)}</Text>
                 </View>
               ))}
             </BlurPanel>

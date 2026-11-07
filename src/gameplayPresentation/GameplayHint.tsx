@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import {
   Animated,
   Easing,
@@ -11,6 +11,8 @@ import {
 import MenuIcon from "../components/MenuIcon";
 import { useAppTheme } from "../context/ThemeContext";
 import { useVisualViewportSize } from "../hooks/useVisualViewportSize";
+import { useTurnIndicatorMotion } from "../hooks/useDecorativeMotion";
+import hintPreference from "../services/hintPreference";
 import { hexToRgba } from "../utils/colorTheory";
 import { triggerHaptic } from "../utils/haptics";
 import {
@@ -34,26 +36,21 @@ type Props = {
   /** Instruction copy — shown in the left/center pill when expanded. */
   message?: string;
   visible?: boolean;
-  /**
-   * When true, start with message hidden.
-   * Bulb always stays pinned to the right edge of the action track.
-   */
-  startCollapsed?: boolean;
-  /** Subtle accent when it is the local player's turn. */
+  /** Highlight the bulb when it is the local player's turn. */
   yourTurn?: boolean;
+  /** Render the message and control separately when placed in different rows. */
+  part?: "combined" | "message" | "button";
 };
 
-/**
- * Hint row: message pill + lightbulb.
- * Track width matches ActionBar; bulb is always on the right edge.
- */
+/** Hint message and toggle can share a row or render in separate controls. */
 export default function GameplayHint({
   message = "Tap a card to play",
   visible = true,
-  startCollapsed = false,
   yourTurn = false,
+  part = "combined",
 }: Props) {
   const { colors } = useAppTheme();
+  const motion = useTurnIndicatorMotion();
   const { width } = useWindowDimensions();
   const { height: shellHeight } = useVisualViewportSize();
   const trackWidth = actionTrackWidth(width);
@@ -63,9 +60,20 @@ export default function GameplayHint({
     () => createStyles(colors, barH, padBottom),
     [colors, barH, padBottom],
   );
-  const [expanded, setExpanded] = useState(!startCollapsed);
+  const expanded = useSyncExternalStore(
+    hintPreference.subscribe,
+    hintPreference.getSnapshot,
+    hintPreference.getSnapshot,
+  );
   const hostOpacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
   const textOpacity = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+  const bulbPulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    void hintPreference.preload().catch((error) => {
+      console.warn("Unable to load hint preference:", error);
+    });
+  }, []);
+
   useEffect(() => {
     Animated.timing(hostOpacity, {
       toValue: visible ? 1 : 0,
@@ -73,8 +81,35 @@ export default function GameplayHint({
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
     }).start();
-    if (!visible) setExpanded(true);
   }, [visible, hostOpacity]);
+
+  useEffect(() => {
+    if (part === "message" || !visible || !yourTurn || !motion) {
+      bulbPulse.setValue(0);
+      return;
+    }
+    bulbPulse.setValue(0);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bulbPulse, {
+          toValue: 1,
+          duration: 700,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+          isInteraction: false,
+        }),
+        Animated.timing(bulbPulse, {
+          toValue: 0,
+          duration: 700,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+          isInteraction: false,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [part, visible, yourTurn, motion, bulbPulse]);
 
   useEffect(() => {
     Animated.timing(textOpacity, {
@@ -86,7 +121,68 @@ export default function GameplayHint({
 
   if (!visible) return null;
 
-  const accent = colors.accent;
+  const pulseScale = bulbPulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.16],
+  });
+  const haloScale = bulbPulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.42],
+  });
+  const haloOpacity = bulbPulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.8, 0.12],
+  });
+  const fillShadeOpacity = bulbPulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: colors.mode === "dark" ? [0.32, 0] : [0.14, 0],
+  });
+  const bulb = (
+    <Pressable
+      onPress={() => {
+        triggerHaptic("light");
+        void hintPreference.setExpanded(!hintPreference.getSnapshot()).catch((error) => {
+          console.warn("Unable to save hint preference:", error);
+        });
+      }}
+      style={[styles.bulbBtn, yourTurn && styles.bulbBtnYourTurn]}
+      accessibilityRole="button"
+      accessibilityLabel={expanded ? "Hide hint" : "Show hint"}
+      accessibilityState={{ expanded }}
+      hitSlop={6}
+    >
+      {yourTurn && motion ? (
+        <Animated.View
+          testID="hint-turn-pulse"
+          pointerEvents="none"
+          style={[
+            styles.bulbHalo,
+            { opacity: haloOpacity, transform: [{ scale: haloScale }] },
+          ]}
+        />
+      ) : null}
+      {yourTurn ? (
+        <Animated.View
+          testID="hint-turn-fill"
+          pointerEvents="none"
+          style={[styles.bulbFillShade, { opacity: motion ? fillShadeOpacity : 0 }]}
+        />
+      ) : null}
+      <Animated.View style={{ transform: [{ scale: pulseScale }] }}>
+        <MenuIcon
+          name="bulb"
+          size={barH >= 36 ? BULB_ICON : 16}
+          color={
+            yourTurn
+              ? colors.mode === "dark" ? "#06140e" : "#ffffff"
+              : hexToRgba(colors.textPrimary, 0.92)
+          }
+        />
+      </Animated.View>
+    </Pressable>
+  );
+  if (part === "button") return bulb;
+
   return (
     <Animated.View
       style={[styles.host, { opacity: hostOpacity }]}
@@ -95,6 +191,7 @@ export default function GameplayHint({
       <View style={[styles.track, { width: trackWidth, maxWidth: trackWidth }]}>
         {expanded ? (
           <Animated.View
+            testID="hint-message"
             style={[
               styles.messagePill,
               yourTurn && styles.messagePillYourTurn,
@@ -108,28 +205,7 @@ export default function GameplayHint({
         ) : (
           <View style={styles.messageSpacer} />
         )}
-
-        <Pressable
-          onPress={() => {
-            triggerHaptic("light");
-            setExpanded((v) => !v);
-          }}
-          style={[styles.bulbBtn, yourTurn && styles.bulbBtnYourTurn]}
-          accessibilityRole="button"
-          accessibilityLabel={expanded ? "Hide hint" : "Show hint"}
-          accessibilityState={{ expanded }}
-          hitSlop={6}
-        >
-          <MenuIcon
-            name="bulb"
-            size={barH >= 36 ? BULB_ICON : 16}
-            color={
-              yourTurn
-                ? hexToRgba(accent, 0.98)
-                : hexToRgba(colors.textPrimary, 0.92)
-            }
-          />
-        </Pressable>
+        {part === "combined" ? bulb : null}
       </View>
     </Animated.View>
   );
@@ -197,8 +273,21 @@ function createStyles(
       marginLeft: "auto",
     },
     bulbBtnYourTurn: {
-      borderColor: hexToRgba(colors.accent, 0.45),
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
       borderWidth: 1,
+    },
+    bulbFillShade: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: barH / 2,
+      backgroundColor: colors.mode === "dark" ? "#000000" : "#ffffff",
+    },
+    bulbHalo: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: barH / 2,
+      borderWidth: 2,
+      borderColor: colors.accent,
+      backgroundColor: hexToRgba(colors.accent, 0.22),
     },
   });
 }

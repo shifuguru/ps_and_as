@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import {
   StyleSheet,
   View,
@@ -177,6 +178,7 @@ export default function DealCeremonyOverlay({
   localDealerDeckInHandZone = false,
   onCeremonyControls,
 }: Props) {
+  const wording = useGameTerminology();
   const { width: screenW } = useWindowDimensions();
   const dims = useMemo(() => tableCardDimensions(), []);
 
@@ -644,7 +646,7 @@ export default function DealCeremonyOverlay({
             ? `Fresh round — dealing… ${Math.min(dealRound, dealSteps.length)} / ${dealSteps.length}`
             : `Dealing… ${Math.min(dealRound, dealSteps.length)} / ${dealSteps.length}`
           : freshRound && pendingTrades.length === 0
-            ? "Fresh round — no President trade"
+            ? wording("Fresh round — no President trade")
             : "Role trades…";
 
   useEffect(() => {

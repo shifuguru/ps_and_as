@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import { StyleSheet, Text, View, Animated } from "react-native";
 import ProgressMeter from "../components/ProgressMeter";
 import { useAppTheme } from "../context/ThemeContext";
@@ -30,6 +31,7 @@ export default function GameplayAchievementWidget({
   refreshKey = 0,
 }: Props) {
   const { colors } = useAppTheme();
+  const wording = useGameTerminology();
   const motion = useDecorativeMotion();
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const pulse = useMemo(() => new Animated.Value(1), []);
@@ -88,13 +90,13 @@ export default function GameplayAchievementWidget({
           <Text style={styles.emoji}>{next.def.emoji}</Text>
           <View style={styles.body}>
             <Text style={styles.title} numberOfLines={1}>
-              {next.def.title}
+              {wording(next.def.title)}
               {next.prestige >= 1
                 ? ` · ${formatAchievementPrestige(next.prestige)}`
                 : ""}
             </Text>
             <Text style={styles.desc} numberOfLines={2}>
-              {next.def.description}
+              {wording(next.def.description)}
             </Text>
             <View
               style={[

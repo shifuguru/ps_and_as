@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import {
   Modal,
   View,
@@ -26,6 +27,7 @@ type Props = {
  */
 export default function PrivacyPolicyModal({ visible, onClose }: Props) {
   const { colors, ui, blur } = useAppTheme();
+  const wording = useGameTerminology();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   if (!visible) return null;
@@ -42,7 +44,7 @@ export default function PrivacyPolicyModal({ visible, onClose }: Props) {
           <Text style={ui.modalTitle}>Privacy</Text>
           <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
             <Text style={styles.p}>
-              Presidents &amp; Assholes stores your display name, career stats,
+              {wording("Presidents & Assholes")} stores your display name, career stats,
               and theme preferences on this device. If you link Google, those
               fields sync to our game server so you can restore them on another
               device.

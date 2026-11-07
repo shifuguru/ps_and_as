@@ -31,6 +31,16 @@ attempt can start a fresh retry cycle.
 | `src/game/socketAdapter.ts` | Socket events → adapter messages |
 | `GameScreen` `applyServerSync` | Ceremony / trades / between-rounds (still local UX); live play from server only |
 
+### Deal animation preference
+
+The host controls shuffle and deal flights for the whole room. The server
+broadcasts the current `skipDealAnimations` option in lobby updates, game
+start events, and state syncs; the adapter caches the latest value before
+notifying screens. Each client reads that room value when starting a ceremony,
+regardless of its own saved preference. Changes apply to the next ceremony and
+do not skip mandatory role trades. If the host changes during a game, the new
+host inherits the room's current option and can change it in Settings.
+
 ### Player identity
 
 The client creates one persisted install ID before entering a game or lobby.

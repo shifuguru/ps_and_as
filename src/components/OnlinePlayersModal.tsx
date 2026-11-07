@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import {
   Modal,
   ScrollView,
@@ -37,6 +38,7 @@ export default function OnlinePlayersModal({
   onClose,
 }: Props) {
   const { ui, blur, colors } = useAppTheme();
+  const wording = useGameTerminology();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
   const { width, height } = useWindowDimensions();
@@ -103,12 +105,12 @@ export default function OnlinePlayersModal({
                     </Text>
                     {player.title ? (
                       <Text style={styles.rowTitle} numberOfLines={1}>
-                        {player.title}
+                        {wording(player.title)}
                       </Text>
                     ) : null}
                     <Text style={styles.rowMeta} numberOfLines={1}>
                       {player.level != null ? `Level ${player.level}` : "Level unknown"}
-                      {player.presidents != null ? `  ·  ${player.presidents} Presidents` : ""}
+                      {player.presidents != null ? `  ·  ${player.presidents} ${wording("Presidents")}` : ""}
                       {player.roundsPlayed != null ? `  ·  ${player.roundsPlayed} rounds` : ""}
                     </Text>
                   </View>

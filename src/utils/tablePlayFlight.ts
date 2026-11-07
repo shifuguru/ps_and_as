@@ -35,12 +35,6 @@ export type DealStackPositionOptions = SeatOriginOptions & {
 /** Offset from avatar center toward the table (inside the seat ring) for deal stacks. */
 export const DEAL_STACK_TOWARD_CENTER = 0.52;
 
-/** Matches OpponentSeat countBadge (right/bottom offsets from avatar wrap). */
-const COUNT_BADGE_OUTSET_RIGHT = 8;
-const COUNT_BADGE_OUTSET_BOTTOM = 4;
-/** Gap between the count badge top edge and the bottom of the deal mini-stack. */
-const DEAL_STACK_ABOVE_BADGE_GAP = 3;
-
 /** Radial step from a ring seat toward the table center (matches ringAngleForSeat). */
 export function ringInwardOffset(
   angleDeg: number,

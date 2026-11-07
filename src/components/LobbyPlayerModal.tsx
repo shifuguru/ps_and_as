@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import {
   Modal,
   View,
@@ -56,6 +57,7 @@ export default function LobbyPlayerModal({
   blur,
   onClose,
 }: Props) {
+  const wording = useGameTerminology();
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -168,14 +170,14 @@ export default function LobbyPlayerModal({
                             !earned && styles.achievementTitleLocked,
                           ]}
                         >
-                          {achievement.title}
+                          {wording(achievement.title)}
                         </Text>
                         <Text style={styles.achievementDesc}>
-                          {achievement.description}
+                          {wording(achievement.description)}
                         </Text>
                         {canShowStats && stats ? (
                           <Text style={styles.achievementTotal}>
-                            {formatAchievementCareerTotal(stats, achievement)}
+                            {wording(formatAchievementCareerTotal(stats, achievement))}
                           </Text>
                         ) : null}
                       </View>

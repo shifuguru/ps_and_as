@@ -29,8 +29,8 @@ import {
   isUnifiedActivePilePlay,
   unifiedActivePileGroupZ,
   stageCardRowCenterY,
-  stagePlayTypeBadgeTop,
-  stageRunXpBandHeight,
+  stagePlayTypeBadgeAboveStackTop,
+  stageRunXpTop,
   playStackTopFromLayout,
 } from "../utils/tablePlayLayout";
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
@@ -392,19 +392,19 @@ export default function GameTable({
 
   const refCardHeight = cardH || layout.cardHeight;
 
-  const playTypeBadgeTop = useMemo(
-    () => stagePlayTypeBadgeTop(stageHeight, refCardHeight),
-    [stageHeight, refCardHeight],
-  );
-
   const playStackTop = useMemo(
     () => playStackTopFromLayout(layout.positions, stageHeight, refCardHeight),
     [layout.positions, stageHeight, refCardHeight],
   );
 
-  const runXpBandHeight = useMemo(
-    () => stageRunXpBandHeight(playStackTop),
+  const playTypeBadgeTop = useMemo(
+    () => stagePlayTypeBadgeAboveStackTop(playStackTop),
     [playStackTop],
+  );
+
+  const runXpTop = useMemo(
+    () => stageRunXpTop(stageHeight, refCardHeight),
+    [stageHeight, refCardHeight],
   );
 
   const runXpInk = useMemo(() => binaryFeltInk(feltTint), [feltTint]);
@@ -651,7 +651,7 @@ export default function GameTable({
                 style={[
                   styles.runXpLabel,
                   {
-                    height: runXpBandHeight,
+                    top: runXpTop,
                     opacity: collectToStack ? badgeOpacity : 1,
                   },
                 ]}

@@ -79,7 +79,6 @@ import {
 } from "../game/roundTransitionDiagnostics";
 import {
   resolveCeremonyLaunchMode,
-  resolveOnlineRoomSkipDealAnimations,
   resolveSkipDealAnimations,
 } from "../game/dealCeremonyAnimation";
 import {
@@ -586,8 +585,6 @@ function GameScreen({
   const { skipDealAnimations, loaded: preferencesLoaded } = useGamePreferences();
   const skipDealAnimationsRef = useRef(skipDealAnimations);
   skipDealAnimationsRef.current = skipDealAnimations;
-  /** Authoritative room skip flag from the latest gameStateSync (avoids startGame race). */
-  const syncRoomSkipDealRef = useRef<boolean | null>(null);
   const [tradePhase, setTradePhase] = useState<{
     baseState: GameState;
     players: GameState["players"];
@@ -861,16 +858,12 @@ function GameScreen({
     null;
 
   const shouldSkipDealAnimations = useCallback(() => {
-    const roomSkip = resolveOnlineRoomSkipDealAnimations({
-      syncSkipDealAnimations: syncRoomSkipDealRef.current ?? undefined,
-      cachedRoomSkipDealAnimations:
+    return resolveSkipDealAnimations({
+      onlineMultiplayer,
+      roomSkipDealAnimations:
         onlineMultiplayer && isSocketAdapter(networkAdapter)
           ? networkAdapter.getSkipDealAnimations()
           : false,
-    });
-    return resolveSkipDealAnimations({
-      onlineMultiplayer,
-      roomSkipDealAnimations: roomSkip,
       localSkipDealAnimations:
         skipDealAnimationsRef.current || getSkipDealAnimationsSync(),
     });
@@ -2409,11 +2402,7 @@ function GameScreen({
     const applyServerSync = (
       raw: unknown,
       spectator?: boolean,
-      syncSkipDealAnimations?: boolean,
     ) => {
-      if (typeof syncSkipDealAnimations === "boolean") {
-        syncRoomSkipDealRef.current = syncSkipDealAnimations;
-      }
       const parsed = parseServerGameState(raw) as ServerAugmentedState | null;
       if (!parsed) {
         console.warn("[GameScreen] Ignored invalid gameStateSync payload", raw);
@@ -2732,13 +2721,7 @@ function GameScreen({
           : null,
       );
       if (cachedOnConnect) {
-        applyServerSync(
-          cachedOnConnect,
-          undefined,
-          isSocketAdapter(networkAdapter)
-            ? networkAdapter.getSkipDealAnimations()
-            : undefined,
-        );
+        applyServerSync(cachedOnConnect);
       }
       if (onlineMultiplayer && !stateSyncedRef.current) {
         let attempts = 0;
@@ -2779,9 +2762,6 @@ function GameScreen({
         applyServerSync(
           ev.state.gameState,
           ev.state.spectator,
-          typeof ev.state.skipDealAnimations === "boolean"
-            ? ev.state.skipDealAnimations
-            : undefined,
         );
         if (isBotOpenTable) {
           applyBotNextRoundDeadline(ev.state.botNextRoundAt);
@@ -6063,6 +6043,12 @@ function GameScreenBoard() {
           trickWinnerXpAmount={trickWinnerXpAmount}
           trickWinnerShout={trickWinnerShout}
           tableChatByPlayerId={tableChatByPlayerId}
+          tableChatPlayerId={myPlayerId}
+          onOpenTableChat={
+            myPlayerId && !readOnlyOnline && !tradePhase && !gameplayLocked
+              ? () => setTableChatModalVisible(true)
+              : undefined
+          }
           avatarBordersByPlayerId={avatarBordersByPlayerId}
           playCountLabel={playCountLabel}
           playModifierLabel={playModifierLabel}
@@ -6216,6 +6202,7 @@ function GameScreenBoard() {
         <BottomBarControls>
           {GAMEPLAY_PRESENTATION.handGuidance && handInBottomBar ? (
             <GameplayHint
+              part={readOnlyOnline ? "combined" : "message"}
               message={handGuidanceMessage}
               yourTurn={isHumanTurn && !gameplayLocked && !roundOver}
               visible={!gameplayLocked && !roundOver && !tradePhase}
@@ -6279,12 +6266,18 @@ function GameScreenBoard() {
           {!readOnlyOnline && !tradePhase ? (
           <ActionBar
             leaveOnly={gameplayLocked}
+            hintControl={
+              GAMEPLAY_PRESENTATION.handGuidance && handInBottomBar &&
+              !gameplayLocked && !roundOver && !tradePhase ? (
+                <GameplayHint
+                  part="button"
+                  yourTurn={isHumanTurn && !gameplayLocked && !roundOver}
+                />
+              ) : null
+            }
             selectedCount={handPlayInFlight ? 0 : selected.length}
             onPlay={handlePlayPress}
             onPass={handlePassPress}
-            onOpenTableChat={
-              myPlayerId ? () => setTableChatModalVisible(true) : undefined
-            }
             onNavigateToSettings={onNavigateToSettings}
             onNavigateToAchievements={onNavigateToAchievements}
             playDisabled={gameplayLocked || !!handPlayInFlight || !isHumanTurn || roundOver || roundEndLastPlayHold || (!!localHumanId && hasPassedInCurrentTrick(state, localHumanId) && !humanRunOnTopTurn) || selected.length === 0 || !selectedCanPlay}

@@ -3,6 +3,8 @@
 
 P's & A's is a popular multiplayer card game, at least in New Zealand where I live. Everyone here has heard of P's & A's / Presidents and Assholes / Kings & Assholes / Presidents / Scum. In P's & A's everyone's aim is to get rid of all of their cards as soon as possible to avoid losing the round and being left as the **Asshole**. At the beginning of each subsequent round card trading occurs where both the Asshole(s) and President(s) trade their best and worst cards, respectively. In this digital version of the popular card game we can now all play Online with our friends from all over the world!
 
+Prefer the South Island name? Enable **Kings & Assholes** in Settings to use K's & A's and King on this device. It changes labels only, not the rules or other players' settings.
+
 ---
 
 # The Goal

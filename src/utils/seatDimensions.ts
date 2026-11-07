@@ -30,8 +30,8 @@ export type SeatDimensions = {
   nameMaxWCompact: number;
 };
 
-/** Default avatar / seat footprint scale (comfortable tier). */
-export const AVATAR_SIZE_BOOST = 1.24;
+/** Extra scale applied only to seat avatars. */
+export const AVATAR_SIZE_BOOST = 1.25;
 
 /** How much side seats blend from screen edge back toward the ring (0–1). */
 export const SIDE_ANCHOR_CENTER_BLEND = 0.28;
@@ -87,9 +87,9 @@ export function computeSeatDimensions(
   const shrink =
     (heightTight ? 0.92 : 1) * playerCountSeatScale(totalPlayers);
 
-  const scaledAvatar = boost(Math.round(avatar * shrink));
-  const scaledAvatarLocal = boost(Math.round(avatarLocal * shrink));
-  const scaledAvatarCompact = boost(Math.round(avatarCompact * shrink));
+  const scaledAvatar = boost(Math.round(avatar * shrink * AVATAR_SIZE_BOOST));
+  const scaledAvatarLocal = boost(Math.round(avatarLocal * shrink * AVATAR_SIZE_BOOST));
+  const scaledAvatarCompact = boost(Math.round(avatarCompact * shrink * AVATAR_SIZE_BOOST));
 
   return {
     avatar: scaledAvatar,
@@ -139,20 +139,26 @@ export function seatMiniCardDimensions(avatarSize: number): {
 }
 
 /** Matches OpponentSeat countBadge positioning. */
-export const COUNT_BADGE_OUTSET_RIGHT = 8;
-export const COUNT_BADGE_OUTSET_BOTTOM = 4;
-export const COUNT_BADGE_PADDING_H = 5;
+export const COUNT_BADGE_OUTSET_RIGHT = 12;
+export const COUNT_BADGE_OUTSET_BOTTOM = 8;
 export const DEAL_STACK_ABOVE_BADGE_GAP = 3;
+
+export function countBadgeDimensions(countBadgeSize: number): {
+  width: number;
+  height: number;
+} {
+  return { width: countBadgeSize + 2, height: countBadgeSize + 8 };
+}
 
 /** Hand-count badge center in avatarWrap coordinates (origin top-left). */
 export function countBadgeCenterInAvatarWrap(
   avatarSize: number,
   countBadgeSize: number,
 ): { x: number; y: number } {
-  const badgeWidth = countBadgeSize + COUNT_BADGE_PADDING_H * 2;
+  const { width, height } = countBadgeDimensions(countBadgeSize);
   return {
-    x: avatarSize + COUNT_BADGE_OUTSET_RIGHT - badgeWidth / 2,
-    y: avatarSize + COUNT_BADGE_OUTSET_BOTTOM - countBadgeSize / 2,
+    x: avatarSize + COUNT_BADGE_OUTSET_RIGHT - width / 2,
+    y: avatarSize + COUNT_BADGE_OUTSET_BOTTOM - height / 2,
   };
 }
 
@@ -163,7 +169,7 @@ export function dealStackCenterInAvatarWrap(
   stackH: number,
 ): { x: number; y: number } {
   const badge = countBadgeCenterInAvatarWrap(avatarSize, countBadgeSize);
-  const badgeTop = badge.y - countBadgeSize / 2;
+  const badgeTop = badge.y - countBadgeDimensions(countBadgeSize).height / 2;
   return {
     x: badge.x,
     y: badgeTop - DEAL_STACK_ABOVE_BADGE_GAP - stackH / 2,
@@ -177,8 +183,8 @@ export function avatarBelowCenterOffset(
 ): number {
   const avatarSize = avatarSizeForSeat(dims, options);
   const nameFont = options.compact ? dims.nameFontCompact : dims.nameFont;
-  // avatarWrap marginBottom 4, name row, status pill marginTop 2 (~11px).
-  return Math.round(avatarSize / 2 + 4 + nameFont + 2 + 11);
+  // avatarWrap marginBottom 12, name row, status pill marginTop 2 (~11px).
+  return Math.round(avatarSize / 2 + 12 + nameFont + 2 + 11);
 }
 
 /** Distance from footprint / slot top to avatar center (OpponentSeat). */

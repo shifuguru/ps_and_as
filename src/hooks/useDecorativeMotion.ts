@@ -1,29 +1,18 @@
 import { useSyncExternalStore } from "react";
-import { AccessibilityInfo, AppState, Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { createDecorativeMotionStore } from "../utils/decorativeMotionStore";
+import {
+  getReduceMotionSync,
+  preloadGamePreferences,
+  subscribeGamePreferences,
+} from "../services/gamePreferences";
 
-const media =
-  Platform.OS === "web" && typeof window !== "undefined" && window.matchMedia
-    ? window.matchMedia("(prefers-reduced-motion: reduce)")
-    : null;
-
-const store = createDecorativeMotionStore({
-  readReducedMotion: () =>
-    media ? Promise.resolve(media.matches) : AccessibilityInfo.isReduceMotionEnabled(),
-  subscribeReducedMotion: (listener) => {
-    if (media) {
-      const onChange = (event: MediaQueryListEvent) => listener(event.matches);
-      media.addEventListener("change", onChange);
-      return () => media.removeEventListener("change", onChange);
-    }
-    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", listener);
-    return () => subscription.remove();
-  },
+const activeSource = {
   readActive: () =>
     Platform.OS === "web" && typeof document !== "undefined"
       ? document.visibilityState !== "hidden"
       : AppState.currentState !== "background" && AppState.currentState !== "inactive",
-  subscribeActive: (listener) => {
+  subscribeActive: (listener: (active: boolean) => void) => {
     if (Platform.OS === "web" && typeof document !== "undefined") {
       const onChange = () => listener(document.visibilityState !== "hidden");
       document.addEventListener("visibilitychange", onChange);
@@ -34,9 +23,41 @@ const store = createDecorativeMotionStore({
     );
     return () => subscription.remove();
   },
-}, media?.matches ?? true);
+};
+
+const store = createDecorativeMotionStore({
+  ...activeSource,
+  readReducedMotion: async () => {
+    await preloadGamePreferences();
+    return getReduceMotionSync();
+  },
+  subscribeReducedMotion: (listener) =>
+    subscribeGamePreferences(() => listener(getReduceMotionSync())),
+}, getReduceMotionSync());
+
+// Turn indicators ignore reduced motion; only backgrounding pauses them.
+const turnIndicatorStore = createDecorativeMotionStore({
+  ...activeSource,
+  readReducedMotion: () => Promise.resolve(false),
+  subscribeReducedMotion: () => () => {},
+}, false);
 
 /** False for reduced motion or while the application is backgrounded. */
 export function useDecorativeMotion(): boolean {
   return useSyncExternalStore(store.subscribe, store.getSnapshot, () => false);
+}
+
+/** In-app reduce-motion preference, disabled by default. */
+export function useReduceMotionEnabled(): boolean {
+  useDecorativeMotion();
+  return useSyncExternalStore(
+    subscribeGamePreferences,
+    getReduceMotionSync,
+    () => false,
+  );
+}
+
+/** Motion for "your turn" cues: stays on under reduced motion, off only while backgrounded. */
+export function useTurnIndicatorMotion(): boolean {
+  return useSyncExternalStore(turnIndicatorStore.subscribe, turnIndicatorStore.getSnapshot, () => false);
 }

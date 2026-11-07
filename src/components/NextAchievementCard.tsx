@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import {
   StyleSheet,
   Text,
@@ -27,6 +28,7 @@ type Props = {
 
 export default function NextAchievementCard({ next, onPress, style }: Props) {
   const { colors } = useAppTheme();
+  const wording = useGameTerminology();
   const rarity = rarityForAchievementId(next.def.id);
   const accent = RARITY_COLOR[rarity];
   const styles = useMemo(
@@ -60,13 +62,13 @@ export default function NextAchievementCard({ next, onPress, style }: Props) {
           </HubProgressRing>
           <View style={styles.body}>
             <Text style={styles.title} numberOfLines={2}>
-              {next.def.title}
+              {wording(next.def.title)}
               {next.prestige >= 1
                 ? ` · ${formatAchievementPrestige(next.prestige)}`
                 : ""}
             </Text>
             <Text style={styles.description} numberOfLines={3}>
-              {next.def.description}
+              {wording(next.def.description)}
             </Text>
             <Text style={styles.progress}>
               {next.current} / {next.target}

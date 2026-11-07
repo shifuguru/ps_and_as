@@ -395,7 +395,9 @@ export class SocketAdapter implements NetworkAdapter {
             players: data.players,
             host: data.host,
             roomName: data.roomName,
-            skipDealAnimations: !!data.skipDealAnimations,
+            ...(typeof data?.skipDealAnimations === "boolean"
+              ? { skipDealAnimations: data.skipDealAnimations }
+              : {}),
             deadHandSeatOpen: !!data.deadHandSeatOpen,
             spectatorCount: data.spectatorCount ?? 0,
           },
@@ -426,7 +428,9 @@ export class SocketAdapter implements NetworkAdapter {
             type: "startGame",
             players,
             dealSeed: data?.dealSeed,
-            skipDealAnimations: !!data?.skipDealAnimations,
+            ...(typeof data?.skipDealAnimations === "boolean"
+              ? { skipDealAnimations: data.skipDealAnimations }
+              : {}),
             spectator: !!data?.spectator,
           },
         }),
@@ -558,6 +562,9 @@ export class SocketAdapter implements NetworkAdapter {
 
     this.socket.on("hostMigrated", (data: any) => {
       console.log("[SocketAdapter] Host migrated to:", data.newHostName);
+      if (typeof data?.newHost === "string") {
+        this.cachedHostId = data.newHost;
+      }
       this.handlers.forEach((h) =>
         h({
           type: "state",
@@ -949,7 +956,7 @@ export class SocketAdapter implements NetworkAdapter {
     console.log("[SocketAdapter] Emitting startGame for roomId:", roomId);
     this.socket.emit("startGame", {
       roomId,
-      skipDealAnimations: !!skipDealAnimations,
+      ...(typeof skipDealAnimations === "boolean" ? { skipDealAnimations } : {}),
     });
   }
 

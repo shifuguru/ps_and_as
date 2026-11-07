@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { useAppTheme } from "../context/ThemeContext";
 import GameplayGlassPanel from "./GameplayGlassPanel";
@@ -67,6 +68,7 @@ function ToastRow({
   onDone: (id: string) => void;
 }) {
   const { colors } = useAppTheme();
+  const wording = useGameTerminology();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const opacity = useRef(new Animated.Value(0)).current;
   const y = useRef(new Animated.Value(10)).current;
@@ -126,11 +128,11 @@ function ToastRow({
         style={[styles.toast, isAchievement && styles.toastAchievement]}
       >
         <Text style={[styles.title, { color: accent }]} numberOfLines={1}>
-          {item.title}
+          {wording(item.title)}
         </Text>
         {item.body ? (
           <Text style={styles.body} numberOfLines={2}>
-            {item.body}
+            {wording(item.body)}
           </Text>
         ) : null}
       </GameplayGlassPanel>

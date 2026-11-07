@@ -27,6 +27,8 @@ import BottomBar, {
 } from "../components/BottomBar";
 import { useLayoutInsets } from "../hooks/useLayoutInsets";
 import { useGamePreferences } from "../hooks/useGamePreferences";
+import { gameTerminology } from "../utils/gameTerminology";
+import { useReduceMotionEnabled } from "../hooks/useDecorativeMotion";
 import { playerInitials } from "../utils/playerDisplay";
 import { contentMaxWidth } from "../styles/uiStandards";
 import { useAppTheme } from "../context/ThemeContext";
@@ -52,7 +54,7 @@ import {
   pushLinkedCloudSnapshot,
 } from "../services/googleAccountSync";
 import { getDisplayNameInputProps } from "../utils/displayNameInputProps";
-import { getLobbySession } from "../services/lobbySession";
+import type { SocketAdapter } from "../game/socketAdapter";
 import { getPlayerStats } from "../services/playerStats";
 import { levelFromXp } from "../services/playerLevel";
 import { fetchCloudPlayerRecord } from "../services/playerStatsCloud";
@@ -81,6 +83,8 @@ export default function Settings({
   onNameSaved,
   onProfileSynced,
   onSkipDealAnimationsChange,
+  roomAdapter,
+  roomInGame,
   soundMuted,
   onToggleSoundMute,
 }: {
@@ -92,6 +96,8 @@ export default function Settings({
   /** Called after Google sync updates local stats/theme so the hub can refresh. */
   onProfileSynced?: () => void;
   onSkipDealAnimationsChange?: (value: boolean) => void;
+  roomAdapter?: SocketAdapter | null;
+  roomInGame?: boolean;
   soundMuted?: boolean;
   onToggleSoundMute?: () => void;
 }) {
@@ -106,8 +112,9 @@ export default function Settings({
   } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useLayoutInsets();
-  const { skipDealAnimations, setSkipDealAnimations, darkModeCards, setDarkModeCards } =
+  const { skipDealAnimations, setSkipDealAnimations, darkModeCards, setDarkModeCards, setReduceMotion, kingsName, setKingsName, loaded: preferencesLoaded } =
     useGamePreferences();
+  const reduceMotion = useReduceMotionEnabled();
   const { width } = useWindowDimensions();
   const contentMax = contentMaxWidth(width);
   const bottomBarHeight = menuBottomReserve(insets.bottom || 0);
@@ -117,7 +124,11 @@ export default function Settings({
   const [savedName, setSavedName] = useState("");
   const [previewTint, setPreviewTint] = useState(DEFAULT_FELT_COLOR);
   const [feltPickerOpen, setFeltPickerOpen] = useState(false);
-  const [onlineGuest, setOnlineGuest] = useState(false);
+  const [roomOptions, setRoomOptions] = useState(() => ({
+    hostId: roomAdapter?.getHostId() ?? null,
+    skipDealAnimations: roomAdapter?.getSkipDealAnimations() ?? false,
+  }));
+  const onlineGuest = !!roomAdapter && roomOptions.hostId !== roomAdapter.getProfileId();
   const [addToHomeOpen, setAddToHomeOpen] = useState(false);
   const {
     showOffer: showAddToHomeOffer,
@@ -131,16 +142,24 @@ export default function Settings({
   const [adsRemoved, setAdsRemoved] = useState(false);
   const [purchaseBusy, setPurchaseBusy] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [savingKingsName, setSavingKingsName] = useState(false);
   const googleStatus = getGoogleAccountSyncStatus();
   const googleReady = googleStatus === "ready";
   const googleLinked = !!playerInfo?.linkedAccountId?.startsWith("google:");
   const careerLevel = levelFromXp(careerXp);
 
   useEffect(() => {
-    void getLobbySession().then((session) => {
-      setOnlineGuest(!!session && !session.isHost);
-    });
-  }, []);
+    if (!roomAdapter) return;
+    const updateRoomOptions = () => {
+      setRoomOptions({
+        hostId: roomAdapter.getHostId(),
+        skipDealAnimations: roomAdapter.getSkipDealAnimations(),
+      });
+    };
+    updateRoomOptions();
+    roomAdapter.on("message", updateRoomOptions);
+    return () => roomAdapter.off("message", updateRoomOptions);
+  }, [roomAdapter]);
 
   useEffect(() => {
     void (async () => {
@@ -269,6 +288,37 @@ export default function Settings({
       >
         <View style={[styles.content, { maxWidth: contentMax }]}>
           <ScreenTopBar title="Settings" />
+
+          {Platform.OS === "web" && showAddToHomeOffer ? (
+            <BlurPanel style={ui.panel} intensity={48}>
+              <Text style={ui.panelEyebrow}>Add to Home Screen</Text>
+              <Text style={styles.tintHint}>
+                {inAppBrowser
+                  ? "You're in Instagram's (or another app's) built-in browser. Tap ⋯ in the top right, choose Open in browser, then play from Safari or Chrome."
+                  : "Add the game to your home screen for full-screen play without the browser toolbar. Use Share or your browser menu, then Add to Home Screen."}
+              </Text>
+              <TouchableOpacity
+                style={[styles.saveBtn, styles.saveBtnActive, { marginTop: 12 }]}
+                onPress={() => {
+                  void (async () => {
+                    setAddToHomeWorking(true);
+                    try {
+                      const result = await requestInstall();
+                      if (result === "manual") setAddToHomeOpen(true);
+                    } finally {
+                      setAddToHomeWorking(false);
+                    }
+                  })();
+                }}
+                disabled={addToHomeWorking}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.saveBtnText, styles.saveBtnTextActive]}>
+                  {addToHomeWorking ? "Opening…" : installButtonLabel}
+                </Text>
+              </TouchableOpacity>
+            </BlurPanel>
+          ) : null}
 
           <BlurPanel style={ui.panel} intensity={52}>
             <Text style={ui.panelEyebrow}>Player Profile</Text>
@@ -481,102 +531,135 @@ export default function Settings({
           </BlurPanel>
 
           <BlurPanel style={ui.panel} intensity={48}>
-            <Text style={ui.panelEyebrow}>Support</Text>
-            <Text style={styles.tintHint}>
-              Ads help cover servers. Forced ads appear every few rounds; you can
-              optionally watch an ad for XP.
-              {SHOW_REMOVE_ADS_PURCHASE
-                ? " Remove Ads skips forced ads only."
-                : " Optional Ko-fi contributions are on the home screen."}
-            </Text>
-            {adsRemoved ? (
-              <Text style={styles.accountSyncHint}>
-                Forced ads removed — thanks for supporting the game.
-              </Text>
-            ) : SHOW_REMOVE_ADS_PURCHASE && Platform.OS === "web" ? (
-              <>
-                <TouchableOpacity
-                  style={[
-                    styles.saveBtn,
-                    styles.saveBtnActive,
-                    purchaseBusy && { opacity: 0.6 },
-                  ]}
-                  disabled={purchaseBusy}
-                  onPress={() => {
-                    void (async () => {
-                      if (!googleLinked) {
-                        Alert.alert(
-                          "Link Google first",
-                          "Remove Ads requires a Google-linked account so your purchase restores on other devices.",
-                        );
-                        return;
-                      }
-                      setPurchaseBusy(true);
-                      try {
-                        const { createRemoveAdsCheckoutSession } = await import(
-                          "../services/ads/removeAdsPurchase"
-                        );
-                        const result = await createRemoveAdsCheckoutSession();
-                        if (result.ok === false) {
-                          const msg =
-                            result.error === "billing_not_configured" ||
-                            result.error === "http_503"
-                              ? "Purchases are not configured on the server yet."
-                              : result.error === "google_required"
-                                ? "Link Google first, then try again."
-                                : "Could not start checkout. Try again later.";
-                          Alert.alert("Remove Ads", msg);
-                          return;
-                        }
-                        if (typeof window !== "undefined") {
-                          window.location.assign(result.url);
-                        }
-                      } catch {
-                        Alert.alert("Remove Ads", "Checkout failed.");
-                      } finally {
-                        setPurchaseBusy(false);
-                      }
-                    })();
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Remove forced ads for 19 New Zealand dollars"
-                >
-                  <Text style={[styles.saveBtnText, styles.saveBtnTextActive]}>
-                    {purchaseBusy
-                      ? "Opening checkout…"
-                      : "Remove forced ads — NZ$19"}
-                  </Text>
-                </TouchableOpacity>
-                <Text style={[styles.autoSaveHint, { marginTop: 8 }]}>
-                  One-time purchase via Stripe. Rewarded watch-for-XP stays
-                  available.
+            <Text style={ui.panelEyebrow}>Gameplay Toggles</Text>
+            <View style={styles.settingBlock}>
+              <View style={styles.settingHeaderRow}>
+                <Text style={[styles.settingLabel, styles.settingLabelInline]}>
+                  Kings &amp; Assholes mode
                 </Text>
-              </>
-            ) : SHOW_REMOVE_ADS_PURCHASE ? (
-              <Text style={styles.accountSyncHint}>
-                Remove Ads is available on the web version.
+                <View style={styles.settingHeaderSpacer} />
+                <Switch
+                  value={kingsName}
+                  disabled={!preferencesLoaded || savingKingsName}
+                  onValueChange={(value) => {
+                    setSavingKingsName(true);
+                    void setKingsName(value)
+                      .catch(() => Alert.alert("Couldn't save setting", "Please try again."))
+                      .finally(() => setSavingKingsName(false));
+                  }}
+                  trackColor={{ false: colors.panelBorder, true: colors.accent }}
+                  thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
+                  accessibilityLabel="Kings and Assholes"
+                />
+              </View>
+              <Text style={[styles.tintHint, styles.settingHint]}>
+                What&apos;s P&apos;s &amp; A&apos;s? Don&apos;t you mean K&apos;s &amp; A&apos;s?
               </Text>
+            </View>
+            <View style={[styles.settingBlock, styles.settingRowSpaced]}>
+              <View style={styles.settingHeaderRow}>
+                <Text style={[styles.settingLabel, styles.settingLabelInline]}>
+                  Enable Deal Animations
+                </Text>
+                <View style={styles.settingHeaderSpacer} />
+                <Text style={styles.betaWarning}>Beta</Text>
+                <Switch
+                  value={
+                    !(roomAdapter && (onlineGuest || roomInGame)
+                      ? roomOptions.skipDealAnimations
+                      : skipDealAnimations)
+                  }
+                  onValueChange={(enabled) => {
+                    void setSkipDealAnimations(!enabled);
+                    onSkipDealAnimationsChange?.(!enabled);
+                  }}
+                  disabled={onlineGuest}
+                  trackColor={{
+                    false: colors.panelBorder,
+                    true: colors.accent,
+                  }}
+                  thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
+                  accessibilityLabel="Enable deal animations"
+                />
+              </View>
+              <Text style={[styles.tintHint, styles.settingHint]}>
+                {onlineGuest
+                  ? "Controlled by the host in online games."
+                  : "Shuffle and deal animations are experimental. Off by default."}
+              </Text>
+            </View>
+            {onToggleSoundMute ? (
+              <View style={[styles.settingBlock, styles.settingRowSpaced]}>
+                <View style={styles.settingHeaderRow}>
+                  <Text style={[styles.settingLabel, styles.settingLabelInline]}>
+                    Sound effects
+                  </Text>
+                  <View style={styles.settingHeaderSpacer} />
+                  <Text style={styles.betaWarning}>Beta</Text>
+                  <Switch
+                    value={!(soundMuted ?? false)}
+                    onValueChange={() => onToggleSoundMute()}
+                    trackColor={{
+                      false: colors.panelBorder,
+                      true: colors.accent,
+                    }}
+                    thumbColor={
+                      colors.mode === "light" ? "#ffffff" : colors.textPrimary
+                    }
+                    accessibilityLabel="Sound effects"
+                  />
+                </View>
+                <Text style={[styles.tintHint, styles.settingHint]}>
+                  Card taps, plays, passes, and your-turn cues.
+                </Text>
+              </View>
             ) : null}
-            <TouchableOpacity
-              style={{ marginTop: 12 }}
-              onPress={() => setPrivacyOpen(true)}
-              accessibilityRole="button"
-            >
-              <Text style={styles.linkLike}>Privacy</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{ marginTop: 8 }}
-              onPress={() => {
-                void Linking.openURL(resolvePrivacyUrl());
-              }}
-              accessibilityRole="link"
-            >
-              <Text style={styles.linkLike}>Full privacy policy</Text>
-            </TouchableOpacity>
+            <View style={[styles.settingBlock, styles.settingRowSpaced]}>
+              <View style={styles.settingHeaderRow}>
+                <Text style={[styles.settingLabel, styles.settingLabelInline]}>
+                  Reduce motion
+                </Text>
+                <View style={styles.settingHeaderSpacer} />
+                <Switch
+                  value={reduceMotion}
+                  onValueChange={(value) => void setReduceMotion(value)}
+                  trackColor={{
+                    false: colors.panelBorder,
+                    true: colors.accent,
+                  }}
+                  thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
+                  accessibilityLabel="Reduce motion"
+                />
+              </View>
+              <Text style={[styles.tintHint, styles.settingHint]}>
+                Calms fire, sparkles and ambience. Your-turn cues keep flashing. Enable this if animations affect your device&apos;s performance.
+              </Text>
+            </View>
           </BlurPanel>
 
           <BlurPanel style={ui.panel} intensity={48}>
             <Text style={ui.panelEyebrow}>Appearance</Text>
+            <View style={styles.settingBlock}>
+              <View style={styles.settingHeaderRow}>
+                <Text style={[styles.settingLabel, styles.settingLabelInline]}>
+                  Dark mode cards
+                </Text>
+                <View style={styles.settingHeaderSpacer} />
+                <Switch
+                  value={darkModeCards}
+                  onValueChange={(value) => void setDarkModeCards(value)}
+                  trackColor={{
+                    false: colors.panelBorder,
+                    true: colors.accent,
+                  }}
+                  thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
+                  accessibilityLabel="Dark mode cards"
+                />
+              </View>
+              <Text style={[styles.tintHint, styles.settingHint]}>
+                Dark card faces with white spades and clubs.
+              </Text>
+            </View>
             <Text style={styles.tintHint}>
               Choose light or dark panels, or follow your device setting.
             </Text>
@@ -629,7 +712,7 @@ export default function Settings({
                   }),
                 ]}
               >
-                P&apos;s & A&apos;s
+                {gameTerminology("P's & A's", kingsName)}
               </Text>
               <Text
                 style={[
@@ -728,27 +811,6 @@ export default function Settings({
               </TouchableOpacity>
             </View>
 
-            <View style={[styles.settingBlock, styles.settingRowSpaced]}>
-              <View style={styles.settingHeaderRow}>
-                <Text style={[styles.settingLabel, styles.settingLabelInline]}>
-                  Dark mode cards
-                </Text>
-                <View style={styles.settingHeaderSpacer} />
-                <Switch
-                  value={darkModeCards}
-                  onValueChange={(value) => void setDarkModeCards(value)}
-                  trackColor={{
-                    false: colors.panelBorder,
-                    true: colors.accent,
-                  }}
-                  thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
-                  accessibilityLabel="Dark mode cards"
-                />
-              </View>
-              <Text style={[styles.tintHint, styles.settingHint]}>
-                Dark card faces with white spades and clubs.
-              </Text>
-            </View>
             <View
               style={[
                 styles.cardPreviewHost,
@@ -783,94 +845,99 @@ export default function Settings({
             </View>
           </BlurPanel>
 
-          {Platform.OS === "web" && showAddToHomeOffer ? (
-            <BlurPanel style={ui.panel} intensity={48}>
-              <Text style={ui.panelEyebrow}>
-                {inAppBrowser ? "Mobile browser" : "Full screen"}
-              </Text>
-              <Text style={styles.tintHint}>
-                {inAppBrowser
-                  ? "You're in Instagram's (or another app's) built-in browser. Tap ⋯ in the top right, choose Open in browser, then play from Safari or Chrome."
-                  : "Add the game to your home screen for full-screen play without the browser toolbar. Use Share or your browser menu, then Add to Home Screen."}
-              </Text>
-              <TouchableOpacity
-                style={[styles.saveBtn, styles.saveBtnActive, { marginTop: 12 }]}
-                onPress={() => {
-                  void (async () => {
-                    setAddToHomeWorking(true);
-                    try {
-                      const result = await requestInstall();
-                      if (result === "manual") setAddToHomeOpen(true);
-                    } finally {
-                      setAddToHomeWorking(false);
-                    }
-                  })();
-                }}
-                disabled={addToHomeWorking}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.saveBtnText, styles.saveBtnTextActive]}>
-                  {addToHomeWorking ? "Opening…" : installButtonLabel}
-                </Text>
-              </TouchableOpacity>
-            </BlurPanel>
-          ) : null}
-
           <BlurPanel style={ui.panel} intensity={48}>
-            <Text style={ui.panelEyebrow}>Gameplay</Text>
-            <View style={styles.settingBlock}>
-              <View style={styles.settingHeaderRow}>
-                <Text style={[styles.settingLabel, styles.settingLabelInline]}>
-                  Enable Deal Animations
-                </Text>
-                <View style={styles.settingHeaderSpacer} />
-                <Text style={styles.betaWarning}>Beta</Text>
-                <Switch
-                  value={!skipDealAnimations}
-                  onValueChange={(enabled) => {
-                    void setSkipDealAnimations(!enabled);
-                    onSkipDealAnimationsChange?.(!enabled);
-                  }}
-                  disabled={onlineGuest}
-                  trackColor={{
-                    false: colors.panelBorder,
-                    true: colors.accent,
-                  }}
-                  thumbColor={colors.mode === "light" ? "#ffffff" : colors.textPrimary}
-                  accessibilityLabel="Enable deal animations"
-                />
-              </View>
-              <Text style={[styles.tintHint, styles.settingHint]}>
-                {onlineGuest
-                  ? "Controlled by the host in online games."
-                  : "Shuffle and deal animations are experimental. Off by default."}
+            <Text style={ui.panelEyebrow}>Support</Text>
+            <Text style={styles.tintHint}>
+              Ads help cover servers. Forced ads appear every few rounds; you can
+              optionally watch an ad for XP.
+              {SHOW_REMOVE_ADS_PURCHASE
+                ? " Remove Ads skips forced ads only."
+                : " Optional Ko-fi contributions are on the home screen."}
+            </Text>
+            {adsRemoved ? (
+              <Text style={styles.accountSyncHint}>
+                Forced ads removed — thanks for supporting the game.
               </Text>
-            </View>
-            {onToggleSoundMute ? (
-              <View style={[styles.settingBlock, styles.settingRowSpaced]}>
-                <View style={styles.settingHeaderRow}>
-                  <Text style={[styles.settingLabel, styles.settingLabelInline]}>
-                    Sound effects
+            ) : SHOW_REMOVE_ADS_PURCHASE && Platform.OS === "web" ? (
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.saveBtn,
+                    styles.saveBtnActive,
+                    purchaseBusy && { opacity: 0.6 },
+                  ]}
+                  disabled={purchaseBusy}
+                  onPress={() => {
+                    void (async () => {
+                      if (!googleLinked) {
+                        Alert.alert(
+                          "Link Google first",
+                          "Remove Ads requires a Google-linked account so your purchase restores on other devices.",
+                        );
+                        return;
+                      }
+                      setPurchaseBusy(true);
+                      try {
+                        const { createRemoveAdsCheckoutSession } = await import(
+                          "../services/ads/removeAdsPurchase"
+                        );
+                        const result = await createRemoveAdsCheckoutSession();
+                        if (result.ok === false) {
+                          const msg =
+                            result.error === "billing_not_configured" ||
+                            result.error === "http_503"
+                              ? "Purchases are not configured on the server yet."
+                              : result.error === "google_required"
+                                ? "Link Google first, then try again."
+                                : "Could not start checkout. Try again later.";
+                          Alert.alert("Remove Ads", msg);
+                          return;
+                        }
+                        if (typeof window !== "undefined") {
+                          window.location.assign(result.url);
+                        }
+                      } catch {
+                        Alert.alert("Remove Ads", "Checkout failed.");
+                      } finally {
+                        setPurchaseBusy(false);
+                      }
+                    })();
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove forced ads for 19 New Zealand dollars"
+                >
+                  <Text style={[styles.saveBtnText, styles.saveBtnTextActive]}>
+                    {purchaseBusy
+                      ? "Opening checkout…"
+                      : "Remove forced ads — NZ$19"}
                   </Text>
-                  <View style={styles.settingHeaderSpacer} />
-                  <Switch
-                    value={!(soundMuted ?? false)}
-                    onValueChange={() => onToggleSoundMute()}
-                    trackColor={{
-                      false: colors.panelBorder,
-                      true: colors.accent,
-                    }}
-                    thumbColor={
-                      colors.mode === "light" ? "#ffffff" : colors.textPrimary
-                    }
-                    accessibilityLabel="Sound effects"
-                  />
-                </View>
-                <Text style={[styles.tintHint, styles.settingHint]}>
-                  Card taps, plays, passes, and your-turn cues.
+                </TouchableOpacity>
+                <Text style={[styles.autoSaveHint, { marginTop: 8 }]}>
+                  One-time purchase via Stripe. Rewarded watch-for-XP stays
+                  available.
                 </Text>
-              </View>
+              </>
+            ) : SHOW_REMOVE_ADS_PURCHASE ? (
+              <Text style={styles.accountSyncHint}>
+                Remove Ads is available on the web version.
+              </Text>
             ) : null}
+            <TouchableOpacity
+              style={{ marginTop: 12 }}
+              onPress={() => setPrivacyOpen(true)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.linkLike}>Privacy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ marginTop: 8 }}
+              onPress={() => {
+                void Linking.openURL(resolvePrivacyUrl());
+              }}
+              accessibilityRole="link"
+            >
+              <Text style={styles.linkLike}>Full privacy policy</Text>
+            </TouchableOpacity>
           </BlurPanel>
         </View>
       </ScrollView>

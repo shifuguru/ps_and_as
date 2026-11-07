@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useCallback, useEffect } from "react";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 import { View, Text, StyleSheet, Animated, Easing } from "react-native";
 import Card from "./Card";
 import type { Card as CardType } from "../game/ruleset";
@@ -121,6 +122,7 @@ export default function RoleTradeStrip({
   onReceiveSlotMeasure,
 }: Props) {
   const { colors, ui } = useAppTheme();
+  const wording = useGameTerminology();
   const isWinner = !!localPlayerId && trade.winnerId === localPlayerId;
   const isLoser = !!localPlayerId && trade.loserId === localPlayerId;
 
@@ -158,7 +160,7 @@ export default function RoleTradeStrip({
   return (
     <View style={[styles.row, ui.panel, { borderColor: colors.panelBorder }]}>
       <Text style={[styles.title, { color: colors.accent }]}>
-        {trade.key === "president" ? "👑 President Trade" : "⭐ VP Trade"}
+        {trade.key === "president" ? wording("👑 President Trade") : "⭐ VP Trade"}
       </Text>
       <View style={styles.cardsRow}>
         <TradeCardSlot

@@ -22,9 +22,11 @@ import {
 } from "../rewards/titleTracks";
 import { hexToRgba } from "../utils/colorTheory";
 import { triggerHaptic } from "../utils/haptics";
+import { useGameTerminology } from "../hooks/useGameTerminology";
 
 export function TitlesScrollContent({ stats }: { stats: PlayerStats }) {
   const { colors, ui } = useAppTheme();
+  const wording = useGameTerminology();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [displayTrackId, setDisplayTrackId] = useState<string | null>(null);
@@ -63,7 +65,7 @@ export function TitlesScrollContent({ stats }: { stats: PlayerStats }) {
       <BlurPanel style={ui.panel} intensity={52}>
         <Text style={ui.panelEyebrow}>Displayed title</Text>
         <Text style={styles.activeTitle}>
-          {activeTitle ?? "None selected"}
+          {wording(activeTitle ?? "None selected")}
         </Text>
         <Text style={styles.hint}>
           Selected title track will be displayed on your profile.
@@ -113,6 +115,7 @@ function TitleTrackRow({
   colors: ReturnType<typeof useAppTheme>["colors"];
   ui: ReturnType<typeof useAppTheme>["ui"];
 }) {
+  const wording = useGameTerminology();
   const locked = !row.unlocked;
   const tierLabel = row.displayTitle ?? "Locked";
   const progressLabel = locked
@@ -131,9 +134,9 @@ function TitleTrackRow({
     >
       <View style={styles.trackHeader}>
         <View style={styles.trackTitleBlock}>
-          <Text style={styles.trackName}>{row.track.trackName}</Text>
+          <Text style={styles.trackName}>{wording(row.track.trackName)}</Text>
           <Text style={styles.tierName} numberOfLines={1}>
-            {tierLabel}
+            {wording(tierLabel)}
             {row.tier > 0 ? ` · Tier ${row.tier}` : ""}
           </Text>
         </View>
@@ -144,7 +147,7 @@ function TitleTrackRow({
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: isDisplayed }}
-            accessibilityLabel={`Display ${row.track.trackName} title`}
+            accessibilityLabel={`Display ${wording(row.track.trackName)} title`}
             style={[
               styles.checkBox,
               isDisplayed && styles.checkBoxOn,
@@ -157,7 +160,7 @@ function TitleTrackRow({
           </TouchableOpacity>
         ) : null}
       </View>
-      <Text style={styles.trackDesc}>{row.track.description}</Text>
+      <Text style={styles.trackDesc}>{wording(row.track.description)}</Text>
       <ProgressMeter
         progress={row.fraction}
         label={locked ? "Progress" : row.nextThreshold ? "Next tier" : "Complete"}

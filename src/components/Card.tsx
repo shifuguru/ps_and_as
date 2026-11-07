@@ -11,7 +11,7 @@ import {
 import { useDarkModeCards } from "../context/CardAppearanceContext";
 import { getCardFaceColors, suitColorForCard } from "../utils/cardFaceTheme";
 import { useAppTheme } from "../context/ThemeContext";
-import { useDecorativeMotion } from "../hooks/useDecorativeMotion";
+import { useTurnIndicatorMotion } from "../hooks/useDecorativeMotion";
 import { hexToRgba } from "../utils/colorTheory";
 import { RunsPill, JOKER_COLORS, JOKER_FLAME_SEEDS } from "../gameplayPresentation/RunsEffect";
 
@@ -53,6 +53,7 @@ export default function Card({
   onPress,
   highlight = 0,
   faceDown = false,
+  hideBackOrnament = false,
   disabled = false,
   compact = false,
   compactCornerRight = false,
@@ -68,6 +69,8 @@ export default function Card({
   onPress: () => void;
   highlight?: number;
   faceDown?: boolean;
+  /** Omit the back ornament when another label is overlaid on the card. */
+  hideBackOrnament?: boolean;
   disabled?: boolean;
   /** Hand view: only top-left rank/suit visible when overlapped */
   compact?: boolean;
@@ -86,7 +89,7 @@ export default function Card({
   style?: any;
 }) {
   const darkModeCards = useDarkModeCards();
-  const motion = useDecorativeMotion();
+  const motion = useTurnIndicatorMotion();
   const { colors } = useAppTheme();
   const faceColors = getCardFaceColors(darkModeCards, disabled, colors.accent);
   const cardBox = useMemo(() => readCardBox(style), [style]);
@@ -195,11 +198,13 @@ export default function Card({
                 <View
                   style={[local.backFaceInner, { borderRadius: r.frameInner }]}
                 >
-                  <Text
-                    style={[local.backFaceOrnament, { fontSize: r.ornament }]}
-                  >
-                    ♠
-                  </Text>
+                  {!hideBackOrnament ? (
+                    <Text
+                      style={[local.backFaceOrnament, { fontSize: r.ornament }]}
+                    >
+                      ♠
+                    </Text>
+                  ) : null}
                 </View>
               </View>
             </View>
@@ -448,6 +453,7 @@ export default function Card({
             maxFlameHeight={12}
             showGlow={false}
             effectOnly
+            turnIndicator
             active
           >
             <View style={{ width: face.width, height: face.height }} />
@@ -500,14 +506,16 @@ export default function Card({
               >
                 <View style={local.backFaceFrame}>
                   <View style={local.backFaceInner}>
-                    <Text
-                      style={[
-                        local.backFaceOrnament,
-                        { fontSize: Math.max(12, Math.round(22 * face.scale)) },
-                      ]}
-                    >
-                      ♠
-                    </Text>
+                    {!hideBackOrnament ? (
+                      <Text
+                        style={[
+                          local.backFaceOrnament,
+                          { fontSize: Math.max(12, Math.round(22 * face.scale)) },
+                        ]}
+                      >
+                        ♠
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
               </View>
@@ -570,12 +578,11 @@ export default function Card({
               ) : null}
               <View
                 style={[
-                  compactCornerRight
-                    ? local.cornerTopRight
-                    : local.cornerBottomRight,
-                  compactCornerRight
-                    ? { top: face.cornerInsetTop, right: face.cornerInsetSide }
-                    : { bottom: face.cornerInsetTop, right: face.cornerInsetSide },
+                  local.cornerBottomRight,
+                  {
+                    bottom: face.cornerInsetTop,
+                    right: face.cornerInsetSide,
+                  },
                 ]}
                 pointerEvents="none"
               >
@@ -772,10 +779,6 @@ const local = StyleSheet.create({
   cornerTopLeft: {
     position: "absolute",
     alignItems: "flex-start",
-  },
-  cornerTopRight: {
-    position: "absolute",
-    alignItems: "flex-end",
   },
   cornerBottomRight: {
     position: "absolute",

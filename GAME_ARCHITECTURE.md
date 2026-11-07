@@ -28,8 +28,11 @@ App
 The hand uses a horizontally browsable fan with height-aware card dimensions.
 Unplayable cards retain readable faces and a muted wash; waiting for a turn does
 not dim the whole hand. Recommended cards retain a subdued flame, while the
-expandable gameplay hint and round-streak panel use static secondary styling.
-The active-player avatar ring remains a separate turn indicator.
+expandable gameplay hint and round-streak panel use secondary styling. The hint
+bulb highlights and pulses during the local player's turn, including when
+reduced motion is enabled; it pauses when the app is backgrounded. The player's
+show/hide choice persists between games and app restarts. The active-player
+avatar ring remains a separate turn indicator.
 
 ---
 
@@ -215,10 +218,24 @@ changes. Trade flights do not themselves change deal progress. Stable seat,
 layout, and pending-trade inputs prevent unrelated board renders from restarting
 the mandatory trade animation and its completion timer.
 
-Decorative motion follows the system reduced-motion setting and pauses while
-the app is backgrounded. Fire, motes, ambience and repeated attention cues use
-static alternatives when motion is suppressed. Card flights and ceremony clocks
-remain independent so gameplay state and completion callbacks still advance.
+Decorative motion starts from the system reduced-motion setting; an explicit
+Settings → Gameplay → "Reduce motion" is off by default; players can enable it if
+animations affect their device's performance.
+It also pauses while the app is backgrounded. Fire, motes and ambience use
+static alternatives when motion is suppressed. "Your turn" cues (suggested-card flame, opening-lead card
+flash, hint bulb pulse) use `useTurnIndicatorMotion`: they keep animating under
+reduced motion and pause only while the app is backgrounded. Card flights and
+ceremony clocks remain independent so gameplay state and completion callbacks
+still advance.
+
+When hand guidance is visible during play, its message remains above the action
+row while the bulb toggle sits between Pass and Play. Both share the persisted
+hint preference, and the turn cue remains active when the message is hidden.
+
+The local player's avatar opens quick chat when chat is available; other avatars
+still open their profiles. Chat messages remain anchored to their sender's avatar.
+Seat card counts use a miniature card back; deal-stack and flight anchors share
+the badge's dimensions so they stay aligned with it.
 
 ---
 

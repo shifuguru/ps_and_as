@@ -1,5 +1,7 @@
 const STORAGE_SKIP_DEAL_ANIMATIONS = "@ps_and_as_skip_deal_animations";
 const STORAGE_DARK_MODE_CARDS = "@ps_and_as_dark_mode_cards";
+const STORAGE_REDUCE_MOTION = "@ps_and_as_reduce_motion";
+const STORAGE_KINGS_NAME = "@ps_and_as_kings_name";
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -7,12 +9,16 @@ const listeners = new Set<Listener>();
 type PreferencesCache = {
   skipDealAnimations: boolean;
   darkModeCards: boolean;
+  reduceMotion: boolean;
+  kingsName: boolean;
   loaded: boolean;
 };
 
 let cache: PreferencesCache = {
   skipDealAnimations: true,
   darkModeCards: false,
+  reduceMotion: false,
+  kingsName: false,
   loaded: false,
 };
 
@@ -49,22 +55,41 @@ export function getDarkModeCardsSync(): boolean {
   return cache.darkModeCards;
 }
 
+export function getReduceMotionSync(): boolean {
+  return cache.reduceMotion;
+}
+
+export function getKingsNameSync(): boolean {
+  return cache.kingsName;
+}
+
 async function readPreferencesFromStorage(): Promise<PreferencesCache> {
   try {
     const AsyncStorage = await storage();
-    const [skipVal, darkVal] = await Promise.all([
+    const [skipVal, darkVal, motionVal, kingsVal] = await Promise.all([
       AsyncStorage.getItem(STORAGE_SKIP_DEAL_ANIMATIONS),
       AsyncStorage.getItem(STORAGE_DARK_MODE_CARDS),
+      AsyncStorage.getItem(STORAGE_REDUCE_MOTION),
+      AsyncStorage.getItem(STORAGE_KINGS_NAME),
     ]);
     return {
       // Default ON until deal animations are out of beta (unset storage → skip).
       skipDealAnimations:
         skipVal == null ? true : skipVal === "1" || skipVal === "true",
       darkModeCards: darkVal === "1" || darkVal === "true",
+      reduceMotion: motionVal === "1" || motionVal === "true",
+      kingsName: kingsVal === "1" || kingsVal === "true",
       loaded: true,
     };
-  } catch {
-    return { skipDealAnimations: true, darkModeCards: false, loaded: true };
+  } catch (error) {
+    console.warn("[GamePreferences] Failed to load preferences:", error);
+    return {
+      skipDealAnimations: true,
+      darkModeCards: false,
+      reduceMotion: false,
+      kingsName: false,
+      loaded: true,
+    };
   }
 }
 
@@ -115,4 +140,28 @@ export async function setDarkModeCards(enabled: boolean): Promise<void> {
   } catch {
     // ignore
   }
+}
+
+export async function setReduceMotion(enabled: boolean): Promise<void> {
+  updateCache({ reduceMotion: enabled });
+  notifyGamePreferences();
+  try {
+    const AsyncStorage = await storage();
+    await AsyncStorage.setItem(STORAGE_REDUCE_MOTION, enabled ? "1" : "0");
+  } catch {
+    // ignore
+  }
+}
+
+export async function setKingsName(enabled: boolean): Promise<void> {
+  await preloadGamePreferences();
+  try {
+    const AsyncStorage = await storage();
+    await AsyncStorage.setItem(STORAGE_KINGS_NAME, enabled ? "1" : "0");
+  } catch (error) {
+    console.error("[GamePreferences] Failed to save Kings & Assholes preference:", error);
+    throw error;
+  }
+  updateCache({ kingsName: enabled });
+  notifyGamePreferences();
 }
