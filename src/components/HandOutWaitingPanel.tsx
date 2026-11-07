@@ -13,12 +13,12 @@ import {
 } from "../services/ads/webH5Ads";
 
 const WAITING_LINES = [
-  "You’re out — soak up the rest of the round.",
-  "Watch the table. Roles are still up for grabs.",
-  "Asshole isn’t decided until the last card lands.",
-  "Next round’s trades depend on this finish order.",
-  "Sip the vibes. Your hand’s done; the drama isn’t.",
-  "Scout who’s holding what for next deal.",
+  "Woah! Done so soon?",
+  "Well done, you finished!",
+  "Am I the asshole?",
+  "Waiting for the others...",
+  "Presidents and Assholes trade cards next round!",
+  "Hang in there baby girl!",
 ];
 
 function getBannerSlotId(): string | null {
