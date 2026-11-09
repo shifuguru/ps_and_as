@@ -63,13 +63,26 @@ export default function PlayerStatisticsPanel({
     { label: "Tricks", value: String(playerStats.tricksWon ?? 0) },
   ];
   const roles = [
-    { label: wording("President"), count: playerStats.timesPresident ?? 0 },
+    {
+      label: wording("President"),
+      count: playerStats.timesPresident ?? 0,
+      color: ROLE_COLORS[0],
+    },
+    {
+      label: "Asshole",
+      count: playerStats.timesAsshole ?? 0,
+      color: ROLE_COLORS[3],
+    },
     {
       label: wording("Vice Pres."),
       count: playerStats.timesVicePresident ?? 0,
+      color: ROLE_COLORS[1],
     },
-    { label: "Vice Asshole", count: playerStats.timesViceAsshole ?? 0 },
-    { label: "Asshole", count: playerStats.timesAsshole ?? 0 },
+    {
+      label: "Vice Asshole",
+      count: playerStats.timesViceAsshole ?? 0,
+      color: ROLE_COLORS[2],
+    },
   ];
 
   return (
@@ -88,22 +101,22 @@ export default function PlayerStatisticsPanel({
         ))}
       </View>
       <View style={styles.roleRow}>
-        {roles.map((role, index) => (
+        {roles.map((role) => (
           <View
             key={role.label}
             style={[
-              styles.rolePill,
+              styles.statCard,
               {
-                backgroundColor: hexToRgba(ROLE_COLORS[index], 0.34),
-                borderColor: hexToRgba(ROLE_COLORS[index], 0.7),
+                backgroundColor: hexToRgba(role.color, 0.34),
+                borderColor: hexToRgba(role.color, 0.7),
               },
             ]}
           >
-            <Text style={styles.rolePillLabel} numberOfLines={1}>
+            <Text style={styles.statLabel} numberOfLines={1}>
               {role.label}
             </Text>
             <Text
-              style={[styles.rolePillValue, { color: ROLE_COLORS[index] }]}
+              style={[styles.statValue, { color: role.color }]}
             >
               {role.count}
             </Text>
@@ -148,7 +161,7 @@ function StreakEnergyPill({
     <RunsPill
       active
       style={styles.streakRoot}
-      showGlow={live}
+      showGlow={false}
       showFlames={live}
       containFlames={live}
       emberSpread="around"
@@ -213,6 +226,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     roleRow: {
       flexDirection: "row",
+      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "stretch",
       gap: 8,
@@ -221,7 +235,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     rolePill: {
       flexGrow: 1,
-      flexBasis: 0,
+      flexBasis: "45%",
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
@@ -245,6 +259,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>["colors"]) {
     },
     streakRow: {
       flexDirection: "row",
+      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "stretch",
       gap: 8,
