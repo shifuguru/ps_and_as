@@ -190,6 +190,7 @@ export const BUILD_CODENAMES: Record<string, string> = {
   "1.2.24": "Fold Em And Hold Em",
   "1.2.25": "Last Card Standing",
   "1.2.26": "Run It Back",
+  "1.2.27": "Off-Suit Outburst",
 };
 
 export function resolveBuildCodename(version: string): string | undefined {
