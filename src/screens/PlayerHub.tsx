@@ -98,7 +98,13 @@ import {
 } from "../services/titlePreferences";
 import { triggerHaptic } from "../utils/haptics";
 import type { OnlinePlayer } from "../services/onlinePresence";
-import { addFriend, readFriends, type FriendProfile } from "../services/friends";
+import {
+  addFriend,
+  formatOnlineAgo,
+  readFriends,
+  recordFriendsSeen,
+  type FriendProfile,
+} from "../services/friends";
 import HubOnlinePlayPanel from "../components/HubOnlinePlayPanel";
 import BottomBar, {
   BottomBarControls,
@@ -305,7 +311,11 @@ export default function PlayerHub({
     void readFriends().then(setFriends);
   }, [refreshKey]);
 
-  const run = (fn: () => void) => {
+  useEffect(() => {
+    if (onlinePlayers.length === 0) return;
+    void recordFriendsSeen(onlinePlayers.map((player) => player.id)).then(setFriends);
+  }, [onlinePlayers]);
+(fn: () => void) => {
     onNavigateSound?.();
     triggerHaptic("light");
     fn();
@@ -1315,7 +1325,7 @@ export default function PlayerHub({
                         ? `In ${friend.online.lobbyName}`
                         : friend.online
                           ? "Online"
-                          : "Offline"}
+                          : formatOnlineAgo(friend.lastSeenAt)}
                     </Text>
                   </View>
                 ))}
