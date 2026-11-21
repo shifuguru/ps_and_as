@@ -315,7 +315,8 @@ export default function PlayerHub({
     if (onlinePlayers.length === 0) return;
     void recordFriendsSeen(onlinePlayers.map((player) => player.id)).then(setFriends);
   }, [onlinePlayers]);
-(fn: () => void) => {
+
+  const run = (fn: () => void) => {
     onNavigateSound?.();
     triggerHaptic("light");
     fn();
