@@ -311,11 +311,16 @@ export default function PlayerHub({
     void readFriends().then(setFriends);
   }, [refreshKey]);
 
+  const onlinePlayerIdsKey = onlinePlayers
+    .map((player) => player.id)
+    .sort()
+    .join("|");
   useEffect(() => {
-    if (onlinePlayers.length === 0) return;
-    void recordFriendsSeen(onlinePlayers.map((player) => player.id)).then(setFriends);
-  }, [onlinePlayers]);
-(fn: () => void) => {
+    if (!onlinePlayerIdsKey) return;
+    void recordFriendsSeen(onlinePlayerIdsKey.split("|")).then(setFriends);
+  }, [onlinePlayerIdsKey]);
+
+  const run = (fn: () => void) => {
     onNavigateSound?.();
     triggerHaptic("light");
     fn();
